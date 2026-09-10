@@ -1,23 +1,60 @@
 ﻿<template>
   <v-card class="pa-2" height="100%" width="100%">
     <v-card-text class="pa-1 canvas-content">
-      <!-- Erweiterte Toolbar -->
-      <div v-if="props.showToolbar" class="toolbar-actions mb-2">
-        <div class="toolbar-primary-row">
-          <!-- Validation Button -->
-          <v-btn v-if="hasValidationRules" size="small" density="compact" color="primary" class="validation-btn" title="Validate diagram" @click="manualValidate">
-            <v-icon start class="validation-icon">mdi-check-circle</v-icon>
-            <span class="validation-text">Validate</span>
-          </v-btn>
+      <ModelingHeader v-if="props.showToolbar && props.modelManagement" class="mb-2">
+        <template #controls>
+          <CanvasToolbar
+            ref="canvasToolbar"
+            v-model:layer-view="activeLayerView"
+            :connections="languageConnections"
+            :connection-groups="props.connectionGroups"
+            :connection-preferences="props.connectionPreferences"
+            @select-all="selectAll"
+            @clear-selection="clearSelection"
+            @delete-selected="deleteSelected"
+            @duplicate-selected="duplicateSelected"
+            @align-left="alignLeft"
+            @align-center-h="alignCenterH"
+            @align-right="alignRight"
+            @align-top="alignTop"
+            @align-middle-v="alignMiddleV"
+            @align-bottom="alignBottom"
+            @select-connection="onConnectionSelected"
+            @update:connection-preferences="updateConnectionPreferences"
+          />
+        </template>
+        <template #save-tools>
+          <v-btn icon="mdi-undo" size="x-small" :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undoGraph" />
+          <v-btn icon="mdi-redo" size="x-small" :disabled="!canRedo" title="Redo (Ctrl+Y)" @click="redoGraph" />
+        </template>
+        <template #sidebar-toggle>
+          <v-btn icon="mdi-dock-right" size="x-small" variant="text" :title="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-label="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-expanded="!rightSidebarCollapsed" @click="rightSidebarCollapsed = !rightSidebarCollapsed" />
+        </template>
+        <template #autonomy><AutonomyControls :mode="autonomyMode" @update:mode="updateAutonomyMode" /></template>
+      </ModelingHeader>
 
-          <v-btn-toggle v-model="activeLayerView" mandatory density="compact" class="layer-visibility-toggle" title="Visible layers">
-            <v-btn value="both" size="small">Both</v-btn>
-            <v-btn value="model" size="small">Model</v-btn>
-            <v-btn value="feedback" size="small">Feedback</v-btn>
-          </v-btn-toggle>
-
-          <AutonomyControls :mode="autonomyMode" @update:mode="updateAutonomyMode" />
-        </div>
+      <!-- Erweiterte Toolbar für Einbettungen ohne Modellverwaltung -->
+      <div v-else-if="props.showToolbar" class="toolbar-actions mb-2">
+        <CanvasToolbar
+          ref="canvasToolbar"
+          v-model:layer-view="activeLayerView"
+          :connections="languageConnections"
+          :connection-groups="props.connectionGroups"
+          :connection-preferences="props.connectionPreferences"
+          @select-all="selectAll"
+          @clear-selection="clearSelection"
+          @delete-selected="deleteSelected"
+          @duplicate-selected="duplicateSelected"
+          @align-left="alignLeft"
+          @align-center-h="alignCenterH"
+          @align-right="alignRight"
+          @align-top="alignTop"
+          @align-middle-v="alignMiddleV"
+          @align-bottom="alignBottom"
+          @select-connection="onConnectionSelected"
+          @update:connection-preferences="updateConnectionPreferences"
+        />
+        <AutonomyControls :mode="autonomyMode" @update:mode="updateAutonomyMode" />
       </div>
 
       <!-- Canvas Area: Sidebar + Graph -->
@@ -33,9 +70,7 @@
               <canvas ref="canvasGrid" class="grid-canvas"></canvas>
             </div>
 
-            <CanvasToolsOverlay v-if="props.showToolbar" ref="canvasToolsOverlay" :connections="languageConnections" :connection-groups="props.connectionGroups" :connection-preferences="props.connectionPreferences" @select-all="selectAll" @clear-selection="clearSelection" @delete-selected="deleteSelected" @duplicate-selected="duplicateSelected" @align-left="alignLeft" @align-center-h="alignCenterH" @align-right="alignRight" @align-top="alignTop" @align-middle-v="alignMiddleV" @align-bottom="alignBottom" @select-connection="onConnectionSelected" @update:connection-preferences="updateConnectionPreferences" />
-
-            <GraphControls :can-undo="canUndo" :can-redo="canRedo" @undo="undoGraph" @redo="redoGraph" @zoom-in="zoomIn" @zoom-out="zoomOut" @fit-to-window="fitToWindow" @toggle-grid="toggleGrid" @force-grid-repaint="forceGridRepaint" />
+            <GraphControls @zoom-in="zoomIn" @zoom-out="zoomOut" @fit-to-window="fitToWindow" @toggle-grid="toggleGrid" @force-grid-repaint="forceGridRepaint" />
 
             <!-- Graph Settings Component -->
             <GraphSettings @update:grid-size="updateGridSize" @update:tolerance="updateTolerance" @update:snap-to-grid="updateSnapToGrid" @update:use-grid-for-panning="updateUseGridForPanning" />
@@ -81,24 +116,24 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" />
+        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :feedback-shapes="feedbackShapes" />
       </div>
       <!-- /canvas-area -->
     </v-card-text>
 
-    <v-dialog v-model="strictValidationDialogVisible" max-width="640">
+    <v-dialog v-model="validationDialogVisible" max-width="640">
       <v-card>
         <v-card-title>Validation Errors</v-card-title>
         <v-card-text>
-          <ul class="strict-validation-errors">
-            <li v-for="(message, index) in strictValidationMessages" :key="`strict-validation-${index}`">
+          <ul class="validation-errors">
+            <li v-for="(message, index) in validationMessages" :key="`validation-${index}`">
               {{ message }}
             </li>
           </ul>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn color="primary" variant="text" @click="strictValidationDialogVisible = false">Close</v-btn>
+          <v-btn color="primary" variant="text" @click="validationDialogVisible = false">Close</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -125,13 +160,15 @@ import { alignHorizontal, alignVertical } from '@/utils/alignCells'
 import { clearValidationWarningOverlays, getGraphValidationMode, isValidationPassActive, setGraphValidationMode } from '@/utils/graphValidationRuntime'
 import { createCellFromElement } from '@/utils/elementFactory'
 import GraphSettings from './GraphSettings.vue'
-import CanvasToolsOverlay from './CanvasToolsOverlay.vue'
-import GraphControls from './GraphControls.vue'
-import AutonomyControls from './AutonomyControls.vue'
 import CanvasWindowHost from './CanvasWindowHost.vue'
-import SidebarContainer from './SidebarContainer.vue'
-import SidebarRightContainer from './SidebarRightContainer.vue'
-import type { SidebarLanguage } from './ElementsSidebar.vue'
+import CanvasToolbar from '@/components/modeling/controls/CanvasToolbar.vue'
+import GraphControls from '@/components/modeling/controls/GraphControls.vue'
+import AutonomyControls from '@/components/modeling/controls/AutonomyControls.vue'
+import type { CanvasLayerView } from '@/components/modeling/controls/LayerVisibilityControls.vue'
+import ModelingHeader from '@/components/modeling/controls/ModelingHeader.vue'
+import SidebarContainer from '@/components/modeling/sidebars/SidebarContainer.vue'
+import SidebarRightContainer from '@/components/modeling/sidebars/SidebarRightContainer.vue'
+import type { SidebarLanguage } from '@/components/modeling/sidebars/ElementsSidebar.vue'
 import type { DiagramElement } from '@/model/Element'
 import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connection'
 import type { DiagramSyntax } from '@/model/Syntax'
@@ -229,7 +266,7 @@ class MyCustomGraph extends Graph {
   override getEdgeValidationError = (edge: Cell | null, source: Cell | null, target: Cell | null): string | null => {
     const error = super.getEdgeValidationError(edge, source, target)
     const mode = getGraphValidationMode(this)
-    if (mode === 'strict') {
+    if (mode === 'preventive') {
       return error
     }
     return isValidationPassActive(this) ? error : null
@@ -274,7 +311,7 @@ interface CanvasWindowHostApi {
   setWindows: (definitions: CanvasWindowDefinition[]) => void
 }
 
-interface CanvasToolsOverlayApi {
+interface CanvasToolbarApi {
   closeConnectionPalette: () => void
 }
 
@@ -315,7 +352,7 @@ const props = withDefaults(
     connectionPreferences: undefined,
     languageSyntax: undefined,
     languages: undefined,
-    autonomyMode: 'manual',
+    autonomyMode: 'free',
     previewConnection: undefined,
     previewMode: 'simple',
     overlays: () => [],
@@ -330,10 +367,9 @@ const emit = defineEmits<{
   'update:connectionPreferences': [preferences: JsonObject]
 }>()
 
-type CanvasLayerView = 'both' | 'model' | 'feedback'
-
-const autonomyMode = ref<AutonomyMode>(props.autonomyMode ?? 'manual')
+const autonomyMode = ref<AutonomyMode>(props.autonomyMode ?? 'free')
 const activeLayerView = ref<CanvasLayerView>('both')
+const rightSidebarCollapsed = ref(false)
 
 // Reaktive Variablen für Konfiguration
 const gridSize = ref(10)
@@ -348,7 +384,7 @@ const graphWrapper = ref<HTMLElement | null>(null)
 const graphContainer = ref<HTMLElement>()
 const canvasGrid = ref<HTMLCanvasElement>()
 const canvasWindowHost = ref<CanvasWindowHostApi | null>(null)
-const canvasToolsOverlay = ref<CanvasToolsOverlayApi | null>(null)
+const canvasToolbar = ref<CanvasToolbarApi | null>(null)
 // shallowRef verhindert, dass Vue die Graph-Instanz in einen reactive()-Proxy einwickelt.
 // Vue's deep reactive Proxy würde Cell-Objekte als Proxy zurückgeben, deren Identität
 // von den originalen Cell-Objekten abweicht. maxGraph speichert CellStates in einer
@@ -379,8 +415,8 @@ const overlayEntries = computed(() => props.overlays ?? [])
 const { overlayTooltip, overlayTooltipAnchorStyle, registerGraph, cleanup: cleanupCanvasOverlays } = useCanvasOverlays(graphWrapper, overlayEntries)
 // Zentraler Validator für alle Diagramm-Regeln
 const diagramValidator = new DiagramValidator()
-const strictValidationDialogVisible = ref(false)
-const strictValidationMessages = ref<string[]>([])
+const validationDialogVisible = ref(false)
+const validationMessages = ref<string[]>([])
 
 const normalizeErrorLines = (rawMessage: string): string[] =>
   rawMessage
@@ -394,14 +430,14 @@ const focusGraphContainer = (evt: PointerEvent) => {
     return
   }
 
-  canvasToolsOverlay.value?.closeConnectionPalette()
+  canvasToolbar.value?.closeConnectionPalette()
   graphContainer.value?.focus({ preventScroll: true })
 }
 
-const openStrictValidationDialog = (messages: string[]) => {
+const openValidationDialog = (messages: string[]) => {
   if (messages.length === 0) return
-  strictValidationMessages.value = [...new Set(messages)]
-  strictValidationDialogVisible.value = true
+  validationMessages.value = [...new Set(messages)]
+  validationDialogVisible.value = true
 }
 
 const updateAutonomyMode = (mode: AutonomyMode) => {
@@ -415,7 +451,7 @@ const applyValidationRulesToGraph = () => {
     return
   }
   diagramValidator.applyToGraph(currentGraph, {
-    liveValidation: autonomyMode.value !== 'manual'
+    liveValidation: autonomyMode.value !== 'free'
   })
 }
 
@@ -424,11 +460,6 @@ const rebuildValidationRules = (rules?: DiagramSyntax[]) => {
   diagramValidator.addRules(validationRules)
   applyValidationRulesToGraph()
 }
-
-// Computed: Gibt es Validierungsregeln?
-const hasValidationRules = computed(() => {
-  return Array.isArray(props.languageSyntax) && props.languageSyntax.some((r) => r.ruleType === 'multiplicity')
-})
 
 // Stelle Graph-Context für Child-Komponenten bereit
 provideGraphContext({
@@ -637,22 +668,6 @@ const updateConnectionPreferences = (preferences: JsonObject) => {
   emit('update:connectionPreferences', preferences)
 }
 
-// Manuelle Validierung
-const manualValidate = () => {
-  const currentGraph = graph.value
-  if (!currentGraph) {
-    return
-  }
-
-  const errors = diagramValidator.validateGraph(currentGraph)
-
-  if (errors.length === 0) {
-    alert('✓ No validation errors found!')
-  } else {
-    alert('✗ Validation errors:\n\n' + errors.join('\n'))
-  }
-}
-
 onMounted(() => {
   initGraph()
 
@@ -680,7 +695,7 @@ onMounted(() => {
     currentGraph?.refresh()
     currentGraph?.view.validate()
 
-    if (currentGraph && autonomyMode.value !== 'manual') {
+    if (currentGraph && autonomyMode.value !== 'free') {
       diagramValidator.validateGraph(currentGraph)
     } else if (currentGraph) {
       clearValidationWarningOverlays(currentGraph)
@@ -776,7 +791,7 @@ watch(
     if (graph.value) {
       setGraphValidationMode(graph.value, mode)
     }
-    if (mode === 'manual' && graph.value) {
+    if (mode === 'free' && graph.value) {
       clearValidationWarningOverlays(graph.value)
     }
     applyValidationRulesToGraph()
@@ -849,8 +864,8 @@ const initGraph = () => {
   setGraphValidationMode(graph.value, autonomyMode.value)
 
   graph.value.validationAlert = (message: string) => {
-    if (autonomyMode.value === 'strict') {
-      openStrictValidationDialog(normalizeErrorLines(message))
+    if (autonomyMode.value === 'validating') {
+      openValidationDialog(normalizeErrorLines(message))
       return
     }
   }
@@ -1311,95 +1326,18 @@ defineExpose({
 
 .toolbar-actions {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  min-height: 40px;
-  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-  border: 1px solid #ddd;
+  align-items: flex-end;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid rgba(var(--v-theme-outline), 0.14);
   border-radius: 4px;
-  padding: 4px 8px;
   gap: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.toolbar-primary-row {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
 }
 
-.maxgraph-toolbar {
-  display: none;
-}
-
-/* Validierungs-Button */
-.validation-btn {
-  margin-right: 8px;
-}
-
-.layer-visibility-toggle {
-  margin-right: 8px;
-}
-
-/* Responsiv: Text bei schmalen Ansichten ausblenden */
-@media (max-width: 600px) {
-  .validation-text {
-    display: none;
-  }
-
-  .validation-icon {
-    margin-right: 0 !important;
-  }
-
-  .validation-btn {
-    min-width: 36px !important;
-  }
-}
-
-.toolbar-container {
-  display: flex;
-  align-items: center;
-  min-height: 40px; /* Reduziert von 50px */
-  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 4px 8px; /* Kompakteres Padding */
-  gap: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-/* Kompakte Eingabefelder */
-.v-text-field :deep(.v-field__input) {
-  min-height: 32px !important;
-  padding: 4px 8px !important;
-}
-
-.v-select :deep(.v-field__input) {
-  min-height: 32px !important;
-  padding: 4px 8px !important;
-}
-
-/* Kompakte Button-Gruppen */
-.v-btn-group .v-btn {
-  min-width: 36px !important;
-  height: 36px !important;
-}
-
-/* Hover-Effekte für bessere UX */
-.toolbar-container .v-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: all 0.2s ease;
-}
-
-/* Aktive Tool-Hervorhebung */
-.v-btn--active {
-  background-color: #1976d2 !important;
-  color: white !important;
-}
-
-.strict-validation-errors {
+.validation-errors {
   margin: 0;
   padding-left: 20px;
   display: flex;
@@ -1409,11 +1347,6 @@ defineExpose({
 
 /* Responsives Design für kleinere Bildschirme */
 @media (max-width: 768px) {
-  .toolbar-container {
-    flex-wrap: wrap;
-    min-height: auto;
-  }
-
   .graph-container {
     height: calc(100vh - 250px);
   }

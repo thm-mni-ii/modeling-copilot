@@ -6,7 +6,7 @@
 import { computed } from 'vue'
 import type { DiagramConnection } from '@/model/DiagramLanguage'
 import type { ConnectionPreviewMode } from '@/utils/connectionPreview'
-import ConnectionEditorFormImpl from './form/ConnectionEditorForm.vue'
+import ConnectionEditorFormImpl from '../form/ConnectionEditorForm.vue'
 
 interface Props {
   selectedConnection: DiagramConnection

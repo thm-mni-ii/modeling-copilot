@@ -66,7 +66,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue'
 import type { DiagramElement } from '@/model/Element'
-import DiagramPreviewItem from '@/components/modeling/DiagramPreviewItem.vue'
+import DiagramPreviewItem from '@/components/modeling/canvas/DiagramPreviewItem.vue'
 
 export interface SidebarLanguage {
   id: string

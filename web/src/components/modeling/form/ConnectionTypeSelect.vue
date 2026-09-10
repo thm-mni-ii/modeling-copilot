@@ -23,7 +23,7 @@
 import { computed } from 'vue'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 import type { DiagramConnection } from '@/model/DiagramLanguage'
-import ConnectionPreviewItem from '@/components/modeling/ConnectionPreviewItem.vue'
+import ConnectionPreviewItem from '@/components/modeling/canvas/ConnectionPreviewItem.vue'
 
 interface Props {
   modelValue: string | string[]

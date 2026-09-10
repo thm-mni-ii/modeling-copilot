@@ -38,12 +38,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import DrawingCanvas from '@/components/modeling/DrawingCanvas.vue'
+import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
 import type { GraphDataModel } from '@maxgraph/core'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 import EditorEntityList from './EditorEntityList.vue'
-import BasicEditorForm from './form/BasicEditorForm.vue'
-import ConnectionEditorForm from './form/ConnectionEditorForm.vue'
+import BasicEditorForm from '../form/BasicEditorForm.vue'
+import ConnectionEditorForm from '../form/ConnectionEditorForm.vue'
 import type { DiagramConnection } from '@/model/DiagramLanguage'
 import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, type ConnectionPreviewMode } from '@/utils/connectionPreview'
 

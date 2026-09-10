@@ -26,27 +26,27 @@
           <v-window v-model="paletteTab" class="connection-palette__content">
             <v-window-item value="recent">
               <div v-if="recentConnections.length" class="connection-grid connection-grid--palette">
-                <ConnectionOption v-for="item in recentConnections" :key="item.key" :item="item" :selected="item.key === selectedKey" :highlighted="matchesSearch(item)" :pinned="false" @select="selectConnection(item)" @toggle-pin="togglePinned(item)" />
+                <ConnectionOption v-for="option in recentConnections" :key="option.key" :item="option" :selected="option.key === selectedKey" :highlighted="matchesSearch(option)" :pinned="false" @select="selectConnection(option)" @toggle-pin="togglePinned(option)" />
               </div>
               <p v-else class="connection-palette__empty">Selected connections will appear here.</p>
             </v-window-item>
 
             <v-window-item value="pinned">
               <div v-if="favoriteConnections.length" class="connection-grid connection-grid--palette">
-                <ConnectionOption v-for="item in favoriteConnections" :key="item.key" :item="item" :selected="item.key === selectedKey" :highlighted="matchesSearch(item)" :pinned="true" @select="selectConnection(item)" @toggle-pin="togglePinned(item)" />
+                <ConnectionOption v-for="option in favoriteConnections" :key="option.key" :item="option" :selected="option.key === selectedKey" :highlighted="matchesSearch(option)" :pinned="true" @select="selectConnection(option)" @toggle-pin="togglePinned(option)" />
               </div>
               <p v-else class="connection-palette__empty">Pinned connections will appear here.</p>
             </v-window-item>
 
             <v-window-item value="all">
               <div class="connection-grid connection-grid--palette">
-                <ConnectionOption v-for="item in scopedConnections" :key="item.key" :item="item" :selected="item.key === selectedKey" :highlighted="matchesSearch(item)" :pinned="isPinned(item)" @select="selectConnection(item)" @toggle-pin="togglePinned(item)" />
+                <ConnectionOption v-for="option in scopedConnections" :key="option.key" :item="option" :selected="option.key === selectedKey" :highlighted="matchesSearch(option)" :pinned="isPinned(option)" @select="selectConnection(option)" @toggle-pin="togglePinned(option)" />
               </div>
             </v-window-item>
 
             <v-window-item v-for="group in groups" :key="group.id" :value="`language:${group.id}`">
               <div class="connection-grid connection-grid--palette">
-                <ConnectionOption v-for="item in scopedConnectionsByGroup(group.id)" :key="item.key" :item="item" :selected="item.key === selectedKey" :highlighted="matchesSearch(item)" :pinned="isPinned(item)" @select="selectConnection(item)" @toggle-pin="togglePinned(item)" />
+                <ConnectionOption v-for="option in scopedConnectionsByGroup(group.id)" :key="option.key" :item="option" :selected="option.key === selectedKey" :highlighted="matchesSearch(option)" :pinned="isPinned(option)" @select="selectConnection(option)" @toggle-pin="togglePinned(option)" />
               </div>
             </v-window-item>
           </v-window>
@@ -60,7 +60,7 @@
 import { computed, defineComponent, h, ref, watch, type PropType } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
 import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connection'
-import ConnectionPreviewItem from '@/components/modeling/ConnectionPreviewItem.vue'
+import ConnectionPreviewItem from '@/components/modeling/canvas/ConnectionPreviewItem.vue'
 
 interface Props {
   connections: DiagramConnection[]

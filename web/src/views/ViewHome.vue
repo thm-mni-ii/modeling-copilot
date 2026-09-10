@@ -45,8 +45,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import ModelSnapshotPreview from '@/components/modeling/ModelSnapshotPreview.vue'
-import ModelSnapshotList from '@/components/modeling/ModelSnapshotList.vue'
+import ModelSnapshotPreview from '@/components/modeling/versions/ModelSnapshotPreview.vue'
+import ModelSnapshotList from '@/components/modeling/versions/ModelSnapshotList.vue'
 import modelService from '@/services/model/model.service'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { JsonObject } from '@/services/api/types/common'

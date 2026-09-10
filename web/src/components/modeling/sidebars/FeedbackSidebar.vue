@@ -1,10 +1,8 @@
 <template>
-  <div class="feedback-sidebar" :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px' }">
+  <div class="feedback-sidebar">
     <div class="sidebar-body">
       <div class="sidebar-section">
-        <div class="sidebar-header sidebar-header--static">
-          <span class="sidebar-title">Feedback</span>
-        </div>
+        <SidebarPanelHeader v-if="showHeader" title="Feedback" />
 
         <div class="sidebar-elements">
           <div v-for="shape in normalizedShapes" :key="shape.name" class="sidebar-element" draggable="true" :title="shape.label" @dragstart="(event) => onDragStart(event, shape.name)">
@@ -22,10 +20,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import SidebarPanelHeader from './SidebarPanelHeader.vue'
 
 const props = withDefaults(
   defineProps<{
-    sidebarWidth?: number
+    showHeader?: boolean
     feedbackShapes?: Array<{
       name: string
       label: string
@@ -33,7 +32,7 @@ const props = withDefaults(
     }>
   }>(),
   {
-    sidebarWidth: 210,
+    showHeader: true,
     feedbackShapes: () => []
   }
 )
@@ -70,28 +69,6 @@ const onDragStart = (event: DragEvent, shapeName: string) => {
   overflow-y: auto;
   overflow-x: hidden;
   background: #ffffff;
-}
-
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 9px 10px 9px 12px;
-  background: #ffffff;
-  border: none;
-  border-left: 3px solid rgba(var(--v-theme-primary), 0.7);
-  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.1);
-}
-
-.sidebar-header--static {
-  border-left-color: rgba(var(--v-theme-on-surface), 0.25);
-}
-
-.sidebar-title {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: rgba(var(--v-theme-on-surface), 0.82);
 }
 
 .sidebar-elements {

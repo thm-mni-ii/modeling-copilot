@@ -8,7 +8,7 @@
 import { defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
 
-const DrawingCanvas = defineAsyncComponent(() => import('./DrawingCanvas.vue'))
+const DrawingCanvas = defineAsyncComponent(() => import('@/components/modeling/canvas/DrawingCanvas.vue'))
 
 const props = withDefaults(
   defineProps<{

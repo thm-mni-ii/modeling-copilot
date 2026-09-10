@@ -3,7 +3,7 @@ import type { CellStyle } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
 import type { FeedbackCanvasRulesConfig } from '@/model/Feedback'
 import { applyConnectionAdditionalLabels } from '@/utils/connectionLabelHelpers'
-import { shouldBlockInteractiveValidation } from '@/utils/graphValidationRuntime'
+import { getGraphValidationMode, setValidationPassActive, shouldBlockInteractiveValidation } from '@/utils/graphValidationRuntime'
 import { isTruthyFlag } from '@/utils/flagUtils'
 
 class AnchorConstraintHandler extends ConstraintHandler {
@@ -24,6 +24,22 @@ export class CustomConnectionHandler extends ConnectionHandler {
     forbidFeedbackAsTarget: true,
     enforceDedicatedConnection: true,
     preventContainerDrop: true
+  }
+
+  private reportValidatingFeedback(edge: Cell, source: Cell | null, target: Cell | null): void {
+    if (getGraphValidationMode(this.graph) !== 'validating') return
+
+    window.setTimeout(() => {
+      setValidationPassActive(this.graph, true)
+      try {
+        const validationError = this.graph.getEdgeValidationError(edge, source, target)
+        if (validationError) {
+          this.graph.validationAlert(validationError)
+        }
+      } finally {
+        setValidationPassActive(this.graph, false)
+      }
+    }, 0)
   }
 
   constructor(graph: Graph) {
@@ -312,12 +328,17 @@ export class CustomConnectionHandler extends ConnectionHandler {
         }
 
         applyConnectionAdditionalLabels(this.graph, edge, effectiveConnection)
+        this.reportValidatingFeedback(edge, sourceCell, targetCell)
       }
 
       return edge
     }
 
-    return super.insertEdge(parent, id ?? '', value, source, target, style)
+    const edge = super.insertEdge(parent, id ?? '', value, source, target, style)
+    if (edge) {
+      this.reportValidatingFeedback(edge, sourceCell, targetCell)
+    }
+    return edge
   }
 
   override mouseMove(sender: any, me: InternalMouseEvent): void {

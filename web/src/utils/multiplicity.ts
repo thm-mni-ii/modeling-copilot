@@ -165,7 +165,7 @@ class DiagramMultiplicity extends Multiplicity {
     })
   }
 
-  override check(_graph: Graph, edge: Cell, source: Cell, target: Cell, _sourceOut: number, _targetIn: number): string | null {
+  override check(_graph: Graph, edge: Cell, source: Cell, target: Cell): string | null {
     const sourceType = getElementType(source)
     const targetType = getElementType(target)
 

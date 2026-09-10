@@ -18,7 +18,7 @@ export const setGraphValidationMode = (graph: object, mode: AutonomyMode): void 
 }
 
 export const getGraphValidationMode = (graph: object): AutonomyMode => {
-  return (graph as ValidationRuntimeCarrier)[VALIDATION_MODE_KEY] ?? 'manual'
+  return (graph as ValidationRuntimeCarrier)[VALIDATION_MODE_KEY] ?? 'free'
 }
 
 export const setValidationPassActive = (graph: object, active: boolean): void => {
@@ -30,7 +30,7 @@ export const isValidationPassActive = (graph: object): boolean => {
 }
 
 export const shouldBlockInteractiveValidation = (graph: object): boolean => {
-  return getGraphValidationMode(graph) === 'strict'
+  return getGraphValidationMode(graph) === 'preventive'
 }
 
 export const isValidationWarningOverlay = (graph: WarningImageProvider, overlay: CellOverlay): boolean => {

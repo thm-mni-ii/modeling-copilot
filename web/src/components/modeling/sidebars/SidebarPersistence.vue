@@ -1,9 +1,7 @@
 <template>
   <div class="sidebar-persistence">
     <div class="sidebar-section">
-      <div class="sidebar-header sidebar-header--static">
-        <span class="sidebar-title">Import / Export</span>
-      </div>
+      <SidebarPanelHeader v-if="showHeader" title="Import / Export" />
 
       <div class="sidebar-section-body">
         <p class="sidebar-description">Export the current model as XML or load an XML file into the editor.</p>
@@ -61,8 +59,11 @@
 import { ref } from 'vue'
 import { exportModelAsXml, importModelFromXml, saveTextFile } from '@/utils/modelPersistence'
 import { useGraphContext } from '@/composables/useGraphContext'
+import SidebarPanelHeader from './SidebarPanelHeader.vue'
 
 type DialogMode = 'download' | 'upload'
+
+withDefaults(defineProps<{ showHeader?: boolean }>(), { showHeader: true })
 
 const { graph } = useGraphContext()
 
@@ -164,32 +165,6 @@ const importModel = async () => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 9px 10px 9px 12px;
-  background: #ffffff;
-  border: none;
-  border-left: 3px solid rgba(var(--v-theme-primary), 0.7);
-  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.1);
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.sidebar-header--static {
-  cursor: default;
-  border-left-color: rgba(var(--v-theme-on-surface), 0.25);
-}
-
-.sidebar-title {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: rgba(var(--v-theme-on-surface), 0.82);
 }
 
 .sidebar-section-body {

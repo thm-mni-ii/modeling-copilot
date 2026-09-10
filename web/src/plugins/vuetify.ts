@@ -26,6 +26,8 @@ export default createVuetify({
           secondary: "#03DAC6",
           "secondary-darken-1": "#018786",
           "dark-gray": "#414958",
+          "light-gray": "#D3D3D3",
+          "medium-gray": "#606060",
           black: "#1F242E",
           white: "#FFFFFF",
           error: "#e60000",

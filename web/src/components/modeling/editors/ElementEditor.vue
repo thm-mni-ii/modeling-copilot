@@ -41,7 +41,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import DrawingCanvas from '@/components/modeling/DrawingCanvas.vue'
+import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
 import { Shape, AbstractCanvas2D } from '@maxgraph/core'
 import { createCellFromElement, addCellToGraph } from '@/utils/elementFactory'
 import { ShapeRegistry } from '@maxgraph/core'
@@ -49,8 +49,8 @@ import type { GraphDataModel } from '@maxgraph/core'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 import type { DiagramElement, ChildElement } from '@/model/Element'
 import EditorEntityList from './EditorEntityList.vue'
-import BasicEditorForm from './form/BasicEditorForm.vue'
-import ElementPropertiesEditor from './form/ElementPropertiesEditor.vue'
+import BasicEditorForm from '../form/BasicEditorForm.vue'
+import ElementPropertiesEditor from '../form/ElementPropertiesEditor.vue'
 
 // Props
 const store = useDiagramLanguages()

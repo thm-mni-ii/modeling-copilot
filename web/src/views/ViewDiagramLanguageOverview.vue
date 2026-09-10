@@ -73,7 +73,7 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import DialogLanguageEditor from '@/components/dialog/DialogLanguageEditor.vue'
-import LanguageVersionList from '@/components/modeling/LanguageVersionList.vue'
+import LanguageVersionList from '@/components/modeling/versions/LanguageVersionList.vue'
 import { createEmptyDiagramLanguage } from '@/model/DiagramLanguage'
 import languageService from '@/services/language/language.service'
 import type { ApiId } from '@/services/api/types/common'

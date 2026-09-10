@@ -106,8 +106,8 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import DrawingCanvas from '@/components/modeling/DrawingCanvas.vue'
-import EditorEntityList from '@/components/modeling/EditorEntityList.vue'
+import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
+import EditorEntityList from '@/components/modeling/editors/EditorEntityList.vue'
 import BasicEditorForm from '@/components/modeling/form/BasicEditorForm.vue'
 import FeedbackEditorForm from '@/components/modeling/form/FeedbackEditorForm.vue'
 import FeedbackCanvasConfiguratorForm from '@/components/modeling/form/FeedbackCanvasConfiguratorForm.vue'

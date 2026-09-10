@@ -16,7 +16,7 @@
           <v-card-title class="py-2 d-flex align-center">
             <span class="text-h6">Preview</span>
             <v-spacer />
-            <AutonomyModeToggle v-model="autonomyMode" />
+            <AutonomyControls :mode="autonomyMode" @update:mode="autonomyMode = $event" />
           </v-card-title>
 
           <v-divider />
@@ -36,11 +36,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import DrawingCanvas from '@/components/modeling/DrawingCanvas.vue'
-import AutonomyModeToggle from '@/components/modeling/AutonomyModeToggle.vue'
-import BasicEditorForm from './form/BasicEditorForm.vue'
+import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
+import AutonomyControls from '@/components/modeling/controls/AutonomyControls.vue'
+import type { AutonomyMode } from '@/model/Autonomy'
+import BasicEditorForm from '../form/BasicEditorForm.vue'
 import type { GraphDataModel } from '@maxgraph/core'
-import SyntaxEditorForm from './form/SyntaxEditorForm.vue'
+import SyntaxEditorForm from '../form/SyntaxEditorForm.vue'
 import type { DiagramSyntax } from '@/model/DiagramLanguage'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 
@@ -52,7 +53,7 @@ const store = useDiagramLanguages()
 const canvasModel = ref<GraphDataModel>()
 const drawingCanvasRef = ref()
 
-const autonomyMode = ref<'manual' | 'assisted' | 'strict'>('manual')
+const autonomyMode = ref<AutonomyMode>('free')
 
 // Computed
 const syntaxRules = computed(() => store.definition?.syntax || [])

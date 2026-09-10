@@ -20,8 +20,8 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { GraphDataModel } from '@maxgraph/core'
-import DrawingCanvas from '@/components/modeling/DrawingCanvas.vue'
-import ModelSnapshotPreview from '@/components/modeling/ModelSnapshotPreview.vue'
+import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
+import ModelSnapshotPreview from '@/components/modeling/versions/ModelSnapshotPreview.vue'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { JsonObject } from '@/services/api/types/common'
 

@@ -8,12 +8,6 @@
     </div>
     <div class="control-row">
       <v-btn-group size="small" density="compact" variant="outlined">
-        <v-btn icon="mdi-undo" :disabled="!props.canUndo" title="Undo (Ctrl+Z)" @click="handleUndo" />
-        <v-btn icon="mdi-redo" :disabled="!props.canRedo" title="Redo (Ctrl+Y)" @click="handleRedo" />
-      </v-btn-group>
-    </div>
-    <div class="control-row">
-      <v-btn-group size="small" density="compact" variant="outlined">
         <v-btn icon="mdi-magnify-minus" title="Zoom out" @click="handleZoomOut" />
         <v-btn icon="mdi-fit-to-page" title="Fit to window" @click="handleFitToWindow" />
         <v-btn icon="mdi-magnify-plus" title="Zoom in" @click="handleZoomIn" />
@@ -25,29 +19,10 @@
 <script setup lang="ts">
 import { useGraphContext } from '@/composables/useGraphContext'
 
-const props = withDefaults(
-  defineProps<{
-    canUndo?: boolean
-    canRedo?: boolean
-  }>(),
-  {
-    canUndo: false,
-    canRedo: false
-  }
-)
-
 const { isPanning, snapToGrid } = useGraphContext()
 
 // Emits für Parent-Komponente
-const emit = defineEmits(['undo', 'redo', 'zoom-in', 'zoom-out', 'fit-to-window', 'toggle-grid', 'force-grid-repaint'])
-
-const handleUndo = () => {
-  emit('undo')
-}
-
-const handleRedo = () => {
-  emit('redo')
-}
+const emit = defineEmits(['zoom-in', 'zoom-out', 'fit-to-window', 'toggle-grid', 'force-grid-repaint'])
 
 const handleZoomIn = () => {
   emit('zoom-in')
