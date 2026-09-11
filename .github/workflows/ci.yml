@@ -49,3 +49,4 @@ jobs:
       - run: python -c "from modeling_api.main import app; assert app.title == 'Modeling Copilot API'"
         env:
           PYTHONPATH: src
+      - run: docker build --file Dockerfile --tag modeling-copilot-api:ci .
