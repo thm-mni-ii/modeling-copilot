@@ -1,4 +1,8 @@
-# API lokal einrichten
+# Modeling Copilot API
+
+API for Modeling Copilot, release 1.0.0.
+
+## Lokal einrichten
 
 ## Einmalig einrichten
 

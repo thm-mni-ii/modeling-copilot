@@ -1,4 +1,4 @@
-"""Idempotente Startdaten für eine neue Modeling-Tool-Datenbank.
+"""Idempotente Startdaten für eine neue Modeling-Copilot-Datenbank.
 
 Die IDs sind absichtlich fest vergeben.  So wird beim erneuten API-Start kein
 zweiter Satz erzeugt und Referenzen auf die Startdaten bleiben stabil.

@@ -17,3 +17,8 @@ api/openapi.json
 
 # Local MCP browser artifacts
 .playwright-mcp/
+
+# Personal development suite and assistant configuration
+/.local/
+/.codex/
+/.agents/

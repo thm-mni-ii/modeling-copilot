@@ -1,6 +1,6 @@
-# eWiLL_frontend
+# Modeling Copilot Web
 
-This template should help get you started developing with Vue 3 in Vite.
+Web application for Modeling Copilot, release 1.0.0. Built with Vue 3 and Vite.
 
 ## Recommended IDE Setup
 

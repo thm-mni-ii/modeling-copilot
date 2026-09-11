@@ -1,1 +1,1 @@
-"""Versionierte Ablage für das Modellierungstool (FastAPI + MongoDB)."""
+"""Modeling Copilot API (FastAPI + MongoDB)."""

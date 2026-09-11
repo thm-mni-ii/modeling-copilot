@@ -1,4 +1,0 @@
-interface:
-  display_name: "Codex Token Optimizer"
-  short_description: "Reduce token waste during Codex development work."
-  default_prompt: "Use this skill to keep a Codex development task token-efficient without sacrificing correctness."

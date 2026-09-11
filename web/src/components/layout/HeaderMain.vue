@@ -45,8 +45,9 @@ const logout = () => {
 
 <style scoped lang="scss">
 .icon {
-  height: 35px;
-  width: auto;
+  display: block;
+  height: 36px;
+  width: 250px;
   margin-right: 20px;
 }
 </style>

@@ -1,4 +1,4 @@
-name: modeling-tool
+name: modeling-copilot
 
 services:
   mongo:

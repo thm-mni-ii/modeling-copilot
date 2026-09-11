@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="primary" x1="8" y1="56" x2="54" y2="8" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F8A00" />
+      <stop offset="0.58" stop-color="#81BA24" />
+      <stop offset="1" stop-color="#B4ED59" />
+    </linearGradient>
+    <linearGradient id="primary-light" x1="18" y1="46" x2="41" y2="16" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#81BA24" />
+      <stop offset="1" stop-color="#B4ED59" />
+    </linearGradient>
+  </defs>
+
+  <!-- Modeling canvas -->
+  <path d="M45 7H17C10.4 7 7 10.4 7 17v30c0 6.6 3.4 10 10 10h30c6.6 0 10-3.4 10-10V35" fill="none" stroke="url(#primary)" stroke-width="6" stroke-linecap="round" />
+
+  <!-- Diagram structure -->
+  <path d="M30 25v9M19 40v-3c0-1.7 1.3-3 3-3h16c1.7 0 3 1.3 3 3v3" fill="none" stroke="#4F8A00" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+  <rect x="19" y="15" width="22" height="11" rx="4" fill="url(#primary-light)" />
+  <rect x="12" y="40" width="16" height="10" rx="4" fill="url(#primary-light)" />
+  <rect x="34" y="40" width="16" height="10" rx="4" fill="url(#primary-light)" />
+
+  <!-- Copilot sparkle -->
+  <path d="M51 7c.7 3.3 2.7 5.3 6 6-3.3.7-5.3 2.7-6 6-.7-3.3-2.7-5.3-6-6 3.3-.7 5.3-2.7 6-6Z" fill="#B4ED59" />
+
+  <!-- Pointer -->
+  <path d="m39 28 20 10-8 3.4-4.2 9.6Z" fill="#4F8A00" stroke="#FFFFFF" stroke-width="3.5" stroke-linejoin="round" />
+</svg>

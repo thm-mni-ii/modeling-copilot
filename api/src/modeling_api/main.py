@@ -27,9 +27,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="Modeling Tool API",
+    title="Modeling Copilot API",
     description="Versionierte Ablage für Sprachen, Modelle, Aufgabenstellungen und Feedback.",
-    version="0.1.0",
+    version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs" if settings.docs_enabled else None,
     openapi_url="/openapi.json" if settings.docs_enabled else None,
