@@ -17,52 +17,14 @@ uncertain case to an educator.
 > learner support, and learning effectiveness are research goals and are not
 > yet production-ready or empirically established by this repository.
 
-## Current capabilities
-
-- Configure and version graphical modeling languages.
-- Define elements, connections, visual behavior, and multiplicity-based syntax
-  rules through an administrator-facing language editor.
-- Create models in a generic visual editor using configured language versions.
-- Create and version rich-text modeling task statements.
-- Persist versioned languages, tasks, models, and feedback through a FastAPI
-  backend backed by MongoDB.
-- Preview, restore, fork, archive, and test language or model versions.
-- Validate externally issued JWT bearer tokens and restrict administrative
-  views by role.
-- Start with an included UML class-diagram language and an order-management
-  modeling task.
-
-The current repository does not yet provide a complete agentic tutoring
-runtime, a general semantic grading service, or evidence that its use improves
-learning outcomes.
-
-## Research direction
-
-The planned learning-support architecture separates four concerns:
-
-1. **Modeling environment:** reusable representation and interaction
-   capabilities for different graphical languages.
-2. **Evidence and diagnosis:** deterministic syntax checks and specialized
-   assessment tools produce inspectable evidence about a learner artifact.
-3. **Pedagogical orchestration:** an agent selects an admissible next learning
-   action based on the learning objective, task state, learner state, available
-   evidence, uncertainty, and previous interventions.
-4. **Human control:** learners and educators can inspect assumptions, control
-   assistance, correct diagnoses, and escalate uncertain cases.
-
-The guiding principle is **bounded agency**: technical capability does not by
-itself make an action pedagogically appropriate. The system should preserve
-learner reasoning and solution responsibility, prefer grounded and reversible
-actions, and retain human control for consequential decisions.
-
 ## Architecture
 
-| Component | Technology | Responsibility |
-| --- | --- | --- |
-| `web/` | Vue 3, TypeScript, Vite, Vuetify, maxGraph | Modeling UI, language editor, and task editor |
-| `api/` | Python 3.13, FastAPI, Pydantic, PyMongo | Authenticated API and versioned persistence |
-| MongoDB | MongoDB 8 | Languages, tasks, models, versions, and feedback |
-| `docker-compose.yaml` | Docker Compose | Local MongoDB and API services |
+| Component             | Technology                                 | Responsibility                                   |
+| --------------------- | ------------------------------------------ | ------------------------------------------------ |
+| `web/`                | Vue 3, TypeScript, Vite, Vuetify, maxGraph | Modeling UI, language editor, and task editor    |
+| `api/`                | Python 3.13, FastAPI, Pydantic, PyMongo    | Authenticated API and versioned persistence      |
+| MongoDB               | MongoDB 8                                  | Languages, tasks, models, versions, and feedback |
+| `docker-compose.yaml` | Docker Compose                             | Local MongoDB and API services                   |
 
 ## Local development
 
@@ -107,8 +69,7 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:5173>. The Vite development server proxies API requests
-to the backend at <http://localhost:8000>.
+The Vite development server proxies API requests to the backend at <http://localhost:8085>.
 
 ### Run the API without Docker
 
@@ -176,4 +137,4 @@ than an OSI-approved open-source license.
 ## Acknowledgements
 
 Modeling Copilot is developed in a higher-education research context at the
-Technische Hochschule Mittelhessen (THM).
+University of Applied Sciences Mittelhessen (THM).
