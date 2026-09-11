@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      # Den Platzhalter durch den vollständigen SHA des geprüften Releases
+      # ersetzen, zum Beispiel des aktuellen actions/checkout-Releases.
+      - uses: actions/checkout@FULL_COMMIT_SHA
+      - uses: actions/setup-node@FULL_COMMIT_SHA
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  api:
+    name: api
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@FULL_COMMIT_SHA
+      - uses: actions/setup-python@FULL_COMMIT_SHA
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+      - run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - run: python -m compileall -q src
+      - run: python -c "from modeling_api.main import app; assert app.title == 'Modeling Copilot API'"
+        env:
+          PYTHONPATH: src
