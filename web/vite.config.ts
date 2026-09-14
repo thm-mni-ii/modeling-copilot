@@ -45,7 +45,7 @@ export default defineConfig({
     port: 8085,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
         // Backend registriert seine Routen ohne /api-Präfix (/auth, /v1, /health)

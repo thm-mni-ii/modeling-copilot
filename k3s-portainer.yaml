@@ -51,7 +51,9 @@ spec:
     spec:
       containers:
         - name: mongo
-          image: mongo:8.0
+          # MongoDB 5.0+ requires AVX on x86_64. Version 4.4 is used for
+          # compatibility with older k3s nodes that do not expose AVX.
+          image: mongo:4.4.29
           imagePullPolicy: IfNotPresent
           ports:
             - name: mongodb
