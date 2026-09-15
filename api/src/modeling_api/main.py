@@ -15,7 +15,7 @@ from modeling_api.core.config import settings
 from modeling_api.core.errors import ErrorResponse, register_error_handlers
 from modeling_api.db.client import client, create_indexes, db
 from modeling_api.db.initial_data import seed_initial_data
-from modeling_api.routes import auth, feedback, languages, models, tasks
+from modeling_api.routes import auth, feedback, languages, models, server_time, tasks
 
 
 @asynccontextmanager
@@ -60,6 +60,7 @@ api.include_router(languages.router)
 api.include_router(tasks.router)
 api.include_router(models.router)
 api.include_router(feedback.router)
+api.include_router(server_time.router)
 app.include_router(api)
 
 

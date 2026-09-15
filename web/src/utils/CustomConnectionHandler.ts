@@ -271,6 +271,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
   }
 
   override insertEdge(parent: Cell, id: string, value: any, source: Cell | null, target: Cell | null, style: CellStyle): Cell {
+    const persistedId = id?.trim() || crypto.randomUUID()
     const sourceCell = (source as Cell | null) ?? null
     const targetCell = (target as Cell | null) ?? null
     const sourceIsFeedbackLabel = this.isFeedbackCell(sourceCell)
@@ -306,7 +307,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
       const edgeLabel = effectiveConnection.defaultLabel ?? ''
       const connectionStyle = this.buildConnectionStyle(effectiveConnection)
 
-      const edge = super.insertEdge(parent, id ?? '', edgeLabel, source, target, connectionStyle)
+      const edge = super.insertEdge(parent, persistedId, edgeLabel, source, target, connectionStyle)
       if (edge) {
         edge.setConnectable(true)
         ;(edge as any).connectionId = connectionId
@@ -334,7 +335,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return edge
     }
 
-    const edge = super.insertEdge(parent, id ?? '', value, source, target, style)
+    const edge = super.insertEdge(parent, persistedId, value, source, target, style)
     if (edge) {
       this.reportValidatingFeedback(edge, sourceCell, targetCell)
     }

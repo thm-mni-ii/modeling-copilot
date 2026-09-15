@@ -10,7 +10,8 @@
     <ModelingToolbarGroup title="Save" class="modeling-header__save-group">
       <v-btn-group size="small" density="compact" variant="outlined">
         <v-btn :icon="saveIcon" :color="saveColor" :loading="workspace.syncState === 'saving'" :title="`${stateLabel} — Save model`" @click="saveCheckpoint" />
-        <v-btn icon="mdi-tag-plus-outline" color="medium-gray" title="Release version" @click="openRelease" />
+        <v-btn icon="mdi-tag-plus-outline" color="medium-gray" :disabled="!workspace.canRelease" :title="workspace.canRelease ? 'Release version' : 'Save the latest checkpoint before releasing'" @click="openRelease" />
+        <v-btn icon="mdi-timeline-clock-outline" :color="workspace.pendingPatches.length ? 'warning' : 'medium-gray'" :disabled="!workspace.model" title="Version timeline" aria-label="Open version timeline" @click="timelineDialog = true" />
         <slot name="save-tools" />
       </v-btn-group>
     </ModelingToolbarGroup>
@@ -41,10 +42,12 @@
         <v-card-text>
           <v-text-field v-model="releaseName" label="Release name" autofocus @keyup.enter="saveRelease" />
           <v-textarea v-model="releaseDescription" label="Description (optional)" />
+          <p class="text-caption text-medium-emphasis mb-0">A release can only be created after all local changes have been saved as a checkpoint.</p>
         </v-card-text>
-        <v-card-actions><v-spacer /><v-btn @click="releaseDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!releaseName.trim()" @click="saveRelease">Release</v-btn></v-card-actions>
+        <v-card-actions><v-spacer /><v-btn @click="releaseDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!releaseName.trim() || !workspace.canRelease" @click="saveRelease">Release</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
+    <ModelTimelineDialog v-model="timelineDialog" />
   </header>
 </template>
 
@@ -53,6 +56,7 @@ import { computed, ref } from 'vue'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { exportModelAsXml } from '@/utils/modelPersistence'
+import ModelTimelineDialog from '@/components/modeling/versions/ModelTimelineDialog.vue'
 import ModelingToolbarGroup from './ModelingToolbarGroup.vue'
 
 const workspace = useModelWorkspaceStore()
@@ -65,6 +69,7 @@ const saveError = ref<string | null>(null)
 const releaseDialog = ref(false)
 const releaseName = ref('')
 const releaseDescription = ref('')
+const timelineDialog = ref(false)
 const stateLabel = computed(() => ({ synced: 'Saved', dirty: 'Unsaved changes', saving: 'Saving...', offline: 'Offline - saved locally', conflict: 'Conflict' })[workspace.syncState])
 const canSave = computed(() => workspace.dirty && workspace.syncState !== 'saving' && workspace.syncState !== 'conflict')
 const saveColor = computed(() => ({ synced: 'success', dirty: 'warning', saving: 'primary', offline: 'warning', conflict: 'error' })[workspace.syncState])
@@ -173,12 +178,20 @@ const saveName = async () => {
   min-width: 0;
 }
 
-.modeling-header__spacer { flex: 1; }
+.modeling-header__spacer {
+  flex: 1;
+}
 
-.modeling-header__error { width: 100%; }
+.modeling-header__error {
+  width: 100%;
+}
 
 @media (max-width: 900px) {
-  .modeling-header__spacer { display: none; }
-  .modeling-header__autonomy { margin-left: auto; }
+  .modeling-header__spacer {
+    display: none;
+  }
+  .modeling-header__autonomy {
+    margin-left: auto;
+  }
 }
 </style>

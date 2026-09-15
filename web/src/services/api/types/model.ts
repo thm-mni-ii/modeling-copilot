@@ -35,12 +35,18 @@ export interface UpdateModel {
 
 export interface ModelVersionInfo extends ApiVersionInfo {
   modelId: ApiId
-  previousVersionId: ApiId | null
+  baseReleaseId: ApiId | null
+  patches: ModelPatch[]
   workspaceLanguages: WorkspaceLanguageReference[]
   taskVersion: TaskVersionReference | null
   kind: ModelVersionKind
   releaseName: string | null
   description: string | null
+}
+
+export interface ModelPatch {
+  createdAt: string
+  xml: string
 }
 
 export interface ModelVersion extends ModelVersionInfo {
@@ -50,9 +56,11 @@ export interface ModelVersion extends ModelVersionInfo {
 
 export interface CreateModelVersion {
   baseVersionId: ApiId | null
+  baseReleaseId?: ApiId | null
   workspaceLanguages?: WorkspaceLanguageReference[]
   taskVersion?: TaskVersionReference | null
   data: JsonObject
+  patches?: ModelPatch[]
   annotations?: JsonObject | null
   kind?: ModelVersionKind
   releaseName?: string | null
