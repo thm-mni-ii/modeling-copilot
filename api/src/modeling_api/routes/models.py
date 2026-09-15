@@ -67,7 +67,7 @@ async def list_versions(
     )
 
 
-@router.post("/{model_id}/versions", status_code=201, summary="Vollständigen Speicherstand sichern")
+@router.post("/{model_id}/versions", status_code=201, summary="Release oder Patch-Checkpoint sichern")
 async def create_version(
     model_id: UUID, body: CreateModelVersion, user: CurrentUser
 ) -> ModelVersion:

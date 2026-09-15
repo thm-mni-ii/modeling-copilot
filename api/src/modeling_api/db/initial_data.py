@@ -53,6 +53,7 @@ async def seed_initial_data() -> None:
     await db.language_versions.update_many({"kind": "named"}, {"$set": {"kind": "release"}})
     await db.model_versions.update_many({"kind": "named"}, {"$set": {"kind": "release"}})
     await db.model_versions.update_many({}, {"$unset": {"languageVersions": ""}})
+    await db.model_versions.update_many({}, {"$unset": {"previousVersionId": ""}})
     await db.languages.update_many(
         {"archivedAt": {"$exists": False}}, {"$set": {"archivedAt": None}}
     )

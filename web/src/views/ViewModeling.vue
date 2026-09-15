@@ -77,10 +77,9 @@ onMounted(async () => {
     if (props.modelId) {
       await workspace.load(props.modelId)
       await syncCanvas()
-      const draft = await workspace.getRecoveryDraft()
-      const payload = draft?.payload as { data?: JsonObject } | undefined
-      if (payload?.data) {
-        recoveryData.value = payload.data
+      const recoverySnapshot = await workspace.getRecoverySnapshot()
+      if (recoverySnapshot) {
+        recoveryData.value = recoverySnapshot
         recoveryDialog.value = true
       }
     } else if (workspace.languages.length === 0) {

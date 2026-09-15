@@ -3,11 +3,12 @@
 Zugriff: Jeder sieht nur seine eigenen Modelle.
 """
 
+from copy import deepcopy
 from re import escape
 from uuid import UUID
 
 from modeling_api.core.auth import User
-from modeling_api.core.errors import not_found
+from modeling_api.core.errors import conflict, not_found
 from modeling_api.db.client import db
 from modeling_api.db.store import Document, insert, list_page, save_version, to_api, utcnow
 from modeling_api.schemas.models import (
@@ -18,6 +19,7 @@ from modeling_api.schemas.models import (
     UpdateModel,
 )
 from modeling_api.services.languages import check_language_refs
+from modeling_api.services.xml_patches import apply_patches, validate_model_xml
 
 
 async def list_models(
@@ -114,7 +116,52 @@ async def get_version(model_id: UUID, version_id: UUID, user: User) -> Document:
     )
     if version is None:
         raise not_found()
-    return to_api(version)
+    return to_api(await _materialize_version(version))
+
+
+async def _materialize_version(version: Document) -> Document:
+    """Returns a version with complete data.xml while keeping storage compact."""
+    data = version.get("data", {})
+    if version.get("kind") == "release" or isinstance(data.get("xml"), str):
+        return version
+
+    base_release_id = version.get("baseReleaseId")
+    if not base_release_id:
+        raise conflict("Der Checkpoint besitzt keinen Basis-Release.")
+    release = await db.model_versions.find_one(
+        {
+            "_id": base_release_id,
+            "modelId": version["modelId"],
+            "kind": "release",
+        }
+    )
+    if release is None or not isinstance(release.get("data", {}).get("xml"), str):
+        raise conflict("Der Basis-Release des Checkpoints ist nicht verfügbar.")
+
+    patch_xml: list[str] = []
+    found_target = False
+    cursor = db.model_versions.find(
+        {
+            "modelId": version["modelId"],
+            "kind": "checkpoint",
+            "baseReleaseId": base_release_id,
+        }
+    ).sort([("createdAt", 1), ("_id", 1)])
+    async for checkpoint in cursor:
+        patch_xml.extend(patch["xml"] for patch in checkpoint.get("patches", []))
+        if checkpoint["_id"] == version["_id"]:
+            found_target = True
+            break
+    if not found_target:
+        raise conflict("Der Checkpoint gehört nicht zur erwarteten Release-Phase.")
+
+    result = deepcopy(version)
+    result["data"] = {
+        **deepcopy(release["data"]),
+        **deepcopy(version.get("data", {})),
+        "xml": apply_patches(release["data"]["xml"], patch_xml),
+    }
+    return result
 
 
 async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -> Document:
@@ -133,8 +180,39 @@ async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -
         if version is None:
             raise not_found()
 
-    fields = body.model_dump(mode="json", by_alias=True, exclude={"base_version_id"})
-    fields["previousVersionId"] = str(body.base_version_id) if body.base_version_id else None
+    previous = None
+    if body.base_version_id is not None:
+        previous = await db.model_versions.find_one(
+            {"_id": str(body.base_version_id), "modelId": str(model_id)}
+        )
+        if previous is None:
+            raise conflict()
+
+    fields = body.model_dump(
+        mode="json",
+        by_alias=True,
+        exclude={"base_version_id", "base_release_id"},
+    )
+    if body.kind == "release":
+        validate_model_xml(body.data["xml"])
+        fields.pop("patches", None)
+    else:
+        if previous is None:
+            raise conflict("Vor dem ersten Checkpoint muss ein Release gespeichert werden.")
+        base_release_id = (
+            previous["_id"] if previous.get("kind") == "release" else previous.get("baseReleaseId")
+        )
+        if not base_release_id:
+            raise conflict("Für den Checkpoint konnte kein Basis-Release bestimmt werden.")
+        if body.base_release_id is not None and str(body.base_release_id) != base_release_id:
+            raise conflict("Der Basis-Release hat sich geändert. Bitte das Modell neu laden.")
+        previous_materialized = await _materialize_version(previous)
+        apply_patches(
+            previous_materialized["data"]["xml"],
+            [patch.xml for patch in body.patches],
+        )
+        fields["baseReleaseId"] = base_release_id
+
     result = await save_version(
         db.models,
         db.model_versions,
@@ -145,4 +223,7 @@ async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -
         fields,
     )
     await db.models.update_one({"_id": str(model_id)}, {"$set": {"updatedAt": utcnow()}})
-    return result
+    stored = await db.model_versions.find_one({"_id": str(result["id"])})
+    if stored is None:
+        raise not_found()
+    return to_api(await _materialize_version(stored))

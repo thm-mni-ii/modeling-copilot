@@ -42,3 +42,6 @@ async def create_indexes() -> None:
     await db.feedback.create_index(
         [("modelId", ASCENDING), ("modelVersionId", ASCENDING), ("createdAt", DESCENDING)]
     )
+    await db.model_versions.create_index(
+        [("modelId", ASCENDING), ("baseReleaseId", ASCENDING), ("createdAt", ASCENDING)]
+    )

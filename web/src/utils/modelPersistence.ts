@@ -36,7 +36,29 @@ class AppModelXmlSerializer extends ModelXmlSerializer {
 
 export const createModelSerializer = (graph: Graph) => new AppModelXmlSerializer(graph.getDataModel())
 
+const ensureGraphCellIds = (graph: Graph) => {
+  const model = graph.getDataModel()
+  const root = model.getRoot()
+  if (!root) throw new Error('The graph has no model root.')
+  const seen = new Set<string>()
+  let rebuildIndex = false
+  const visit = (cell: typeof root) => {
+    const id = cell.getId()?.trim()
+    if (!id || seen.has(id)) {
+      let replacement = model.createId(cell)
+      while (seen.has(replacement)) replacement = model.createId(cell)
+      cell.setId(replacement)
+      seen.add(replacement)
+      rebuildIndex = true
+    } else seen.add(id)
+    for (const child of cell.getChildren()) visit(child)
+  }
+  visit(root)
+  if (rebuildIndex) model.rootChanged(root)
+}
+
 export const exportModelAsXml = (graph: Graph, pretty = true) => {
+  ensureGraphCellIds(graph)
   return createModelSerializer(graph).export({ pretty })
 }
 
