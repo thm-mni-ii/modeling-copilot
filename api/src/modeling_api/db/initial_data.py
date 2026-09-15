@@ -37,6 +37,40 @@ async def seed_initial_data() -> None:
     created_at = utcnow()
     language_data = _uml_class_diagram()
 
+    # Convert task documents created by the former external-import schema.
+    await db.task_statements.update_many(
+        {"name": {"$exists": False}},
+        [
+            {
+                "$set": {
+                    "name": {"$ifNull": ["$externalTaskId", "Untitled task"]},
+                    "parent": None,
+                    "latestReleaseId": "$latestVersionId",
+                    "archivedAt": None,
+                }
+            },
+            {"$unset": ["source", "externalTaskId"]},
+        ],
+    )
+    await db.task_statement_versions.update_many(
+        {"data.contentHtml": {"$exists": False}},
+        [
+            {
+                "$set": {
+                    "kind": "release",
+                    "description": None,
+                    "workspaceLanguages": [],
+                    "data": {
+                        "contentHtml": {"$ifNull": ["$data.content", ""]},
+                        "autonomyMode": "free",
+                        "sampleSolutions": [],
+                    },
+                }
+            },
+            {"$unset": ["externalVersionId"]},
+        ],
+    )
+
     # One-time, idempotent migration of the previous API vocabulary.
     for collection in (
         db.language_versions,
@@ -113,10 +147,12 @@ async def seed_initial_data() -> None:
         {
             "$setOnInsert": {
                 "createdAt": created_at,
-                "source": "initial-data",
-                "externalTaskId": "order-management",
+                "name": "Order Management",
+                "parent": None,
                 "ownerId": SYSTEM_OWNER_ID,
                 "latestVersionId": ORDER_MANAGEMENT_TASK_VERSION_ID,
+                "latestReleaseId": ORDER_MANAGEMENT_TASK_VERSION_ID,
+                "archivedAt": None,
             }
         },
         upsert=True,
@@ -125,15 +161,24 @@ async def seed_initial_data() -> None:
         {"_id": ORDER_MANAGEMENT_TASK_VERSION_ID},
         {
             "$setOnInsert": {
-                "taskStatementId": ORDER_MANAGEMENT_TASK_ID,
+                "taskId": ORDER_MANAGEMENT_TASK_ID,
                 "versionNumber": "1.0",
                 "createdBy": SYSTEM_OWNER_ID,
                 "createdAt": created_at,
+                "kind": "release",
                 "releaseName": "Initial release",
-                "externalVersionId": "1",
+                "description": None,
+                "workspaceLanguages": [
+                    {
+                        "languageId": UML_CLASS_DIAGRAM_ID,
+                        "versionId": UML_CLASS_DIAGRAM_VERSION_ID,
+                        "source": "required",
+                    }
+                ],
                 "data": {
-                    "title": "A3 – Order Management",
-                    "content": ORDER_MANAGEMENT_CONTENT,
+                    "contentHtml": ORDER_MANAGEMENT_CONTENT,
+                    "autonomyMode": "free",
+                    "sampleSolutions": [],
                 },
             }
         },
@@ -142,7 +187,41 @@ async def seed_initial_data() -> None:
     await db.task_statement_versions.update_one(
         {"_id": ORDER_MANAGEMENT_TASK_VERSION_ID},
         {
-            "$set": {"releaseName": "Initial release", "versionNumber": "1.0"},
-            "$unset": {"versionName": ""},
+            "$set": {
+                "taskId": ORDER_MANAGEMENT_TASK_ID,
+                "kind": "release",
+                "releaseName": "Initial release",
+                "versionNumber": "1.0",
+                "description": None,
+                "workspaceLanguages": [
+                    {
+                        "languageId": UML_CLASS_DIAGRAM_ID,
+                        "versionId": UML_CLASS_DIAGRAM_VERSION_ID,
+                        "source": "required",
+                    }
+                ],
+                "data": {
+                    "contentHtml": ORDER_MANAGEMENT_CONTENT,
+                    "autonomyMode": "free",
+                    "sampleSolutions": [],
+                },
+            },
+            "$unset": {
+                "versionName": "",
+                "taskStatementId": "",
+                "externalVersionId": "",
+            },
+        },
+    )
+    await db.task_statements.update_one(
+        {"_id": ORDER_MANAGEMENT_TASK_ID},
+        {
+            "$set": {
+                "name": "Order Management",
+                "parent": None,
+                "latestReleaseId": ORDER_MANAGEMENT_TASK_VERSION_ID,
+                "archivedAt": None,
+            },
+            "$unset": {"source": "", "externalTaskId": ""},
         },
     )

@@ -134,15 +134,48 @@
           <v-icon>mdi-minus</v-icon>
         </v-btn>
       </v-btn-group>
+
+      <template v-if="props.elementOptions.length > 0 || props.connectionOptions.length > 0">
+        <v-divider vertical class="mx-1" />
+        <template v-if="props.elementOptions.length > 0">
+          <v-select v-model="selectedElementKey" :items="elementSelectItems" label="Link model element" density="compact" variant="outlined" hide-details class="element-link-select" />
+          <v-btn size="small" variant="outlined" :disabled="!selectedElement" title="Link selected text to model element" @click="applyElementLink">
+            <v-icon>mdi-link-variant</v-icon>
+          </v-btn>
+          <v-btn size="small" variant="outlined" title="Remove element link" @click="removeElementLink">
+            <v-icon>mdi-link-variant-off</v-icon>
+          </v-btn>
+        </template>
+        <template v-if="props.connectionOptions.length > 0">
+          <v-select v-model="selectedConnectionKey" :items="connectionSelectItems" label="Link connection" density="compact" variant="outlined" hide-details class="element-link-select" />
+          <v-btn size="small" variant="outlined" :disabled="!selectedConnection" title="Link selected text to connection" @click="applyConnectionLink">
+            <v-icon>mdi-connection</v-icon>
+          </v-btn>
+          <v-btn size="small" variant="outlined" title="Remove connection link" @click="removeConnectionLink">
+            <v-icon>mdi-link-variant-off</v-icon>
+          </v-btn>
+        </template>
+        <v-chip v-if="activeReferenceLabel" size="small" color="primary" variant="tonal" class="active-reference-chip" prepend-icon="mdi-link-variant">
+          Selected: {{ activeReferenceLabel }}
+        </v-chip>
+      </template>
     </div>
 
     <!-- Editierbarer Bereich -->
-    <editor-content :editor="editor" class="editor-body" />
+    <editor-content :editor="editor" class="editor-body" @click="onTaskReferenceClick" @dragstart="onDragStart" @mouseleave="hideReferencePreview" @mouseover="onTaskReferenceMouseOver" />
+    <div v-if="referencePreview" class="task-reference-preview" :style="{ left: `${referencePreview.x}px`, top: `${referencePreview.y}px` }">
+      <div class="task-reference-preview__kind">{{ referencePreview.kind === 'element' ? 'Model element' : 'Connection' }}</div>
+      <div class="task-reference-preview__title">{{ referencePreview.option.label }}</div>
+      <DiagramPreviewItem v-if="referencePreview.kind === 'element' && referencePreview.option.element" :element="referencePreview.option.element" :width="180" :height="92" class="task-reference-preview__diagram" />
+      <ConnectionPreviewItem v-else-if="referencePreview.kind === 'connection' && referencePreview.option.connection" :connection="referencePreview.option.connection" :width="180" :height="56" class="task-reference-preview__diagram" />
+      <div class="task-reference-preview__hint">{{ referencePreview.kind === 'element' ? 'Drag into the canvas to create this element.' : 'Click to select this connection in the canvas.' }}</div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { Mark, mergeAttributes, type Editor } from '@tiptap/core'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { TextStyle } from '@tiptap/extension-text-style'
@@ -151,29 +184,103 @@ import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
+import DiagramPreviewItem from '@/components/modeling/canvas/DiagramPreviewItem.vue'
+import ConnectionPreviewItem from '@/components/modeling/canvas/ConnectionPreviewItem.vue'
+import type { DiagramConnection } from '@/model/Connection'
+import type { DiagramElement } from '@/model/Element'
+
+export interface TaskElementOption {
+  languageId: string
+  elementType: string
+  label: string
+  element?: DiagramElement
+}
+
+export interface TaskConnectionOption {
+  languageId: string
+  connectionType: string
+  label: string
+  connection?: DiagramConnection
+}
+
+const TaskElementMark = Mark.create({
+  name: 'taskElement',
+  addAttributes() {
+    return {
+      languageId: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-task-element-language-id'),
+        renderHTML: (attributes) => ({ 'data-task-element-language-id': attributes.languageId })
+      },
+      elementType: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-task-element-type'),
+        renderHTML: (attributes) => ({ 'data-task-element-type': attributes.elementType })
+      }
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'span[data-task-element-language-id][data-task-element-type]' }]
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes, { class: 'task-element-mark', draggable: 'true' }), 0]
+  }
+})
+
+const TaskConnectionMark = Mark.create({
+  name: 'taskConnection',
+  addAttributes() {
+    return {
+      languageId: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-task-connection-language-id'),
+        renderHTML: (attributes) => ({ 'data-task-connection-language-id': attributes.languageId })
+      },
+      connectionType: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-task-connection-type'),
+        renderHTML: (attributes) => ({ 'data-task-connection-type': attributes.connectionType })
+      }
+    }
+  },
+  parseHTML() {
+    return [{ tag: 'span[data-task-connection-language-id][data-task-connection-type]' }]
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes, { class: 'task-connection-mark' }), 0]
+  }
+})
 
 const props = withDefaults(
   defineProps<{
     modelValue: string
     placeholder?: string
     readonly?: boolean
+    elementOptions?: TaskElementOption[]
+    connectionOptions?: TaskConnectionOption[]
   }>(),
   {
     placeholder: 'Enter task text here…',
-    readonly: false
+    readonly: false,
+    elementOptions: () => [],
+    connectionOptions: () => []
   }
 )
 
 const emit = defineEmits<{
   'update:modelValue': [string]
+  'select-connection': [reference: { languageId: string; connectionType: string }]
 }>()
 
 const editor = useEditor({
   content: props.modelValue,
   editable: !props.readonly,
-  extensions: [StarterKit.configure({ underline: false }), TextStyle, Color, Underline, TextAlign.configure({ types: ['heading', 'paragraph'] }), Highlight.configure({ multicolor: true }), Placeholder.configure({ placeholder: props.placeholder })],
+  extensions: [StarterKit.configure({ underline: false }), TextStyle, Color, Underline, TextAlign.configure({ types: ['heading', 'paragraph'] }), Highlight.configure({ multicolor: true }), Placeholder.configure({ placeholder: props.placeholder }), TaskElementMark, TaskConnectionMark],
   onUpdate: ({ editor: e }) => {
     emit('update:modelValue', e.getHTML())
+  },
+  onSelectionUpdate: ({ editor: e }) => {
+    syncLinkControls(e)
   }
 })
 
@@ -209,6 +316,121 @@ const activeHighlightColor = computed(() => {
   const attrs = editor.value?.getAttributes('highlight')
   return (attrs?.color as string | undefined) ?? undefined
 })
+
+const selectedElementKey = ref('')
+const elementSelectItems = computed(() => props.elementOptions.map((option) => ({ title: option.label, value: `${option.languageId}:${option.elementType}` })))
+const selectedElement = computed(() => props.elementOptions.find((option) => `${option.languageId}:${option.elementType}` === selectedElementKey.value) ?? null)
+
+const selectedConnectionKey = ref('')
+const connectionSelectItems = computed(() => props.connectionOptions.map((option) => ({ title: option.label, value: `${option.languageId}:${option.connectionType}` })))
+const selectedConnection = computed(() => props.connectionOptions.find((option) => `${option.languageId}:${option.connectionType}` === selectedConnectionKey.value) ?? null)
+const activeReferenceKind = ref<'element' | 'connection' | null>(null)
+const activeReferenceLabel = computed(() => {
+  if (activeReferenceKind.value === 'element') return selectedElement.value?.label ?? 'Linked model element'
+  if (activeReferenceKind.value === 'connection') return selectedConnection.value?.label ?? 'Linked connection'
+  return null
+})
+
+const syncLinkControls = (currentEditor: Editor) => {
+  const elementAttributes = currentEditor.getAttributes('taskElement') as { languageId?: string; elementType?: string }
+  if (elementAttributes.languageId && elementAttributes.elementType) {
+    selectedElementKey.value = `${elementAttributes.languageId}:${elementAttributes.elementType}`
+    activeReferenceKind.value = 'element'
+    return
+  }
+  const connectionAttributes = currentEditor.getAttributes('taskConnection') as { languageId?: string; connectionType?: string }
+  if (connectionAttributes.languageId && connectionAttributes.connectionType) {
+    selectedConnectionKey.value = `${connectionAttributes.languageId}:${connectionAttributes.connectionType}`
+    activeReferenceKind.value = 'connection'
+    return
+  }
+  activeReferenceKind.value = null
+}
+
+const applyElementLink = () => {
+  if (!selectedElement.value) return
+  const chain = editor.value?.chain().focus()
+  if (!chain) return
+  if (editor.value?.isActive('taskElement')) chain.extendMarkRange('taskElement')
+  chain.setMark('taskElement', { languageId: selectedElement.value.languageId, elementType: selectedElement.value.elementType }).run()
+}
+
+const removeElementLink = () => {
+  const chain = editor.value?.chain().focus()
+  if (!chain) return
+  if (editor.value?.isActive('taskElement')) chain.extendMarkRange('taskElement')
+  chain.unsetMark('taskElement').run()
+}
+
+const applyConnectionLink = () => {
+  if (!selectedConnection.value) return
+  const chain = editor.value?.chain().focus()
+  if (!chain) return
+  if (editor.value?.isActive('taskConnection')) chain.extendMarkRange('taskConnection')
+  chain.setMark('taskConnection', { languageId: selectedConnection.value.languageId, connectionType: selectedConnection.value.connectionType }).run()
+}
+const removeConnectionLink = () => {
+  const chain = editor.value?.chain().focus()
+  if (!chain) return
+  if (editor.value?.isActive('taskConnection')) chain.extendMarkRange('taskConnection')
+  chain.unsetMark('taskConnection').run()
+}
+
+const onTaskReferenceClick = (event: MouseEvent) => {
+  const target = event.target as Element | null
+  if (!props.readonly) {
+    if (editor.value) syncLinkControls(editor.value)
+    return
+  }
+  const mark = target?.closest('[data-task-connection-language-id][data-task-connection-type]')
+  const languageId = mark?.getAttribute('data-task-connection-language-id')
+  const connectionType = mark?.getAttribute('data-task-connection-type')
+  if (!languageId || !connectionType) return
+  emit('select-connection', { languageId, connectionType })
+}
+
+type ReferencePreview =
+  | { kind: 'element'; option: TaskElementOption; x: number; y: number }
+  | { kind: 'connection'; option: TaskConnectionOption; x: number; y: number }
+
+const referencePreview = ref<ReferencePreview | null>(null)
+const hideReferencePreview = () => {
+  referencePreview.value = null
+}
+const onTaskReferenceMouseOver = (event: MouseEvent) => {
+  if (!props.readonly) return
+  const target = event.target as Element | null
+  const elementMark = target?.closest('[data-task-element-language-id][data-task-element-type]')
+  const connectionMark = target?.closest('[data-task-connection-language-id][data-task-connection-type]')
+  if (elementMark) {
+    const option = props.elementOptions.find((item) => item.languageId === elementMark.getAttribute('data-task-element-language-id') && item.elementType === elementMark.getAttribute('data-task-element-type'))
+    referencePreview.value = option ? { kind: 'element', option, x: event.clientX + 14, y: event.clientY + 14 } : null
+    return
+  }
+  if (connectionMark) {
+    const option = props.connectionOptions.find((item) => item.languageId === connectionMark.getAttribute('data-task-connection-language-id') && item.connectionType === connectionMark.getAttribute('data-task-connection-type'))
+    referencePreview.value = option ? { kind: 'connection', option, x: event.clientX + 14, y: event.clientY + 14 } : null
+    return
+  }
+  hideReferencePreview()
+}
+
+const onDragStart = (event: DragEvent) => {
+  const target = event.target as Element | null
+  const mark = target?.closest('[data-task-element-language-id][data-task-element-type]')
+  const elementType = mark?.getAttribute('data-task-element-type')
+  if (!elementType || !event.dataTransfer) return
+  event.dataTransfer.setData('text/plain', elementType)
+  event.dataTransfer.setData(
+    'application/x-modeling-task-element',
+    JSON.stringify({
+      languageId: mark?.getAttribute('data-task-element-language-id'),
+      elementType,
+      label: mark?.textContent?.trim() || undefined
+    })
+  )
+  event.dataTransfer.effectAllowed = 'copy'
+}
 
 const applyTextColor = (color: string) => {
   editor.value?.chain().focus().setColor(color).run()
@@ -336,6 +558,70 @@ const highlightColors = [
 .editor-body :deep(.ProseMirror mark) {
   border-radius: 2px;
   padding: 0 1px;
+}
+
+.element-link-select {
+  width: 230px;
+  min-width: 180px;
+}
+
+.editor-body :deep(.task-element-mark) {
+  border-bottom: 2px solid rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.09);
+  cursor: grab;
+}
+
+.editor-body :deep(.task-connection-mark) {
+  border-bottom: 2px dashed rgb(var(--v-theme-secondary));
+  background: rgba(var(--v-theme-secondary), 0.09);
+  cursor: pointer;
+}
+
+.task-reference-preview {
+  position: fixed;
+  z-index: 1000;
+  width: 220px;
+  padding: 10px;
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
+  border-radius: 8px;
+  background: rgb(var(--v-theme-surface));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+.task-reference-preview__kind {
+  color: rgb(var(--v-theme-primary));
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.task-reference-preview__title {
+  margin: 2px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.task-reference-preview__diagram {
+  display: block;
+  width: 100%;
+  border: 1px solid rgba(var(--v-theme-outline), 0.2);
+  border-radius: 4px;
+}
+
+.task-reference-preview__hint {
+  margin-top: 7px;
+  color: rgba(var(--v-theme-on-surface), 0.68);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.active-reference-chip {
+  max-width: 280px;
+}
+
+.editor-body :deep(.task-element-mark:active) {
+  cursor: grabbing;
 }
 
 .toolbar-color-indicator {

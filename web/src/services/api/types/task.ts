@@ -1,29 +1,50 @@
-import type { ApiId, ApiIdentity, ApiVersionInfo, JsonObject } from './common'
+import type { AutonomyMode } from '@/model/Autonomy'
+import type { ApiId, ApiIdentity, ApiVersionInfo, ModelVersionReference, TaskVersionReference } from './common'
+import type { WorkspaceLanguageReference } from './model'
 
-export interface TaskStatement extends ApiIdentity {
-  source: string
-  externalTaskId: string
+export type TaskVersionKind = 'checkpoint' | 'release'
+
+export interface Task extends ApiIdentity {
+  name: string
+  parent: TaskVersionReference | null
   latestVersionId: ApiId | null
+  latestReleaseId: ApiId | null
+  archivedAt: string | null
 }
 
-export interface CreateTaskStatement {
-  source: string
-  externalTaskId: string
+export interface CreateTask {
+  name: string
+  parent?: TaskVersionReference | null
 }
 
-export interface TaskStatementVersionInfo extends ApiVersionInfo {
-  taskStatementId: ApiId
-  releaseName: string
-  externalVersionId: string
+export interface UpdateTask {
+  name?: string
+  archived?: boolean
 }
 
-export interface TaskStatementVersion extends TaskStatementVersionInfo {
-  data: JsonObject
+export interface TaskData {
+  contentHtml: string
+  autonomyMode: AutonomyMode
+  sampleSolutions: ModelVersionReference[]
 }
 
-export interface CreateTaskStatementVersion {
+export interface TaskVersionInfo extends ApiVersionInfo {
+  taskId: ApiId
+  kind: TaskVersionKind
+  releaseName: string | null
+  description: string | null
+  workspaceLanguages: WorkspaceLanguageReference[]
+}
+
+export interface TaskVersion extends TaskVersionInfo {
+  data: TaskData
+}
+
+export interface CreateTaskVersion {
   baseVersionId: ApiId | null
-  releaseName: string
-  externalVersionId: string
-  data: JsonObject
+  kind: TaskVersionKind
+  releaseName?: string | null
+  description?: string | null
+  workspaceLanguages: WorkspaceLanguageReference[]
+  data: TaskData
 }

@@ -5,15 +5,16 @@
         <h1 class="text-h4">My Models</h1>
         <p class="text-medium-emphasis mb-0">Models, checkpoints, and releases.</p>
       </div>
-      <v-spacer /><v-btn color="primary" prepend-icon="mdi-plus" :loading="creating" @click="createModel">New Model</v-btn>
+      <v-spacer /><v-btn variant="tonal" prepend-icon="mdi-clipboard-text-outline" @click="openTaskSelection">From task</v-btn><v-btn color="primary" prepend-icon="mdi-plus" :loading="creating" @click="createModel">New Model</v-btn>
     </div>
-    <v-tabs v-model="archiveTab" class="mb-3"><v-tab :value="false">My Models</v-tab><v-tab :value="true">Archive</v-tab></v-tabs>
+    <v-tabs v-model="viewTab" class="mb-3"><v-tab value="free">My Models</v-tab><v-tab value="tasks">Tasks</v-tab><v-tab value="archive">Archive</v-tab></v-tabs>
     <v-text-field v-model="query" label="Search models" density="compact" prepend-inner-icon="mdi-magnify" clearable class="mb-3" @update:model-value="searchModels" />
     <v-alert v-if="error" type="error" class="mb-3">{{ error }}</v-alert>
     <v-data-table-server v-model:items-per-page="itemsPerPage" v-model:expanded="expanded" :headers="headers" :items="models" :items-length="total" :loading="loading" item-value="id" show-expand hover @click:row="toggleExpanded" @update:options="loadModels" @update:expanded="setExpanded">
       <template #[`item.updatedAt`]="{ item }">{{ formattedDate(asModel(item).updatedAt) }}</template>
+      <template #[`item.taskVersion`]="{ item }">{{ taskName(asModel(item)) }}</template>
       <template #[`item.actions`]="{ item }"
-        ><v-btn size="small" color="primary" @click.stop="openModel(asModel(item).id)">Open</v-btn><v-btn size="small" variant="text" @click.stop="openRename(asModel(item))">Change name</v-btn><v-btn size="small" variant="text" @click.stop="setArchived(asModel(item), !archiveTab)">{{ archiveTab ? 'Restore' : 'Archive' }}</v-btn></template
+        ><v-btn size="small" color="primary" @click.stop="openModel(asModel(item).id)">Open</v-btn><v-btn size="small" variant="text" @click.stop="openRename(asModel(item))">Change name</v-btn><v-btn size="small" variant="text" @click.stop="setArchived(asModel(item), viewTab !== 'archive')">{{ viewTab === 'archive' ? 'Restore' : 'Archive' }}</v-btn></template
       >
       <template #expanded-row="{ columns, item }"
         ><tr>
@@ -39,6 +40,17 @@
         ><v-card-text><ModelSnapshotPreview :data="previewData" :height="600" /></v-card-text><v-card-actions><v-spacer /><v-btn @click="previewDialog = false">Close</v-btn></v-card-actions></v-card
       ></v-dialog
     >
+    <v-dialog v-model="taskDialog" max-width="620">
+      <v-card>
+        <v-card-title>Create model from task</v-card-title>
+        <v-card-text>
+          <v-select v-model="selectedTaskId" :items="taskOptions" label="Task" :loading="loadingTasks" variant="outlined" @update:model-value="loadTaskVersions" />
+          <v-select v-model="selectedTaskVersionId" :items="taskVersionOptions" label="Task release" :disabled="!selectedTaskId" variant="outlined" />
+          <v-text-field v-model="taskModelName" label="Model name" variant="outlined" />
+        </v-card-text>
+        <v-card-actions><v-spacer /><v-btn @click="taskDialog = false">Cancel</v-btn><v-btn color="primary" :loading="creating" :disabled="!selectedTaskId || !selectedTaskVersionId || !taskModelName.trim()" @click="createTaskModel">Create model</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -48,9 +60,11 @@ import { useRouter } from 'vue-router'
 import ModelSnapshotPreview from '@/components/modeling/versions/ModelSnapshotPreview.vue'
 import ModelSnapshotList from '@/components/modeling/versions/ModelSnapshotList.vue'
 import modelService from '@/services/model/model.service'
+import taskService from '@/services/task/task.service'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { JsonObject } from '@/services/api/types/common'
 import type { Model, ModelSortField, ModelVersionInfo, SortOrder } from '@/services/api/types/model'
+import type { Task, TaskVersionInfo } from '@/services/api/types/task'
 
 interface ModelTableOptions {
   page: number
@@ -69,7 +83,7 @@ const itemsPerPage = ref(10)
 const page = ref(1)
 const sortBy = ref<ModelTableOptions['sortBy']>([{ key: 'updatedAt', order: 'desc' }])
 const query = ref('')
-const archiveTab = ref(false)
+const viewTab = ref<'free' | 'tasks' | 'archive'>('free')
 const creating = ref(false)
 const renameDialog = ref(false)
 const selectedModel = ref<Model | null>(null)
@@ -81,15 +95,27 @@ const previewData = ref<JsonObject | null>(null)
 const previewEntries = ref<ModelVersionInfo[]>([])
 const previewModel = ref<Model | null>(null)
 const previewIndex = ref(0)
+const taskDialog = ref(false)
+const loadingTasks = ref(false)
+const availableTasks = ref<Task[]>([])
+const taskNames = ref<Record<string, string>>({})
+const selectedTaskId = ref<string | null>(null)
+const selectedTaskVersionId = ref<string | null>(null)
+const selectableTaskVersions = ref<TaskVersionInfo[]>([])
+const taskModelName = ref('')
 const headers = [
   { title: 'Model', key: 'name', sortable: true },
   { title: 'Last updated', key: 'updatedAt', sortable: true },
+  { title: 'Task', key: 'taskVersion', sortable: false },
   { title: 'Actions', key: 'actions', sortable: false }
 ]
 const formattedDate = (value: string) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 const asModel = (item: Model | { raw: Model }) => ('raw' in item ? item.raw : item)
 const previewTitle = computed(() => previewModel.value?.name ?? '')
 const releaseVersions = (modelId: string) => (versions.value[modelId] ?? []).filter((entry) => entry.kind === 'release')
+const taskOptions = computed(() => availableTasks.value.filter((task) => task.latestReleaseId).map((task) => ({ title: task.name, value: task.id })))
+const taskVersionOptions = computed(() => selectableTaskVersions.value.map((version) => ({ title: `${version.releaseName} · v${version.versionNumber}`, value: version.id })))
+const taskName = (model: Model) => (model.taskVersion ? taskNames.value[model.taskVersion.taskId] ?? availableTasks.value.find((task) => task.id === model.taskVersion?.taskId)?.name ?? 'Task' : '—')
 
 const loadModels = async (options?: ModelTableOptions) => {
   if (options) {
@@ -102,9 +128,16 @@ const loadModels = async (options?: ModelTableOptions) => {
   error.value = null
   try {
     const sort = sortBy.value[0]
-    const result = await modelService.list((page.value - 1) * limit, limit, { q: query.value || undefined, archived: archiveTab.value, sort: sort.key, order: sort.order })
+    const result = await modelService.list((page.value - 1) * limit, limit, { q: query.value || undefined, archived: viewTab.value === 'archive', ...(viewTab.value === 'archive' ? {} : { taskBound: viewTab.value === 'tasks' }), sort: sort.key, order: sort.order })
     models.value = result.data.items
     total.value = result.data.total
+    await Promise.all(
+      [...new Set(models.value.map((model) => model.taskVersion?.taskId).filter((id): id is string => Boolean(id)))].map(async (taskId) => {
+        if (taskNames.value[taskId]) return
+        const task = (await taskService.get(taskId)).data
+        taskNames.value = { ...taskNames.value, [taskId]: task.name }
+      })
+    )
   } catch {
     error.value = 'Models could not be loaded.'
   } finally {
@@ -140,6 +173,41 @@ const createModel = async () => {
     await router.push(`/modeling/${workspace.model!.id}`)
   } catch {
     error.value = 'The initial model save could not be created.'
+  } finally {
+    creating.value = false
+  }
+}
+const openTaskSelection = async () => {
+  taskDialog.value = true
+  loadingTasks.value = true
+  try {
+    availableTasks.value = (await taskService.list(0, 100)).data.items
+  } catch {
+    error.value = 'Tasks could not be loaded.'
+  } finally {
+    loadingTasks.value = false
+  }
+}
+const loadTaskVersions = async (taskId: string | null) => {
+  selectedTaskVersionId.value = null
+  selectableTaskVersions.value = []
+  if (!taskId) return
+  selectableTaskVersions.value = (await taskService.listVersions(taskId, 0, 100)).data.items.filter((version) => version.kind === 'release')
+  const task = availableTasks.value.find((item) => item.id === taskId)
+  selectedTaskVersionId.value = task?.latestReleaseId ?? selectableTaskVersions.value[0]?.id ?? null
+  taskModelName.value = task ? `${task.name} – Solution` : 'Untitled model'
+}
+const createTaskModel = async () => {
+  if (!selectedTaskId.value || !selectedTaskVersionId.value || !taskModelName.value.trim()) return
+  creating.value = true
+  try {
+    const version = (await taskService.getVersion(selectedTaskId.value, selectedTaskVersionId.value)).data
+    await workspace.startNew(taskModelName.value.trim(), version.workspaceLanguages, { taskId: selectedTaskId.value, versionId: selectedTaskVersionId.value })
+    await workspace.save()
+    taskDialog.value = false
+    await router.push(`/modeling/${workspace.model!.id}`)
+  } catch {
+    error.value = 'The task model could not be created.'
   } finally {
     creating.value = false
   }
@@ -197,8 +265,11 @@ const branch = async (model: Model, entry: ModelVersionInfo) => {
   }
 }
 const snapshotLabel = (entry: ModelVersionInfo) => (entry.kind === 'release' && entry.releaseName ? `${entry.releaseName} · v${entry.versionNumber}` : `v${entry.versionNumber}`)
-watch(archiveTab, () => void loadModels({ page: 1, itemsPerPage: itemsPerPage.value, sortBy: sortBy.value }))
+watch(viewTab, () => void loadModels({ page: 1, itemsPerPage: itemsPerPage.value, sortBy: sortBy.value }))
 onMounted(() => {
   void loadModels()
+  void taskService.list(0, 100).then((response) => {
+    availableTasks.value = response.data.items
+  }).catch(() => undefined)
 })
 </script>

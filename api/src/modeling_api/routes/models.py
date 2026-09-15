@@ -28,11 +28,12 @@ async def list_models(
     limit: Limit = 20,
     q: str | None = Query(default=None, max_length=256),
     archived: bool = False,
+    task_bound: bool | None = Query(default=None, alias="taskBound"),
     sort: ModelSortField = "updatedAt",
     order: SortOrder = "desc",
 ) -> Page[Model]:
     return Page[Model].model_validate(
-        await service.list_models(skip, limit, user, q, archived, sort, order)
+        await service.list_models(skip, limit, user, q, archived, task_bound, sort, order)
     )
 
 

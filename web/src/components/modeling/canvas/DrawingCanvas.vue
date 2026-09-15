@@ -30,7 +30,7 @@
         <template #sidebar-toggle>
           <v-btn icon="mdi-dock-right" size="x-small" variant="text" :title="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-label="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-expanded="!rightSidebarCollapsed" @click="rightSidebarCollapsed = !rightSidebarCollapsed" />
         </template>
-        <template #autonomy><AutonomyControls :mode="autonomyMode" @update:mode="updateAutonomyMode" /></template>
+        <template #autonomy><AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" /></template>
       </ModelingHeader>
 
       <!-- Erweiterte Toolbar für Einbettungen ohne Modellverwaltung -->
@@ -54,7 +54,7 @@
           @select-connection="onConnectionSelected"
           @update:connection-preferences="updateConnectionPreferences"
         />
-        <AutonomyControls :mode="autonomyMode" @update:mode="updateAutonomyMode" />
+        <AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" />
       </div>
 
       <!-- Canvas Area: Sidebar + Graph -->
@@ -64,6 +64,9 @@
 
         <!-- Graph Container -->
         <div ref="graphWrapper" class="graph-wrapper">
+          <div v-if="$slots['canvas-top']" class="canvas-top">
+            <slot name="canvas-top" />
+          </div>
           <div ref="graphContainer" class="graph-container" tabindex="0" @pointerdown="focusGraphContainer">
             <!-- Separater Grid Container -->
             <div class="grid-container">
@@ -313,6 +316,7 @@ interface CanvasWindowHostApi {
 
 interface CanvasToolbarApi {
   closeConnectionPalette: () => void
+  selectConnectionByReference: (languageId: string, connectionType: string) => boolean
 }
 
 const props = withDefaults(
@@ -332,6 +336,7 @@ const props = withDefaults(
     languageSyntax?: DiagramSyntax[]
     languages?: SidebarLanguage[]
     autonomyMode?: AutonomyMode
+    lockAutonomyMode?: boolean
     previewConnection?: DiagramConnection
     previewMode?: 'simple' | 'scenario' | 'routing'
     overlays?: FeedbackCanvasOverlayEntry[]
@@ -353,6 +358,7 @@ const props = withDefaults(
     languageSyntax: undefined,
     languages: undefined,
     autonomyMode: 'free',
+    lockAutonomyMode: false,
     previewConnection: undefined,
     previewMode: 'simple',
     overlays: () => [],
@@ -365,6 +371,7 @@ const emit = defineEmits<{
   'update:model': [GraphDataModel]
   'update:autonomyMode': [AutonomyMode]
   'update:connectionPreferences': [preferences: JsonObject]
+  'window-removed': [id: string]
 }>()
 
 const autonomyMode = ref<AutonomyMode>(props.autonomyMode ?? 'free')
@@ -441,6 +448,7 @@ const openValidationDialog = (messages: string[]) => {
 }
 
 const updateAutonomyMode = (mode: AutonomyMode) => {
+  if (props.lockAutonomyMode) return
   autonomyMode.value = mode
   emit('update:autonomyMode', mode)
 }
@@ -1042,8 +1050,7 @@ const initGraph = () => {
 }
 
 const buildLanguageShapes = computed(() => {
-  const allElements = sidebarLanguages.value.flatMap((l) => l.elements)
-  if (allElements.length === 0) {
+  if (sidebarLanguages.value.every((language) => language.elements.length === 0)) {
     return createDefaultShapes({
       rectangle: img_rectangle,
       ellipse: img_ellipse,
@@ -1052,7 +1059,7 @@ const buildLanguageShapes = computed(() => {
       cloud: img_cloud
     })
   }
-  return buildShapesFromElements(allElements, img_elementPlaceholder)
+  return sidebarLanguages.value.flatMap((language) => buildShapesFromElements(language.elements, img_elementPlaceholder, language.id))
 })
 
 const feedbackShapes = computed(() =>
@@ -1174,6 +1181,28 @@ const setCanvasWindows = (definitions: CanvasWindowDefinition[]) => {
   canvasWindowHost.value?.setWindows(definitions)
 }
 
+const selectConnectionByType = (languageId: string, connectionType: string): boolean => {
+  const graphInstance = graph.value
+  if (!graphInstance) return false
+
+  const connectionExistsInLanguage = (props.connectionGroups ?? []).some(
+    (group) => group.id === languageId && group.connections.some((connection) => connection.type === connectionType)
+  )
+  if (!connectionExistsInLanguage) return false
+
+  canvasToolbar.value?.selectConnectionByReference(languageId, connectionType)
+
+  const parentCell = modelLayerCell.value ?? graphInstance.getDefaultParent()
+  const edges = graphInstance.getChildEdges(parentCell)
+  const matchingEdge = edges.find((edge) => (edge as any).connectionId === connectionType)
+    ?? edges.find((edge) => (edge as any).connectionType === connectionType)
+  if (!matchingEdge) return false
+
+  graphInstance.setSelectionCell(matchingEdge)
+  graphInstance.scrollCellToVisible?.(matchingEdge, true)
+  return true
+}
+
 const serializeModel = (): Record<string, unknown> => {
   if (!graph.value) return {}
   return {
@@ -1197,7 +1226,7 @@ const loadPersistedModel = (data: Record<string, unknown>) => {
   }
 }
 
-const onWindowRemoved = () => {}
+const onWindowRemoved = (id: string) => emit('window-removed', id)
 defineExpose({
   graph,
   clearCanvas,
@@ -1206,6 +1235,7 @@ defineExpose({
   removeCanvasWindow,
   clearCanvasWindows,
   setCanvasWindows,
+  selectConnectionByType,
   serializeModel,
   loadPersistedModel
 })
@@ -1242,6 +1272,10 @@ defineExpose({
   gap: 6px;
   min-width: 0;
   min-height: 0;
+}
+
+.canvas-top {
+  flex-shrink: 0;
 }
 
 .canvas-area {

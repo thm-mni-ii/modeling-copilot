@@ -28,6 +28,7 @@ async def list_models(
     user: User,
     q: str | None = None,
     archived: bool = False,
+    task_bound: bool | None = None,
     sort: ModelSortField = "updatedAt",
     order: SortOrder = "desc",
 ) -> Document:
@@ -39,20 +40,32 @@ async def list_models(
     await db.models.update_many(
         {"ownerId": user.id, "archivedAt": {"$exists": False}}, {"$set": {"archivedAt": None}}
     )
+    await db.models.update_many(
+        {"ownerId": user.id, "taskVersion": {"$exists": False}}, {"$set": {"taskVersion": None}}
+    )
     filters: Document = {"ownerId": user.id}
     filters["archivedAt"] = {"$ne": None} if archived else None
+    if task_bound is not None:
+        filters["taskVersion"] = {"$ne": None} if task_bound else None
     if q and q.strip():
         filters["name"] = {"$regex": escape(q.strip()), "$options": "i"}
     return await list_page(db.models, filters, skip, limit, sort_field=sort, sort_desc=order != "asc")
 
 
 async def create_model(body: CreateModel, user: User) -> Document:
+    if body.task_version is not None:
+        from modeling_api.services.tasks import ensure_release_reference
+
+        await ensure_release_reference(body.task_version.task_id, body.task_version.version_id)
     return await insert(
         db.models,
         {
             "name": body.name,
             "ownerId": user.id,
             "latestVersionId": None,
+            "taskVersion": body.task_version.model_dump(mode="json", by_alias=True)
+            if body.task_version
+            else None,
             "preferences": {},
             "updatedAt": utcnow(),
             "archivedAt": None,
@@ -68,6 +81,7 @@ async def get_model(model_id: UUID, user: User) -> Document:
         "updatedAt": result.get("createdAt", utcnow()),
         "archivedAt": None,
         "preferences": {},
+        "taskVersion": None,
     }
     changes = {key: value for key, value in missing_metadata.items() if key not in result}
     if changes:
@@ -165,20 +179,35 @@ async def _materialize_version(version: Document) -> Document:
 
 
 async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -> Document:
-    await get_model(model_id, user)
+    model = await get_model(model_id, user)
     # Das Modell speichert nur seine direkte Sprachauswahl. Abhängigkeiten
     # werden bei Bedarf aus den jeweiligen Sprachversionen aufgelöst.
     await check_language_refs(body.workspace_languages)
+    model_task = model.get("taskVersion")
+    supplied_task = (
+        body.task_version.model_dump(mode="json", by_alias=True) if body.task_version else None
+    )
+    if supplied_task != model_task:
+        raise conflict("Die Aufgabenfassung eines Modells kann nicht geändert werden.")
     if body.task_version is not None:
-        task_ref = body.task_version
-        version = await db.task_statement_versions.find_one(
-            {
-                "_id": str(task_ref.version_id),
-                "taskStatementId": str(task_ref.task_statement_id),
-            }
+        from modeling_api.services.tasks import ensure_release_reference
+
+        task_release = await ensure_release_reference(
+            body.task_version.task_id, body.task_version.version_id
         )
-        if version is None:
-            raise not_found()
+        selected_languages = {
+            (str(reference.language_id), str(reference.version_id))
+            for reference in body.workspace_languages
+        }
+        required_languages = {
+            (str(reference["languageId"]), str(reference["versionId"]))
+            for reference in task_release.get("workspaceLanguages", [])
+            if reference.get("source") == "required"
+        }
+        if not required_languages.issubset(selected_languages):
+            raise conflict(
+                "Die von der Aufgabe benötigten Sprachversionen können nicht geändert werden."
+            )
 
     previous = None
     if body.base_version_id is not None:

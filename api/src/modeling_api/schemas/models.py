@@ -22,6 +22,7 @@ SortOrder = Literal["asc", "desc"]
 class Model(Identity):
     name: Name
     latest_version_id: UUID | None
+    task_version: TaskVersionReference | None = None
     preferences: JsonObject = Field(default_factory=dict)
     updated_at: datetime
     archived_at: datetime | None = None
@@ -29,6 +30,7 @@ class Model(Identity):
 
 class CreateModel(ApiSchema):
     name: Name
+    task_version: TaskVersionReference | None = None
 
 
 class UpdateModel(ApiSchema):

@@ -7,6 +7,7 @@ export type SortOrder = 'asc' | 'desc'
 export interface ModelListOptions {
   q?: string
   archived?: boolean
+  taskBound?: boolean
   sort?: ModelSortField
   order?: SortOrder
 }
@@ -18,6 +19,7 @@ export interface WorkspaceLanguageReference extends LanguageVersionReference {
 export interface Model extends ApiIdentity {
   name: string
   latestVersionId: ApiId | null
+  taskVersion: TaskVersionReference | null
   preferences: JsonObject
   updatedAt: string
   archivedAt: string | null
@@ -25,6 +27,7 @@ export interface Model extends ApiIdentity {
 
 export interface CreateModel {
   name: string
+  taskVersion?: TaskVersionReference | null
 }
 
 export interface UpdateModel {

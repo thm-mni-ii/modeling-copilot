@@ -70,7 +70,12 @@ class LanguageVersionReference(ApiSchema):
 
 
 class TaskVersionReference(ApiSchema):
-    task_statement_id: UUID
+    task_id: UUID
+    version_id: UUID
+
+
+class ModelVersionReference(ApiSchema):
+    model_id: UUID
     version_id: UUID
 
 

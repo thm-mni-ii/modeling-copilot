@@ -1,237 +1,303 @@
 <template>
-  <v-container fluid class="pa-0 task-view-container">
-    <!-- Header -->
-    <v-card class="mx-2 mt-2 mb-1" variant="outlined">
-      <v-card-title class="d-flex align-center py-3">
-        <v-icon class="mr-2" color="primary">mdi-clipboard-text-outline</v-icon>
-        <span>Tasks</span>
-        <v-chip v-if="currentTask" color="primary" variant="tonal" size="small" class="ml-3">
-          {{ currentTask.title }}
-        </v-chip>
-      </v-card-title>
-    </v-card>
+  <v-container fluid class="pa-3 task-view-container">
+    <div class="d-flex align-center mb-3 ga-2">
+      <div>
+        <h1 class="text-h5">Tasks</h1>
+        <p class="text-medium-emphasis mb-0">Shared, versioned tasks for all administrators.</p>
+      </div>
+      <v-spacer />
+      <v-btn prepend-icon="mdi-plus" color="primary" @click="openCreate">New task</v-btn>
+    </div>
 
-    <!-- Hauptbereich: Sidebar + Inhalt -->
+    <v-alert v-if="error" type="error" closable class="mb-3" @click:close="error = null">{{ error }}</v-alert>
+
     <div class="task-layout">
-      <!-- Linke Sidebar: Aufgabenliste -->
-      <v-card class="task-sidebar">
-        <v-card-title class="sidebar-header d-flex align-center justify-space-between py-2 px-3">
-          <span class="text-body-2 font-weight-bold">Tasks</span>
-          <v-btn size="small" color="primary" variant="tonal" icon @click="addTask">
-            <v-icon>mdi-plus</v-icon>
-            <v-tooltip activator="parent" location="right">New Task</v-tooltip>
-          </v-btn>
-        </v-card-title>
-
+      <v-card class="task-sidebar" variant="outlined">
+        <v-card-text class="pa-2">
+          <v-text-field v-model="query" label="Search tasks" density="compact" prepend-inner-icon="mdi-magnify" clearable hide-details @update:model-value="searchTasks" />
+        </v-card-text>
+        <v-tabs v-model="showArchived" density="compact" grow @update:model-value="loadTasks"><v-tab :value="false">Active</v-tab><v-tab :value="true">Archive</v-tab></v-tabs>
         <v-divider />
-
-        <v-list density="compact" class="task-list pa-1" nav>
-          <v-list-item v-for="task in tasks" :key="task.id" :value="task.id" :active="task.id === currentTaskId" color="primary" rounded="lg" class="task-list-item" @click="selectTask(task.id)">
-            <template #prepend>
-              <v-icon size="16" class="mr-2">mdi-clipboard-text-outline</v-icon>
-            </template>
-
-            <v-list-item-title class="text-body-2">{{ task.title }}</v-list-item-title>
-
-            <template #append>
-              <v-btn size="x-small" variant="text" icon color="error" class="task-delete-btn" @click.stop="confirmDelete(task.id)">
-                <v-icon size="16">mdi-delete-outline</v-icon>
-                <v-tooltip activator="parent" location="right">Delete Task</v-tooltip>
-              </v-btn>
-            </template>
+        <v-list density="compact" nav class="task-list">
+          <v-list-item v-for="task in tasks" :key="task.id" :active="task.id === currentTask?.id" color="primary" rounded="lg" @click="selectTask(task)">
+            <template #prepend><v-icon size="18">mdi-clipboard-text-outline</v-icon></template>
+            <v-list-item-title>{{ task.name }}</v-list-item-title>
+            <v-list-item-subtitle>{{ task.latestReleaseId ? 'Published' : 'Draft only' }}</v-list-item-subtitle>
           </v-list-item>
-
-          <v-list-item v-if="tasks.length === 0" disabled class="text-caption text-grey pa-2"> No tasks available yet. </v-list-item>
+          <v-list-item v-if="!loading && tasks.length === 0" disabled title="No tasks available." />
         </v-list>
       </v-card>
 
-      <!-- Rechter Inhalt: Aufgabeneditor -->
-      <div class="task-editor-area">
-        <v-card v-if="currentTask" height="100%" class="d-flex flex-column">
-          <v-card-text class="task-editor-content d-flex flex-column pa-3">
-            <!-- Titelfeld -->
-            <v-text-field v-model="titleModel" label="Title" density="compact" variant="outlined" class="mb-3" hide-details="auto" placeholder="Task title" @update:model-value="onTitleChange" />
-
-            <!-- Rich-Text-Editor -->
-            <TaskRichEditor v-model="contentModel" class="flex-1-1" @update:model-value="onContentChange" />
-
-            <!-- Rohstruktur des Textes -->
-            <div class="task-raw-structure mt-3">
-              <div class="task-raw-structure__title">Raw structure (HTML)</div>
-              <pre class="task-raw-structure__content">{{ contentModel || '<p></p>' }}</pre>
-            </div>
-          </v-card-text>
-        </v-card>
-
-        <v-card v-else height="100%" variant="outlined" class="d-flex align-center justify-center">
-          <div class="text-center text-grey">
-            <v-icon size="48" class="mb-3">mdi-clipboard-text-outline</v-icon>
-            <div class="text-body-1">No task selected</div>
-            <div class="text-caption mt-1">Select a task from the list or create a new one.</div>
-            <v-btn class="mt-4" color="primary" prepend-icon="mdi-plus" @click="addTask">Create New Task</v-btn>
+      <v-card v-if="currentTask" class="task-editor" variant="outlined">
+        <v-card-title class="d-flex align-center ga-2">
+          <v-text-field v-model="titleModel" label="Task name" density="compact" variant="outlined" hide-details @blur="saveMetadata" />
+          <v-chip v-if="currentVersion" size="small" :color="currentVersion.kind === 'release' ? 'success' : 'warning'" variant="tonal">
+            {{ versionLabel(currentVersion) }}
+          </v-chip>
+          <v-btn icon="mdi-source-branch" variant="text" title="Create branch" :disabled="!currentVersion" @click="branchTask" />
+          <v-btn :icon="currentTask.archivedAt ? 'mdi-archive-arrow-up-outline' : 'mdi-archive-outline'" variant="text" :title="currentTask.archivedAt ? 'Restore task' : 'Archive task'" @click="toggleArchiveTask" />
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="task-editor-content">
+          <div class="task-settings">
+            <v-select v-model="selectedLanguageKeys" :items="languageOptions" label="Workspace languages" multiple chips closable-chips density="compact" variant="outlined" hide-details @update:model-value="loadSelectedLanguages" />
+            <v-select v-model="autonomyMode" :items="autonomyOptions" label="Modeling behavior" density="compact" variant="outlined" hide-details />
+            <v-select v-model="selectedSolutionKeys" :items="solutionOptions" label="Sample solution releases" multiple chips closable-chips density="compact" variant="outlined" hide-details />
           </div>
-        </v-card>
-      </div>
+
+          <TaskRichEditor v-model="contentModel" :element-options="elementOptions" :connection-options="connectionOptions" class="task-rich-editor" />
+
+          <div class="d-flex align-center ga-2 mt-3">
+            <v-select v-model="selectedVersionId" :items="versionOptions" label="Loaded version" density="compact" variant="outlined" hide-details class="version-select" @update:model-value="loadVersion" />
+            <v-spacer />
+            <v-btn :loading="saving" variant="tonal" prepend-icon="mdi-content-save-outline" @click="saveVersion('checkpoint')">Save checkpoint</v-btn>
+            <v-btn :loading="saving" color="primary" prepend-icon="mdi-tag-outline" @click="releaseDialog = true">Create release</v-btn>
+          </div>
+        </v-card-text>
+      </v-card>
+
+      <v-card v-else class="task-editor d-flex align-center justify-center" variant="outlined">
+        <div class="text-center text-medium-emphasis">
+          <v-icon size="48">mdi-clipboard-text-outline</v-icon>
+          <div class="mt-2">Select a task or create a new one.</div>
+        </div>
+      </v-card>
     </div>
 
-    <!-- Lösch-Bestätigungsdialog -->
-    <v-dialog v-model="deleteDialogVisible" max-width="400">
+    <v-dialog v-model="createDialog" max-width="520">
       <v-card>
-        <v-card-title>Delete Task?</v-card-title>
-        <v-card-text>This action cannot be undone.</v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="deleteDialogVisible = false">Cancel</v-btn>
-          <v-btn color="error" variant="tonal" @click="executeDelete">Delete</v-btn>
-        </v-card-actions>
+        <v-card-title>Create task</v-card-title>
+        <v-card-text><v-text-field v-model="newTaskName" label="Task name" autofocus @keyup.enter="createTask" /></v-card-text>
+        <v-card-actions><v-spacer /><v-btn @click="createDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!newTaskName.trim()" @click="createTask">Create</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="releaseDialog" max-width="560">
+      <v-card>
+        <v-card-title>Create task release</v-card-title>
+        <v-card-text>
+          <v-text-field v-model="releaseName" label="Release name" autofocus />
+          <v-textarea v-model="releaseDescription" label="Description (optional)" rows="2" />
+        </v-card-text>
+        <v-card-actions><v-spacer /><v-btn @click="releaseDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!releaseName.trim()" @click="saveVersion('release')">Release</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import type { DiagramTask } from '@/model/Task'
-import TaskRichEditor from '@/components/tasks/TaskRichEditor.vue'
+import { computed, onMounted, ref } from 'vue'
+import TaskRichEditor, { type TaskConnectionOption, type TaskElementOption } from '@/components/tasks/TaskRichEditor.vue'
+import { AUTONOMY_MODES, type AutonomyMode } from '@/model/Autonomy'
+import type { DiagramLanguage } from '@/model/DiagramLanguage'
+import languageService from '@/services/language/language.service'
+import modelService from '@/services/model/model.service'
+import taskService from '@/services/task/task.service'
+import type { LanguageOverview, LanguageVersion } from '@/services/api/types/language'
+import type { ModelVersionReference } from '@/services/api/types/common'
+import type { WorkspaceLanguageReference } from '@/services/api/types/model'
+import type { Task, TaskVersion, TaskVersionInfo, TaskVersionKind } from '@/services/api/types/task'
 
-const tasks = ref<DiagramTask[]>([])
-const currentTaskId = ref<string | null>(null)
-
-const currentTask = computed(() => tasks.value.find((t) => t.id === currentTaskId.value) ?? null)
-
-// Lokale Kopien der Felder für v-model (verhindert direkte Store-Mutation)
+const tasks = ref<Task[]>([])
+const currentTask = ref<Task | null>(null)
+const currentVersion = ref<TaskVersion | null>(null)
+const versions = ref<TaskVersionInfo[]>([])
+const languages = ref<LanguageOverview[]>([])
+const availableLanguageOptions = ref<{ title: string; value: string }[]>([])
+const loadedLanguages = ref<Record<string, LanguageVersion<DiagramLanguage>>>({})
+const solutionOptions = ref<{ title: string; value: string }[]>([])
+const query = ref('')
+const showArchived = ref(false)
+const loading = ref(false)
+const saving = ref(false)
+const error = ref<string | null>(null)
 const titleModel = ref('')
 const contentModel = ref('')
+const autonomyMode = ref<AutonomyMode>('free')
+const selectedLanguageKeys = ref<string[]>([])
+const selectedSolutionKeys = ref<string[]>([])
+const selectedVersionId = ref<string | null>(null)
+const createDialog = ref(false)
+const newTaskName = ref('')
+const releaseDialog = ref(false)
+const releaseName = ref('')
+const releaseDescription = ref('')
 
-// Sync lokale Felder beim Aufgabenwechsel
-watch(
-  currentTask,
-  (task) => {
-    titleModel.value = task?.title ?? ''
-    contentModel.value = task?.content ?? ''
-  },
-  { immediate: true }
+const autonomyOptions = AUTONOMY_MODES.map((mode) => ({ title: mode.title, value: mode.value }))
+const languageKey = (languageId: string, versionId: string) => `${languageId}:${versionId}`
+const parseReferenceKey = (value: string) => {
+  const separator = value.indexOf(':')
+  return { first: value.slice(0, separator), second: value.slice(separator + 1) }
+}
+const languageOptions = computed(() => availableLanguageOptions.value)
+const versionOptions = computed(() => versions.value.map((version) => ({ title: versionLabel(version), value: version.id })))
+const elementOptions = computed<TaskElementOption[]>(() =>
+  selectedLanguageKeys.value.flatMap((key) => {
+    const version = loadedLanguages.value[key]
+    const { first: languageId } = parseReferenceKey(key)
+    const languageName = languages.value.find((item) => item.id === languageId)?.name ?? languageId
+    return (version?.data.elements ?? []).map((element) => ({ languageId, elementType: element.type, label: `${languageName}: ${element.defaultLabel || element.type}`, element }))
+  })
+)
+const connectionOptions = computed<TaskConnectionOption[]>(() =>
+  selectedLanguageKeys.value.flatMap((key) => {
+    const version = loadedLanguages.value[key]
+    const { first: languageId } = parseReferenceKey(key)
+    const languageName = languages.value.find((item) => item.id === languageId)?.name ?? languageId
+    return (version?.data.connections ?? []).map((connection) => ({ languageId, connectionType: connection.type, label: `${languageName}: ${connection.label || connection.type}`, connection }))
+  })
 )
 
-const onTitleChange = (value: string) => {
+const versionLabel = (version: TaskVersionInfo) => (version.kind === 'release' ? `${version.releaseName} · v${version.versionNumber}` : `Checkpoint · v${version.versionNumber}`)
+const workspaceLanguages = (): WorkspaceLanguageReference[] => selectedLanguageKeys.value.map((key) => {
+  const { first: languageId, second: versionId } = parseReferenceKey(key)
+  return { languageId, versionId, source: 'required' }
+})
+const sampleSolutions = (): ModelVersionReference[] => selectedSolutionKeys.value.map((key) => {
+  const { first: modelId, second: versionId } = parseReferenceKey(key)
+  return { modelId, versionId }
+})
+
+const loadTasks = async () => {
+  loading.value = true
+  try {
+    tasks.value = (await taskService.list(0, 100, { q: query.value || undefined, archived: showArchived.value })).data.items
+  } catch {
+    error.value = 'Tasks could not be loaded.'
+  } finally {
+    loading.value = false
+  }
+}
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+const searchTasks = () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => void loadTasks(), 250)
+}
+const selectTask = async (task: Task) => {
+  currentTask.value = task
+  titleModel.value = task.name
+  versions.value = (await taskService.listVersions(task.id, 0, 100)).data.items
+  const target = task.latestVersionId ?? versions.value[0]?.id ?? null
+  selectedVersionId.value = target
+  if (target) await loadVersion(target)
+  else resetEditor()
+}
+const resetEditor = () => {
+  currentVersion.value = null
+  contentModel.value = '<p></p>'
+  autonomyMode.value = 'free'
+  selectedLanguageKeys.value = []
+  selectedSolutionKeys.value = []
+}
+const loadVersion = async (versionId: string | null) => {
+  if (!currentTask.value || !versionId) return
+  const version = (await taskService.getVersion(currentTask.value.id, versionId)).data
+  currentVersion.value = version
+  selectedVersionId.value = version.id
+  contentModel.value = version.data.contentHtml
+  autonomyMode.value = version.data.autonomyMode
+  selectedLanguageKeys.value = version.workspaceLanguages.map((item) => languageKey(item.languageId, item.versionId))
+  selectedSolutionKeys.value = version.data.sampleSolutions.map((item) => languageKey(item.modelId, item.versionId))
+  await loadSelectedLanguages()
+}
+const loadSelectedLanguages = async () => {
+  await Promise.all(selectedLanguageKeys.value.map(async (key) => {
+    if (loadedLanguages.value[key]) return
+    const { first: languageId, second: versionId } = parseReferenceKey(key)
+    loadedLanguages.value[key] = (await languageService.getVersion<DiagramLanguage>(languageId, versionId)).data
+  }))
+}
+const openCreate = () => {
+  newTaskName.value = ''
+  createDialog.value = true
+}
+const createTask = async () => {
+  if (!newTaskName.value.trim()) return
+  try {
+    const task = (await taskService.create({ name: newTaskName.value.trim() })).data
+    createDialog.value = false
+    await loadTasks()
+    await selectTask(task)
+  } catch {
+    error.value = 'The task could not be created.'
+  }
+}
+const saveMetadata = async () => {
+  if (!currentTask.value || !titleModel.value.trim() || titleModel.value.trim() === currentTask.value.name) return
+  try {
+    currentTask.value = (await taskService.update(currentTask.value.id, { name: titleModel.value.trim() })).data
+    await loadTasks()
+  } catch {
+    error.value = 'The task name could not be saved.'
+  }
+}
+const saveVersion = async (kind: TaskVersionKind) => {
   if (!currentTask.value) return
-  void value
+  saving.value = true
+  try {
+    const saved = (await taskService.createVersion(currentTask.value.id, {
+      baseVersionId: currentTask.value.latestVersionId,
+      kind,
+      ...(kind === 'release' ? { releaseName: releaseName.value.trim(), description: releaseDescription.value.trim() || null } : {}),
+      workspaceLanguages: workspaceLanguages(),
+      data: { contentHtml: contentModel.value, autonomyMode: autonomyMode.value, sampleSolutions: sampleSolutions() }
+    })).data
+    currentTask.value = (await taskService.get(currentTask.value.id)).data
+    versions.value = (await taskService.listVersions(currentTask.value.id, 0, 100)).data.items
+    currentVersion.value = saved
+    selectedVersionId.value = saved.id
+    releaseDialog.value = false
+    releaseName.value = ''
+    releaseDescription.value = ''
+    await loadTasks()
+  } catch (caught) {
+    error.value = (caught as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'The task version could not be saved.'
+  } finally {
+    saving.value = false
+  }
 }
-
-const onContentChange = (value: string) => {
+const branchTask = async () => {
+  if (!currentTask.value || !currentVersion.value) return
+  try {
+    const branch = (await taskService.create({ name: `${currentTask.value.name} – Branch`, parent: { taskId: currentTask.value.id, versionId: currentVersion.value.id } })).data
+    await loadTasks()
+    await selectTask(branch)
+  } catch {
+    error.value = 'The task branch could not be created.'
+  }
+}
+const toggleArchiveTask = async () => {
   if (!currentTask.value) return
-  void value
+  try {
+    await taskService.update(currentTask.value.id, { archived: !currentTask.value.archivedAt })
+    currentTask.value = null
+    await loadTasks()
+  } catch {
+    error.value = 'The task archive state could not be changed.'
+  }
+}
+const loadCatalogs = async () => {
+  languages.value = (await languageService.list(0, 100, { archived: false })).data.items
+  const languageReleases = await Promise.all(languages.value.map(async (language) => ({ language, versions: (await languageService.listVersions(language.id, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
+  availableLanguageOptions.value = languageReleases.flatMap(({ language, versions: entries }) => entries.map((version) => ({ title: `${language.name} · ${version.releaseName ?? 'Release'} · v${version.versionNumber}`, value: languageKey(language.id, version.id) })))
+  const models = (await modelService.list(0, 100, { archived: false })).data.items
+  const releases = await Promise.all(models.map(async (model) => ({ model, versions: (await modelService.listVersions(model.id, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
+  solutionOptions.value = releases.flatMap(({ model, versions: entries }) => entries.map((version) => ({ title: `${model.name} · ${version.releaseName ?? `v${version.versionNumber}`}`, value: languageKey(model.id, version.id) })))
 }
 
-const addTask = () => {}
-
-// Löschen mit Bestätigung
-const deleteDialogVisible = ref(false)
-const pendingDeleteId = ref<string | null>(null)
-
-const confirmDelete = (id: string) => {
-  pendingDeleteId.value = id
-  deleteDialogVisible.value = true
-}
-
-const executeDelete = () => {
-  pendingDeleteId.value = null
-  deleteDialogVisible.value = false
-}
-
-const selectTask = (taskId: string) => {
-  currentTaskId.value = taskId
-}
+onMounted(async () => {
+  await Promise.all([loadTasks(), loadCatalogs()])
+})
 </script>
 
 <style scoped>
-.task-view-container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.task-layout {
-  display: flex;
-  flex-direction: row;
-  flex: 1;
-  min-height: 0;
-  gap: 8px;
-  padding: 0 8px 8px;
-  overflow: hidden;
-}
-
-.task-sidebar {
-  width: 240px;
-  min-width: 200px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.sidebar-header {
-  min-height: 44px;
-}
-
-.task-list {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.task-list-item .task-delete-btn {
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.task-list-item:hover .task-delete-btn {
-  opacity: 1;
-}
-
-.task-editor-area {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.task-editor-content {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.task-raw-structure {
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 6px;
-  background: #fafafa;
-  display: flex;
-  flex-direction: column;
-  min-height: 120px;
-  max-height: 180px;
-}
-
-.task-raw-structure__title {
-  padding: 8px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #424242;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  background: #f3f3f3;
-}
-
-.task-raw-structure__content {
-  margin: 0;
-  padding: 10px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.4;
-  color: #1f2937;
-  flex: 1;
-}
+.task-view-container { height: calc(100vh - var(--v-layout-top, 0px)); display: flex; flex-direction: column; }
+.task-layout { display: flex; flex: 1; min-height: 0; gap: 12px; }
+.task-sidebar { width: 280px; min-width: 240px; display: flex; flex-direction: column; }
+.task-list { flex: 1; overflow-y: auto; }
+.task-editor { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.task-editor-content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.task-settings { display: grid; grid-template-columns: 2fr 1fr 2fr; gap: 10px; margin-bottom: 10px; }
+.task-rich-editor { flex: 1; min-height: 300px; }
+.version-select { max-width: 300px; }
 </style>

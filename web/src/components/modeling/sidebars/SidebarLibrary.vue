@@ -14,11 +14,11 @@
           <div v-if="workspace.languages.length" class="language-list mb-4">
             <div v-for="(reference, index) in workspace.languages" :key="reference.languageId" class="language-row">
               <div class="language-name text-truncate">{{ languageName(reference.languageId) }}</div>
-              <v-select :model-value="reference.versionId" :items="releaseOptions(reference.languageId, reference.versionId)" item-title="title" item-value="value" label="Release" density="compact" hide-details :loading="loadingVersions.has(reference.languageId)" @update:model-value="changeRelease(reference.languageId, $event)" />
+              <v-select :model-value="reference.versionId" :items="releaseOptions(reference.languageId, reference.versionId)" item-title="title" item-value="value" label="Release" density="compact" hide-details :disabled="reference.source === 'required'" :loading="loadingVersions.has(reference.languageId)" @update:model-value="changeRelease(reference.languageId, $event)" />
               <div class="d-flex">
                 <v-btn icon="mdi-arrow-up" size="x-small" variant="text" :disabled="index === 0" aria-label="Move language up" @click="workspace.moveLanguage(reference.languageId, -1)" />
                 <v-btn icon="mdi-arrow-down" size="x-small" variant="text" :disabled="index === workspace.languages.length - 1" aria-label="Move language down" @click="workspace.moveLanguage(reference.languageId, 1)" />
-                <v-btn icon="mdi-close" size="x-small" variant="text" color="error" aria-label="Remove language" @click="removeLanguage(reference.languageId)" />
+                <v-btn icon="mdi-close" size="x-small" variant="text" color="error" aria-label="Remove language" :disabled="reference.source === 'required'" @click="removeLanguage(reference.languageId)" />
               </div>
             </div>
           </div>

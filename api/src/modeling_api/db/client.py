@@ -14,18 +14,37 @@ async def create_indexes() -> None:
     Die Unique-Indizes sind gleichzeitig die Absicherung gegen doppelte
     Schreibvorgänge, z. B. zwei gleichzeitig angehängte Versionen.
     """
+    # In-place migration from the former external task-statement vocabulary.
+    await db.task_statement_versions.update_many(
+        {"taskStatementId": {"$exists": True}},
+        {"$rename": {"taskStatementId": "taskId"}},
+    )
+    await db.model_versions.update_many(
+        {"taskVersion.taskStatementId": {"$exists": True}},
+        {"$rename": {"taskVersion.taskStatementId": "taskVersion.taskId"}},
+    )
+    await db.models.update_many(
+        {"taskVersion.taskStatementId": {"$exists": True}},
+        {"$rename": {"taskVersion.taskStatementId": "taskVersion.taskId"}},
+    )
+
+    index_names = await db.task_statements.index_information()
+    if "source_1_externalTaskId_1" in index_names:
+        await db.task_statements.drop_index("source_1_externalTaskId_1")
+    version_index_names = await db.task_statement_versions.index_information()
+    if "taskStatementId_1_versionNumber_-1" in version_index_names:
+        await db.task_statement_versions.drop_index("taskStatementId_1_versionNumber_-1")
+    if "taskStatementId_1_externalVersionId_1" in version_index_names:
+        await db.task_statement_versions.drop_index("taskStatementId_1_externalVersionId_1")
+
     for collection in ("languages", "task_statements", "models"):
         await db[collection].create_index(
             [("ownerId", ASCENDING), ("createdAt", DESCENDING), ("_id", DESCENDING)]
         )
 
-    await db.task_statements.create_index(
-        [("source", ASCENDING), ("externalTaskId", ASCENDING)], unique=True
-    )
-
     for collection, parent_field in (
         ("language_versions", "languageId"),
-        ("task_statement_versions", "taskStatementId"),
+        ("task_statement_versions", "taskId"),
         ("model_versions", "modelId"),
     ):
         await db[collection].create_index(
@@ -33,7 +52,10 @@ async def create_indexes() -> None:
         )
 
     await db.task_statement_versions.create_index(
-        [("taskStatementId", ASCENDING), ("externalVersionId", ASCENDING)], unique=True
+        [("taskId", ASCENDING), ("kind", ASCENDING), ("createdAt", DESCENDING)]
+    )
+    await db.models.create_index(
+        [("ownerId", ASCENDING), ("taskVersion.taskId", ASCENDING), ("updatedAt", DESCENDING)]
     )
 
     await db.feedback.create_index(

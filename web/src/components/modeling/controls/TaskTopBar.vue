@@ -30,7 +30,7 @@
             <v-icon size="16" color="primary">mdi-open-in-new</v-icon>
             The task text is open in a window. Close the window to display it here.
           </div>
-          <TaskRichEditor v-else :model-value="contentHtml" :readonly="!markMode" class="task-topbar__editor" :style="editorStyle" @update:model-value="onContentUpdated" />
+          <TaskRichEditor v-else :model-value="contentHtml" :readonly="!markMode" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="editorStyle" @select-connection="emit('select-connection', $event)" @update:model-value="onContentUpdated" />
 
           <div class="task-topbar__resize-handle" title="Adjust height" @mousedown.prevent="startResize">
             <v-icon size="12">mdi-drag-horizontal</v-icon>
@@ -43,18 +43,24 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import TaskRichEditor from '@/components/tasks/TaskRichEditor.vue'
+import TaskRichEditor, { type TaskConnectionOption, type TaskElementOption } from '@/components/tasks/TaskRichEditor.vue'
 import type { DiagramTask } from '@/model/Task'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   task: DiagramTask | null
   windowOpen: boolean
   contentHtml: string
-}>()
+  elementOptions?: TaskElementOption[]
+  connectionOptions?: TaskConnectionOption[]
+}>(), {
+  elementOptions: () => [],
+  connectionOptions: () => []
+})
 
 const emit = defineEmits<{
   'pop-out': []
   'update:contentHtml': [string]
+  'select-connection': [reference: { languageId: string; connectionType: string }]
 }>()
 
 const expanded = ref(true)
