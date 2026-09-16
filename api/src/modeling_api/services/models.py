@@ -56,7 +56,7 @@ async def create_model(body: CreateModel, user: User) -> Document:
     if body.task_version is not None:
         from modeling_api.services.tasks import ensure_release_reference
 
-        await ensure_release_reference(body.task_version.task_id, body.task_version.version_id)
+        await ensure_release_reference(body.task_version.task_id, body.task_version.version_id, user)
     return await insert(
         db.models,
         {
@@ -193,7 +193,7 @@ async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -
         from modeling_api.services.tasks import ensure_release_reference
 
         task_release = await ensure_release_reference(
-            body.task_version.task_id, body.task_version.version_id
+            body.task_version.task_id, body.task_version.version_id, user
         )
         selected_languages = {
             (str(reference.language_id), str(reference.version_id))

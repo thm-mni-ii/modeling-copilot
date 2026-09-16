@@ -3,12 +3,15 @@ import type { ApiId, ApiIdentity, ApiVersionInfo, ModelVersionReference, TaskVer
 import type { WorkspaceLanguageReference } from './model'
 
 export type TaskVersionKind = 'checkpoint' | 'release'
+export type TaskVisibility = 'private' | 'published'
 
 export interface Task extends ApiIdentity {
   name: string
   parent: TaskVersionReference | null
   latestVersionId: ApiId | null
   latestReleaseId: ApiId | null
+  latestReleaseCreatedBy: string | null
+  visibility: TaskVisibility
   archivedAt: string | null
 }
 
@@ -20,6 +23,7 @@ export interface CreateTask {
 export interface UpdateTask {
   name?: string
   archived?: boolean
+  visibility?: TaskVisibility
 }
 
 export interface TaskData {

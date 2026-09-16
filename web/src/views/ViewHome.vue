@@ -113,7 +113,7 @@ const formattedDate = (value: string) => new Intl.DateTimeFormat('en-GB', { date
 const asModel = (item: Model | { raw: Model }) => ('raw' in item ? item.raw : item)
 const previewTitle = computed(() => previewModel.value?.name ?? '')
 const releaseVersions = (modelId: string) => (versions.value[modelId] ?? []).filter((entry) => entry.kind === 'release')
-const taskOptions = computed(() => availableTasks.value.filter((task) => task.latestReleaseId).map((task) => ({ title: task.name, value: task.id })))
+const taskOptions = computed(() => availableTasks.value.filter((task) => task.visibility === 'published' && task.latestReleaseId).map((task) => ({ title: task.name, value: task.id })))
 const taskVersionOptions = computed(() => selectableTaskVersions.value.map((version) => ({ title: `${version.releaseName} · v${version.versionNumber}`, value: version.id })))
 const taskName = (model: Model) => (model.taskVersion ? taskNames.value[model.taskVersion.taskId] ?? availableTasks.value.find((task) => task.id === model.taskVersion?.taskId)?.name ?? 'Task' : '—')
 
@@ -154,7 +154,11 @@ const loadVersions = async (modelId: string) => {
   versions.value[modelId] = (await modelService.listVersions(modelId, 0, 100)).data.items
   expandedTabs.value[modelId] = 'versions'
 }
-const expandedId = (entry: unknown) => (typeof entry === 'string' ? entry : (entry as { value?: string }).value)
+const expandedId = (entry: unknown) => {
+  if (typeof entry === 'string') return entry
+  if (entry && typeof entry === 'object' && 'value' in entry && typeof entry.value === 'string') return entry.value
+  return undefined
+}
 const setExpanded = (entries: unknown[]) => {
   const id = expandedId(entries[entries.length - 1])
   expanded.value = id ? [id] : []
@@ -181,7 +185,7 @@ const openTaskSelection = async () => {
   taskDialog.value = true
   loadingTasks.value = true
   try {
-    availableTasks.value = (await taskService.list(0, 100)).data.items
+    availableTasks.value = (await taskService.list(0, 100, { visibility: 'published' })).data.items
   } catch {
     error.value = 'Tasks could not be loaded.'
   } finally {

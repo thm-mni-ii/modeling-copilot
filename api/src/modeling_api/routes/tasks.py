@@ -11,6 +11,7 @@ from modeling_api.schemas.tasks import (
     CreateTask,
     CreateTaskVersion,
     Task,
+    TaskVisibility,
     TaskVersion,
     TaskVersionInfo,
     UpdateTask,
@@ -28,8 +29,10 @@ async def list_tasks(
     limit: Limit = 20,
     q: Annotated[str | None, Query(max_length=256)] = None,
     archived: bool = False,
+    mine: bool = False,
+    visibility: TaskVisibility | None = None,
 ) -> Page[Task]:
-    return Page[Task].model_validate(await service.list_tasks(skip, limit, user, q, archived))
+    return Page[Task].model_validate(await service.list_tasks(skip, limit, user, q, archived, mine, visibility))
 
 
 @router.post(

@@ -55,11 +55,49 @@ async def list_tasks(
     user: User,
     q: str | None = None,
     archived: bool = False,
+    mine: bool = False,
+    visibility: str | None = None,
 ) -> Document:
     filters: Document = {"archivedAt": {"$ne": None} if archived and user.is_admin else None}
+    if not user.is_admin:
+        filters["visibility"] = "published"
+    if mine:
+        filters["ownerId"] = user.id
+    if visibility is not None and user.is_admin:
+        filters["visibility"] = visibility
     if q and q.strip():
         filters["name"] = {"$regex": escape(q.strip()), "$options": "i"}
-    return await list_page(db.task_statements, filters, skip, limit, sort_field="name", sort_desc=False)
+    total = await db.task_statements.count_documents(filters)
+    cursor = await db.task_statements.aggregate(
+        [
+            {"$match": filters},
+            {"$sort": {"name": 1, "_id": 1}},
+            {"$skip": skip},
+            {"$limit": limit},
+            {
+                "$lookup": {
+                    "from": "task_statement_versions",
+                    "localField": "latestReleaseId",
+                    "foreignField": "_id",
+                    "as": "latestRelease",
+                }
+            },
+            {
+                "$project": {
+                    "name": 1,
+                    "parent": 1,
+                    "ownerId": 1,
+                    "createdAt": 1,
+                    "latestVersionId": 1,
+                    "latestReleaseId": 1,
+                    "latestReleaseCreatedBy": {"$arrayElemAt": ["$latestRelease.createdBy", 0]},
+                    "visibility": {"$ifNull": ["$visibility", "private"]},
+                    "archivedAt": 1,
+                }
+            },
+        ]
+    )
+    return {"items": [to_api(task) async for task in cursor], "total": total}
 
 
 async def create_task(body: CreateTask, user: User) -> Document:
@@ -80,6 +118,7 @@ async def create_task(body: CreateTask, user: User) -> Document:
             "ownerId": user.id,
             "latestVersionId": None,
             "latestReleaseId": None,
+            "visibility": "private",
             "archivedAt": None,
         },
     )
@@ -108,9 +147,9 @@ async def create_task(body: CreateTask, user: User) -> Document:
     return await get_task(UUID(task["id"]), user)
 
 
-async def get_task(task_id: UUID, _user: User) -> Document:
+async def get_task(task_id: UUID, user: User) -> Document:
     result = await db.task_statements.find_one({"_id": str(task_id)})
-    if result is None:
+    if result is None or (not user.is_admin and result.get("visibility", "private") != "published"):
         raise not_found()
     return to_api(result)
 
@@ -123,6 +162,8 @@ async def update_task(task_id: UUID, body: UpdateTask, user: User) -> Document:
         changes["name"] = body.name
     if "archived" in body.model_fields_set:
         changes["archivedAt"] = utcnow() if body.archived else None
+    if "visibility" in body.model_fields_set:
+        changes["visibility"] = body.visibility
     await db.task_statements.update_one({"_id": str(task_id)}, {"$set": changes})
     return await get_task(task_id, user)
 
@@ -282,12 +323,15 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
     )
     if body.kind == "release":
         await db.task_statements.update_one(
-            {"_id": str(task_id)}, {"$set": {"latestReleaseId": result["id"]}}
+            {"_id": str(task_id)},
+            {"$set": {"latestReleaseId": result["id"], "visibility": "published"}},
         )
     return result
 
 
-async def ensure_release_reference(task_id: UUID, version_id: UUID) -> Document:
+async def ensure_release_reference(task_id: UUID, version_id: UUID, user: User | None = None) -> Document:
+    if user is not None:
+        await get_task(task_id, user)
     version = await db.task_statement_versions.find_one(
         {"_id": str(version_id), "taskId": str(task_id), "kind": "release"}
     )

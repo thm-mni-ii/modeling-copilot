@@ -137,24 +137,31 @@
 
       <template v-if="props.elementOptions.length > 0 || props.connectionOptions.length > 0">
         <v-divider vertical class="mx-1" />
-        <template v-if="props.elementOptions.length > 0">
-          <v-select v-model="selectedElementKey" :items="elementSelectItems" label="Link model element" density="compact" variant="outlined" hide-details class="element-link-select" />
-          <v-btn size="small" variant="outlined" :disabled="!selectedElement" title="Link selected text to model element" @click="applyElementLink">
-            <v-icon>mdi-link-variant</v-icon>
-          </v-btn>
-          <v-btn size="small" variant="outlined" title="Remove element link" @click="removeElementLink">
-            <v-icon>mdi-link-variant-off</v-icon>
-          </v-btn>
-        </template>
-        <template v-if="props.connectionOptions.length > 0">
-          <v-select v-model="selectedConnectionKey" :items="connectionSelectItems" label="Link connection" density="compact" variant="outlined" hide-details class="element-link-select" />
-          <v-btn size="small" variant="outlined" :disabled="!selectedConnection" title="Link selected text to connection" @click="applyConnectionLink">
-            <v-icon>mdi-connection</v-icon>
-          </v-btn>
-          <v-btn size="small" variant="outlined" title="Remove connection link" @click="removeConnectionLink">
-            <v-icon>mdi-link-variant-off</v-icon>
-          </v-btn>
-        </template>
+        <v-menu location="bottom end" :close-on-content-click="false" max-width="360">
+          <template #activator="{ props: menuProps }">
+            <v-btn v-bind="menuProps" size="small" variant="outlined" title="Link selected task text">
+              <v-icon>mdi-link-variant</v-icon>
+            </v-btn>
+          </template>
+          <v-card class="task-link-menu pa-3">
+            <div v-if="props.elementOptions.length > 0" class="task-link-menu__section">
+              <div class="text-caption font-weight-medium mb-1">Model element</div>
+              <div class="d-flex ga-1 align-center">
+                <v-select v-model="selectedElementKey" :items="elementSelectItems" label="Element" density="compact" variant="outlined" hide-details />
+                <v-btn size="small" variant="tonal" color="primary" :disabled="!selectedElement" title="Apply element link" @click="applyElementLink"><v-icon>mdi-link-plus</v-icon></v-btn>
+                <v-btn size="small" variant="text" title="Remove current element link" @click="removeElementLink"><v-icon>mdi-link-variant-off</v-icon></v-btn>
+              </div>
+            </div>
+            <div v-if="props.connectionOptions.length > 0" class="task-link-menu__section">
+              <div class="text-caption font-weight-medium mb-1">Connection</div>
+              <div class="d-flex ga-1 align-center">
+                <v-select v-model="selectedConnectionKey" :items="connectionSelectItems" label="Connection" density="compact" variant="outlined" hide-details />
+                <v-btn size="small" variant="tonal" color="primary" :disabled="!selectedConnection" title="Apply connection link" @click="applyConnectionLink"><v-icon>mdi-link-plus</v-icon></v-btn>
+                <v-btn size="small" variant="text" title="Remove current connection link" @click="removeConnectionLink"><v-icon>mdi-link-variant-off</v-icon></v-btn>
+              </div>
+            </div>
+          </v-card>
+        </v-menu>
         <v-chip v-if="activeReferenceLabel" size="small" color="primary" variant="tonal" class="active-reference-chip" prepend-icon="mdi-link-variant">
           Selected: {{ activeReferenceLabel }}
         </v-chip>
@@ -398,7 +405,6 @@ const hideReferencePreview = () => {
   referencePreview.value = null
 }
 const onTaskReferenceMouseOver = (event: MouseEvent) => {
-  if (!props.readonly) return
   const target = event.target as Element | null
   const elementMark = target?.closest('[data-task-element-language-id][data-task-element-type]')
   const connectionMark = target?.closest('[data-task-connection-language-id][data-task-connection-type]')
@@ -560,10 +566,9 @@ const highlightColors = [
   padding: 0 1px;
 }
 
-.element-link-select {
-  width: 230px;
-  min-width: 180px;
-}
+.task-link-menu { width: min(360px, calc(100vw - 32px)); }
+.task-link-menu__section + .task-link-menu__section { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(var(--v-theme-outline), 0.16); }
+.task-link-menu :deep(.v-select) { min-width: 0; flex: 1; }
 
 .editor-body :deep(.task-element-mark) {
   border-bottom: 2px solid rgb(var(--v-theme-primary));

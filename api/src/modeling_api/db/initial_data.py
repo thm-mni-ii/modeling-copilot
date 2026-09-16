@@ -46,6 +46,7 @@ async def seed_initial_data() -> None:
                     "name": {"$ifNull": ["$externalTaskId", "Untitled task"]},
                     "parent": None,
                     "latestReleaseId": "$latestVersionId",
+                    "visibility": {"$cond": [{"$ne": [{"$ifNull": ["$latestVersionId", None]}, None]}, "published", "private"]},
                     "archivedAt": None,
                 }
             },
@@ -152,6 +153,7 @@ async def seed_initial_data() -> None:
                 "ownerId": SYSTEM_OWNER_ID,
                 "latestVersionId": ORDER_MANAGEMENT_TASK_VERSION_ID,
                 "latestReleaseId": ORDER_MANAGEMENT_TASK_VERSION_ID,
+                "visibility": "published",
                 "archivedAt": None,
             }
         },
@@ -220,6 +222,7 @@ async def seed_initial_data() -> None:
                 "name": "Order Management",
                 "parent": None,
                 "latestReleaseId": ORDER_MANAGEMENT_TASK_VERSION_ID,
+                "visibility": "published",
                 "archivedAt": None,
             },
             "$unset": {"source": "", "externalTaskId": ""},

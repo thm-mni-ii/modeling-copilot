@@ -27,6 +27,22 @@ async def create_indexes() -> None:
         {"taskVersion.taskStatementId": {"$exists": True}},
         {"$rename": {"taskVersion.taskStatementId": "taskVersion.taskId"}},
     )
+    await db.task_statements.update_many(
+        {"visibility": {"$exists": False}},
+        [
+            {
+                "$set": {
+                    "visibility": {
+                        "$cond": [
+                            {"$ne": [{"$ifNull": ["$latestReleaseId", None]}, None]},
+                            "published",
+                            "private",
+                        ]
+                    }
+                }
+            }
+        ],
+    )
 
     index_names = await db.task_statements.index_information()
     if "source_1_externalTaskId_1" in index_names:
@@ -53,6 +69,9 @@ async def create_indexes() -> None:
 
     await db.task_statement_versions.create_index(
         [("taskId", ASCENDING), ("kind", ASCENDING), ("createdAt", DESCENDING)]
+    )
+    await db.task_statements.create_index(
+        [("archivedAt", ASCENDING), ("ownerId", ASCENDING), ("visibility", ASCENDING), ("name", ASCENDING)]
     )
     await db.models.create_index(
         [("ownerId", ASCENDING), ("taskVersion.taskId", ASCENDING), ("updatedAt", DESCENDING)]

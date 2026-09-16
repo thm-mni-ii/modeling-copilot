@@ -2,7 +2,7 @@ from unittest import TestCase
 
 from pydantic import ValidationError
 
-from modeling_api.schemas.tasks import CreateTaskVersion
+from modeling_api.schemas.tasks import CreateTaskVersion, UpdateTask
 from modeling_api.services.tasks import _TaskElementMarkParser
 
 
@@ -45,3 +45,7 @@ class TaskVersionSchemaTests(TestCase):
         )
         self.assertEqual(parser.references, [("language-1", "entity")])
         self.assertEqual(parser.connection_references, [("language-1", "association")])
+
+    def test_visibility_can_be_updated_independently(self) -> None:
+        self.assertEqual(UpdateTask.model_validate({"visibility": "private"}).visibility, "private")
+        self.assertEqual(UpdateTask.model_validate({"visibility": "published"}).visibility, "published")

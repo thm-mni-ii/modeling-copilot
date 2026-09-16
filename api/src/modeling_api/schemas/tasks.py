@@ -18,6 +18,7 @@ from modeling_api.schemas.common import (
 from modeling_api.schemas.models import WorkspaceLanguageReference
 
 AutonomyMode = Literal["free", "informative", "validating", "preventive"]
+TaskVisibility = Literal["private", "published"]
 
 
 class Task(Identity):
@@ -25,6 +26,8 @@ class Task(Identity):
     parent: TaskVersionReference | None = None
     latest_version_id: UUID | None
     latest_release_id: UUID | None = None
+    latest_release_created_by: str | None = None
+    visibility: TaskVisibility = "private"
     archived_at: datetime | None = None
 
 
@@ -36,6 +39,7 @@ class CreateTask(ApiSchema):
 class UpdateTask(ApiSchema):
     name: Name | None = None
     archived: bool | None = None
+    visibility: TaskVisibility | None = None
 
     @model_validator(mode="after")
     def has_change(self) -> "UpdateTask":

@@ -2,10 +2,10 @@ import type { AxiosResponse } from 'axios'
 import httpClient from '@/services/api/httpClient'
 import type { ApiId, ApiPage } from '@/services/api/types/common'
 import type { ModelVersion } from '@/services/api/types/model'
-import type { CreateTask, CreateTaskVersion, Task, TaskVersion, TaskVersionInfo, UpdateTask } from '@/services/api/types/task'
+import type { CreateTask, CreateTaskVersion, Task, TaskVersion, TaskVersionInfo, TaskVisibility, UpdateTask } from '@/services/api/types/task'
 
 class TaskService {
-  list(skip = 0, limit = 20, options: { q?: string; archived?: boolean } = {}): Promise<AxiosResponse<ApiPage<Task>>> {
+  list(skip = 0, limit = 20, options: { q?: string; archived?: boolean; mine?: boolean; visibility?: TaskVisibility } = {}): Promise<AxiosResponse<ApiPage<Task>>> {
     return httpClient.get('/v1/tasks', { params: { skip, limit, ...options } })
   }
 
