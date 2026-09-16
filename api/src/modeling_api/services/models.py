@@ -16,10 +16,12 @@ from modeling_api.schemas.models import (
     CreateModelVersion,
     ModelSortField,
     SortOrder,
+    UpdateTaskEdit,
     UpdateModel,
 )
 from modeling_api.services.languages import check_language_refs
 from modeling_api.services.xml_patches import apply_patches, validate_model_xml
+from modeling_api.services.task_edits import validate_task_edit_document
 
 
 async def list_models(
@@ -43,13 +45,24 @@ async def list_models(
     await db.models.update_many(
         {"ownerId": user.id, "taskVersion": {"$exists": False}}, {"$set": {"taskVersion": None}}
     )
+    await db.models.update_many(
+        {"ownerId": user.id, "taskEdit": {"$exists": False}}, {"$set": {"taskEdit": None}}
+    )
     filters: Document = {"ownerId": user.id}
     filters["archivedAt"] = {"$ne": None} if archived else None
     if task_bound is not None:
         filters["taskVersion"] = {"$ne": None} if task_bound else None
     if q and q.strip():
         filters["name"] = {"$regex": escape(q.strip()), "$options": "i"}
-    return await list_page(db.models, filters, skip, limit, sort_field=sort, sort_desc=order != "asc")
+    return await list_page(
+        db.models,
+        filters,
+        skip,
+        limit,
+        sort_field=sort,
+        sort_desc=order != "asc",
+        omit=("taskEditBaseSignature", "taskEdit"),
+    )
 
 
 async def create_model(body: CreateModel, user: User) -> Document:
@@ -66,6 +79,7 @@ async def create_model(body: CreateModel, user: User) -> Document:
             "taskVersion": body.task_version.model_dump(mode="json", by_alias=True)
             if body.task_version
             else None,
+            "taskEdit": None,
             "preferences": {},
             "updatedAt": utcnow(),
             "archivedAt": None,
@@ -82,12 +96,15 @@ async def get_model(model_id: UUID, user: User) -> Document:
         "archivedAt": None,
         "preferences": {},
         "taskVersion": None,
+        "taskEdit": None,
     }
     changes = {key: value for key, value in missing_metadata.items() if key not in result}
     if changes:
         await db.models.update_one({"_id": str(model_id), "ownerId": user.id}, {"$set": changes})
         result.update(changes)
-    return to_api(result)
+    api_model = to_api(result)
+    api_model.pop("taskEditBaseSignature", None)
+    return api_model
 
 
 async def update_model(model_id: UUID, body: UpdateModel, user: User) -> Document:
@@ -112,6 +129,62 @@ async def delete_model(model_id: UUID, user: User) -> None:
     await db.models.delete_one({"_id": model_id_str, "ownerId": user.id})
 
 
+async def get_task_edit(model_id: UUID, user: User) -> Document | None:
+    model = await get_model(model_id, user)
+    return model.get("taskEdit")
+
+
+async def update_task_edit(model_id: UUID, body: UpdateTaskEdit, user: User) -> Document:
+    model = await get_model(model_id, user)
+    stored_model = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
+    if stored_model is None:
+        raise not_found()
+    task_reference = model.get("taskVersion")
+    if task_reference is None:
+        raise conflict("Ein Modell ohne Aufgabe kann keine Task-Edits besitzen.")
+    current = model.get("taskEdit")
+    current_revision = int(current.get("revision", 0)) if current else 0
+    if body.base_revision != current_revision:
+        raise conflict("Die Task-Edits wurden zwischenzeitlich geändert. Bitte neu laden.")
+
+    task_version = await db.task_statement_versions.find_one(
+        {
+            "_id": task_reference["versionId"],
+            "taskId": task_reference["taskId"],
+            "kind": "release",
+        }
+    )
+    if task_version is None:
+        raise not_found()
+    signature = validate_task_edit_document(
+        body.document,
+        task_version.get("data", {}).get("contentHtml", ""),
+        stored_model.get("taskEditBaseSignature"),
+    )
+    now = utcnow()
+    task_edit = {
+        "schemaVersion": 1,
+        "revision": current_revision + 1,
+        "updatedAt": now,
+        "document": body.document,
+    }
+    updated = await db.models.update_one(
+        {"_id": str(model_id), "ownerId": user.id, "taskEdit.revision": current_revision}
+        if current
+        else {"_id": str(model_id), "ownerId": user.id, "taskEdit": None},
+        {
+            "$set": {
+                "taskEdit": task_edit,
+                "taskEditBaseSignature": signature,
+                "updatedAt": now,
+            }
+        },
+    )
+    if updated.matched_count == 0:
+        raise conflict("Die Task-Edits wurden zwischenzeitlich geändert. Bitte neu laden.")
+    return task_edit
+
+
 async def list_versions(model_id: UUID, skip: int, limit: int, user: User) -> Document:
     await get_model(model_id, user)
     return await list_page(
@@ -119,7 +192,7 @@ async def list_versions(model_id: UUID, skip: int, limit: int, user: User) -> Do
         {"modelId": str(model_id)},
         skip,
         limit,
-        omit=("data", "annotations"),
+        omit=("data", "annotations", "taskEditSnapshot"),
     )
 
 
@@ -222,6 +295,7 @@ async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -
         by_alias=True,
         exclude={"base_version_id", "base_release_id"},
     )
+    fields["taskEditSnapshot"] = deepcopy(model.get("taskEdit")) if model_task else None
     if body.kind == "release":
         validate_model_xml(body.data["xml"])
         fields.pop("patches", None)

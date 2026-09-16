@@ -37,7 +37,7 @@
       ><v-card
         ><v-card-title class="d-flex align-center">Preview · {{ previewTitle }}<v-spacer /><v-btn icon="mdi-chevron-left" :disabled="previewIndex <= 0" @click="movePreview(-1)" /><v-btn icon="mdi-chevron-right" :disabled="previewIndex >= previewEntries.length - 1" @click="movePreview(1)" /></v-card-title
         ><v-card-subtitle v-if="previewEntries[previewIndex]">{{ snapshotLabel(previewEntries[previewIndex]) }}</v-card-subtitle
-        ><v-card-text><ModelSnapshotPreview :data="previewData" :height="600" /></v-card-text><v-card-actions><v-spacer /><v-btn @click="previewDialog = false">Close</v-btn></v-card-actions></v-card
+        ><v-card-text><ModelSnapshotPreview :data="previewData" :height="600" /><v-expansion-panels v-if="previewTaskEdit && previewTaskHtml" class="mt-3" variant="accordion"><v-expansion-panel title="Edits in this model state"><v-expansion-panel-text><TaskEditEditor :base-html="previewTaskHtml" :model-value="previewTaskEdit.document" mode="read" class="preview-task-edits" /></v-expansion-panel-text></v-expansion-panel></v-expansion-panels></v-card-text><v-card-actions><v-spacer /><v-btn @click="previewDialog = false">Close</v-btn></v-card-actions></v-card
       ></v-dialog
     >
     <v-dialog v-model="taskDialog" max-width="620">
@@ -59,11 +59,12 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ModelSnapshotPreview from '@/components/modeling/versions/ModelSnapshotPreview.vue'
 import ModelSnapshotList from '@/components/modeling/versions/ModelSnapshotList.vue'
+import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
 import modelService from '@/services/model/model.service'
 import taskService from '@/services/task/task.service'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { JsonObject } from '@/services/api/types/common'
-import type { Model, ModelSortField, ModelVersionInfo, SortOrder } from '@/services/api/types/model'
+import type { Model, ModelSortField, ModelVersionInfo, SortOrder, TaskEditDocument } from '@/services/api/types/model'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
 
 interface ModelTableOptions {
@@ -95,6 +96,8 @@ const previewData = ref<JsonObject | null>(null)
 const previewEntries = ref<ModelVersionInfo[]>([])
 const previewModel = ref<Model | null>(null)
 const previewIndex = ref(0)
+const previewTaskEdit = ref<TaskEditDocument | null>(null)
+const previewTaskHtml = ref('')
 const taskDialog = ref(false)
 const loadingTasks = ref(false)
 const availableTasks = ref<Task[]>([])
@@ -253,7 +256,10 @@ const openPreview = async (model: Model, entry: ModelVersionInfo) => {
 const loadPreview = async () => {
   const entry = previewEntries.value[previewIndex.value]
   if (!entry || !previewModel.value) return
-  previewData.value = (await modelService.getVersion(previewModel.value.id, entry.id)).data.data
+  const version = (await modelService.getVersion(previewModel.value.id, entry.id)).data
+  previewData.value = version.data
+  previewTaskEdit.value = version.taskEditSnapshot
+  previewTaskHtml.value = version.taskVersion ? (await taskService.getVersion(version.taskVersion.taskId, version.taskVersion.versionId)).data.data.contentHtml : ''
 }
 const movePreview = async (change: number) => {
   previewIndex.value += change

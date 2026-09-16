@@ -119,7 +119,7 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :feedback-shapes="feedbackShapes" />
+        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)" />
       </div>
       <!-- /canvas-area -->
     </v-card-text>
@@ -148,6 +148,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } fr
 import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorHandler, SelectionCellsHandler, SelectionHandler, CellState, EdgeStyle, GraphDataModel, PanningHandler, ImageBox, Client, KeyHandler, TooltipHandler, FitPlugin, Clipboard, ConnectionConstraint } from '@maxgraph/core'
 import type { GraphPluginConstructor } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
+import type { TaskEditDocument } from '@/services/api/types/model'
 import { provideGraphContext } from '@/composables/useGraphContext'
 import { useGraphOperations } from '@/composables/useGraphOperations'
 import { useZoomOperations } from '@/composables/useZoomOperations'
@@ -337,6 +338,9 @@ const props = withDefaults(
     languages?: SidebarLanguage[]
     autonomyMode?: AutonomyMode
     lockAutonomyMode?: boolean
+    taskActive?: boolean
+    taskEdit?: TaskEditDocument | null
+    taskEditSyncState?: 'synced' | 'dirty' | 'saving' | 'offline' | 'conflict'
     previewConnection?: DiagramConnection
     previewMode?: 'simple' | 'scenario' | 'routing'
     overlays?: FeedbackCanvasOverlayEntry[]
@@ -359,6 +363,9 @@ const props = withDefaults(
     languages: undefined,
     autonomyMode: 'free',
     lockAutonomyMode: false,
+    taskActive: false,
+    taskEdit: null,
+    taskEditSyncState: 'synced',
     previewConnection: undefined,
     previewMode: 'simple',
     overlays: () => [],
@@ -372,6 +379,9 @@ const emit = defineEmits<{
   'update:autonomyMode': [AutonomyMode]
   'update:connectionPreferences': [preferences: JsonObject]
   'window-removed': [id: string]
+  'removeTaskEdit': [id: string]
+  'updateTaskEditDocument': [document: JsonObject]
+  'focusTaskEdit': [id: string]
 }>()
 
 const autonomyMode = ref<AutonomyMode>(props.autonomyMode ?? 'free')

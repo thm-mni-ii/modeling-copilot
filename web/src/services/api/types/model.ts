@@ -16,10 +16,23 @@ export interface WorkspaceLanguageReference extends LanguageVersionReference {
   source: 'required' | 'additional'
 }
 
+export interface TaskEditDocument {
+  schemaVersion: 1
+  revision: number
+  updatedAt: string
+  document: JsonObject
+}
+
+export interface UpdateTaskEdit {
+  baseRevision: number
+  document: JsonObject
+}
+
 export interface Model extends ApiIdentity {
   name: string
   latestVersionId: ApiId | null
   taskVersion: TaskVersionReference | null
+  taskEdit: TaskEditDocument | null
   preferences: JsonObject
   updatedAt: string
   archivedAt: string | null
@@ -54,6 +67,7 @@ export interface ModelPatch {
 
 export interface ModelVersion extends ModelVersionInfo {
   data: JsonObject
+  taskEditSnapshot: TaskEditDocument | null
   annotations: JsonObject | null
 }
 
@@ -64,7 +78,6 @@ export interface CreateModelVersion {
   taskVersion?: TaskVersionReference | null
   data: JsonObject
   patches?: ModelPatch[]
-  annotations?: JsonObject | null
   kind?: ModelVersionKind
   releaseName?: string | null
   description?: string | null

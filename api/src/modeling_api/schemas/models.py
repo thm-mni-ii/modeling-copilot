@@ -19,10 +19,25 @@ from modeling_api.schemas.common import (
 
 ModelSortField = Literal["updatedAt", "createdAt", "name"]
 SortOrder = Literal["asc", "desc"]
+
+
+class TaskEditDocument(ApiSchema):
+    schema_version: Literal[1] = 1
+    revision: int = Field(ge=0)
+    updated_at: datetime
+    document: JsonObject
+
+
+class UpdateTaskEdit(ApiSchema):
+    base_revision: int = Field(ge=0)
+    document: JsonObject
+
+
 class Model(Identity):
     name: Name
     latest_version_id: UUID | None
     task_version: TaskVersionReference | None = None
+    task_edit: TaskEditDocument | None = None
     preferences: JsonObject = Field(default_factory=dict)
     updated_at: datetime
     archived_at: datetime | None = None
@@ -77,7 +92,8 @@ class ModelVersionInfo(VersionInfo):
 
 class ModelVersion(ModelVersionInfo):
     data: JsonObject  # vollständiger Modellinhalt, ggf. inkl. Editor-Einstellungen
-    annotations: JsonObject | None  # persönliche Markierungen/Notizen zur Aufgabe
+    task_edit_snapshot: TaskEditDocument | None = None
+    annotations: JsonObject | None = None  # Legacy-Leseformat
 
 
 class CreateModelVersion(ApiSchema):
@@ -87,16 +103,12 @@ class CreateModelVersion(ApiSchema):
     task_version: TaskVersionReference | None = None
     data: JsonObject
     patches: list[ModelPatch] = Field(default_factory=list, max_length=10_000)
-    annotations: JsonObject | None = None
     kind: VersionKind = "checkpoint"
     release_name: Name | None = None
     description: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
-    def annotations_only_with_task(self) -> "CreateModelVersion":
-        # Ohne Aufgabenbezug gibt es nichts, worauf sich Anmerkungen beziehen könnten.
-        if self.task_version is None and self.annotations is not None:
-            raise ValueError("annotations erfordert eine taskVersion.")
+    def validate_version(self) -> "CreateModelVersion":
         if self.kind == "release" and self.release_name is None:
             raise ValueError("Ein Release benötigt einen releaseName.")
         if self.kind == "checkpoint" and self.release_name is not None:

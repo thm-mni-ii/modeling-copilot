@@ -2,15 +2,15 @@
   <v-container fluid class="pa-4 modeling-view">
     <v-progress-linear v-if="loading" indeterminate class="model-loading" />
     <v-alert v-if="loadError" type="error" variant="tonal" density="compact" closable class="model-load-error" @click:close="loadError = null">{{ loadError }}</v-alert>
-    <DrawingCanvas ref="canvas" v-model:model="graphModel" class="editor-canvas" model-management :languages="workspace.editorLanguages" :language-connections="connections" :connection-groups="connectionGroups" :connection-preferences="workspace.preferences" :language-syntax="syntax" :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? 'free'" :lock-autonomy-mode="Boolean(workspace.taskVersion)" :canvas-windows="taskWindows" @window-removed="onWindowRemoved" @update:model="captureCanvas" @update:connection-preferences="workspace.updatePreferences">
+    <DrawingCanvas ref="canvas" v-model:model="graphModel" class="editor-canvas" model-management :languages="workspace.editorLanguages" :language-connections="connections" :connection-groups="connectionGroups" :connection-preferences="workspace.preferences" :language-syntax="syntax" :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? 'free'" :lock-autonomy-mode="Boolean(workspace.taskVersion)" :canvas-windows="taskWindows" :task-active="Boolean(workspace.taskReference)" :task-edit="workspace.taskEdit" :task-edit-sync-state="workspace.taskEditSyncState" @window-removed="onWindowRemoved" @update:model="captureCanvas" @update:connection-preferences="workspace.updatePreferences" @remove-task-edit="removeTaskEditById" @update-task-edit-document="workspace.updateTaskEditDocument" @focus-task-edit="focusTaskEdit">
       <template #canvas-top>
         <div v-if="workspace.diagramTask" class="task-area">
-          <TaskTopBar :task="workspace.diagramTask" :window-open="taskWindowOpen" :content-html="workspace.taskContentHtml" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" @pop-out="taskWindowOpen = true" @select-connection="selectTaskConnection" @update:content-html="workspace.updateTaskContent" />
+          <TaskTopBar :task="workspace.diagramTask" :window-open="taskWindowOpen" :content-html="workspace.taskVersion?.data.contentHtml ?? ''" :task-edit="workspace.taskEdit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" @pop-out="taskWindowOpen = true" @select-connection="selectTaskConnection" @update:task-edit-document="workspace.updateTaskEditDocument" />
           <v-btn v-if="sampleSolutions.length" size="small" variant="text" prepend-icon="mdi-lightbulb-on-outline" @click="openSampleSolution(0)">Sample solutions ({{ sampleSolutions.length }})</v-btn>
         </div>
       </template>
       <template #window-content="{ definition }">
-        <TaskRichEditor v-if="definition.role === 'task'" :model-value="workspace.taskContentHtml" readonly :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" />
+        <TaskEditEditor v-if="definition.role === 'task'" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @update:model-value="workspace.updateTaskEditDocument" />
       </template>
     </DrawingCanvas>
     <v-dialog v-model="recoveryDialog" max-width="1000" persistent
@@ -40,11 +40,13 @@ import type { GraphDataModel } from '@maxgraph/core'
 import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
 import ModelSnapshotPreview from '@/components/modeling/versions/ModelSnapshotPreview.vue'
 import TaskTopBar from '@/components/modeling/controls/TaskTopBar.vue'
-import TaskRichEditor, { type TaskConnectionOption, type TaskElementOption } from '@/components/tasks/TaskRichEditor.vue'
+import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
+import type { TaskConnectionOption, TaskElementOption } from '@/components/tasks/TaskRichEditor.vue'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { JsonObject } from '@/services/api/types/common'
 import type { CanvasWindowDefinition } from '@/model/CanvasWindow'
 import taskService from '@/services/task/task.service'
+import { removeTaskEdit } from '@/utils/taskEdits'
 
 interface Props {
   modelId?: string
@@ -126,6 +128,14 @@ const onWindowRemoved = (id: string) => {
 }
 const selectTaskConnection = (reference: { languageId: string; connectionType: string }) => {
   canvas.value?.selectConnectionByType(reference.languageId, reference.connectionType)
+}
+const removeTaskEditById = (id: string) => {
+  if (workspace.taskEdit) workspace.updateTaskEditDocument(removeTaskEdit(workspace.taskEdit.document, id))
+}
+const focusTaskEdit = (id: string) => {
+  const targets = [...document.querySelectorAll<HTMLElement>(`[data-task-edit-id="${CSS.escape(id)}"]`)]
+  targets[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  targets.forEach((target) => target.animate([{ outline: '2px solid rgb(25, 118, 210)' }, { outline: '2px solid transparent' }], { duration: 1400 }))
 }
 const openSampleSolution = async (index: number) => {
   const reference = sampleSolutions.value[index]

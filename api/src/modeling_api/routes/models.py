@@ -14,6 +14,8 @@ from modeling_api.schemas.models import (
     ModelVersion,
     ModelVersionInfo,
     SortOrder,
+    TaskEditDocument,
+    UpdateTaskEdit,
     UpdateModel,
 )
 from modeling_api.services import models as service
@@ -59,7 +61,20 @@ async def delete_model(model_id: UUID, user: CurrentUser) -> None:
     await service.delete_model(model_id, user)
 
 
-@router.get("/{model_id}/versions", summary="Speicherlauf auflisten (ohne data/annotations)")
+@router.get("/{model_id}/task-edit", summary="Aktuellen Task-Edit-Stand laden")
+async def get_task_edit(model_id: UUID, user: CurrentUser) -> TaskEditDocument | None:
+    result = await service.get_task_edit(model_id, user)
+    return TaskEditDocument.model_validate(result) if result is not None else None
+
+
+@router.put("/{model_id}/task-edit", summary="Aktuellen Task-Edit-Stand speichern")
+async def update_task_edit(
+    model_id: UUID, body: UpdateTaskEdit, user: CurrentUser
+) -> TaskEditDocument:
+    return TaskEditDocument.model_validate(await service.update_task_edit(model_id, body, user))
+
+
+@router.get("/{model_id}/versions", summary="Speicherlauf auflisten (ohne große Inhaltsfelder)")
 async def list_versions(
     model_id: UUID, user: CurrentUser, skip: Skip = 0, limit: Limit = 20
 ) -> Page[ModelVersionInfo]:
