@@ -19,7 +19,17 @@
       <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-text-box-plus-outline" title="Insert text Edit" @click="insertionDialog = true">Add text</v-btn>
     </div>
 
-    <editor-content :editor="editor" class="task-edit-body" @click="onTaskReferenceClick" @dragstart="onDragStart" />
+    <editor-content :editor="editor" class="task-edit-body" @click="onTaskReferenceClick" @dragstart="onDragStart" @mouseleave="hideReferencePreview" @mouseover="onTaskReferenceMouseOver" />
+
+    <Teleport to="body">
+      <div v-if="referencePreview" class="task-reference-preview" :style="{ left: `${referencePreview.x}px`, top: `${referencePreview.y}px` }">
+        <div class="task-reference-preview__kind">{{ referencePreview.kind === 'element' ? 'Model element' : 'Connection' }}</div>
+        <div class="task-reference-preview__title">{{ referencePreview.option.label }}</div>
+        <DiagramPreviewItem v-if="referencePreview.kind === 'element' && referencePreview.option.element" :element="referencePreview.option.element" :width="180" :height="92" class="task-reference-preview__diagram" />
+        <ConnectionPreviewItem v-else-if="referencePreview.kind === 'connection' && referencePreview.option.connection" :connection="referencePreview.option.connection" :width="180" :height="56" class="task-reference-preview__diagram" />
+        <div class="task-reference-preview__hint">{{ referencePreview.kind === 'element' ? 'Drag into the canvas to create this element.' : 'Click to select this connection in the canvas.' }}</div>
+      </div>
+    </Teleport>
 
     <v-dialog v-model="insertionDialog" max-width="520">
       <v-card>
@@ -32,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { Editor as CoreEditor, Extension } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { Plugin } from '@tiptap/pm/state'
@@ -43,6 +53,9 @@ import { createTaskEditorExtensions, readTaskConnectionReference, TASK_HIGHLIGHT
 import { createTaskEditMark, toggleTaskEditMark, type TaskEditMarkName } from './taskEditMarks'
 
 type EditType = 'highlight' | 'bold' | 'italic' | 'underline' | 'strike' | 'textColor' | 'inlineCode'
+
+const DiagramPreviewItem = defineAsyncComponent(() => import('@/components/modeling/canvas/DiagramPreviewItem.vue'))
+const ConnectionPreviewItem = defineAsyncComponent(() => import('@/components/modeling/canvas/ConnectionPreviewItem.vue'))
 
 const props = withDefaults(
   defineProps<{
@@ -182,6 +195,32 @@ const onTaskReferenceClick = (event: MouseEvent) => {
   if (reference) emit('select-connection', reference)
 }
 
+type ReferencePreview = { kind: 'element'; option: TaskElementOption; x: number; y: number } | { kind: 'connection'; option: TaskConnectionOption; x: number; y: number }
+
+const referencePreview = ref<ReferencePreview | null>(null)
+const hideReferencePreview = () => {
+  referencePreview.value = null
+}
+const onTaskReferenceMouseOver = (event: MouseEvent) => {
+  const target = event.target as Element | null
+  const elementMark = target?.closest('[data-task-element-language-id][data-task-element-type]')
+  const connectionMark = target?.closest('[data-task-connection-language-id][data-task-connection-type]')
+
+  if (elementMark) {
+    const option = props.elementOptions.find((item) => item.languageId === elementMark.getAttribute('data-task-element-language-id') && item.elementType === elementMark.getAttribute('data-task-element-type'))
+    referencePreview.value = option ? { kind: 'element', option, x: event.clientX + 14, y: event.clientY + 14 } : null
+    return
+  }
+
+  if (connectionMark) {
+    const option = props.connectionOptions.find((item) => item.languageId === connectionMark.getAttribute('data-task-connection-language-id') && item.connectionType === connectionMark.getAttribute('data-task-connection-type'))
+    referencePreview.value = option ? { kind: 'connection', option, x: event.clientX + 14, y: event.clientY + 14 } : null
+    return
+  }
+
+  hideReferencePreview()
+}
+
 const onDragStart = (event: DragEvent) => {
   if (props.mode === 'edit') return event.preventDefault()
   writeTaskElementDragData(event)
@@ -228,5 +267,39 @@ onBeforeUnmount(() => editor.value?.destroy())
 .task-edit-body :deep(.task-connection-mark) {
   border-bottom: 2px dashed rgb(var(--v-theme-secondary));
   cursor: pointer;
+}
+.task-reference-preview {
+  position: fixed;
+  z-index: 1000;
+  width: 220px;
+  padding: 10px;
+  border: 1px solid rgba(var(--v-theme-primary), 0.3);
+  border-radius: 8px;
+  background: rgb(var(--v-theme-surface));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+.task-reference-preview__kind {
+  color: rgb(var(--v-theme-primary));
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.task-reference-preview__title {
+  margin: 2px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.task-reference-preview__diagram {
+  display: block;
+  width: 100%;
+  border: 1px solid rgba(var(--v-theme-outline), 0.2);
+  border-radius: 4px;
+}
+.task-reference-preview__hint {
+  margin-top: 7px;
+  color: rgba(var(--v-theme-on-surface), 0.68);
+  font-size: 11px;
+  line-height: 1.35;
 }
 </style>

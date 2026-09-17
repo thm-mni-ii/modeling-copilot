@@ -400,6 +400,7 @@ const modelLayerCell = shallowRef<Cell>()
 const feedbackLayerCell = shallowRef<Cell>()
 const keyHandler = shallowRef<KeyHandler>()
 const customConnectionHandler = shallowRef<CustomConnectionHandler>()
+let pendingPersistedModel: Record<string, unknown> | null = null
 const plugins = ref<GraphPluginConstructor[]>([MyCustomCellEditorHandler, TooltipHandler, CustomConnectionHandler as unknown as GraphPluginConstructor, PanningHandler, SelectionCellsHandler, SelectionHandler, RubberBandHandler, FitPlugin])
 const toolbarShapes = ref(
   createDefaultShapes({
@@ -1040,6 +1041,12 @@ const initGraph = () => {
   })
 
   applyValidationRulesToGraph()
+
+  if (pendingPersistedModel) {
+    const pending = pendingPersistedModel
+    pendingPersistedModel = null
+    loadPersistedModel(pending)
+  }
 }
 
 const buildLanguageShapes = computed(() => {
@@ -1186,7 +1193,7 @@ const selectConnectionByType = (languageId: string, connectionType: string): boo
   canvasToolbar.value?.selectConnectionByReference(languageId, connectionType)
 
   const parentCell = modelLayerCell.value ?? graphInstance.getDefaultParent()
-  const edges = graphInstance.getChildEdges(parentCell)
+  const edges = parentCell.filterDescendants((cell) => cell.isEdge())
   const matchingEdge = edges.find((edge) => (edge as any).connectionId === connectionType)
     ?? edges.find((edge) => (edge as any).connectionType === connectionType)
   if (!matchingEdge) return false
@@ -1206,7 +1213,13 @@ const serializeModel = (): Record<string, unknown> => {
 }
 
 const loadPersistedModel = (data: Record<string, unknown>) => {
-  if (!graph.value || typeof data.xml !== 'string') return
+  if (typeof data.xml !== 'string') return
+  if (!graph.value) {
+    pendingPersistedModel = data
+    return
+  }
+
+  pendingPersistedModel = null
   try {
     importModelFromXml(graph.value, data.xml)
     syncLayerReferences(graph.value)
