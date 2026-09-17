@@ -47,12 +47,12 @@ Lokal ist `dagu/workflows/` schreibbar nach `/var/lib/dagu/dags` eingebunden.
 Logs und Wiki liegen getrennt im Docker-Volume `dagu-data`.
 
 In Produktion holt ein Init-Container (`git-sync`) das öffentliche Repository
-bei jedem Pod-Start per `git clone` in ein `emptyDir`-Volume. Daraus werden
-`dagu/workflows` schreibgeschützt unter `/app/workflows` und
-`dagu/infra/base.yaml` unter `/var/lib/dagu/base.yaml` eingebunden. Ein Host-
-seitiger Checkout ist nicht nötig, da Portainer nur das Manifest anwendet.
-Laufdaten, Logs, Wiki und das primäre DAG-Verzeichnis liegen auf dem PVC
-`dagu-data`.
+bei jedem Pod-Start per `git clone` in ein `emptyDir`-Volume. Der vollständige
+Ordner `dagu/` wird unter `/app/dagu` eingebunden. Dagu liest die Workflows aus
+`/app/dagu/workflows` und die Basiskonfiguration aus
+`/app/dagu/infra/base.yaml`. Ein Host-seitiger Checkout ist nicht nötig, da
+Portainer nur das Manifest anwendet. Laufdaten, Logs und Wiki liegen auf dem
+PVC `dagu-data`.
 
 ## Produktion (K3s/Portainer)
 
