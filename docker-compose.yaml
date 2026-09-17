@@ -12,7 +12,6 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: admin
     volumes:
       - mongo-data:/data/db
-    # The default network enables the host port mapping; API traffic stays on database.
     networks: [default, database]
 
   api:
@@ -28,8 +27,34 @@ services:
     restart: unless-stopped
     networks: [default, database]
 
+  dagu:
+    image: ghcr.io/dagucloud/dagu:2.16.6
+    ports:
+      - "127.0.0.1:8525:8080"
+    environment:
+      DAGU_HOST: 0.0.0.0
+      DAGU_PORT: 8080
+      DAGU_DAGS_DIR: /var/lib/dagu/dags
+      DAGU_WIKI_DIR: /var/lib/dagu/wiki
+      DAGU_DATA_DIR: /var/lib/dagu/data
+      DAGU_LOG_DIR: /var/lib/dagu/logs
+      DAGU_BASE_CONFIG: /var/lib/dagu/base.yaml
+      DAGU_AUTH_MODE: builtin
+      DAGU_AUTH_TOKEN_SECRET: dev-only-dagu-token-secret-change-in-prod
+      DAGU_AUTH_BUILTIN_INITIAL_ADMIN_USERNAME: admin
+      DAGU_AUTH_BUILTIN_INITIAL_ADMIN_PASSWORD: dev-only-admin-pw
+      KUBECONFIG: /etc/kube/config
+    volumes:
+      - dagu-data:/var/lib/dagu
+      - ./dagu/workflows:/var/lib/dagu/dags
+      - ./dagu/infra/base.yaml:/var/lib/dagu/base.yaml
+      - ~/.kube/config:/etc/kube/source-config:ro
+      - ./dagu/infra/dev/10-use-host-kube-api.sh:/etc/custom-init.d/10-use-host-kube-api.sh:ro
+    restart: unless-stopped
+
 volumes:
   mongo-data:
+  dagu-data:
 
 networks:
   database:

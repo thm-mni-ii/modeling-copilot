@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "template-service output",
+  "type": "object",
+  "required": ["status"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
+    },
+    "echo": {
+      "type": "object",
+      "description": "Echoes back the received input. Placeholder for real output fields."
+    }
+  },
+  "additionalProperties": true
+}

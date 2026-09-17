@@ -1,0 +1,21 @@
+# Minimal Kubernetes setup for local Docker Desktop Kubernetes.
+#
+# Applied once via:
+#   kubectl config use-context docker-desktop
+#   kubectl apply -f dagu/infra/dev/kubernetes.yaml
+#
+# Dagu itself runs outside the cluster (docker compose) and talks to the API
+# server using a container-specific copy of the local kubeconfig, so no
+# additional controller RBAC is granted here.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: workflow-runtime
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workflow-runner
+  namespace: workflow-runtime
