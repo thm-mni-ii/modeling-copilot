@@ -163,7 +163,6 @@ spec:
             - name: repo-sync
               mountPath: /app/workflows
               subPath: dagu/workflows
-              readOnly: true
             - name: repo-sync
               mountPath: /var/lib/dagu/base.yaml
               subPath: dagu/infra/base.yaml
