@@ -1,0 +1,12 @@
+# Shared Dagu base configuration (Dagu "base config").
+
+kubernetes:
+  namespace: workflow-runtime
+  service_account: workflow-runner
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"

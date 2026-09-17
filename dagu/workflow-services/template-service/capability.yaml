@@ -1,0 +1,8 @@
+id: template-service
+version: 0.1.0
+type: workflow
+
+image: template-service:0.1.0
+
+inputSchema: schemas/input.schema.json
+outputSchema: schemas/output.schema.json

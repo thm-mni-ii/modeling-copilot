@@ -1,0 +1,214 @@
+# Minimal Dagu deployment for K3s/Portainer.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dagu
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: workflow-runtime
+
+---
+# Identity used by the Dagu deployment itself to manage workflow Jobs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dagu-controller
+  namespace: dagu
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workflow-runner
+  namespace: workflow-runtime
+
+---
+# Namespaced RBAC: only what Dagu needs to run and observe workflow Jobs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dagu-job-manager
+  namespace: workflow-runtime
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "delete", "get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dagu-job-manager
+  namespace: workflow-runtime
+subjects:
+  - kind: ServiceAccount
+    name: dagu-controller
+    namespace: dagu
+roleRef:
+  kind: Role
+  name: dagu-job-manager
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dagu-data
+  namespace: dagu
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dagu
+  namespace: dagu
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dagu
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dagu
+    spec:
+      serviceAccountName: dagu-controller
+      containers:
+        - name: dagu
+          # Pinned version - never use "latest" here.
+          image: ghcr.io/dagucloud/dagu:2.16.6
+          imagePullPolicy: IfNotPresent
+          command: ["dagu", "start-all"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DAGU_HOST
+              value: "0.0.0.0"
+            - name: DAGU_PORT
+              value: "8080"
+            # dagu-dags ConfigMap is read-only; keep it as the alt (source) dir
+            # and give Dagu a writable primary dags dir plus separate wiki/data/logs.
+            - name: DAGU_DAGS_DIR
+              value: /var/lib/dagu/dags
+            - name: DAGU_ALT_DAGS_DIR
+              value: /app/workflows
+            - name: DAGU_WIKI_DIR
+              value: /var/lib/dagu/wiki
+            - name: DAGU_DATA_DIR
+              value: /var/lib/dagu/data
+            - name: DAGU_LOG_DIR
+              value: /var/lib/dagu/logs
+            - name: DAGU_SKIP_EXAMPLES
+              value: "true"
+            - name: DAGU_BASE_CONFIG
+              value: /var/lib/dagu/base.yaml
+            - name: DAGU_BASE_PATH
+              value: /dagu
+            - name: DAGU_PUBLIC_URL
+              value: https://ikarus.mni.thm.de/dagu
+            - name: DAGU_AUTH_MODE
+              value: builtin
+            - name: DAGU_AUTH_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dagu-auth
+                  key: token-secret
+            - name: DAGU_AUTH_BUILTIN_INITIAL_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dagu-auth
+                  key: admin-username
+            - name: DAGU_AUTH_BUILTIN_INITIAL_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dagu-auth
+                  key: admin-password
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: dagu-data
+              mountPath: /var/lib/dagu
+            - name: dagu-dags
+              mountPath: /app/workflows
+            - name: dagu-base-config
+              mountPath: /var/lib/dagu/base.yaml
+              subPath: base.yaml
+      volumes:
+        - name: dagu-data
+          persistentVolumeClaim:
+            claimName: dagu-data
+        - name: dagu-dags
+          configMap:
+            name: dagu-dags
+        - name: dagu-base-config
+          configMap:
+            name: dagu-base-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dagu
+  namespace: dagu
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: dagu
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+
+---
+# Strip /dagu before forwarding, since Dagu itself listens at the root path.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-dagu
+  namespace: dagu
+spec:
+  stripPrefix:
+    prefixes:
+      - /dagu
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dagu
+  namespace: dagu
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: dagu-strip-dagu@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: ikarus.mni.thm.de
+      http:
+        paths:
+          - path: /dagu
+            pathType: Prefix
+            backend:
+              service:
+                name: dagu
+                port:
+                  number: 8080
