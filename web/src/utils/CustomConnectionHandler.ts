@@ -271,7 +271,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
   }
 
   override insertEdge(parent: Cell, id: string, value: any, source: Cell | null, target: Cell | null, style: CellStyle): Cell {
-    const persistedId = id?.trim() || crypto.randomUUID()
+    const persistedId = id?.trim() || globalThis.crypto?.randomUUID?.() || `edge-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const sourceCell = (source as Cell | null) ?? null
     const targetCell = (target as Cell | null) ?? null
     const sourceIsFeedbackLabel = this.isFeedbackCell(sourceCell)
