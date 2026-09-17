@@ -8,7 +8,6 @@
       </v-card-title>
       <v-progress-linear v-if="loading" indeterminate />
       <v-card-text>
-        <v-alert v-if="error" type="error" density="compact" variant="tonal" class="mb-3">{{ error }}</v-alert>
         <ModelSnapshotPreview :data="timelineData" :height="520" />
         <v-expansion-panels v-if="timelineTaskEditSnapshot && workspace.taskVersion" class="mt-3" variant="accordion">
           <v-expansion-panel title="Edits in this model state">
@@ -69,6 +68,7 @@ import { importModelFromXml } from '@/utils/modelPersistence'
 import { appendUnsavedTimelinePatches, buildModelTimeline, lastSavedTimelineIndex, patchesForTimelineStep, releaseTimelineTicks } from '@/utils/modelTimeline'
 import ModelSnapshotPreview from './ModelSnapshotPreview.vue'
 import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
+import { notifyError } from '@/composables/useNotifications'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
@@ -83,7 +83,6 @@ const materializedStepIndex = ref(-1)
 const loading = ref(false)
 const restoring = ref(false)
 const branching = ref(false)
-const error = ref<string | null>(null)
 const branchDialog = ref(false)
 const branchName = ref('')
 const restoreDialog = ref(false)
@@ -165,13 +164,12 @@ const updatePreview = async () => {
     } else timelineVersion.value = null
     materializedStepIndex.value = timelineStep.value
   } catch {
-    if (request === timelineRequest) error.value = 'Unable to load this timeline position.'
+    if (request === timelineRequest) notifyError('Unable to load this timeline position.')
   }
 }
 
 const openTimeline = async () => {
   loading.value = true
-  error.value = null
   releaseDataCache.clear()
   history.value = []
   timelineData.value = null
@@ -181,7 +179,7 @@ const openTimeline = async () => {
     timelineStep.value = Math.max(0, timelineSteps.value.length - 1)
     await updatePreview()
   } catch {
-    error.value = 'Unable to load the version timeline.'
+    notifyError('Unable to load the version timeline.')
   } finally {
     loading.value = false
   }
@@ -196,7 +194,6 @@ const confirmRestore = async () => {
   const step = selectedStep.value
   if (!step || !previewReady.value || !timelineData.value || !graph.value) return
   restoring.value = true
-  error.value = null
   try {
     await workspace.restoreSnapshot(timelineData.value, step.workspaceLanguages)
     if (restoreEdits.value && timelineTaskEditSnapshot.value) await workspace.adoptTaskEditSnapshot(timelineTaskEditSnapshot.value)
@@ -205,7 +202,7 @@ const confirmRestore = async () => {
     restoreDialog.value = false
     emit('update:modelValue', false)
   } catch {
-    error.value = 'Unable to restore this timeline position.'
+    notifyError('Unable to restore this timeline position.')
   } finally {
     restoring.value = false
   }
@@ -220,7 +217,6 @@ const createBranch = async () => {
   const step = selectedStep.value
   if (!step || !previewReady.value || !timelineData.value || !branchName.value.trim()) return
   branching.value = true
-  error.value = null
   try {
     await workspace.branchSnapshot(timelineData.value, step.workspaceLanguages, branchName.value.trim(), timelineVersion.value?.taskVersion ?? workspace.taskReference, timelineTaskEditSnapshot.value)
     await workspace.save()
@@ -228,7 +224,7 @@ const createBranch = async () => {
     emit('update:modelValue', false)
     await router.push(`/modeling/${workspace.model!.id}`)
   } catch {
-    error.value = 'Unable to create a branch from this timeline position.'
+    notifyError('Unable to create a branch from this timeline position.')
   } finally {
     branching.value = false
   }

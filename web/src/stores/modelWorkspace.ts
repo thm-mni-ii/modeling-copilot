@@ -13,10 +13,10 @@ import type { Task, TaskVersion } from '@/services/api/types/task'
 import { readDraft, removeDraft, writeDraft } from '@/utils/workspaceDrafts'
 import { applyModelPatches, createModelPatch } from '@/utils/modelPatches'
 import { serverNow, synchronizeServerTime } from '@/utils/serverTime'
+import type { TaskEditSyncState } from '@/utils/taskEdits'
 
 export type WorkspaceLanguage = WorkspaceLanguageReference
 export type ModelSyncState = 'synced' | 'dirty' | 'saving' | 'offline' | 'conflict'
-export type TaskEditSyncState = 'synced' | 'dirty' | 'saving' | 'offline' | 'conflict'
 
 export interface WorkspaceDiagramLanguage extends DiagramLanguage {
   id: ApiId
@@ -207,7 +207,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     if (index < 0 || languages.value[index].versionId === versionId) return
     if (languages.value[index].source === 'required') throw new Error('Task languages cannot be changed.')
 
-    // TODO: Validate compatibility and migrate existing model elements before changing a language release.
+    // TODO: Validate existing model elements against the selected language release.
     const updatedLanguages = cloneJson(languages.value)
     updatedLanguages[index] = { ...updatedLanguages[index], versionId }
     await loadLanguages(updatedLanguages)
@@ -325,29 +325,31 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     const modelId = model.value.id
     const cut = cloneJson(taskEdit.value)
     taskEditSyncState.value = 'saving'
-    taskEditSave = taskEditSave.catch(() => null).then(async () => {
-      try {
-        const saved = (await modelService.updateTaskEdit(modelId, { baseRevision: cut.revision, document: cut.document })).data
-        if (model.value?.id !== modelId) return saved
-        const unchanged = taskEdit.value && JSON.stringify(taskEdit.value.document) === JSON.stringify(cut.document)
-        if (unchanged) {
-          taskEdit.value = saved
-          taskEditDirty.value = false
-          taskEditSyncState.value = 'synced'
-          model.value = { ...model.value, taskEdit: saved }
-          if (dirty.value) await persistJournal()
-          else await removeDraft(draftKey.value)
-        } else if (taskEdit.value) {
-          taskEdit.value = { ...taskEdit.value, revision: saved.revision }
-          taskEditSyncState.value = dirtySyncState()
-          scheduleTaskEditSync()
+    taskEditSave = taskEditSave
+      .catch(() => null)
+      .then(async () => {
+        try {
+          const saved = (await modelService.updateTaskEdit(modelId, { baseRevision: cut.revision, document: cut.document })).data
+          if (model.value?.id !== modelId) return saved
+          const unchanged = taskEdit.value && JSON.stringify(taskEdit.value.document) === JSON.stringify(cut.document)
+          if (unchanged) {
+            taskEdit.value = saved
+            taskEditDirty.value = false
+            taskEditSyncState.value = 'synced'
+            model.value = { ...model.value, taskEdit: saved }
+            if (dirty.value) await persistJournal()
+            else await removeDraft(draftKey.value)
+          } else if (taskEdit.value) {
+            taskEdit.value = { ...taskEdit.value, revision: saved.revision }
+            taskEditSyncState.value = dirtySyncState()
+            scheduleTaskEditSync()
+          }
+          return saved
+        } catch (error) {
+          taskEditSyncState.value = responseStatus(error) === 409 ? 'conflict' : dirtySyncState()
+          throw error
         }
-        return saved
-      } catch (error) {
-        taskEditSyncState.value = responseStatus(error) === 409 ? 'conflict' : dirtySyncState()
-        throw error
-      }
-    })
+      })
     return taskEditSave
   }
 

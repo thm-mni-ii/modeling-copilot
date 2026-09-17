@@ -124,22 +124,6 @@
       <!-- /canvas-area -->
     </v-card-text>
 
-    <v-dialog v-model="validationDialogVisible" max-width="640">
-      <v-card>
-        <v-card-title>Validation Errors</v-card-title>
-        <v-card-text>
-          <ul class="validation-errors">
-            <li v-for="(message, index) in validationMessages" :key="`validation-${index}`">
-              {{ message }}
-            </li>
-          </ul>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn color="primary" variant="text" @click="validationDialogVisible = false">Close</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-card>
 </template>
 
@@ -149,11 +133,13 @@ import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorH
 import type { GraphPluginConstructor } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
+import type { TaskEditSyncState } from '@/utils/taskEdits'
 import { provideGraphContext } from '@/composables/useGraphContext'
 import { useGraphOperations } from '@/composables/useGraphOperations'
 import { useZoomOperations } from '@/composables/useZoomOperations'
 import { useGridSettings } from '@/composables/useGridSettings'
 import { useCanvasOverlays } from '@/composables/useCanvasOverlays'
+import { notifyError } from '@/composables/useNotifications'
 import { setupDynamicGrid } from '@/utils/setupDynamicGrid'
 import { createDefaultShapes, buildShapesFromElements, ensureGraphDropHandlers } from '@/utils/setupToolbar'
 import { setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
@@ -340,7 +326,7 @@ const props = withDefaults(
     lockAutonomyMode?: boolean
     taskActive?: boolean
     taskEdit?: TaskEditDocument | null
-    taskEditSyncState?: 'synced' | 'dirty' | 'saving' | 'offline' | 'conflict'
+    taskEditSyncState?: TaskEditSyncState
     previewConnection?: DiagramConnection
     previewMode?: 'simple' | 'scenario' | 'routing'
     overlays?: FeedbackCanvasOverlayEntry[]
@@ -432,8 +418,6 @@ const overlayEntries = computed(() => props.overlays ?? [])
 const { overlayTooltip, overlayTooltipAnchorStyle, registerGraph, cleanup: cleanupCanvasOverlays } = useCanvasOverlays(graphWrapper, overlayEntries)
 // Zentraler Validator für alle Diagramm-Regeln
 const diagramValidator = new DiagramValidator()
-const validationDialogVisible = ref(false)
-const validationMessages = ref<string[]>([])
 
 const normalizeErrorLines = (rawMessage: string): string[] =>
   rawMessage
@@ -453,8 +437,7 @@ const focusGraphContainer = (evt: PointerEvent) => {
 
 const openValidationDialog = (messages: string[]) => {
   if (messages.length === 0) return
-  validationMessages.value = [...new Set(messages)]
-  validationDialogVisible.value = true
+  notifyError([...new Set(messages)].join('\n'))
 }
 
 const updateAutonomyMode = (mode: AutonomyMode) => {
@@ -1379,14 +1362,6 @@ defineExpose({
   border-radius: 4px;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.validation-errors {
-  margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 /* Responsives Design für kleinere Bildschirme */

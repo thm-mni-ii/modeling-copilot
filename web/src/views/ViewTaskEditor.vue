@@ -9,8 +9,6 @@
       <v-btn prepend-icon="mdi-plus" color="primary" @click="openCreate">New task</v-btn>
     </div>
 
-    <v-alert v-if="error" type="error" closable class="mb-3" @click:close="error = null">{{ error }}</v-alert>
-
     <div class="task-layout">
       <v-card class="task-sidebar" variant="outlined">
         <v-card-text class="pa-2">
@@ -119,8 +117,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import TaskRichEditor, { type TaskConnectionOption, type TaskElementOption } from '@/components/tasks/TaskRichEditor.vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import TaskRichEditor from '@/components/tasks/TaskRichEditor.vue'
+import { buildTaskConnectionOptions, buildTaskElementOptions, type TaskOptionLanguage } from '@/components/tasks/taskEditorExtensions'
 import AutonomyControls from '@/components/modeling/controls/AutonomyControls.vue'
 import type { AutonomyMode } from '@/model/Autonomy'
 import type { DiagramLanguage } from '@/model/DiagramLanguage'
@@ -132,6 +131,7 @@ import type { LanguageOverview, LanguageVersion } from '@/services/api/types/lan
 import type { ModelVersionReference } from '@/services/api/types/common'
 import type { WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { Task, TaskVersion, TaskVersionInfo, TaskVersionKind, TaskVisibility } from '@/services/api/types/task'
+import { notifyError } from '@/composables/useNotifications'
 
 const tasks = ref<Task[]>([])
 const currentTask = ref<Task | null>(null)
@@ -145,7 +145,6 @@ const query = ref('')
 const taskScope = ref<'mine' | 'all' | 'archive'>('mine')
 const loading = ref(false)
 const saving = ref(false)
-const error = ref<string | null>(null)
 const titleModel = ref('')
 const contentModel = ref('')
 const autonomyMode = ref<AutonomyMode>('free')
@@ -160,54 +159,60 @@ const releaseDescription = ref('')
 const visibilityModel = ref<TaskVisibility>('private')
 const userStore = useUserStore()
 
-const languageKey = (languageId: string, versionId: string) => `${languageId}:${versionId}`
+const versionReferenceKey = (entityId: string, versionId: string) => `${entityId}:${versionId}`
 const parseReferenceKey = (value: string) => {
   const separator = value.indexOf(':')
-  return { first: value.slice(0, separator), second: value.slice(separator + 1) }
+  return { entityId: value.slice(0, separator), versionId: value.slice(separator + 1) }
 }
 const languageOptions = computed(() => availableLanguageOptions.value)
 const versionOptions = computed(() => versions.value.map((version) => ({ title: versionLabel(version), value: version.id })))
-const elementOptions = computed<TaskElementOption[]>(() =>
+const selectedTaskLanguages = computed<TaskOptionLanguage[]>(() =>
   selectedLanguageKeys.value.flatMap((key) => {
     const version = loadedLanguages.value[key]
-    const { first: languageId } = parseReferenceKey(key)
+    if (!version) return []
+    const { entityId: languageId } = parseReferenceKey(key)
     const languageName = languages.value.find((item) => item.id === languageId)?.name ?? languageId
-    return (version?.data.elements ?? []).map((element) => ({ languageId, elementType: element.type, label: `${languageName}: ${element.defaultLabel || element.type}`, element }))
+    return [
+      {
+        id: languageId,
+        name: languageName,
+        elements: version.data.elements,
+        connections: version.data.connections
+      }
+    ]
   })
 )
-const connectionOptions = computed<TaskConnectionOption[]>(() =>
-  selectedLanguageKeys.value.flatMap((key) => {
-    const version = loadedLanguages.value[key]
-    const { first: languageId } = parseReferenceKey(key)
-    const languageName = languages.value.find((item) => item.id === languageId)?.name ?? languageId
-    return (version?.data.connections ?? []).map((connection) => ({ languageId, connectionType: connection.type, label: `${languageName}: ${connection.label || connection.type}`, connection }))
-  })
-)
+const elementOptions = computed(() => buildTaskElementOptions(selectedTaskLanguages.value))
+const connectionOptions = computed(() => buildTaskConnectionOptions(selectedTaskLanguages.value))
 const isOwnTask = (task: Task) => task.ownerId === userStore.userId
 const ownerLabel = (ownerId: string | null | undefined) => ownerId || 'System catalog'
-const visibilityIcon = (visibility: TaskVisibility) => visibility === 'published' ? 'mdi-earth' : 'mdi-lock-outline'
-const visibilityColor = (visibility: TaskVisibility) => visibility === 'published' ? 'success' : 'warning'
+const visibilityIcon = (visibility: TaskVisibility) => (visibility === 'published' ? 'mdi-earth' : 'mdi-lock-outline')
+const visibilityColor = (visibility: TaskVisibility) => (visibility === 'published' ? 'success' : 'warning')
 
 const versionLabel = (version: TaskVersionInfo) => (version.kind === 'release' ? `${version.releaseName} · v${version.versionNumber}` : `Checkpoint · v${version.versionNumber}`)
-const workspaceLanguages = (): WorkspaceLanguageReference[] => selectedLanguageKeys.value.map((key) => {
-  const { first: languageId, second: versionId } = parseReferenceKey(key)
-  return { languageId, versionId, source: 'required' }
-})
-const sampleSolutions = (): ModelVersionReference[] => selectedSolutionKeys.value.map((key) => {
-  const { first: modelId, second: versionId } = parseReferenceKey(key)
-  return { modelId, versionId }
-})
+const workspaceLanguages = (): WorkspaceLanguageReference[] =>
+  selectedLanguageKeys.value.map((key) => {
+    const { entityId: languageId, versionId } = parseReferenceKey(key)
+    return { languageId, versionId, source: 'required' }
+  })
+const sampleSolutions = (): ModelVersionReference[] =>
+  selectedSolutionKeys.value.map((key) => {
+    const { entityId: modelId, versionId } = parseReferenceKey(key)
+    return { modelId, versionId }
+  })
 
 const loadTasks = async () => {
   loading.value = true
   try {
-    tasks.value = (await taskService.list(0, 100, {
-      q: query.value || undefined,
-      archived: taskScope.value === 'archive',
-      mine: taskScope.value === 'mine'
-    })).data.items
+    tasks.value = (
+      await taskService.list(0, 100, {
+        q: query.value || undefined,
+        archived: taskScope.value === 'archive',
+        mine: taskScope.value === 'mine'
+      })
+    ).data.items
   } catch {
-    error.value = 'Tasks could not be loaded.'
+    notifyError('Tasks could not be loaded.')
   } finally {
     loading.value = false
   }
@@ -238,7 +243,6 @@ const resetEditor = () => {
   autonomyMode.value = 'free'
   selectedLanguageKeys.value = []
   selectedSolutionKeys.value = []
-  visibilityModel.value = 'private'
 }
 const loadVersion = async (versionId: string | null) => {
   if (!currentTask.value || !versionId) return
@@ -247,16 +251,18 @@ const loadVersion = async (versionId: string | null) => {
   selectedVersionId.value = version.id
   contentModel.value = version.data.contentHtml
   autonomyMode.value = version.data.autonomyMode
-  selectedLanguageKeys.value = version.workspaceLanguages.map((item) => languageKey(item.languageId, item.versionId))
-  selectedSolutionKeys.value = version.data.sampleSolutions.map((item) => languageKey(item.modelId, item.versionId))
+  selectedLanguageKeys.value = version.workspaceLanguages.map((item) => versionReferenceKey(item.languageId, item.versionId))
+  selectedSolutionKeys.value = version.data.sampleSolutions.map((item) => versionReferenceKey(item.modelId, item.versionId))
   await loadSelectedLanguages()
 }
 const loadSelectedLanguages = async () => {
-  await Promise.all(selectedLanguageKeys.value.map(async (key) => {
-    if (loadedLanguages.value[key]) return
-    const { first: languageId, second: versionId } = parseReferenceKey(key)
-    loadedLanguages.value[key] = (await languageService.getVersion<DiagramLanguage>(languageId, versionId)).data
-  }))
+  await Promise.all(
+    selectedLanguageKeys.value.map(async (key) => {
+      if (loadedLanguages.value[key]) return
+      const { entityId: languageId, versionId } = parseReferenceKey(key)
+      loadedLanguages.value[key] = (await languageService.getVersion<DiagramLanguage>(languageId, versionId)).data
+    })
+  )
 }
 const openCreate = () => {
   newTaskName.value = ''
@@ -270,7 +276,7 @@ const createTask = async () => {
     await loadTasks()
     await selectTask(task)
   } catch {
-    error.value = 'The task could not be created.'
+    notifyError('The task could not be created.')
   }
 }
 const saveMetadata = async () => {
@@ -279,7 +285,7 @@ const saveMetadata = async () => {
     currentTask.value = (await taskService.update(currentTask.value.id, { name: titleModel.value.trim() })).data
     await loadTasks()
   } catch {
-    error.value = 'The task name could not be saved.'
+    notifyError('The task name could not be saved.')
   }
 }
 const saveVisibility = async () => {
@@ -289,7 +295,7 @@ const saveVisibility = async () => {
     await loadTasks()
   } catch {
     visibilityModel.value = currentTask.value.visibility
-    error.value = 'The task visibility could not be saved.'
+    notifyError('The task visibility could not be saved.')
   }
 }
 const toggleVisibility = () => {
@@ -300,13 +306,15 @@ const saveVersion = async (kind: TaskVersionKind) => {
   if (!currentTask.value) return
   saving.value = true
   try {
-    const saved = (await taskService.createVersion(currentTask.value.id, {
-      baseVersionId: currentTask.value.latestVersionId,
-      kind,
-      ...(kind === 'release' ? { releaseName: releaseName.value.trim(), description: releaseDescription.value.trim() || null } : {}),
-      workspaceLanguages: workspaceLanguages(),
-      data: { contentHtml: contentModel.value, autonomyMode: autonomyMode.value, sampleSolutions: sampleSolutions() }
-    })).data
+    const saved = (
+      await taskService.createVersion(currentTask.value.id, {
+        baseVersionId: currentTask.value.latestVersionId,
+        kind,
+        ...(kind === 'release' ? { releaseName: releaseName.value.trim(), description: releaseDescription.value.trim() || null } : {}),
+        workspaceLanguages: workspaceLanguages(),
+        data: { contentHtml: contentModel.value, autonomyMode: autonomyMode.value, sampleSolutions: sampleSolutions() }
+      })
+    ).data
     currentTask.value = (await taskService.get(currentTask.value.id)).data
     visibilityModel.value = currentTask.value.visibility
     versions.value = (await taskService.listVersions(currentTask.value.id, 0, 100)).data.items
@@ -317,7 +325,7 @@ const saveVersion = async (kind: TaskVersionKind) => {
     releaseDescription.value = ''
     await loadTasks()
   } catch (caught) {
-    error.value = (caught as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'The task version could not be saved.'
+    notifyError((caught as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'The task version could not be saved.')
   } finally {
     saving.value = false
   }
@@ -329,7 +337,7 @@ const branchTask = async () => {
     await loadTasks()
     await selectTask(branch)
   } catch {
-    error.value = 'The task branch could not be created.'
+    notifyError('The task branch could not be created.')
   }
 }
 const toggleArchiveTask = async () => {
@@ -339,43 +347,141 @@ const toggleArchiveTask = async () => {
     currentTask.value = null
     await loadTasks()
   } catch {
-    error.value = 'The task archive state could not be changed.'
+    notifyError('The task archive state could not be changed.')
   }
 }
 const loadCatalogs = async () => {
   languages.value = (await languageService.list(0, 100, { archived: false })).data.items
   const languageReleases = await Promise.all(languages.value.map(async (language) => ({ language, versions: (await languageService.listVersions(language.id, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
-  availableLanguageOptions.value = languageReleases.flatMap(({ language, versions: entries }) => entries.map((version) => ({ title: `${language.name} · ${version.releaseName ?? 'Release'} · v${version.versionNumber}`, value: languageKey(language.id, version.id) })))
+  availableLanguageOptions.value = languageReleases.flatMap(({ language, versions: entries }) => entries.map((version) => ({ title: `${language.name} · ${version.releaseName ?? 'Release'} · v${version.versionNumber}`, value: versionReferenceKey(language.id, version.id) })))
   const models = (await modelService.list(0, 100, { archived: false })).data.items
   const releases = await Promise.all(models.map(async (model) => ({ model, versions: (await modelService.listVersions(model.id, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
-  solutionOptions.value = releases.flatMap(({ model, versions: entries }) => entries.map((version) => ({ title: `${model.name} · ${version.releaseName ?? `v${version.versionNumber}`}`, value: languageKey(model.id, version.id) })))
+  solutionOptions.value = releases.flatMap(({ model, versions: entries }) => entries.map((version) => ({ title: `${model.name} · ${version.releaseName ?? `v${version.versionNumber}`}`, value: versionReferenceKey(model.id, version.id) })))
 }
 
+onBeforeUnmount(() => {
+  if (searchTimer) clearTimeout(searchTimer)
+})
+
 onMounted(async () => {
-  await userStore.ensureGlobalRole()
-  await Promise.all([loadTasks(), loadCatalogs()])
+  try {
+    await userStore.ensureGlobalRole()
+    await Promise.all([loadTasks(), loadCatalogs()])
+  } catch {
+    notifyError('The task catalog could not be initialized.')
+  }
 })
 </script>
 
 <style scoped>
-.task-view-container { height: calc(100vh - var(--v-layout-top, 0px)); display: flex; flex-direction: column; }
-.task-layout { display: flex; flex: 1; min-height: 0; gap: 12px; }
-.task-sidebar { width: 300px; min-width: 260px; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; }
-.task-list { flex: 1; overflow-y: auto; align-content: flex-start; }
-.task-list :deep(.v-list) { align-content: flex-start; }
-.task-scope-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(86px, 1fr)); gap: 4px; padding: 6px 8px; }
-.task-scope-grid :deep(.v-btn) { min-width: 0; min-height: 36px; padding-inline: 6px; white-space: normal; line-height: 1.1; text-transform: none; }
-.task-legend { display: flex; flex-wrap: wrap; gap: 12px; color: rgba(var(--v-theme-on-surface), 0.68); font-size: 11px; }
-.task-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.task-owner-dot { display: inline-block; width: 9px; height: 9px; margin-right: 7px; border-radius: 50%; flex: 0 0 9px; }
-.task-owner-dot--mine { background: rgb(var(--v-theme-primary)); }
-.task-owner-dot--other { background: rgb(var(--v-theme-secondary)); }
-.task-editor { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.task-editor-content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.task-settings { display: grid; grid-template-columns: 2fr minmax(190px, 1fr) 2fr; gap: 10px; margin-bottom: 10px; align-items: start; }
-.task-setting-field, .task-behavior-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.task-setting-field__label { color: rgba(var(--v-theme-on-surface), 0.66); font-size: 14px; line-height: 16px; }
-.task-behavior-field :deep(.autonomy-trigger) { justify-content: flex-start; width: 100%; min-height: 40px; }
-.task-rich-editor { flex: 1; min-height: 300px; }
-.version-select { max-width: 300px; }
+.task-view-container {
+  height: calc(100vh - var(--v-layout-top, 0px));
+  display: flex;
+  flex-direction: column;
+}
+.task-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+}
+.task-sidebar {
+  width: 300px;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+}
+.task-list {
+  flex: 1;
+  overflow-y: auto;
+  align-content: flex-start;
+}
+.task-list :deep(.v-list) {
+  align-content: flex-start;
+}
+.task-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  gap: 4px;
+  padding: 6px 8px;
+}
+.task-scope-grid :deep(.v-btn) {
+  min-width: 0;
+  min-height: 36px;
+  padding-inline: 6px;
+  white-space: normal;
+  line-height: 1.1;
+  text-transform: none;
+}
+.task-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.68);
+  font-size: 11px;
+}
+.task-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.task-owner-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 50%;
+  flex: 0 0 9px;
+}
+.task-owner-dot--mine {
+  background: rgb(var(--v-theme-primary));
+}
+.task-owner-dot--other {
+  background: rgb(var(--v-theme-secondary));
+}
+.task-editor {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.task-editor-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.task-settings {
+  display: grid;
+  grid-template-columns: 2fr minmax(190px, 1fr) 2fr;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: start;
+}
+.task-setting-field,
+.task-behavior-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.task-setting-field__label {
+  color: rgba(var(--v-theme-on-surface), 0.66);
+  font-size: 14px;
+  line-height: 16px;
+}
+.task-behavior-field :deep(.autonomy-trigger) {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 40px;
+}
+.task-rich-editor {
+  flex: 1;
+  min-height: 300px;
+}
+.version-select {
+  max-width: 300px;
+}
 </style>

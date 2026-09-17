@@ -9,7 +9,6 @@
     </div>
     <v-tabs v-model="viewTab" class="mb-3"><v-tab value="free">My Models</v-tab><v-tab value="tasks">Tasks</v-tab><v-tab value="archive">Archive</v-tab></v-tabs>
     <v-text-field v-model="query" label="Search models" density="compact" prepend-inner-icon="mdi-magnify" clearable class="mb-3" @update:model-value="searchModels" />
-    <v-alert v-if="error" type="error" class="mb-3">{{ error }}</v-alert>
     <v-data-table-server v-model:items-per-page="itemsPerPage" v-model:expanded="expanded" :headers="headers" :items="models" :items-length="total" :loading="loading" item-value="id" show-expand hover @click:row="toggleExpanded" @update:options="loadModels" @update:expanded="setExpanded">
       <template #[`item.updatedAt`]="{ item }">{{ formattedDate(asModel(item).updatedAt) }}</template>
       <template #[`item.taskVersion`]="{ item }">{{ taskName(asModel(item)) }}</template>
@@ -66,6 +65,7 @@ import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { JsonObject } from '@/services/api/types/common'
 import type { Model, ModelSortField, ModelVersionInfo, SortOrder, TaskEditDocument } from '@/services/api/types/model'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
+import { notifyError } from '@/composables/useNotifications'
 
 interface ModelTableOptions {
   page: number
@@ -90,7 +90,6 @@ const renameDialog = ref(false)
 const selectedModel = ref<Model | null>(null)
 const editedName = ref('')
 const loading = ref(false)
-const error = ref<string | null>(null)
 const previewDialog = ref(false)
 const previewData = ref<JsonObject | null>(null)
 const previewEntries = ref<ModelVersionInfo[]>([])
@@ -128,7 +127,6 @@ const loadModels = async (options?: ModelTableOptions) => {
   }
   const limit = itemsPerPage.value === -1 ? 100 : itemsPerPage.value
   loading.value = true
-  error.value = null
   try {
     const sort = sortBy.value[0]
     const result = await modelService.list((page.value - 1) * limit, limit, { q: query.value || undefined, archived: viewTab.value === 'archive', ...(viewTab.value === 'archive' ? {} : { taskBound: viewTab.value === 'tasks' }), sort: sort.key, order: sort.order })
@@ -142,7 +140,7 @@ const loadModels = async (options?: ModelTableOptions) => {
       })
     )
   } catch {
-    error.value = 'Models could not be loaded.'
+    notifyError('Models could not be loaded.')
   } finally {
     loading.value = false
   }
@@ -173,13 +171,12 @@ const toggleExpanded = (_event: MouseEvent, { item }: { item: Model }) => {
 }
 const createModel = async () => {
   creating.value = true
-  error.value = null
   try {
     await workspace.startNew('Untitled model', [])
     await workspace.save()
     await router.push(`/modeling/${workspace.model!.id}`)
   } catch {
-    error.value = 'The initial model save could not be created.'
+    notifyError('The initial model save could not be created.')
   } finally {
     creating.value = false
   }
@@ -190,7 +187,7 @@ const openTaskSelection = async () => {
   try {
     availableTasks.value = (await taskService.list(0, 100, { visibility: 'published' })).data.items
   } catch {
-    error.value = 'Tasks could not be loaded.'
+    notifyError('Tasks could not be loaded.')
   } finally {
     loadingTasks.value = false
   }
@@ -214,7 +211,7 @@ const createTaskModel = async () => {
     taskDialog.value = false
     await router.push(`/modeling/${workspace.model!.id}`)
   } catch {
-    error.value = 'The task model could not be created.'
+    notifyError('The task model could not be created.')
   } finally {
     creating.value = false
   }
@@ -222,12 +219,11 @@ const createTaskModel = async () => {
 const openModel = (id: string) => router.push(`/modeling/${id}`)
 const setArchived = async (item: Model, archived: boolean) => {
   try {
-    error.value = null
     await modelService.update(item.id, { archived })
     expanded.value = []
     await loadModels()
   } catch {
-    error.value = archived ? 'The model could not be archived.' : 'The model could not be restored.'
+    notifyError(archived ? 'The model could not be archived.' : 'The model could not be restored.')
   }
 }
 const openRename = (model: Model) => {
@@ -238,12 +234,11 @@ const openRename = (model: Model) => {
 const saveName = async () => {
   if (!selectedModel.value) return
   try {
-    error.value = null
     await modelService.update(selectedModel.value.id, { name: editedName.value.trim() })
     renameDialog.value = false
     await loadModels()
   } catch {
-    error.value = 'The model name could not be changed.'
+    notifyError('The model name could not be changed.')
   }
 }
 const openPreview = async (model: Model, entry: ModelVersionInfo) => {
@@ -271,7 +266,7 @@ const branch = async (model: Model, entry: ModelVersionInfo) => {
     await workspace.save()
     await router.push(`/modeling/${workspace.model!.id}`)
   } catch {
-    error.value = 'The save could not be continued as a new model.'
+    notifyError('The save could not be continued as a new model.')
   }
 }
 const snapshotLabel = (entry: ModelVersionInfo) => (entry.kind === 'release' && entry.releaseName ? `${entry.releaseName} · v${entry.versionNumber}` : `v${entry.versionNumber}`)

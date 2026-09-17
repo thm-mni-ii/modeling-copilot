@@ -22,28 +22,29 @@ const editStyle = (type: string, color: unknown) => {
   return ''
 }
 
-export const createTaskEditMark = (name: string, type: string) => Mark.create({
-  name,
-  inclusive: type === 'insertion',
-  addAttributes: commonTaskEditAttributes,
-  parseHTML: () => [{ tag: `span[data-task-edit-mark="${name}"]` }],
-  renderHTML: ({ HTMLAttributes }) => [
-    'span',
-    mergeAttributes(HTMLAttributes, {
-      'data-task-edit-mark': name,
-      style: editStyle(type, HTMLAttributes['data-task-edit-color'])
-    }),
-    0
-  ]
-})
+export const createTaskEditMark = (name: string, type: string) =>
+  Mark.create({
+    name,
+    inclusive: type === 'insertion',
+    addAttributes: commonTaskEditAttributes,
+    parseHTML: () => [{ tag: `span[data-task-edit-mark="${name}"]` }],
+    renderHTML: ({ HTMLAttributes }) => [
+      'span',
+      mergeAttributes(HTMLAttributes, {
+        'data-task-edit-mark': name,
+        style: editStyle(type, HTMLAttributes['data-task-edit-color'])
+      }),
+      0
+    ]
+  })
 
-export const toggleTaskEditMark = (
-  editor: Editor,
-  mark: TaskEditMarkName,
-  attributes: Record<string, unknown>
-) => {
+export const toggleTaskEditMark = (editor: Editor, mark: TaskEditMarkName, attributes: Record<string, unknown>) => {
   const color = typeof attributes.color === 'string' ? attributes.color : undefined
   const active = color ? editor.isActive(mark, { color }) : editor.isActive(mark)
   const chain = editor.chain().focus()
-  return active ? chain.unsetMark(mark).run() : chain.setMark(mark, attributes).run()
+  if (active) return chain.unsetMark(mark).run()
+
+  // A selection may overlap fragments carrying older edit IDs. Clear that
+  // mark type before applying the new edit so marks never stack invisibly.
+  return chain.unsetMark(mark).setMark(mark, attributes).run()
 }

@@ -26,7 +26,6 @@
         <v-tab value="settings" prepend-icon="mdi-cog">Settings</v-tab>
       </v-tabs>
 
-      <v-alert v-if="store.error" type="error" variant="tonal" density="compact" class="mx-3 mb-2">{{ store.error }}</v-alert>
       <v-progress-linear v-if="store.loading" indeterminate />
     </v-card>
 
@@ -68,7 +67,6 @@
       </v-tabs>
       <v-card-text class="pt-2">
         <v-progress-linear v-if="historyLoading" indeterminate class="mb-2" />
-        <v-alert v-if="historyError" type="error" variant="tonal" density="compact" class="mb-2">{{ historyError }}</v-alert>
         <v-window v-model="historyTab">
           <v-window-item value="versions">
             <LanguageVersionList :entries="releaseVersions" :current-version-id="store.currentVersion?.id" empty-text="No releases yet." @restore="restoreVersion" />
@@ -98,6 +96,7 @@ import SyntaxEditor from '@/components/modeling/editors/SyntaxEditor.vue'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 import languageService from '@/services/language/language.service'
 import type { LanguageVersionInfo } from '@/services/api/types/language'
+import { notifyError } from '@/composables/useNotifications'
 
 const route = useRoute()
 const router = useRouter()
@@ -110,7 +109,6 @@ const versionDescription = ref('')
 const historyDialog = ref(false)
 const historyTab = ref<'versions' | 'saves'>('versions')
 const historyLoading = ref(false)
-const historyError = ref<string | null>(null)
 const versions = ref<LanguageVersionInfo[]>([])
 
 const versionLabel = (entry: LanguageVersionInfo) => (entry.kind === 'release' && entry.releaseName ? `${entry.releaseName} · v${entry.versionNumber}` : `v${entry.versionNumber}`)
@@ -126,11 +124,10 @@ const statusColor = computed(() => (store.isDirty ? 'text-warning' : 'text-mediu
 const loadHistory = async (force = false) => {
   if (!store.language || (!force && versions.value.length)) return
   historyLoading.value = true
-  historyError.value = null
   try {
     versions.value = (await languageService.listVersions(store.language.id, 0, 100)).data.items
   } catch {
-    historyError.value = 'The version history could not be loaded.'
+    notifyError('The version history could not be loaded.')
   } finally {
     historyLoading.value = false
   }

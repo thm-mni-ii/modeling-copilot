@@ -1,7 +1,7 @@
 <template>
   <transition name="task-topbar-slide">
     <div v-if="task" class="task-topbar">
-      <!-- Header – immer sichtbar -->
+      <!-- Header is always visible. -->
       <div class="task-topbar__header">
         <button type="button" class="task-topbar__toggle" :title="expanded ? 'Collapse' : 'Show task'" @click="expanded = !expanded">
           <v-icon size="15" color="primary">mdi-clipboard-text-outline</v-icon>
@@ -23,7 +23,7 @@
         </div>
       </div>
 
-      <!-- Body – nur wenn expanded und kein Fenster offen -->
+      <!-- Body is visible while expanded, including the detached-window hint. -->
       <transition name="task-topbar-body">
         <div v-if="expanded" class="task-topbar__body" :style="bodyStyle">
           <div v-if="windowOpen" class="task-topbar__window-hint">
@@ -42,24 +42,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
-import type { TaskConnectionOption, TaskElementOption } from '@/components/tasks/TaskRichEditor.vue'
+import type { TaskConnectionOption, TaskElementOption } from '@/components/tasks/taskEditorExtensions'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { DiagramTask } from '@/model/Task'
 
-const props = withDefaults(defineProps<{
-  task: DiagramTask | null
-  windowOpen: boolean
-  contentHtml: string
-  taskEdit: TaskEditDocument | null
-  elementOptions?: TaskElementOption[]
-  connectionOptions?: TaskConnectionOption[]
-}>(), {
-  elementOptions: () => [],
-  connectionOptions: () => []
-})
+const props = withDefaults(
+  defineProps<{
+    task: DiagramTask | null
+    windowOpen: boolean
+    contentHtml: string
+    taskEdit: TaskEditDocument | null
+    elementOptions?: TaskElementOption[]
+    connectionOptions?: TaskConnectionOption[]
+  }>(),
+  {
+    elementOptions: () => [],
+    connectionOptions: () => []
+  }
+)
 
 const emit = defineEmits<{
   'pop-out': []
@@ -73,6 +76,7 @@ const DEFAULT_HEIGHT = 220
 const MIN_HEIGHT = 120
 const MAX_HEIGHT = 420
 const topbarHeight = ref(DEFAULT_HEIGHT)
+let stopResize: (() => void) | null = null
 
 const bodyStyle = computed(() => ({
   height: `${topbarHeight.value}px`,
@@ -85,6 +89,7 @@ const editorStyle = computed(() => ({
 }))
 
 const startResize = (event: MouseEvent) => {
+  stopResize?.()
   const startY = event.clientY
   const startHeight = topbarHeight.value
 
@@ -93,20 +98,25 @@ const startResize = (event: MouseEvent) => {
     topbarHeight.value = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeight + delta))
   }
 
-  const onUp = () => {
+  const cleanup = () => {
     document.removeEventListener('mousemove', onMove)
     document.removeEventListener('mouseup', onUp)
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
+    stopResize = null
   }
+  const onUp = () => cleanup()
 
+  stopResize = cleanup
   document.body.style.cursor = 'row-resize'
   document.body.style.userSelect = 'none'
   document.addEventListener('mousemove', onMove)
   document.addEventListener('mouseup', onUp)
 }
 
-// Automatisch ausklappen wenn eine neue Aufgabe gesetzt wird
+onBeforeUnmount(() => stopResize?.())
+
+// Expand automatically when a different task is assigned.
 watch(
   () => props.task?.id,
   () => {
@@ -130,7 +140,6 @@ watch(
     }
   }
 )
-
 </script>
 
 <style scoped>

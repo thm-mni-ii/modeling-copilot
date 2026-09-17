@@ -1,4 +1,4 @@
-"""Fachlogik für globale, gemeinsam von Administratoren gepflegte Aufgaben."""
+"""Domain logic for the shared, administrator-managed task catalog."""
 
 from html.parser import HTMLParser
 from re import escape
@@ -12,7 +12,7 @@ from modeling_api.schemas.tasks import CreateTask, CreateTaskVersion, UpdateTask
 from modeling_api.services.languages import check_language_refs
 
 
-class _TaskElementMarkParser(HTMLParser):
+class _TaskReferenceMarkParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self.references: list[tuple[str, str]] = []
@@ -27,7 +27,7 @@ class _TaskElementMarkParser(HTMLParser):
                 raise ApiError(
                     422,
                     "INVALID_CONNECTION_MARK",
-                    "Verbindungsmarkierungen benötigen languageId und connectionType.",
+                    "Connection marks require languageId and connectionType.",
                 )
             self.connection_references.append((connection_language_id, connection_type))
 
@@ -39,14 +39,14 @@ class _TaskElementMarkParser(HTMLParser):
             raise ApiError(
                 422,
                 "INVALID_ELEMENT_MARK",
-                "Elementmarkierungen benötigen languageId und elementType.",
+                "Element marks require languageId and elementType.",
             )
         self.references.append((language_id, element_type))
 
 
 def _require_admin(user: User) -> None:
     if not user.is_admin:
-        raise ApiError(403, "FORBIDDEN", "Diese Aktion ist Administratoren vorbehalten.")
+        raise ApiError(403, "FORBIDDEN", "This action requires administrator access.")
 
 
 async def list_tasks(
@@ -67,8 +67,8 @@ async def list_tasks(
         filters["visibility"] = visibility
     if q and q.strip():
         filters["name"] = {"$regex": escape(q.strip()), "$options": "i"}
-    total = await db.task_statements.count_documents(filters)
-    cursor = await db.task_statements.aggregate(
+    total = await db.task.count_documents(filters)
+    cursor = await db.task.aggregate(
         [
             {"$match": filters},
             {"$sort": {"name": 1, "_id": 1}},
@@ -76,7 +76,7 @@ async def list_tasks(
             {"$limit": limit},
             {
                 "$lookup": {
-                    "from": "task_statement_versions",
+                    "from": "task_version",
                     "localField": "latestReleaseId",
                     "foreignField": "_id",
                     "as": "latestRelease",
@@ -104,14 +104,14 @@ async def create_task(body: CreateTask, user: User) -> Document:
     _require_admin(user)
     parent_version: Document | None = None
     if body.parent is not None:
-        parent_version = await db.task_statement_versions.find_one(
+        parent_version = await db.task_version.find_one(
             {"_id": str(body.parent.version_id), "taskId": str(body.parent.task_id)}
         )
         if parent_version is None:
             raise not_found()
 
     task = await insert(
-        db.task_statements,
+        db.task,
         {
             "name": body.name,
             "parent": body.parent.model_dump(mode="json", by_alias=True) if body.parent else None,
@@ -127,8 +127,8 @@ async def create_task(body: CreateTask, user: User) -> Document:
 
     try:
         await save_version(
-            db.task_statements,
-            db.task_statement_versions,
+            db.task,
+            db.task_version,
             "taskId",
             task["id"],
             None,
@@ -142,13 +142,13 @@ async def create_task(body: CreateTask, user: User) -> Document:
             },
         )
     except Exception:
-        await db.task_statements.delete_one({"_id": task["id"]})
+        await db.task.delete_one({"_id": task["id"]})
         raise
     return await get_task(UUID(task["id"]), user)
 
 
 async def get_task(task_id: UUID, user: User) -> Document:
-    result = await db.task_statements.find_one({"_id": str(task_id)})
+    result = await db.task.find_one({"_id": str(task_id)})
     if result is None or (not user.is_admin and result.get("visibility", "private") != "published"):
         raise not_found()
     return to_api(result)
@@ -164,7 +164,7 @@ async def update_task(task_id: UUID, body: UpdateTask, user: User) -> Document:
         changes["archivedAt"] = utcnow() if body.archived else None
     if "visibility" in body.model_fields_set:
         changes["visibility"] = body.visibility
-    await db.task_statements.update_one({"_id": str(task_id)}, {"$set": changes})
+    await db.task.update_one({"_id": str(task_id)}, {"$set": changes})
     return await get_task(task_id, user)
 
 
@@ -174,13 +174,13 @@ async def list_versions(task_id: UUID, skip: int, limit: int, user: User) -> Doc
     if not user.is_admin:
         filters["kind"] = "release"
     return await list_page(
-        db.task_statement_versions, filters, skip, limit, omit=("data",)
+        db.task_version, filters, skip, limit, omit=("data",)
     )
 
 
 async def get_version(task_id: UUID, version_id: UUID, user: User) -> Document:
     await get_task(task_id, user)
-    version = await db.task_statement_versions.find_one(
+    version = await db.task_version.find_one(
         {"_id": str(version_id), "taskId": str(task_id)}
     )
     if version is None or (version.get("kind") != "release" and not user.is_admin):
@@ -188,69 +188,63 @@ async def get_version(task_id: UUID, version_id: UUID, user: User) -> Document:
     return to_api(version)
 
 
-async def _validate_element_marks(body: CreateTaskVersion) -> None:
-    parser = _TaskElementMarkParser()
+async def _validate_task_references(body: CreateTaskVersion) -> None:
+    parser = _TaskReferenceMarkParser()
     try:
         parser.feed(body.data.content_html)
     except ApiError:
         raise
     except Exception as error:
-        raise ApiError(422, "INVALID_TASK_HTML", "Der Aufgabentext ist ungültig.") from error
+        raise ApiError(422, "INVALID_TASK_HTML", "The task HTML is invalid.") from error
 
     selected_versions = {
         str(reference.language_id): str(reference.version_id)
         for reference in body.workspace_languages
     }
-    cached_elements: dict[str, set[str]] = {}
-    for language_id, element_type in parser.references:
+    catalogs: dict[str, tuple[set[str], set[str]]] = {}
+
+    async def catalog(language_id: str) -> tuple[set[str], set[str]]:
         version_id = selected_versions.get(language_id)
         if version_id is None:
             raise ApiError(
                 422,
                 "UNKNOWN_TASK_LANGUAGE",
-                "Eine Elementmarkierung verweist auf keine ausgewählte Aufgabensprache.",
+                "A task reference points to a language that is not selected for the task.",
             )
-        cache_key = f"{language_id}:{version_id}"
-        if cache_key not in cached_elements:
+        if language_id not in catalogs:
             version = await db.language_versions.find_one(
                 {"_id": version_id, "languageId": language_id}
             )
             if version is None:
                 raise not_found()
-            cached_elements[cache_key] = {
+            elements = {
                 str(element.get("type"))
                 for element in version.get("data", {}).get("elements", [])
                 if element.get("type") is not None
             }
-        if element_type not in cached_elements[cache_key]:
+            connections = {
+                str(connection.get("type"))
+                for connection in version.get("data", {}).get("connections", [])
+                if connection.get("type") is not None
+            }
+            catalogs[language_id] = (elements, connections)
+        return catalogs[language_id]
+
+    for language_id, element_type in parser.references:
+        available_elements, _ = await catalog(language_id)
+        if element_type not in available_elements:
             raise ApiError(
                 422,
                 "UNKNOWN_TASK_ELEMENT",
-                f"Das Modellelement '{element_type}' existiert nicht in der gewählten Sprachversion.",
+                f"Model element '{element_type}' does not exist in the selected language version.",
             )
     for language_id, connection_type in parser.connection_references:
-        version_id = selected_versions.get(language_id)
-        if version_id is None:
-            raise ApiError(
-                422,
-                "UNKNOWN_TASK_LANGUAGE",
-                "Eine Aufgabenmarkierung verweist auf keine ausgewählte Aufgabensprache.",
-            )
-        version = await db.language_versions.find_one(
-            {"_id": version_id, "languageId": language_id}
-        )
-        if version is None:
-            raise not_found()
-        available_connection_types = {
-            str(connection.get("type"))
-            for connection in version.get("data", {}).get("connections", [])
-            if connection.get("type") is not None
-        }
-        if connection_type not in available_connection_types:
+        _, available_connections = await catalog(language_id)
+        if connection_type not in available_connections:
             raise ApiError(
                 422,
                 "UNKNOWN_TASK_CONNECTION",
-                f"Die Verbindung '{connection_type}' existiert nicht in der ausgewählten Sprachversion.",
+                f"Connection '{connection_type}' does not exist in the selected language version.",
             )
 
 
@@ -260,10 +254,10 @@ async def _validate_sample_solutions(body: CreateTaskVersion, user: User) -> Non
         for reference in body.data.sample_solutions
     ]
     if len(keys) != len(set(keys)):
-        raise ApiError(422, "DUPLICATE_REFERENCE", "Eine Musterlösung ist mehrfach ausgewählt.")
+        raise ApiError(422, "DUPLICATE_REFERENCE", "A sample solution is selected more than once.")
     inherited: set[tuple[str, str]] = set()
     if body.base_version_id is not None:
-        previous = await db.task_statement_versions.find_one({"_id": str(body.base_version_id)})
+        previous = await db.task_version.find_one({"_id": str(body.base_version_id)})
         inherited = {
             (str(reference.get("modelId")), str(reference.get("versionId")))
             for reference in previous.get("data", {}).get("sampleSolutions", [])
@@ -279,7 +273,7 @@ async def _validate_sample_solutions(body: CreateTaskVersion, user: User) -> Non
             raise ApiError(
                 422,
                 "INVALID_SAMPLE_SOLUTION",
-                "Musterlösungen müssen Releases eigener Modelle sein.",
+                "Sample solutions must be releases of models owned by the current user.",
             )
 
 
@@ -291,7 +285,7 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
         raise ApiError(
             422,
             "DUPLICATE_TASK_LANGUAGE",
-            "Eine Aufgabe darf je Modellierungssprache nur eine Version verwenden.",
+            "A task can use only one version of each modeling language.",
         )
     await check_language_refs(body.workspace_languages)
     if body.kind == "release":
@@ -307,14 +301,14 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
                 raise ApiError(
                     422,
                     "TASK_LANGUAGE_NOT_RELEASED",
-                    "Aufgaben-Releases dürfen nur veröffentlichte Sprachversionen verwenden.",
+                    "Task releases can use released language versions only.",
                 )
-    await _validate_element_marks(body)
+    await _validate_task_references(body)
     await _validate_sample_solutions(body, user)
     fields = body.model_dump(mode="json", by_alias=True, exclude={"base_version_id"})
     result = await save_version(
-        db.task_statements,
-        db.task_statement_versions,
+        db.task,
+        db.task_version,
         "taskId",
         str(task_id),
         str(body.base_version_id) if body.base_version_id else None,
@@ -322,7 +316,7 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
         fields,
     )
     if body.kind == "release":
-        await db.task_statements.update_one(
+        await db.task.update_one(
             {"_id": str(task_id)},
             {"$set": {"latestReleaseId": result["id"], "visibility": "published"}},
         )
@@ -332,7 +326,7 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
 async def ensure_release_reference(task_id: UUID, version_id: UUID, user: User | None = None) -> Document:
     if user is not None:
         await get_task(task_id, user)
-    version = await db.task_statement_versions.find_one(
+    version = await db.task_version.find_one(
         {"_id": str(version_id), "taskId": str(task_id), "kind": "release"}
     )
     if version is None:

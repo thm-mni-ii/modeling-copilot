@@ -23,14 +23,11 @@
     <div class="modeling-header__autonomy"><slot name="autonomy" /></div>
     <div class="modeling-header__sidebar-toggle"><slot name="sidebar-toggle" /></div>
 
-    <v-alert v-if="saveError" density="compact" type="error" variant="tonal" class="modeling-header__error">{{ saveError }}</v-alert>
-
     <v-dialog v-model="renameDialog" max-width="460">
       <v-card>
         <v-card-title>Change model name</v-card-title>
         <v-card-text>
           <v-text-field v-model="editedName" label="Model name" autofocus @keyup.enter="saveName" />
-          <v-alert v-if="renameError" density="compact" type="error" variant="tonal">{{ renameError }}</v-alert>
         </v-card-text>
         <v-card-actions><v-spacer /><v-btn @click="renameDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!editedName.trim()" @click="saveName">Save</v-btn></v-card-actions>
       </v-card>
@@ -58,14 +55,13 @@ import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { exportModelAsXml } from '@/utils/modelPersistence'
 import ModelTimelineDialog from '@/components/modeling/versions/ModelTimelineDialog.vue'
 import ModelingToolbarGroup from './ModelingToolbarGroup.vue'
+import { notifyError } from '@/composables/useNotifications'
 
 const workspace = useModelWorkspaceStore()
 const { graph } = useGraphContext()
 const modelName = computed(() => workspace.model?.name ?? workspace.data.name)
 const renameDialog = ref(false)
 const editedName = ref('')
-const renameError = ref<string | null>(null)
-const saveError = ref<string | null>(null)
 const releaseDialog = ref(false)
 const releaseName = ref('')
 const releaseDescription = ref('')
@@ -78,7 +74,6 @@ const saveIcon = computed(() => (workspace.syncState === 'dirty' ? 'mdi-content-
 const saveCheckpoint = async () => {
   if (!canSave.value) return
   try {
-    saveError.value = null
     if (graph.value) {
       workspace.setData({
         format: 'maxgraph-xml',
@@ -89,7 +84,7 @@ const saveCheckpoint = async () => {
     }
     await workspace.save()
   } catch {
-    saveError.value = 'Unable to save this model.'
+    notifyError('Unable to save this model.')
   }
 }
 
@@ -102,7 +97,6 @@ const openRelease = () => {
 const saveRelease = async () => {
   if (!releaseName.value.trim()) return
   try {
-    saveError.value = null
     if (graph.value) {
       workspace.setData({
         format: 'maxgraph-xml',
@@ -114,24 +108,22 @@ const saveRelease = async () => {
     await workspace.save('release', releaseName.value, releaseDescription.value)
     releaseDialog.value = false
   } catch {
-    saveError.value = 'Unable to release this version.'
+    notifyError('Unable to release this version.')
   }
 }
 
 const openRename = () => {
   editedName.value = modelName.value
-  renameError.value = null
   renameDialog.value = true
 }
 
 const saveName = async () => {
   if (!editedName.value.trim() || !workspace.model) return
   try {
-    renameError.value = null
     await workspace.rename(editedName.value)
     renameDialog.value = false
   } catch {
-    renameError.value = 'Unable to change the model name.'
+    notifyError('Unable to change the model name.')
   }
 }
 </script>
@@ -180,10 +172,6 @@ const saveName = async () => {
 
 .modeling-header__spacer {
   flex: 1;
-}
-
-.modeling-header__error {
-  width: 100%;
 }
 
 @media (max-width: 900px) {

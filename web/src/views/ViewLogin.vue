@@ -7,9 +7,6 @@
           <v-card-text>
             <v-text-field v-model="bearerToken" label="Bearer Token" placeholder="Enter bearer token" :type="showToken ? 'text' : 'password'" :append-inner-icon="showToken ? 'mdi-eye-off' : 'mdi-eye'" density="comfortable" variant="outlined" hide-details="auto" @click:append-inner="showToken = !showToken" />
             <v-alert v-if="bearerToken && isChecking" type="info" variant="tonal" density="compact" class="mt-3"> Checking token... </v-alert>
-            <v-alert v-else-if="isValid !== null" :type="isValid ? 'success' : 'error'" variant="tonal" density="compact" class="mt-3">
-              {{ isValid ? 'Token is valid.' : 'Token is invalid.' }}
-            </v-alert>
             <pre v-if="isValid && claims" class="login__code mt-3"><code>{{ JSON.stringify(claims, null, 2) }}</code></pre>
           </v-card-text>
           <v-card-actions>
@@ -47,6 +44,7 @@ import { useBearerToken } from '@/composables/useBearerToken'
 import { useUserStore } from '@/stores/userStore'
 import authService from '@/services/auth/auth.service'
 import type { TokenClaims } from '@/services/api/types/auth'
+import { notifyError, notifySuccess } from '@/composables/useNotifications'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -64,9 +62,12 @@ const checkToken = async () => {
     const validation = await authService.validateToken()
     isValid.value = validation.data
     claims.value = isValid.value ? (await authService.getMe()).data : null
+    if (isValid.value) notifySuccess('Token is valid.')
+    else notifyError('Token is invalid.')
   } catch {
     isValid.value = false
     claims.value = null
+    notifyError('Token is invalid.')
   }
   isChecking.value = false
 }

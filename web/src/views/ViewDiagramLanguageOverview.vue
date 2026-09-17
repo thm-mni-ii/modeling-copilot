@@ -11,8 +11,6 @@
 
     <v-tabs v-model="archiveTab" class="mb-3"><v-tab :value="false">Languages</v-tab><v-tab :value="true">Archive</v-tab></v-tabs>
     <v-text-field v-model="query" label="Search languages" density="compact" prepend-inner-icon="mdi-magnify" clearable class="mb-3" @update:model-value="searchLanguages" />
-    <v-alert v-if="error" type="error" variant="tonal" closable class="mb-3" @click:close="error = null">{{ error }}</v-alert>
-
     <v-data-table-server v-model:items-per-page="itemsPerPage" v-model:expanded="expanded" :headers="headers" :items="languages" :items-length="totalLanguages" :loading="loading" item-value="id" show-expand hover no-data-text="No diagram languages available" loading-text="Loading diagram languages..." @click:row="toggleExpanded" @update:expanded="setExpanded" @update:options="loadLanguages">
       <template #[`item.name`]="{ item }">
         <div class="font-weight-medium">{{ asLanguage(item).name }}</div>
@@ -79,6 +77,7 @@ import languageService from '@/services/language/language.service'
 import type { ApiId } from '@/services/api/types/common'
 import type { CreateLanguage, LanguageOverview, LanguageVersionInfo, UpdateLanguage } from '@/services/api/types/language'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
+import { notifyError } from '@/composables/useNotifications'
 
 interface TableOptions {
   page: number
@@ -97,7 +96,6 @@ const currentPage = ref(1)
 const archiveTab = ref(false)
 const query = ref('')
 const loading = ref(false)
-const error = ref<string | null>(null)
 const showLanguageDialog = ref(false)
 const selectedLanguage = ref<LanguageOverview | null>(null)
 
@@ -119,13 +117,12 @@ const loadLanguages = async (options?: TableOptions) => {
   }
   const limit = itemsPerPage.value === -1 ? 100 : itemsPerPage.value
   loading.value = true
-  error.value = null
   try {
     const response = await languageService.list((currentPage.value - 1) * limit, limit, { q: query.value || undefined, archived: archiveTab.value })
     languages.value = response.data.items
     totalLanguages.value = response.data.total
   } catch {
-    error.value = 'Diagram languages could not be loaded.'
+    notifyError('Diagram languages could not be loaded.')
   } finally {
     loading.value = false
   }
@@ -143,7 +140,7 @@ const loadVersions = async (languageId: ApiId, force = false) => {
     versions.value[languageId] = (await languageService.listVersions(languageId, 0, 100)).data.items
     expandedTabs.value[languageId] ??= 'versions'
   } catch {
-    error.value = 'The version history could not be loaded.'
+    notifyError('The version history could not be loaded.')
   }
 }
 
@@ -168,11 +165,10 @@ const openVersion = (language: LanguageOverview, version: LanguageVersionInfo) =
 
 const tryVersion = async (language: Pick<LanguageOverview, 'id' | 'name'>, version: Pick<LanguageVersionInfo, 'id'>) => {
   try {
-    error.value = null
     await workspace.startNew(`Test: ${language.name}`, [{ languageId: language.id, versionId: version.id, source: 'additional' }])
     await router.push({ name: 'Modeling' })
   } catch {
-    error.value = 'The language version could not be opened for testing.'
+    notifyError('The language version could not be opened for testing.')
   }
 }
 const tryLanguage = async (language: LanguageOverview) => {
@@ -182,7 +178,6 @@ const tryLanguage = async (language: LanguageOverview) => {
 
 const forkVersion = async (language: LanguageOverview, version: LanguageVersionInfo) => {
   try {
-    error.value = null
     const fork = (
       await languageService.create({
         name: `${language.name} – ${versionLabel(version)}`,
@@ -191,13 +186,12 @@ const forkVersion = async (language: LanguageOverview, version: LanguageVersionI
     ).data
     await router.push(`/diagramLanguageEditor/${fork.id}`)
   } catch {
-    error.value = 'The language version could not be used as a new language.'
+    notifyError('The language version could not be used as a new language.')
   }
 }
 
 const createInitialVersion = async (language: LanguageOverview) => {
   try {
-    error.value = null
     await languageService.createVersion(language.id, {
       baseVersionId: null,
       kind: 'release',
@@ -207,13 +201,12 @@ const createInitialVersion = async (language: LanguageOverview) => {
     })
     await router.push(`/diagramLanguageEditor/${language.id}`)
   } catch {
-    error.value = 'The first language save could not be created.'
+    notifyError('The first language save could not be created.')
   }
 }
 
 const createLanguage = async (data: CreateLanguage) => {
   try {
-    error.value = null
     const language = (await languageService.create(data)).data
     if (!language.latestVersionId) {
       await languageService.createVersion(language.id, {
@@ -226,28 +219,26 @@ const createLanguage = async (data: CreateLanguage) => {
     }
     await router.push(`/diagramLanguageEditor/${language.id}`)
   } catch {
-    error.value = 'The language could not be created.'
+    notifyError('The language could not be created.')
   }
 }
 
 const updateLanguage = async (languageId: ApiId, data: UpdateLanguage) => {
   try {
-    error.value = null
     await languageService.update(languageId, data)
     await loadLanguages({ page: 1, itemsPerPage: itemsPerPage.value })
   } catch {
-    error.value = 'The language details could not be changed.'
+    notifyError('The language details could not be changed.')
   }
 }
 
 const setArchived = async (language: LanguageOverview, archived: boolean) => {
   try {
-    error.value = null
     await languageService.update(language.id, { archived })
     expanded.value = []
     await loadLanguages({ page: 1, itemsPerPage: itemsPerPage.value })
   } catch {
-    error.value = archived ? 'The language could not be archived.' : 'The language could not be restored.'
+    notifyError(archived ? 'The language could not be archived.' : 'The language could not be restored.')
   }
 }
 

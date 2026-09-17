@@ -16,7 +16,10 @@
             <div class="task-edit-title">
               <span v-if="entry.color" class="task-edit-color" :style="{ background: entry.color }" />
               <v-icon v-else size="16">{{ iconFor(entry.type) }}</v-icon>
-              <div class="task-edit-title__text"><strong>{{ labelFor(entry.type) }}</strong><span>{{ entry.fragments[0] || 'Edit' }}</span></div>
+              <div class="task-edit-title__text">
+                <strong>{{ labelFor(entry.type) }}</strong
+                ><span>{{ entry.fragments[0] || 'Edit' }}</span>
+              </div>
               <v-chip v-if="entry.fragments.length > 1" size="x-small" variant="tonal">{{ entry.fragments.length }}</v-chip>
             </div>
           </v-expansion-panel-title>
@@ -41,7 +44,6 @@
         <v-card-actions><v-spacer /><v-btn @click="confirmDialog = false">Cancel</v-btn><v-btn color="error" @click="confirmRemoval">Remove Edit</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-snackbar v-model="undoSnackbar" timeout="6000">Edit removed.<template #actions><v-btn color="primary" variant="text" @click="undoRemoval">Undo</v-btn></template></v-snackbar>
   </div>
 </template>
 
@@ -49,9 +51,10 @@
 import { computed, ref } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
-import { cloneTaskDocument, collectTaskEdits, type TaskEditListEntry, type TaskEditType } from '@/utils/taskEdits'
+import { cloneTaskDocument, collectTaskEdits, type TaskEditListEntry, type TaskEditSyncState, type TaskEditType } from '@/utils/taskEdits'
+import { notifySuccess } from '@/composables/useNotifications'
 
-const props = withDefaults(defineProps<{ taskEdit: TaskEditDocument | null; syncState?: 'synced' | 'dirty' | 'saving' | 'offline' | 'conflict' }>(), { syncState: 'synced' })
+const props = withDefaults(defineProps<{ taskEdit: TaskEditDocument | null; syncState?: TaskEditSyncState }>(), { syncState: 'synced' })
 const emit = defineEmits<{
   'remove-edit': [id: string]
   'restore-document': [document: JsonObject]
@@ -65,7 +68,6 @@ const filteredEntries = computed(() => entries.value.filter((entry) => filter.va
 const confirmDialog = ref(false)
 const pendingEntry = ref<TaskEditListEntry | null>(null)
 const undoDocument = ref<JsonObject | null>(null)
-const undoSnackbar = ref(false)
 
 const labels: Record<TaskEditType, string> = { highlight: 'Highlight', bold: 'Bold', italic: 'Italic', underline: 'Underline', strike: 'Strikethrough', textColor: 'Text color', inlineCode: 'Inline code', insertion: 'Added text' }
 const icons: Record<TaskEditType, string> = { highlight: 'mdi-marker', bold: 'mdi-format-bold', italic: 'mdi-format-italic', underline: 'mdi-format-underline', strike: 'mdi-format-strikethrough', textColor: 'mdi-format-color-text', inlineCode: 'mdi-code-tags', insertion: 'mdi-text-box-plus-outline' }
@@ -82,25 +84,87 @@ const confirmRemoval = () => {
   emit('remove-edit', pendingEntry.value.id)
   confirmDialog.value = false
   pendingEntry.value = null
-  undoSnackbar.value = true
+  notifySuccess('Edit removed.', { timeout: 6000, action: { label: 'Undo', handler: undoRemoval } })
 }
 const undoRemoval = () => {
   if (undoDocument.value) emit('restore-document', undoDocument.value)
   undoDocument.value = null
-  undoSnackbar.value = false
 }
 </script>
 
 <style scoped>
-.task-edits-sidebar { height: 100%; display: flex; flex-direction: column; min-height: 0; }
-.task-edits-sidebar__filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; border-bottom: 1px solid rgba(var(--v-theme-outline), 0.14); }
-.task-edits-sidebar__list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; }
-.task-edits-sidebar__empty { padding: 16px 12px; color: rgba(var(--v-theme-on-surface), 0.62); font-size: 12px; line-height: 1.5; }
-.task-edit-title { display: flex; align-items: center; gap: 7px; width: 100%; min-width: 0; }
-.task-edit-title__text { min-width: 0; display: flex; flex: 1; flex-direction: column; font-size: 11px; }
-.task-edit-title__text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(var(--v-theme-on-surface), 0.65); }
-.task-edit-color { width: 14px; height: 14px; flex: 0 0 14px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.2); }
-.task-edit-fragments { display: flex; flex-direction: column; gap: 4px; }
-.task-edit-fragment { border: 0; border-left: 2px solid rgb(var(--v-theme-primary)); background: rgba(var(--v-theme-primary), 0.05); padding: 5px 7px; text-align: left; font-size: 11px; cursor: pointer; }
-.task-edit-actions { display: flex; justify-content: flex-end; gap: 4px; margin-top: 6px; }
+.task-edits-sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.task-edits-sidebar__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.14);
+}
+.task-edits-sidebar__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+.task-edits-sidebar__empty {
+  padding: 16px 12px;
+  color: rgba(var(--v-theme-on-surface), 0.62);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.task-edit-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+}
+.task-edit-title__text {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  font-size: 11px;
+}
+.task-edit-title__text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(var(--v-theme-on-surface), 0.65);
+}
+.task-edit-color {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+.task-edit-fragments {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.task-edit-fragment {
+  border: 0;
+  border-left: 2px solid rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.05);
+  padding: 5px 7px;
+  text-align: left;
+  font-size: 11px;
+  cursor: pointer;
+}
+.task-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 6px;
+}
 </style>

@@ -12,6 +12,7 @@ export const TASK_EDIT_MARKS = {
 } as const
 
 export type TaskEditType = (typeof TASK_EDIT_MARKS)[keyof typeof TASK_EDIT_MARKS]
+export type TaskEditSyncState = 'synced' | 'dirty' | 'saving' | 'offline' | 'conflict'
 
 export interface TaskEditListEntry {
   id: string

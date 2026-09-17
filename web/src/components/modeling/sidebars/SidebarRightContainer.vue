@@ -20,6 +20,7 @@
 import { computed, ref, watch } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
+import type { TaskEditSyncState } from '@/utils/taskEdits'
 import SidebarLibrary from './SidebarLibrary.vue'
 import SidebarFrame from './SidebarFrame.vue'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
@@ -35,7 +36,7 @@ const props = defineProps<{
   collapsed: boolean
   taskActive?: boolean
   taskEdit?: TaskEditDocument | null
-  taskEditSyncState?: 'synced' | 'dirty' | 'saving' | 'offline' | 'conflict'
+  taskEditSyncState?: TaskEditSyncState
   feedbackShapes?: Array<{
     name: string
     label: string
@@ -55,7 +56,7 @@ const baseTabs: SidebarTabItem[] = [
   { value: 'sync', icon: 'mdi-sync', label: 'Sync' },
   { value: 'languages', icon: 'mdi-bookshelf', label: 'Languages' }
 ]
-const tabs = computed<SidebarTabItem[]>(() => props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, ...baseTabs] : baseTabs)
+const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, ...baseTabs] : baseTabs))
 
 const DEFAULT_WIDTH = 210
 const sidebarWidth = ref(DEFAULT_WIDTH)
@@ -64,7 +65,12 @@ const activeTabLabel = computed(() => tabs.value.find((tab) => tab.value === act
 const selectTab = (value: string) => {
   activeTab.value = value as SidebarTab
 }
-watch(() => props.taskActive, (taskActive) => { if (!taskActive && activeTab.value === 'task') activeTab.value = 'languages' })
+watch(
+  () => props.taskActive,
+  (taskActive) => {
+    if (!taskActive && activeTab.value === 'task') activeTab.value = 'languages'
+  }
+)
 </script>
 
 <style scoped>

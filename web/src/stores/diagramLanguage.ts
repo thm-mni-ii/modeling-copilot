@@ -7,6 +7,7 @@ import languageService from '@/services/language/language.service'
 import type { ApiId } from '@/services/api/types/common'
 import type { Language, LanguageVersion, LanguageVersionKind, LanguageVersionInfo } from '@/services/api/types/language'
 import { cloneFeedbackCanvasConfig, createDefaultTargetOverlays, ensureFeedbackTargets } from '@/utils/feedbackConfig'
+import { notifyError } from '@/composables/useNotifications'
 
 const DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE = 'The Connection {source} -> {target} with Connection type {connection} violates the cardinality ({min}..{max}).'
 
@@ -20,6 +21,11 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
   const loading = ref(false)
   const saving = ref(false)
   const error = ref<string | null>(null)
+  const reportError = (caught: unknown, fallback: string) => {
+    const message = caught instanceof Error ? caught.message : fallback
+    error.value = message
+    notifyError(message)
+  }
 
   const definition = computed(() => currentVersion.value?.data ?? null)
   const isDirty = computed(() => restoredFromVersion.value !== null || (definition.value !== null && savedSnapshot.value !== JSON.stringify(definition.value)))
@@ -38,7 +44,7 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
       restoredFromVersion.value = null
       savedSnapshot.value = JSON.stringify(loadedVersion.data)
     } catch (caught) {
-      error.value = caught instanceof Error ? caught.message : 'Failed to load diagram language.'
+      reportError(caught, 'Failed to load diagram language.')
       throw caught
     } finally {
       loading.value = false
@@ -68,7 +74,7 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
       savedSnapshot.value = JSON.stringify(savedVersion.data)
       return savedVersion
     } catch (caught) {
-      error.value = caught instanceof Error ? caught.message : 'Failed to save diagram language.'
+      reportError(caught, 'Failed to save diagram language.')
       throw caught
     } finally {
       saving.value = false
@@ -96,7 +102,7 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
       restoredFromVersion.value = versionId === latestVersionId ? null : snapshot
       savedSnapshot.value = JSON.stringify(latestVersion.data)
     } catch (caught) {
-      error.value = caught instanceof Error ? caught.message : 'Failed to restore the language version.'
+      reportError(caught, 'Failed to restore the language version.')
       throw caught
     } finally {
       loading.value = false

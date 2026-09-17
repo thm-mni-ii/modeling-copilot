@@ -1,7 +1,7 @@
-"""JWT-Prüfung: jeder /v1-Request braucht einen gültigen Bearer-Token.
+"""JWT authentication for protected API endpoints.
 
-Das Token stellt ein externes System aus. Die API prüft nur Signatur und
-Ablaufzeit und liest daraus die Nutzer-ID und (später definierte) Rollen.
+Tokens are issued by an external identity system. This API validates their
+signature and expiry, then reads the configured user and role claims.
 """
 
 from dataclasses import dataclass, field
@@ -13,12 +13,15 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
 
-bearer = HTTPBearer(auto_error=False, description="JWT des externen Identity-Systems.")
+bearer = HTTPBearer(
+    auto_error=False,
+    description="JWT issued by the configured external identity system.",
+)
 
 
 @dataclass(frozen=True)
 class User:
-    """Der angemeldete Akteur: ID aus dem Token, dazu optionale Rollen."""
+    """Authenticated actor with the user identifier and optional roles."""
 
     id: str
     roles: list[str] = field(default_factory=list)
@@ -26,12 +29,12 @@ class User:
 
     @property
     def is_admin(self) -> bool:
-        """Ob der Nutzer globaler Administrator des Feedback-Systems ist."""
+        """Whether the user is a global Modeling Copilot administrator."""
         return self.global_role == "ADMIN"
 
 
 def _decode_claims(token: str) -> dict:
-    """Prüft Signatur und Ablaufzeit; wirft jwt.PyJWTError bei ungültigem Token."""
+    """Validate signature and expiry, raising PyJWTError on failure."""
     return jwt.decode(
         token,
         settings.jwt_secret,
@@ -41,7 +44,7 @@ def _decode_claims(token: str) -> dict:
 
 
 def is_token_valid(token: str) -> bool:
-    """Prüft ein Token, ohne bei Ungültigkeit eine Exception zu werfen."""
+    """Return whether a token can be decoded and validated."""
     try:
         _decode_claims(token)
     except jwt.PyJWTError:
@@ -52,13 +55,13 @@ def is_token_valid(token: str) -> bool:
 def get_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
 ) -> User:
-    """FastAPI-Dependency: prüft das Token und liefert den User."""
+    """Validate the request token and return the authenticated user."""
     if credentials is None:
-        raise ApiError(401, "INVALID_TOKEN", "Es wird ein gültiges Bearer-Token benötigt.")
+        raise ApiError(401, "INVALID_TOKEN", "A valid bearer token is required.")
     try:
         claims = _decode_claims(credentials.credentials)
     except jwt.PyJWTError:
-        raise ApiError(401, "INVALID_TOKEN", "Es wird ein gültiges Bearer-Token benötigt.") from None
+        raise ApiError(401, "INVALID_TOKEN", "A valid bearer token is required.") from None
     roles = claims.get(settings.jwt_roles_claim) or []
     global_role = claims.get(settings.jwt_global_role_claim)
     return User(
@@ -71,10 +74,10 @@ def get_user(
 def get_claims(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
 ) -> dict:
-    """Wie get_user, liefert aber alle Claims des Tokens unverändert (z. B. für /auth/me)."""
+    """Validate the request token and return all unchanged token claims."""
     if credentials is None:
-        raise ApiError(401, "INVALID_TOKEN", "Es wird ein gültiges Bearer-Token benötigt.")
+        raise ApiError(401, "INVALID_TOKEN", "A valid bearer token is required.")
     try:
         return _decode_claims(credentials.credentials)
     except jwt.PyJWTError:
-        raise ApiError(401, "INVALID_TOKEN", "Es wird ein gültiges Bearer-Token benötigt.") from None
+        raise ApiError(401, "INVALID_TOKEN", "A valid bearer token is required.") from None

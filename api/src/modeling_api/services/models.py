@@ -1,7 +1,4 @@
-"""Fachlogik für Modelle und ihre Speicherstände.
-
-Zugriff: Jeder sieht nur seine eigenen Modelle.
-"""
+"""Model and model-version domain logic scoped to the authenticated owner."""
 
 from copy import deepcopy
 from re import escape
@@ -34,20 +31,6 @@ async def list_models(
     sort: ModelSortField = "updatedAt",
     order: SortOrder = "desc",
 ) -> Document:
-    # Existing installations predate these metadata fields. Backfill lazily so
-    # the API stays readable without a separate migration deployment.
-    await db.models.update_many(
-        {"ownerId": user.id, "updatedAt": {"$exists": False}}, {"$set": {"updatedAt": utcnow()}}
-    )
-    await db.models.update_many(
-        {"ownerId": user.id, "archivedAt": {"$exists": False}}, {"$set": {"archivedAt": None}}
-    )
-    await db.models.update_many(
-        {"ownerId": user.id, "taskVersion": {"$exists": False}}, {"$set": {"taskVersion": None}}
-    )
-    await db.models.update_many(
-        {"ownerId": user.id, "taskEdit": {"$exists": False}}, {"$set": {"taskEdit": None}}
-    )
     filters: Document = {"ownerId": user.id}
     filters["archivedAt"] = {"$ne": None} if archived else None
     if task_bound is not None:
@@ -91,17 +74,6 @@ async def get_model(model_id: UUID, user: User) -> Document:
     result = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
     if result is None:
         raise not_found()
-    missing_metadata = {
-        "updatedAt": result.get("createdAt", utcnow()),
-        "archivedAt": None,
-        "preferences": {},
-        "taskVersion": None,
-        "taskEdit": None,
-    }
-    changes = {key: value for key, value in missing_metadata.items() if key not in result}
-    if changes:
-        await db.models.update_one({"_id": str(model_id), "ownerId": user.id}, {"$set": changes})
-        result.update(changes)
     api_model = to_api(result)
     api_model.pop("taskEditBaseSignature", None)
     return api_model
@@ -141,13 +113,13 @@ async def update_task_edit(model_id: UUID, body: UpdateTaskEdit, user: User) -> 
         raise not_found()
     task_reference = model.get("taskVersion")
     if task_reference is None:
-        raise conflict("Ein Modell ohne Aufgabe kann keine Task-Edits besitzen.")
+        raise conflict("A model without an assigned task cannot have task edits.")
     current = model.get("taskEdit")
     current_revision = int(current.get("revision", 0)) if current else 0
     if body.base_revision != current_revision:
-        raise conflict("Die Task-Edits wurden zwischenzeitlich geändert. Bitte neu laden.")
+        raise conflict("Task edits changed concurrently. Reload them before saving again.")
 
-    task_version = await db.task_statement_versions.find_one(
+    task_version = await db.task_version.find_one(
         {
             "_id": task_reference["versionId"],
             "taskId": task_reference["taskId"],
@@ -181,7 +153,7 @@ async def update_task_edit(model_id: UUID, body: UpdateTaskEdit, user: User) -> 
         },
     )
     if updated.matched_count == 0:
-        raise conflict("Die Task-Edits wurden zwischenzeitlich geändert. Bitte neu laden.")
+        raise conflict("Task edits changed concurrently. Reload them before saving again.")
     return task_edit
 
 
@@ -192,7 +164,7 @@ async def list_versions(model_id: UUID, skip: int, limit: int, user: User) -> Do
         {"modelId": str(model_id)},
         skip,
         limit,
-        omit=("data", "annotations", "taskEditSnapshot"),
+        omit=("data", "taskEditSnapshot"),
     )
 
 
@@ -214,7 +186,7 @@ async def _materialize_version(version: Document) -> Document:
 
     base_release_id = version.get("baseReleaseId")
     if not base_release_id:
-        raise conflict("Der Checkpoint besitzt keinen Basis-Release.")
+        raise conflict("The checkpoint has no base release.")
     release = await db.model_versions.find_one(
         {
             "_id": base_release_id,
@@ -223,7 +195,7 @@ async def _materialize_version(version: Document) -> Document:
         }
     )
     if release is None or not isinstance(release.get("data", {}).get("xml"), str):
-        raise conflict("Der Basis-Release des Checkpoints ist nicht verfügbar.")
+        raise conflict("The checkpoint base release is unavailable.")
 
     patch_xml: list[str] = []
     found_target = False
@@ -240,7 +212,7 @@ async def _materialize_version(version: Document) -> Document:
             found_target = True
             break
     if not found_target:
-        raise conflict("Der Checkpoint gehört nicht zur erwarteten Release-Phase.")
+        raise conflict("The checkpoint does not belong to the expected release phase.")
 
     result = deepcopy(version)
     result["data"] = {
@@ -253,15 +225,15 @@ async def _materialize_version(version: Document) -> Document:
 
 async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -> Document:
     model = await get_model(model_id, user)
-    # Das Modell speichert nur seine direkte Sprachauswahl. Abhängigkeiten
-    # werden bei Bedarf aus den jeweiligen Sprachversionen aufgelöst.
+    # Models store direct language selections only. Dependencies are resolved
+    # from the selected language versions when needed.
     await check_language_refs(body.workspace_languages)
     model_task = model.get("taskVersion")
     supplied_task = (
         body.task_version.model_dump(mode="json", by_alias=True) if body.task_version else None
     )
     if supplied_task != model_task:
-        raise conflict("Die Aufgabenfassung eines Modells kann nicht geändert werden.")
+        raise conflict("A model's assigned task version cannot be changed.")
     if body.task_version is not None:
         from modeling_api.services.tasks import ensure_release_reference
 
@@ -279,7 +251,7 @@ async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -
         }
         if not required_languages.issubset(selected_languages):
             raise conflict(
-                "Die von der Aufgabe benötigten Sprachversionen können nicht geändert werden."
+                "Language versions required by the task cannot be changed."
             )
 
     previous = None
@@ -301,14 +273,14 @@ async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -
         fields.pop("patches", None)
     else:
         if previous is None:
-            raise conflict("Vor dem ersten Checkpoint muss ein Release gespeichert werden.")
+            raise conflict("A release must be saved before the first checkpoint.")
         base_release_id = (
             previous["_id"] if previous.get("kind") == "release" else previous.get("baseReleaseId")
         )
         if not base_release_id:
-            raise conflict("Für den Checkpoint konnte kein Basis-Release bestimmt werden.")
+            raise conflict("No base release could be determined for the checkpoint.")
         if body.base_release_id is not None and str(body.base_release_id) != base_release_id:
-            raise conflict("Der Basis-Release hat sich geändert. Bitte das Modell neu laden.")
+            raise conflict("The base release changed. Reload the model before saving again.")
         previous_materialized = await _materialize_version(previous)
         apply_patches(
             previous_materialized["data"]["xml"],

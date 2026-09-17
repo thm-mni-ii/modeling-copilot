@@ -68,7 +68,6 @@ export interface ModelPatch {
 export interface ModelVersion extends ModelVersionInfo {
   data: JsonObject
   taskEditSnapshot: TaskEditDocument | null
-  annotations: JsonObject | null
 }
 
 export interface CreateModelVersion {

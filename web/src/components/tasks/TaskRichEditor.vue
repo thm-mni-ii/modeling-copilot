@@ -14,7 +14,7 @@
 
       <v-divider vertical class="mx-1" />
 
-      <!-- Schriftart / Überschriften -->
+      <!-- Text styles and headings -->
       <v-btn-group size="x-small" density="compact" variant="outlined" class="mr-1">
         <v-btn :color="editor.isActive('heading', { level: 1 }) ? 'primary' : undefined" title="Heading 1" @click="editor.chain().focus().toggleHeading({ level: 1 }).run()">
           <v-icon>mdi-format-header-1</v-icon>
@@ -32,7 +32,7 @@
 
       <v-divider vertical class="mx-1" />
 
-      <!-- Fettschrift, kursiv, unterstrichen, durchgestrichen -->
+      <!-- Inline formatting -->
       <v-btn-group size="x-small" density="compact" variant="outlined" class="mr-1">
         <v-btn :color="editor.isActive('bold') ? 'primary' : undefined" title="Bold (Ctrl+B)" @click="editor.chain().focus().toggleBold().run()">
           <v-icon>mdi-format-bold</v-icon>
@@ -50,49 +50,13 @@
 
       <v-divider vertical class="mx-1" />
 
-      <!-- Textfarbe -->
-      <v-menu :close-on-content-click="false" location="bottom">
-        <template #activator="{ props: menuProps }">
-          <v-btn size="small" variant="outlined" title="Text color" class="mr-1" v-bind="menuProps">
-            <span class="toolbar-color-indicator">
-              A
-              <span class="toolbar-color-dot" :style="{ backgroundColor: activeColor ?? '#616161' }"></span>
-            </span>
-          </v-btn>
-        </template>
-        <v-card class="pa-2 color-picker-card">
-          <div class="color-swatches">
-            <button v-for="color in textColors" :key="color.value" class="color-swatch" :style="{ background: color.value }" :title="color.label" @click="applyTextColor(color.value)" />
-            <button class="color-swatch color-swatch--reset" title="Reset color" @click="editor.chain().focus().unsetColor().run()">
-              <v-icon size="14">mdi-close</v-icon>
-            </button>
-          </div>
-        </v-card>
-      </v-menu>
+      <TaskColorPicker class="mr-1" title="Text color" icon="mdi-format-color-text" :colors="TASK_TEXT_COLORS" :indicator-color="activeColor ?? '#616161'" allow-reset @select="applyTextColor" @reset="editor.chain().focus().unsetColor().run()" />
 
-      <!-- Hervorhebung -->
-      <v-menu :close-on-content-click="false" location="bottom">
-        <template #activator="{ props: menuProps }">
-          <v-btn size="small" variant="outlined" title="Highlight color" class="mr-1" v-bind="menuProps">
-            <span class="toolbar-highlight-indicator">
-              <v-icon size="14">mdi-marker</v-icon>
-              <span class="toolbar-highlight-dot" :style="{ backgroundColor: activeHighlightColor ?? '#e0e0e0' }"></span>
-            </span>
-          </v-btn>
-        </template>
-        <v-card class="pa-2 color-picker-card">
-          <div class="color-swatches">
-            <button v-for="color in highlightColors" :key="color.value" class="color-swatch" :style="{ background: color.value }" :title="color.label" @click="applyHighlight(color.value)" />
-            <button class="color-swatch color-swatch--reset" title="Remove highlight" @click="editor.chain().focus().unsetHighlight().run()">
-              <v-icon size="14">mdi-close</v-icon>
-            </button>
-          </div>
-        </v-card>
-      </v-menu>
+      <TaskColorPicker class="mr-1" title="Highlight color" icon="mdi-marker" :colors="TASK_HIGHLIGHT_COLORS" :indicator-color="activeHighlightColor ?? '#e0e0e0'" allow-reset reset-title="Remove highlight" @select="applyHighlight" @reset="editor.chain().focus().unsetHighlight().run()" />
 
       <v-divider vertical class="mx-1" />
 
-      <!-- Ausrichtung -->
+      <!-- Alignment -->
       <v-btn-group size="x-small" density="compact" variant="outlined" class="mr-1">
         <v-btn :color="editor.isActive({ textAlign: 'left' }) ? 'primary' : undefined" title="Align left" @click="editor.chain().focus().setTextAlign('left').run()">
           <v-icon>mdi-format-align-left</v-icon>
@@ -110,7 +74,7 @@
 
       <v-divider vertical class="mx-1" />
 
-      <!-- Listen -->
+      <!-- Lists -->
       <v-btn-group size="x-small" density="compact" variant="outlined" class="mr-1">
         <v-btn :color="editor.isActive('bulletList') ? 'primary' : undefined" title="Bulleted list" @click="editor.chain().focus().toggleBulletList().run()">
           <v-icon>mdi-format-list-bulleted</v-icon>
@@ -122,7 +86,7 @@
 
       <v-divider vertical class="mx-1" />
 
-      <!-- Code / Blockquote / Trennlinie -->
+      <!-- Code, quote, and separator -->
       <v-btn-group size="x-small" density="compact" variant="outlined">
         <v-btn :color="editor.isActive('code') ? 'primary' : undefined" title="Code (Inline)" @click="editor.chain().focus().toggleCode().run()">
           <v-icon>mdi-code-tags</v-icon>
@@ -162,13 +126,11 @@
             </div>
           </v-card>
         </v-menu>
-        <v-chip v-if="activeReferenceLabel" size="small" color="primary" variant="tonal" class="active-reference-chip" prepend-icon="mdi-link-variant">
-          Selected: {{ activeReferenceLabel }}
-        </v-chip>
+        <v-chip v-if="activeReferenceLabel" size="small" color="primary" variant="tonal" class="active-reference-chip" prepend-icon="mdi-link-variant"> Selected: {{ activeReferenceLabel }} </v-chip>
       </template>
     </div>
 
-    <!-- Editierbarer Bereich -->
+    <!-- Editable content -->
     <editor-content :editor="editor" class="editor-body" @click="onTaskReferenceClick" @dragstart="onDragStart" @mouseleave="hideReferencePreview" @mouseover="onTaskReferenceMouseOver" />
     <div v-if="referencePreview" class="task-reference-preview" :style="{ left: `${referencePreview.x}px`, top: `${referencePreview.y}px` }">
       <div class="task-reference-preview__kind">{{ referencePreview.kind === 'element' ? 'Model element' : 'Connection' }}</div>
@@ -182,81 +144,12 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { Mark, mergeAttributes, type Editor } from '@tiptap/core'
+import type { Editor } from '@tiptap/core'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
-import StarterKit from '@tiptap/starter-kit'
-import { TextStyle } from '@tiptap/extension-text-style'
-import { Color } from '@tiptap/extension-color'
-import Underline from '@tiptap/extension-underline'
-import TextAlign from '@tiptap/extension-text-align'
-import Highlight from '@tiptap/extension-highlight'
-import Placeholder from '@tiptap/extension-placeholder'
 import DiagramPreviewItem from '@/components/modeling/canvas/DiagramPreviewItem.vue'
 import ConnectionPreviewItem from '@/components/modeling/canvas/ConnectionPreviewItem.vue'
-import type { DiagramConnection } from '@/model/Connection'
-import type { DiagramElement } from '@/model/Element'
-
-export interface TaskElementOption {
-  languageId: string
-  elementType: string
-  label: string
-  element?: DiagramElement
-}
-
-export interface TaskConnectionOption {
-  languageId: string
-  connectionType: string
-  label: string
-  connection?: DiagramConnection
-}
-
-const TaskElementMark = Mark.create({
-  name: 'taskElement',
-  addAttributes() {
-    return {
-      languageId: {
-        default: null,
-        parseHTML: (element) => element.getAttribute('data-task-element-language-id'),
-        renderHTML: (attributes) => ({ 'data-task-element-language-id': attributes.languageId })
-      },
-      elementType: {
-        default: null,
-        parseHTML: (element) => element.getAttribute('data-task-element-type'),
-        renderHTML: (attributes) => ({ 'data-task-element-type': attributes.elementType })
-      }
-    }
-  },
-  parseHTML() {
-    return [{ tag: 'span[data-task-element-language-id][data-task-element-type]' }]
-  },
-  renderHTML({ HTMLAttributes }) {
-    return ['span', mergeAttributes(HTMLAttributes, { class: 'task-element-mark', draggable: 'true' }), 0]
-  }
-})
-
-const TaskConnectionMark = Mark.create({
-  name: 'taskConnection',
-  addAttributes() {
-    return {
-      languageId: {
-        default: null,
-        parseHTML: (element) => element.getAttribute('data-task-connection-language-id'),
-        renderHTML: (attributes) => ({ 'data-task-connection-language-id': attributes.languageId })
-      },
-      connectionType: {
-        default: null,
-        parseHTML: (element) => element.getAttribute('data-task-connection-type'),
-        renderHTML: (attributes) => ({ 'data-task-connection-type': attributes.connectionType })
-      }
-    }
-  },
-  parseHTML() {
-    return [{ tag: 'span[data-task-connection-language-id][data-task-connection-type]' }]
-  },
-  renderHTML({ HTMLAttributes }) {
-    return ['span', mergeAttributes(HTMLAttributes, { class: 'task-connection-mark' }), 0]
-  }
-})
+import TaskColorPicker from './TaskColorPicker.vue'
+import { createTaskEditorExtensions, readTaskConnectionReference, TASK_HIGHLIGHT_COLORS, TASK_TEXT_COLORS, writeTaskElementDragData, type TaskConnectionOption, type TaskElementOption } from './taskEditorExtensions'
 
 const props = withDefaults(
   defineProps<{
@@ -282,7 +175,7 @@ const emit = defineEmits<{
 const editor = useEditor({
   content: props.modelValue,
   editable: !props.readonly,
-  extensions: [StarterKit.configure({ underline: false }), TextStyle, Color, Underline, TextAlign.configure({ types: ['heading', 'paragraph'] }), Highlight.configure({ multicolor: true }), Placeholder.configure({ placeholder: props.placeholder }), TaskElementMark, TaskConnectionMark],
+  extensions: createTaskEditorExtensions(props.placeholder),
   onUpdate: ({ editor: e }) => {
     emit('update:modelValue', e.getHTML())
   },
@@ -291,7 +184,7 @@ const editor = useEditor({
   }
 })
 
-// Sync externen Wert in Editor (z. B. bei Aufgabenwechsel)
+// Keep the editor in sync when the selected task changes.
 watch(
   () => props.modelValue,
   (newValue) => {
@@ -389,16 +282,11 @@ const onTaskReferenceClick = (event: MouseEvent) => {
     if (editor.value) syncLinkControls(editor.value)
     return
   }
-  const mark = target?.closest('[data-task-connection-language-id][data-task-connection-type]')
-  const languageId = mark?.getAttribute('data-task-connection-language-id')
-  const connectionType = mark?.getAttribute('data-task-connection-type')
-  if (!languageId || !connectionType) return
-  emit('select-connection', { languageId, connectionType })
+  const reference = readTaskConnectionReference(target)
+  if (reference) emit('select-connection', reference)
 }
 
-type ReferencePreview =
-  | { kind: 'element'; option: TaskElementOption; x: number; y: number }
-  | { kind: 'connection'; option: TaskConnectionOption; x: number; y: number }
+type ReferencePreview = { kind: 'element'; option: TaskElementOption; x: number; y: number } | { kind: 'connection'; option: TaskConnectionOption; x: number; y: number }
 
 const referencePreview = ref<ReferencePreview | null>(null)
 const hideReferencePreview = () => {
@@ -422,20 +310,7 @@ const onTaskReferenceMouseOver = (event: MouseEvent) => {
 }
 
 const onDragStart = (event: DragEvent) => {
-  const target = event.target as Element | null
-  const mark = target?.closest('[data-task-element-language-id][data-task-element-type]')
-  const elementType = mark?.getAttribute('data-task-element-type')
-  if (!elementType || !event.dataTransfer) return
-  event.dataTransfer.setData('text/plain', elementType)
-  event.dataTransfer.setData(
-    'application/x-modeling-task-element',
-    JSON.stringify({
-      languageId: mark?.getAttribute('data-task-element-language-id'),
-      elementType,
-      label: mark?.textContent?.trim() || undefined
-    })
-  )
-  event.dataTransfer.effectAllowed = 'copy'
+  writeTaskElementDragData(event)
 }
 
 const applyTextColor = (color: string) => {
@@ -445,28 +320,6 @@ const applyTextColor = (color: string) => {
 const applyHighlight = (color: string) => {
   editor.value?.chain().focus().setHighlight({ color }).run()
 }
-
-const textColors = [
-  { label: 'Black', value: '#000000' },
-  { label: 'Dark Gray', value: '#424242' },
-  { label: 'Red', value: '#E53935' },
-  { label: 'Pink', value: '#D81B60' },
-  { label: 'Purple', value: '#8E24AA' },
-  { label: 'Blue', value: '#1E88E5' },
-  { label: 'Cyan', value: '#00ACC1' },
-  { label: 'Green', value: '#43A047' },
-  { label: 'Orange', value: '#FB8C00' },
-  { label: 'Yellow', value: '#FDD835' }
-]
-
-const highlightColors = [
-  { label: 'Yellow', value: '#FFF176' },
-  { label: 'Green', value: '#C8E6C9' },
-  { label: 'Blue', value: '#BBDEFB' },
-  { label: 'Pink', value: '#F8BBD0' },
-  { label: 'Orange', value: '#FFE0B2' },
-  { label: 'Purple', value: '#E1BEE7' }
-]
 </script>
 
 <style scoped>
@@ -566,9 +419,18 @@ const highlightColors = [
   padding: 0 1px;
 }
 
-.task-link-menu { width: min(360px, calc(100vw - 32px)); }
-.task-link-menu__section + .task-link-menu__section { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(var(--v-theme-outline), 0.16); }
-.task-link-menu :deep(.v-select) { min-width: 0; flex: 1; }
+.task-link-menu {
+  width: min(360px, calc(100vw - 32px));
+}
+.task-link-menu__section + .task-link-menu__section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(var(--v-theme-outline), 0.16);
+}
+.task-link-menu :deep(.v-select) {
+  min-width: 0;
+  flex: 1;
+}
 
 .editor-body :deep(.task-element-mark) {
   border-bottom: 2px solid rgb(var(--v-theme-primary));
@@ -627,71 +489,5 @@ const highlightColors = [
 
 .editor-body :deep(.task-element-mark:active) {
   cursor: grabbing;
-}
-
-.toolbar-color-indicator {
-  display: inline-grid;
-  align-items: center;
-  justify-content: center;
-  justify-items: center;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  color: #212121;
-  padding: 0;
-  gap: 2px;
-}
-
-.toolbar-color-dot {
-  width: 12px;
-  height: 2px;
-  border-radius: 999px;
-}
-
-.toolbar-highlight-indicator {
-  display: inline-grid;
-  align-items: center;
-  justify-content: center;
-  justify-items: center;
-  gap: 2px;
-}
-
-.toolbar-highlight-dot {
-  width: 12px;
-  height: 2px;
-  border-radius: 999px;
-}
-
-/* Farbpalette */
-.color-picker-card {
-  min-width: 160px;
-}
-
-.color-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.color-swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: 3px;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-  transition: transform 0.1s;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.color-swatch:hover {
-  transform: scale(1.2);
-}
-
-.color-swatch--reset {
-  background: #fff;
-  color: #333;
 }
 </style>
