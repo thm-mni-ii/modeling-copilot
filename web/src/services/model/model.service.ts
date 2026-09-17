@@ -1,7 +1,7 @@
 import type { AxiosResponse } from 'axios'
 import httpClient from '@/services/api/httpClient'
 import type { ApiId, ApiPage } from '@/services/api/types/common'
-import type { CreateModel, CreateModelVersion, Model, ModelListOptions, ModelVersion, ModelVersionInfo, UpdateModel } from '@/services/api/types/model'
+import type { CreateModel, CreateModelVersion, Model, ModelListOptions, ModelVersion, ModelVersionInfo, TaskEditDocument, UpdateModel, UpdateTaskEdit } from '@/services/api/types/model'
 
 class ModelService {
   list(skip = 0, limit = 20, options: ModelListOptions = {}): Promise<AxiosResponse<ApiPage<Model>>> {
@@ -30,6 +30,14 @@ class ModelService {
 
   createVersion(modelId: ApiId, version: CreateModelVersion): Promise<AxiosResponse<ModelVersion>> {
     return httpClient.post(`/v1/models/${modelId}/versions`, version)
+  }
+
+  getTaskEdit(modelId: ApiId): Promise<AxiosResponse<TaskEditDocument | null>> {
+    return httpClient.get(`/v1/models/${modelId}/task-edit`)
+  }
+
+  updateTaskEdit(modelId: ApiId, taskEdit: UpdateTaskEdit): Promise<AxiosResponse<TaskEditDocument>> {
+    return httpClient.put(`/v1/models/${modelId}/task-edit`, taskEdit)
   }
 }
 

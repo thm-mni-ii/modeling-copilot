@@ -1,0 +1,27 @@
+steps:
+  - name: start
+    action: k8s.run
+    with:
+      image: alpine:3.20
+      command: echo start
+
+  - name: parallel-a
+    action: k8s.run
+    depends: [start]
+    with:
+      image: alpine:3.20
+      command: echo parallel-a
+
+  - name: parallel-b
+    action: k8s.run
+    depends: [start]
+    with:
+      image: alpine:3.20
+      command: echo parallel-b
+
+  - name: finish
+    action: k8s.run
+    depends: [parallel-a, parallel-b]
+    with:
+      image: alpine:3.20
+      command: echo finish

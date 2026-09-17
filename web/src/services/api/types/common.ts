@@ -25,6 +25,11 @@ export interface LanguageVersionReference {
 }
 
 export interface TaskVersionReference {
-  taskStatementId: ApiId
+  taskId: ApiId
+  versionId: ApiId
+}
+
+export interface ModelVersionReference {
+  modelId: ApiId
   versionId: ApiId
 }

@@ -1,46 +1,37 @@
 import type { JsonObject } from '@/services/api/types/common'
+import type { ModelPatch, TaskEditDocument } from '@/services/api/types/model'
 
 export interface StoredWorkspaceDraft {
   key: string
+  modelId: string | null
   baseVersionId: string | null
+  baseReleaseId: string | null
   savedAt: string
-  payload: JsonObject
+  patches: ModelPatch[]
+  languages: JsonObject[]
+  data: JsonObject
+  taskEdit?: TaskEditDocument | null
 }
 
-const DB_NAME = 'model-workspace-recovery'
-const STORE = 'drafts'
-
-const openDb = (): Promise<IDBDatabase> =>
-  new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1)
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: 'key' })
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
-  })
+const STORAGE_PREFIX = 'model-workspace-journal:'
+const storageKey = (key: string) => `${STORAGE_PREFIX}${key}`
 
 export const readDraft = async (key: string): Promise<StoredWorkspaceDraft | null> => {
-  const db = await openDb()
-  return await new Promise((resolve, reject) => {
-    const request = db.transaction(STORE, 'readonly').objectStore(STORE).get(key)
-    request.onsuccess = () => resolve((request.result as StoredWorkspaceDraft | undefined) ?? null)
-    request.onerror = () => reject(request.error)
-  })
+  if (typeof localStorage === 'undefined') return null
+  const value = localStorage.getItem(storageKey(key))
+  if (!value) return null
+  try {
+    return JSON.parse(value) as StoredWorkspaceDraft
+  } catch {
+    localStorage.removeItem(storageKey(key))
+    return null
+  }
 }
 
 export const writeDraft = async (draft: StoredWorkspaceDraft) => {
-  const db = await openDb()
-  await new Promise<void>((resolve, reject) => {
-    const request = db.transaction(STORE, 'readwrite').objectStore(STORE).put(draft)
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
+  if (typeof localStorage !== 'undefined') localStorage.setItem(storageKey(draft.key), JSON.stringify(draft))
 }
 
 export const removeDraft = async (key: string) => {
-  const db = await openDb()
-  await new Promise<void>((resolve, reject) => {
-    const request = db.transaction(STORE, 'readwrite').objectStore(STORE).delete(key)
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
+  if (typeof localStorage !== 'undefined') localStorage.removeItem(storageKey(key))
 }

@@ -207,6 +207,14 @@ watch(
 defineExpose({
   closePalette: () => {
     paletteOpen.value = false
+  },
+  selectConnectionByReference: (languageId: string, connectionType: string): boolean => {
+    const connection = scopedConnections.value.find(
+      (item) => item.key.startsWith(`${languageId}:${connectionType}:`)
+    )
+    if (!connection) return false
+    selectConnection(connection)
+    return true
   }
 })
 </script>

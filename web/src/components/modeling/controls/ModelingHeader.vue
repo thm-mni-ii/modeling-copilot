@@ -10,7 +10,8 @@
     <ModelingToolbarGroup title="Save" class="modeling-header__save-group">
       <v-btn-group size="small" density="compact" variant="outlined">
         <v-btn :icon="saveIcon" :color="saveColor" :loading="workspace.syncState === 'saving'" :title="`${stateLabel} — Save model`" @click="saveCheckpoint" />
-        <v-btn icon="mdi-tag-plus-outline" color="medium-gray" title="Release version" @click="openRelease" />
+        <v-btn icon="mdi-tag-plus-outline" color="medium-gray" :disabled="!workspace.canRelease" :title="workspace.canRelease ? 'Release version' : 'Save the latest checkpoint before releasing'" @click="openRelease" />
+        <v-btn icon="mdi-timeline-clock-outline" :color="workspace.pendingPatches.length ? 'warning' : 'medium-gray'" :disabled="!workspace.model" title="Version timeline" aria-label="Open version timeline" @click="timelineDialog = true" />
         <slot name="save-tools" />
       </v-btn-group>
     </ModelingToolbarGroup>
@@ -22,14 +23,11 @@
     <div class="modeling-header__autonomy"><slot name="autonomy" /></div>
     <div class="modeling-header__sidebar-toggle"><slot name="sidebar-toggle" /></div>
 
-    <v-alert v-if="saveError" density="compact" type="error" variant="tonal" class="modeling-header__error">{{ saveError }}</v-alert>
-
     <v-dialog v-model="renameDialog" max-width="460">
       <v-card>
         <v-card-title>Change model name</v-card-title>
         <v-card-text>
           <v-text-field v-model="editedName" label="Model name" autofocus @keyup.enter="saveName" />
-          <v-alert v-if="renameError" density="compact" type="error" variant="tonal">{{ renameError }}</v-alert>
         </v-card-text>
         <v-card-actions><v-spacer /><v-btn @click="renameDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!editedName.trim()" @click="saveName">Save</v-btn></v-card-actions>
       </v-card>
@@ -41,10 +39,12 @@
         <v-card-text>
           <v-text-field v-model="releaseName" label="Release name" autofocus @keyup.enter="saveRelease" />
           <v-textarea v-model="releaseDescription" label="Description (optional)" />
+          <p class="text-caption text-medium-emphasis mb-0">A release can only be created after all local changes have been saved as a checkpoint.</p>
         </v-card-text>
-        <v-card-actions><v-spacer /><v-btn @click="releaseDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!releaseName.trim()" @click="saveRelease">Release</v-btn></v-card-actions>
+        <v-card-actions><v-spacer /><v-btn @click="releaseDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!releaseName.trim() || !workspace.canRelease" @click="saveRelease">Release</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
+    <ModelTimelineDialog v-model="timelineDialog" />
   </header>
 </template>
 
@@ -53,18 +53,19 @@ import { computed, ref } from 'vue'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { exportModelAsXml } from '@/utils/modelPersistence'
+import ModelTimelineDialog from '@/components/modeling/versions/ModelTimelineDialog.vue'
 import ModelingToolbarGroup from './ModelingToolbarGroup.vue'
+import { notifyError } from '@/composables/useNotifications'
 
 const workspace = useModelWorkspaceStore()
 const { graph } = useGraphContext()
 const modelName = computed(() => workspace.model?.name ?? workspace.data.name)
 const renameDialog = ref(false)
 const editedName = ref('')
-const renameError = ref<string | null>(null)
-const saveError = ref<string | null>(null)
 const releaseDialog = ref(false)
 const releaseName = ref('')
 const releaseDescription = ref('')
+const timelineDialog = ref(false)
 const stateLabel = computed(() => ({ synced: 'Saved', dirty: 'Unsaved changes', saving: 'Saving...', offline: 'Offline - saved locally', conflict: 'Conflict' })[workspace.syncState])
 const canSave = computed(() => workspace.dirty && workspace.syncState !== 'saving' && workspace.syncState !== 'conflict')
 const saveColor = computed(() => ({ synced: 'success', dirty: 'warning', saving: 'primary', offline: 'warning', conflict: 'error' })[workspace.syncState])
@@ -73,7 +74,6 @@ const saveIcon = computed(() => (workspace.syncState === 'dirty' ? 'mdi-content-
 const saveCheckpoint = async () => {
   if (!canSave.value) return
   try {
-    saveError.value = null
     if (graph.value) {
       workspace.setData({
         format: 'maxgraph-xml',
@@ -84,7 +84,7 @@ const saveCheckpoint = async () => {
     }
     await workspace.save()
   } catch {
-    saveError.value = 'Unable to save this model.'
+    notifyError('Unable to save this model.')
   }
 }
 
@@ -97,7 +97,6 @@ const openRelease = () => {
 const saveRelease = async () => {
   if (!releaseName.value.trim()) return
   try {
-    saveError.value = null
     if (graph.value) {
       workspace.setData({
         format: 'maxgraph-xml',
@@ -109,24 +108,22 @@ const saveRelease = async () => {
     await workspace.save('release', releaseName.value, releaseDescription.value)
     releaseDialog.value = false
   } catch {
-    saveError.value = 'Unable to release this version.'
+    notifyError('Unable to release this version.')
   }
 }
 
 const openRename = () => {
   editedName.value = modelName.value
-  renameError.value = null
   renameDialog.value = true
 }
 
 const saveName = async () => {
   if (!editedName.value.trim() || !workspace.model) return
   try {
-    renameError.value = null
     await workspace.rename(editedName.value)
     renameDialog.value = false
   } catch {
-    renameError.value = 'Unable to change the model name.'
+    notifyError('Unable to change the model name.')
   }
 }
 </script>
@@ -173,12 +170,16 @@ const saveName = async () => {
   min-width: 0;
 }
 
-.modeling-header__spacer { flex: 1; }
-
-.modeling-header__error { width: 100%; }
+.modeling-header__spacer {
+  flex: 1;
+}
 
 @media (max-width: 900px) {
-  .modeling-header__spacer { display: none; }
-  .modeling-header__autonomy { margin-left: auto; }
+  .modeling-header__spacer {
+    display: none;
+  }
+  .modeling-header__autonomy {
+    margin-left: auto;
+  }
 }
 </style>

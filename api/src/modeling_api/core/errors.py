@@ -1,10 +1,10 @@
-"""Einheitliche Fehlerantworten: jeder Fehler hat die Form {code, message}."""
+"""Consistent API error responses in the form ``{code, message}``."""
 
 import logging
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pymongo.errors import PyMongoError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
@@ -13,12 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 class ErrorResponse(BaseModel):
-    code: str
-    message: str
+    """Machine-readable error code and human-readable English message."""
+
+    code: str = Field(description="Stable machine-readable error code.")
+    message: str = Field(description="Human-readable English error message.")
 
 
 class ApiError(Exception):
-    """Fachlicher Fehler, der als {code, message} mit Status an den Client geht."""
+    """Domain error returned to clients as ``{code, message}``."""
 
     def __init__(self, status: int, code: str, message: str) -> None:
         self.status = status
@@ -27,15 +29,15 @@ class ApiError(Exception):
 
 
 def not_found() -> ApiError:
-    return ApiError(404, "NOT_FOUND", "Objekt nicht gefunden oder kein Zugriff.")
+    return ApiError(404, "NOT_FOUND", "The object was not found or access is denied.")
 
 
-def conflict(message: str = "Der Stand hat sich geändert. Bitte neu laden und erneut speichern.") -> ApiError:
+def conflict(message: str = "The state changed. Reload it before saving again.") -> ApiError:
     return ApiError(409, "CONFLICT", message)
 
 
 def register_error_handlers(app: FastAPI) -> None:
-    """Wandelt Ausnahmen in einheitliche JSON-Fehler um."""
+    """Register handlers that convert exceptions into consistent JSON errors."""
 
     @app.exception_handler(ApiError)
     async def handle_api_error(request: Request, exc: ApiError) -> JSONResponse:
@@ -43,9 +45,9 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation(request: Request, exc: RequestValidationError) -> JSONResponse:
-        # Hinweis: Details werden bewusst nicht zurückgegeben, sie können Eingabedaten enthalten.
+        # Validation details may include submitted data and are intentionally omitted.
         return JSONResponse(
-            {"code": "VALIDATION_ERROR", "message": "Ungültige Felder oder JSON-Struktur."},
+            {"code": "VALIDATION_ERROR", "message": "Invalid fields or JSON structure."},
             status_code=422,
         )
 
@@ -57,8 +59,8 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(PyMongoError)
     async def handle_mongo(request: Request, exc: PyMongoError) -> JSONResponse:
-        logger.error("Datenbankfehler: %s", exc)
+        logger.error("Database error: %s", exc)
         return JSONResponse(
-            {"code": "DATABASE_UNAVAILABLE", "message": "Datenbank nicht erreichbar."},
+            {"code": "DATABASE_UNAVAILABLE", "message": "The database is unavailable."},
             status_code=503,
         )

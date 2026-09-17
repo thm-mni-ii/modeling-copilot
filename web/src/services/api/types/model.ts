@@ -7,6 +7,7 @@ export type SortOrder = 'asc' | 'desc'
 export interface ModelListOptions {
   q?: string
   archived?: boolean
+  taskBound?: boolean
   sort?: ModelSortField
   order?: SortOrder
 }
@@ -15,9 +16,23 @@ export interface WorkspaceLanguageReference extends LanguageVersionReference {
   source: 'required' | 'additional'
 }
 
+export interface TaskEditDocument {
+  schemaVersion: 1
+  revision: number
+  updatedAt: string
+  document: JsonObject
+}
+
+export interface UpdateTaskEdit {
+  baseRevision: number
+  document: JsonObject
+}
+
 export interface Model extends ApiIdentity {
   name: string
   latestVersionId: ApiId | null
+  taskVersion: TaskVersionReference | null
+  taskEdit: TaskEditDocument | null
   preferences: JsonObject
   updatedAt: string
   archivedAt: string | null
@@ -25,6 +40,7 @@ export interface Model extends ApiIdentity {
 
 export interface CreateModel {
   name: string
+  taskVersion?: TaskVersionReference | null
 }
 
 export interface UpdateModel {
@@ -35,7 +51,8 @@ export interface UpdateModel {
 
 export interface ModelVersionInfo extends ApiVersionInfo {
   modelId: ApiId
-  previousVersionId: ApiId | null
+  baseReleaseId: ApiId | null
+  patches: ModelPatch[]
   workspaceLanguages: WorkspaceLanguageReference[]
   taskVersion: TaskVersionReference | null
   kind: ModelVersionKind
@@ -43,17 +60,23 @@ export interface ModelVersionInfo extends ApiVersionInfo {
   description: string | null
 }
 
+export interface ModelPatch {
+  createdAt: string
+  xml: string
+}
+
 export interface ModelVersion extends ModelVersionInfo {
   data: JsonObject
-  annotations: JsonObject | null
+  taskEditSnapshot: TaskEditDocument | null
 }
 
 export interface CreateModelVersion {
   baseVersionId: ApiId | null
+  baseReleaseId?: ApiId | null
   workspaceLanguages?: WorkspaceLanguageReference[]
   taskVersion?: TaskVersionReference | null
   data: JsonObject
-  annotations?: JsonObject | null
+  patches?: ModelPatch[]
   kind?: ModelVersionKind
   releaseName?: string | null
   description?: string | null

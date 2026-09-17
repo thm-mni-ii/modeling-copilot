@@ -1,4 +1,4 @@
-"""MongoDB-Verbindung und Index-Anlage. Läuft einmalig beim API-Start."""
+"""MongoDB connection and idempotent startup index management."""
 
 from pymongo import ASCENDING, DESCENDING, AsyncMongoClient
 
@@ -9,31 +9,34 @@ db = client[settings.mongodb_database]
 
 
 async def create_indexes() -> None:
-    """Legt die Indizes an (idempotent, also bei jedem Start gefahrlos wiederholbar).
-
-    Die Unique-Indizes sind gleichzeitig die Absicherung gegen doppelte
-    Schreibvorgänge, z. B. zwei gleichzeitig angehängte Versionen.
-    """
-    for collection in ("languages", "task_statements", "models"):
+    """Create indexes required by API query patterns."""
+    for collection in ("languages", "task", "models"):
         await db[collection].create_index(
             [("ownerId", ASCENDING), ("createdAt", DESCENDING), ("_id", DESCENDING)]
         )
 
-    await db.task_statements.create_index(
-        [("source", ASCENDING), ("externalTaskId", ASCENDING)], unique=True
-    )
-
     for collection, parent_field in (
         ("language_versions", "languageId"),
-        ("task_statement_versions", "taskStatementId"),
+        ("task_version", "taskId"),
         ("model_versions", "modelId"),
     ):
         await db[collection].create_index(
             [(parent_field, ASCENDING), ("versionNumber", DESCENDING)], unique=True
         )
 
-    await db.task_statement_versions.create_index(
-        [("taskStatementId", ASCENDING), ("externalVersionId", ASCENDING)], unique=True
+    await db.task_version.create_index(
+        [("taskId", ASCENDING), ("kind", ASCENDING), ("createdAt", DESCENDING)]
+    )
+    await db.task.create_index(
+        [
+            ("archivedAt", ASCENDING),
+            ("ownerId", ASCENDING),
+            ("visibility", ASCENDING),
+            ("name", ASCENDING),
+        ]
+    )
+    await db.models.create_index(
+        [("ownerId", ASCENDING), ("taskVersion.taskId", ASCENDING), ("updatedAt", DESCENDING)]
     )
 
     await db.feedback.create_index(
@@ -41,4 +44,7 @@ async def create_indexes() -> None:
     )
     await db.feedback.create_index(
         [("modelId", ASCENDING), ("modelVersionId", ASCENDING), ("createdAt", DESCENDING)]
+    )
+    await db.model_versions.create_index(
+        [("modelId", ASCENDING), ("baseReleaseId", ASCENDING), ("createdAt", ASCENDING)]
     )

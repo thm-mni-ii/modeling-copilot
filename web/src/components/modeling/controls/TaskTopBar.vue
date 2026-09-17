@@ -1,7 +1,7 @@
 <template>
   <transition name="task-topbar-slide">
     <div v-if="task" class="task-topbar">
-      <!-- Header – immer sichtbar -->
+      <!-- Header is always visible. -->
       <div class="task-topbar__header">
         <button type="button" class="task-topbar__toggle" :title="expanded ? 'Collapse' : 'Show task'" @click="expanded = !expanded">
           <v-icon size="15" color="primary">mdi-clipboard-text-outline</v-icon>
@@ -14,8 +14,8 @@
             <v-icon start size="12">mdi-open-in-new</v-icon>
             Open in window
           </v-chip>
-          <v-btn v-if="!windowOpen" size="x-small" variant="text" density="compact" title="Highlight mode" class="task-topbar__action-btn" :color="markMode ? 'primary' : undefined" @click="markMode = !markMode">
-            <v-icon size="15">mdi-marker</v-icon>
+          <v-btn v-if="!windowOpen" size="x-small" variant="text" density="compact" title="Edit mode" class="task-topbar__action-btn" :color="editMode ? 'primary' : undefined" @click="editMode = !editMode">
+            <v-icon size="15">mdi-clipboard-edit-outline</v-icon>
           </v-btn>
           <v-btn v-if="!windowOpen" size="x-small" variant="text" density="compact" title="Open as a free-floating window" class="task-topbar__action-btn" @click="emit('pop-out')">
             <v-icon size="15">mdi-open-in-new</v-icon>
@@ -23,14 +23,14 @@
         </div>
       </div>
 
-      <!-- Body – nur wenn expanded und kein Fenster offen -->
+      <!-- Body is visible while expanded, including the detached-window hint. -->
       <transition name="task-topbar-body">
         <div v-if="expanded" class="task-topbar__body" :style="bodyStyle">
           <div v-if="windowOpen" class="task-topbar__window-hint">
             <v-icon size="16" color="primary">mdi-open-in-new</v-icon>
             The task text is open in a window. Close the window to display it here.
           </div>
-          <TaskRichEditor v-else :model-value="contentHtml" :readonly="!markMode" class="task-topbar__editor" :style="editorStyle" @update:model-value="onContentUpdated" />
+          <TaskEditEditor v-else :base-html="contentHtml" :model-value="taskEdit?.document ?? null" :mode="editMode ? 'edit' : 'read'" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="editorStyle" @select-connection="emit('select-connection', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
 
           <div class="task-topbar__resize-handle" title="Adjust height" @mousedown.prevent="startResize">
             <v-icon size="12">mdi-drag-horizontal</v-icon>
@@ -42,27 +42,41 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import TaskRichEditor from '@/components/tasks/TaskRichEditor.vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
+import type { TaskConnectionOption, TaskElementOption } from '@/components/tasks/taskEditorExtensions'
+import type { JsonObject } from '@/services/api/types/common'
+import type { TaskEditDocument } from '@/services/api/types/model'
 import type { DiagramTask } from '@/model/Task'
 
-const props = defineProps<{
-  task: DiagramTask | null
-  windowOpen: boolean
-  contentHtml: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    task: DiagramTask | null
+    windowOpen: boolean
+    contentHtml: string
+    taskEdit: TaskEditDocument | null
+    elementOptions?: TaskElementOption[]
+    connectionOptions?: TaskConnectionOption[]
+  }>(),
+  {
+    elementOptions: () => [],
+    connectionOptions: () => []
+  }
+)
 
 const emit = defineEmits<{
   'pop-out': []
-  'update:contentHtml': [string]
+  'update:taskEditDocument': [document: JsonObject]
+  'select-connection': [reference: { languageId: string; connectionType: string }]
 }>()
 
 const expanded = ref(true)
-const markMode = ref(false)
+const editMode = ref(false)
 const DEFAULT_HEIGHT = 220
 const MIN_HEIGHT = 120
 const MAX_HEIGHT = 420
 const topbarHeight = ref(DEFAULT_HEIGHT)
+let stopResize: (() => void) | null = null
 
 const bodyStyle = computed(() => ({
   height: `${topbarHeight.value}px`,
@@ -75,6 +89,7 @@ const editorStyle = computed(() => ({
 }))
 
 const startResize = (event: MouseEvent) => {
+  stopResize?.()
   const startY = event.clientY
   const startHeight = topbarHeight.value
 
@@ -83,26 +98,31 @@ const startResize = (event: MouseEvent) => {
     topbarHeight.value = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeight + delta))
   }
 
-  const onUp = () => {
+  const cleanup = () => {
     document.removeEventListener('mousemove', onMove)
     document.removeEventListener('mouseup', onUp)
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
+    stopResize = null
   }
+  const onUp = () => cleanup()
 
+  stopResize = cleanup
   document.body.style.cursor = 'row-resize'
   document.body.style.userSelect = 'none'
   document.addEventListener('mousemove', onMove)
   document.addEventListener('mouseup', onUp)
 }
 
-// Automatisch ausklappen wenn eine neue Aufgabe gesetzt wird
+onBeforeUnmount(() => stopResize?.())
+
+// Expand automatically when a different task is assigned.
 watch(
   () => props.task?.id,
   () => {
     if (props.task) {
       expanded.value = true
-      markMode.value = false
+      editMode.value = false
     }
   }
 )
@@ -120,10 +140,6 @@ watch(
     }
   }
 )
-
-const onContentUpdated = (value: string) => {
-  emit('update:contentHtml', value)
-}
 </script>
 
 <style scoped>

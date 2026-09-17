@@ -1,7 +1,7 @@
 <template>
-  <v-menu location="bottom end" min-width="300">
+  <v-menu location="bottom end" min-width="300" :disabled="props.disabled">
     <template #activator="{ props: activatorProps }">
-      <v-btn v-bind="activatorProps" density="compact" variant="tonal" :color="selectedMode.color" class="autonomy-trigger" :title="selectedMode.description">
+      <v-btn v-bind="activatorProps" density="compact" variant="tonal" :color="selectedMode.color" class="autonomy-trigger" :title="props.disabled ? 'This mode is fixed by the task.' : selectedMode.description" :disabled="props.disabled">
         <v-icon start>{{ selectedMode.icon }}</v-icon>
         <span>{{ selectedMode.title }}</span>
         <v-icon end size="16">mdi-chevron-down</v-icon>
@@ -25,6 +25,7 @@ import { AUTONOMY_MODES, type AutonomyMode } from '@/model/Autonomy'
 
 const props = defineProps<{
   mode: AutonomyMode
+  disabled?: boolean
 }>()
 
 const selectedMode = computed(() => AUTONOMY_MODES.find((option) => option.value === props.mode) ?? AUTONOMY_MODES[0])

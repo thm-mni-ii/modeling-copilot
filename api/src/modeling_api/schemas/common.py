@@ -1,7 +1,7 @@
-"""Gemeinsame Bausteine aller Schnittstellen.
+"""Shared API schema building blocks.
 
-Namen in JSON sind camelCase (z. B. createdAt), im Python-Code snake_case
-(created_at) - pydantic wandeln dank alias_generator automatisch um.
+JSON fields use camelCase while Python fields use snake_case. Pydantic applies
+the conversion through the shared alias generator.
 """
 
 from datetime import datetime
@@ -13,72 +13,98 @@ from pydantic.alias_generators import to_camel
 
 
 class ApiSchema(BaseModel):
-    """Grundlage aller Schemas: unbekannte Felder werden abgelehnt (422)."""
+    """Base schema that rejects unknown request fields with HTTP 422."""
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="forbid")
 
 
-# Kurze, nicht leere Texte (Namen, externe IDs, ...)
-Name = Annotated[str, Field(min_length=1, max_length=256, pattern=r"\S")]
-VersionKind = Literal["checkpoint", "release"]
+Name = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=256,
+        pattern=r"\S",
+        description="A non-empty name with at most 256 characters.",
+    ),
+]
+VersionKind = Annotated[
+    Literal["checkpoint", "release"],
+    Field(description="Whether a version is an intermediate checkpoint or a release."),
+]
 
 
 def _check_json_object(value: Any) -> Any:
-    """Begrenzt freie JSON-Objekte (data/annotations): max. 32 Ebenen tief,
-    Arrays max. 10.000 Einträge. Der Inhalt selbst bleibt ungeprüft."""
+    """Limit free-form JSON objects to 32 levels and 10,000 array entries."""
     if not isinstance(value, dict):
-        raise ValueError("Ein JSON-Objekt wird erwartet.")
+        raise ValueError("A JSON object is required.")
     pending = [(value, 1)]
     while pending:
         item, depth = pending.pop()
         if depth > 32:
-            raise ValueError("JSON ist tiefer als 32 Ebenen verschachtelt.")
+            raise ValueError("JSON must not be nested more than 32 levels.")
         if isinstance(item, dict):
             pending.extend((child, depth + 1) for child in item.values())
         elif isinstance(item, list):
             if len(item) > 10000:
-                raise ValueError("Ein Array hat mehr als 10.000 Einträge.")
+                raise ValueError("JSON arrays must not contain more than 10,000 entries.")
             pending.extend((child, depth + 1) for child in item)
     return value
 
 
-JsonObject = Annotated[dict[str, Any], BeforeValidator(_check_json_object)]
+JsonObject = Annotated[
+    dict[str, Any],
+    BeforeValidator(_check_json_object),
+    Field(description="A bounded free-form JSON object."),
+]
 
 
 class Identity(ApiSchema):
-    """Felder eines Stammsatzes (Sprache, Aufgabe, Modell)."""
+    """Common identity fields for languages, tasks, and models."""
 
-    id: UUID
-    owner_id: str
-    created_at: datetime
+    id: UUID = Field(description="Stable object identifier.")
+    owner_id: str = Field(description="Identifier of the user who owns the object.")
+    created_at: datetime = Field(description="UTC creation timestamp.")
 
 
 class VersionInfo(ApiSchema):
-    """Felder einer Version, ohne den großen Inhaltsblock data."""
+    """Common version metadata without the potentially large data payload."""
 
-    id: UUID
-    version_number: Annotated[str, BeforeValidator(str)]
-    created_at: datetime
-    created_by: str
+    id: UUID = Field(description="Stable version identifier.")
+    version_number: Annotated[
+        str,
+        BeforeValidator(str),
+        Field(description="Human-readable semantic version number."),
+    ]
+    created_at: datetime = Field(description="UTC creation timestamp.")
+    created_by: str = Field(description="Identifier of the user who created the version.")
 
 
 class LanguageVersionReference(ApiSchema):
-    """Verweist exakt auf eine Sprachversion - nie nur auf 'latest'."""
+    """Reference to one immutable modeling-language version."""
 
-    language_id: UUID
-    version_id: UUID
+    language_id: UUID = Field(description="Modeling-language identifier.")
+    version_id: UUID = Field(description="Immutable language-version identifier.")
 
 
 class TaskVersionReference(ApiSchema):
-    task_statement_id: UUID
-    version_id: UUID
+    """Reference to one immutable task release."""
+
+    task_id: UUID = Field(description="Task identifier.")
+    version_id: UUID = Field(description="Immutable task-version identifier.")
+
+
+class ModelVersionReference(ApiSchema):
+    """Reference to one immutable model version."""
+
+    model_id: UUID = Field(description="Model identifier.")
+    version_id: UUID = Field(description="Immutable model-version identifier.")
 
 
 T = TypeVar("T")
 
 
 class Page(BaseModel, Generic[T]):
-    """Antwortform aller Listen: Treffer plus Gesamtanzahl (für skip/limit)."""
+    """Paginated list response."""
 
-    items: list[T]
-    total: int
+    items: list[T] = Field(description="Items in the requested page.")
+    total: int = Field(ge=0, description="Total number of matching items.")
