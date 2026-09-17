@@ -88,6 +88,20 @@ spec:
         app.kubernetes.io/name: dagu
     spec:
       serviceAccountName: dagu-controller
+      initContainers:
+        # Clones workflows/base.yaml from the public repo instead of relying on a
+        # hostPath checkout on the node (Portainer only applies the manifest).
+        - name: git-sync
+          image: alpine/git:2.45.2
+          args:
+            - clone
+            - --depth=1
+            - --branch=feat-add-dagu-as-workflow-manager
+            - https://github.com/thm-mni-ii/modeling-copilot.git
+            - /repo
+          volumeMounts:
+            - name: repo-sync
+              mountPath: /repo
       containers:
         - name: dagu
           # Pinned version - never use "latest" here.
@@ -146,24 +160,20 @@ spec:
           volumeMounts:
             - name: dagu-data
               mountPath: /var/lib/dagu
-            - name: dagu-workflows
+            - name: repo-sync
               mountPath: /app/workflows
+              subPath: dagu/workflows
               readOnly: true
-            - name: dagu-base
+            - name: repo-sync
               mountPath: /var/lib/dagu/base.yaml
+              subPath: dagu/infra/base.yaml
               readOnly: true
       volumes:
         - name: dagu-data
           persistentVolumeClaim:
             claimName: dagu-data
-        - name: dagu-workflows
-          hostPath:
-            path: /opt/modeling-copilot/dagu/workflows
-            type: Directory
-        - name: dagu-base
-          hostPath:
-            path: /opt/modeling-copilot/dagu/infra/base.yaml
-            type: File
+        - name: repo-sync
+          emptyDir: {}
 
 ---
 apiVersion: v1

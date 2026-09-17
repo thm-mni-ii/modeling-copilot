@@ -46,11 +46,13 @@ Lokal ist `dagu/workflows/` schreibbar nach `/var/lib/dagu/dags` eingebunden.
 Änderungen aus Repository oder UI betreffen daher dieselben Dateien. Laufdaten,
 Logs und Wiki liegen getrennt im Docker-Volume `dagu-data`.
 
-In Produktion werden die DAGs direkt aus dem Repository-Pfad
-`/opt/modeling-copilot/dagu/workflows` auf dem K3s-Node schreibgeschützt unter
-`/app/workflows` eingebunden. Die Basiskonfiguration wird entsprechend aus
-`/opt/modeling-copilot/dagu/infra/base.yaml` bereitgestellt. Laufdaten, Logs,
-Wiki und das primäre DAG-Verzeichnis liegen auf dem PVC `dagu-data`.
+In Produktion holt ein Init-Container (`git-sync`) das öffentliche Repository
+bei jedem Pod-Start per `git clone` in ein `emptyDir`-Volume. Daraus werden
+`dagu/workflows` schreibgeschützt unter `/app/workflows` und
+`dagu/infra/base.yaml` unter `/var/lib/dagu/base.yaml` eingebunden. Ein Host-
+seitiger Checkout ist nicht nötig, da Portainer nur das Manifest anwendet.
+Laufdaten, Logs, Wiki und das primäre DAG-Verzeichnis liegen auf dem PVC
+`dagu-data`.
 
 ## Produktion (K3s/Portainer)
 
@@ -61,10 +63,11 @@ Das Manifest `infra/prod/k3s-dagu.yaml` stellt folgende Ressourcen bereit:
 - Dagu Deployment, 5-GiB-PVC und ClusterIP-Service
 - Traefik-Ingress unter `https://ikarus.mni.thm.de/dagu`
 
-Vor dem Deployment muss das Repository auf dem K3s-Node unter
-`/opt/modeling-copilot` ausgecheckt sein. Bei einem anderen Checkout-Pfad sind
-die beiden `hostPath.path`-Werte im Deployment anzupassen. ConfigMaps für die
-Workflows und `base.yaml` sind nicht erforderlich.
+Der Init-Container klont den Branch `feat-add-dagu-as-workflow-manager` von
+`https://github.com/thm-mni-ii/modeling-copilot.git`. Bei einem Wechsel des
+Standard-Branches ist der Wert von `--branch` im Deployment anzupassen. Ein
+Checkout auf dem Node oder ConfigMaps für Workflows und `base.yaml` sind nicht
+erforderlich.
 
 Zusätzlich wird im Namespace `dagu` folgendes Objekt erwartet:
 
