@@ -15,6 +15,7 @@
     "@mdi/font": "7.4.47",
     "@popperjs/core": "^2.11.8",
     "@tiptap/extension-color": "^3.24.0",
+    "@tiptap/core": "^3.24.0",
     "@tiptap/extension-highlight": "^3.24.0",
     "@tiptap/extension-link": "^3.24.0",
     "@tiptap/extension-placeholder": "^3.24.0",

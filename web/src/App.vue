@@ -7,6 +7,7 @@
     </v-main>
 
     <FooterMain />
+    <AppNotification />
   </v-app>
 </template>
 
@@ -16,6 +17,7 @@ import { onMounted } from 'vue'
 
 import FooterMain from '@/components/layout/FooterMain.vue'
 import HeaderMain from '@/components/layout/HeaderMain.vue'
+import AppNotification from '@/components/layout/AppNotification.vue'
 
 onMounted(() => {})
 </script>

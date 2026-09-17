@@ -11,13 +11,14 @@ import { createCellFromElement, addCellToGraph } from './elementFactory'
  */
 export interface ShapeConfig {
   name: string
+  languageId?: string
   width: number
   height: number
   style: Record<string, any>
   tooltip: string
   image: string
   label?: string
-  dropHandler?: (graph: Graph, parent: Cell | undefined, position: { x?: number; y?: number }) => void
+  dropHandler?: (graph: Graph, parent: Cell | undefined, position: { x?: number; y?: number }, taskLabel?: string) => void
 }
 
 type ToolbarDropContext = {
@@ -113,7 +114,19 @@ export function ensureGraphDropHandlers(graph: Graph, parent: Ref<Cell | undefin
       }
 
       const shapeName = dataTransfer.getData('text/plain')
-      const shape = shapesList.find((s) => s.name === shapeName)
+      const taskReference = dataTransfer.getData('application/x-modeling-task-element')
+      let taskLanguageId: string | undefined
+      let taskLabel: string | undefined
+      if (taskReference) {
+        try {
+          const reference = JSON.parse(taskReference) as { languageId?: string; label?: string }
+          taskLanguageId = reference.languageId
+          taskLabel = reference.label?.trim() || undefined
+        } catch {
+          taskLanguageId = undefined
+        }
+      }
+      const shape = shapesList.find((s) => s.name === shapeName && (!taskLanguageId || s.languageId === taskLanguageId))
 
       if (!shape) {
         return
@@ -132,7 +145,7 @@ export function ensureGraphDropHandlers(graph: Graph, parent: Ref<Cell | undefin
       const effectiveParent = resolveEffectiveParent(graphInstance, defaultParent, dropTarget, isDroppingSwimlane)
 
       if (shape.dropHandler) {
-        shape.dropHandler(graphInstance, effectiveParent, { x: point.x, y: point.y })
+        shape.dropHandler(graphInstance, effectiveParent, { x: point.x, y: point.y }, taskLabel)
         return
       }
 
@@ -267,7 +280,7 @@ export function setupToolbar(graph: Ref<Graph | undefined>, toolbarContainer: Re
  * @param placeholderImage - Platzhalter-Bild für Shapes
  * @returns Array von ShapeConfig-Definitionen
  */
-export function buildShapesFromElements(elements: DiagramElement[], placeholderImage: string): ShapeConfig[] {
+export function buildShapesFromElements(elements: DiagramElement[], placeholderImage: string, languageId?: string): ShapeConfig[] {
   return elements.map((element) => {
     const width = element.width ?? 120
     const height = element.height ?? 80
@@ -302,19 +315,27 @@ export function buildShapesFromElements(elements: DiagramElement[], placeholderI
 
     return {
       name: element.type,
+      languageId,
       label: element.defaultLabel ?? element.type,
       width,
       height,
       style: baseStyle,
       tooltip: element.type,
       image: placeholderImage,
-      dropHandler: (graphInstance: Graph, parentCell: Cell | undefined, position: { x?: number; y?: number }) => {
+      dropHandler: (graphInstance: Graph, parentCell: Cell | undefined, position: { x?: number; y?: number }, taskLabel?: string) => {
         const parentTarget = parentCell ?? graphInstance.getDefaultParent()
         const x = (position.x ?? 0) - width / 2
         const y = (position.y ?? 0) - height / 2
 
         // Nutze die zentrale Element-Erstellungsmethode
         const cellToInsert = createCellFromElement(element, x, y)
+        if (taskLabel && element.allowLabelEdit !== false) {
+          cellToInsert.setValue(taskLabel)
+          ;(cellToInsert as any).diagramAttributes = {
+            ...(cellToInsert as any).diagramAttributes,
+            label: taskLabel
+          }
+        }
 
         // Füge zum Graph hinzu mit Child-Elementen
         addCellToGraph(graphInstance, cellToInsert, element, parentTarget)

@@ -1,4 +1,4 @@
-"""Schemas für Modellierungssprachen und ihre unveränderlichen Versionen."""
+"""Schemas for modeling languages and their immutable versions."""
 
 from datetime import datetime
 from uuid import UUID
@@ -17,33 +17,57 @@ from modeling_api.schemas.common import (
 
 
 class Language(Identity):
+    """Modeling-language identity and latest-version metadata."""
+
     name: Name
-    parent: LanguageVersionReference | None  # gesetzt bei einer Abzweigung (Fork)
-    latest_version_id: UUID | None
-    archived_at: datetime | None = None
+    parent: LanguageVersionReference | None = Field(
+        description="Language version from which this language was branched, if any."
+    )
+    latest_version_id: UUID | None = Field(
+        description="Identifier of the latest language version, if one exists."
+    )
+    archived_at: datetime | None = Field(
+        default=None, description="UTC archive timestamp, or null for an active language."
+    )
 
 
 class LanguageOverview(ApiSchema):
-    """Kompakte Metadaten einer Sprache f\u00fcr die \u00dcbersicht."""
+    """Compact language metadata for catalog listings."""
 
-    id: UUID
+    id: UUID = Field(description="Stable language identifier.")
     name: Name
-    owner_id: str
-    latest_version_id: UUID | None
-    latest_release_name: Name | None
-    version_number: str | None
-    archived_at: datetime | None = None
+    owner_id: str = Field(description="Identifier of the language owner.")
+    latest_version_id: UUID | None = Field(
+        description="Identifier of the latest language version, if one exists."
+    )
+    latest_release_name: Name | None = Field(
+        description="Name of the latest release, if one exists."
+    )
+    version_number: str | None = Field(
+        description="Version number of the latest language version."
+    )
+    archived_at: datetime | None = Field(
+        default=None, description="UTC archive timestamp, or null for an active language."
+    )
 
 
 class CreateLanguage(ApiSchema):
+    """Request for a new language identity or language branch."""
+
     name: Name
-    parent: LanguageVersionReference | None = None
+    parent: LanguageVersionReference | None = Field(
+        default=None, description="Optional source version for a language branch."
+    )
 
 
 class UpdateLanguage(ApiSchema):
-    name: Name | None = None
-    owner_id: Name | None = None
-    archived: bool | None = None
+    """Mutable language metadata; at least one field is required."""
+
+    name: Name | None = Field(default=None, description="New language name.")
+    owner_id: Name | None = Field(default=None, description="New owner identifier.")
+    archived: bool | None = Field(
+        default=None, description="Archive or restore the language."
+    )
 
     @model_validator(mode="after")
     def has_change(self) -> "UpdateLanguage":
@@ -53,33 +77,51 @@ class UpdateLanguage(ApiSchema):
 
 
 class LanguageVersionInfo(VersionInfo):
-    """Versionsmetadaten ohne den großen Definitionsblock data."""
+    """Language-version metadata without the large definition payload."""
 
-    language_id: UUID
+    language_id: UUID = Field(description="Owning language identifier.")
     kind: VersionKind = "release"
-    release_name: Name | None = None
-    description: str | None = Field(default=None, max_length=2000)
-    included_language_versions: list[LanguageVersionReference]
+    release_name: Name | None = Field(
+        default=None, description="Required display name for a release."
+    )
+    description: str | None = Field(
+        default=None, max_length=2000, description="Optional version description."
+    )
+    included_language_versions: list[LanguageVersionReference] = Field(
+        description="Immutable language versions included by this definition."
+    )
 
 
 class LanguageVersion(LanguageVersionInfo):
-    data: JsonObject  # vollständige Sprachdefinition als freies Objekt
+    """Complete immutable language version."""
+
+    data: JsonObject = Field(description="Complete modeling-language definition.")
 
 
 class CreateLanguageVersion(ApiSchema):
-    base_version_id: UUID | None  # None bei der ersten Version
-    kind: VersionKind = "release"
-    release_name: Name | None = None
-    description: str | None = Field(default=None, max_length=2000)
-    included_language_versions: list[LanguageVersionReference] = Field(
-        default_factory=list, max_length=32
+    """Request to append a checkpoint or release to a language."""
+
+    base_version_id: UUID | None = Field(
+        description="Current latest version for optimistic concurrency, or null initially."
     )
-    data: JsonObject
+    kind: VersionKind = "release"
+    release_name: Name | None = Field(
+        default=None, description="Required display name for releases only."
+    )
+    description: str | None = Field(
+        default=None, max_length=2000, description="Optional version description."
+    )
+    included_language_versions: list[LanguageVersionReference] = Field(
+        default_factory=list,
+        max_length=32,
+        description="Immutable language versions included by this definition.",
+    )
+    data: JsonObject = Field(description="Complete modeling-language definition.")
 
     @model_validator(mode="after")
-    def valid_version_name(self) -> "CreateLanguageVersion":
+    def valid_release_name(self) -> "CreateLanguageVersion":
         if self.kind == "release" and self.release_name is None:
-            raise ValueError("Ein Release benötigt einen releaseName.")
+            raise ValueError("A release requires releaseName.")
         if self.kind == "checkpoint" and self.release_name is not None:
-            raise ValueError("releaseName ist nur für Releases erlaubt.")
+            raise ValueError("releaseName is only allowed for releases.")
         return self

@@ -4,6 +4,7 @@ import authService from '@/services/auth/auth.service'
 
 export const useUserStore = defineStore('user', () => {
   const globalRole = ref<string | null>(null)
+  const userId = ref<string | null>(null)
   const loaded = ref(false)
 
   // Fetches the token claims from the backend only once, then serves them from state
@@ -12,8 +13,10 @@ export const useUserStore = defineStore('user', () => {
       try {
         const response = await authService.getMe()
         globalRole.value = response.data.globalRole ?? null
+        userId.value = response.data.id === undefined || response.data.id === null ? null : String(response.data.id)
       } catch {
         globalRole.value = null
+        userId.value = null
       }
       loaded.value = true
     }
@@ -22,8 +25,9 @@ export const useUserStore = defineStore('user', () => {
 
   const reset = () => {
     globalRole.value = null
+    userId.value = null
     loaded.value = false
   }
 
-  return { globalRole, loaded, ensureGlobalRole, reset }
+  return { globalRole, userId, loaded, ensureGlobalRole, reset }
 })

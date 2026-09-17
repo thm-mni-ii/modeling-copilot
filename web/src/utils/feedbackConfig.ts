@@ -191,33 +191,7 @@ export const createDefaultFeedbackCanvasConfig = (existing?: Partial<FeedbackCan
   const baseRules = createDefaultFeedbackCanvasRules()
   const defaultEntry = createDefaultFeedbackCanvasElementConfig(1)
 
-  const legacyEntry =
-    existing?.configurableElement || existing?.configurableConnection
-      ? {
-          id: defaultEntry.id,
-          element: {
-            ...defaultEntry.element,
-            ...(existing?.configurableElement ?? {}),
-            style: {
-              ...defaultEntry.element.style,
-              ...(existing?.configurableElement?.style ?? {})
-            },
-            anchorPoints: [...(existing?.configurableElement?.anchorPoints ?? defaultEntry.element.anchorPoints)],
-            children: [...(existing?.configurableElement?.children ?? defaultEntry.element.children)]
-          },
-          connection: {
-            ...defaultEntry.connection,
-            ...(existing?.configurableConnection ?? {}),
-            style: {
-              ...defaultEntry.connection.style,
-              ...(existing?.configurableConnection?.style ?? {})
-            },
-            additionalLabels: [...(existing?.configurableConnection?.additionalLabels ?? defaultEntry.connection.additionalLabels ?? [])]
-          }
-        }
-      : null
-
-  const normalizedElements = Array.isArray(existing?.configurableElements) && existing?.configurableElements.length > 0 ? existing!.configurableElements.map(cloneFeedbackCanvasElementConfig) : legacyEntry ? [legacyEntry] : [defaultEntry]
+  const normalizedElements = Array.isArray(existing?.configurableElements) && existing.configurableElements.length > 0 ? existing.configurableElements.map(cloneFeedbackCanvasElementConfig) : [defaultEntry]
 
   const activeElementId = (() => {
     const requestedId = existing?.activeElementId

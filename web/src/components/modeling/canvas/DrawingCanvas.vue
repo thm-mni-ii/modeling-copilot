@@ -30,7 +30,7 @@
         <template #sidebar-toggle>
           <v-btn icon="mdi-dock-right" size="x-small" variant="text" :title="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-label="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-expanded="!rightSidebarCollapsed" @click="rightSidebarCollapsed = !rightSidebarCollapsed" />
         </template>
-        <template #autonomy><AutonomyControls :mode="autonomyMode" @update:mode="updateAutonomyMode" /></template>
+        <template #autonomy><AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" /></template>
       </ModelingHeader>
 
       <!-- Erweiterte Toolbar für Einbettungen ohne Modellverwaltung -->
@@ -54,7 +54,7 @@
           @select-connection="onConnectionSelected"
           @update:connection-preferences="updateConnectionPreferences"
         />
-        <AutonomyControls :mode="autonomyMode" @update:mode="updateAutonomyMode" />
+        <AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" />
       </div>
 
       <!-- Canvas Area: Sidebar + Graph -->
@@ -64,6 +64,9 @@
 
         <!-- Graph Container -->
         <div ref="graphWrapper" class="graph-wrapper">
+          <div v-if="$slots['canvas-top']" class="canvas-top">
+            <slot name="canvas-top" />
+          </div>
           <div ref="graphContainer" class="graph-container" tabindex="0" @pointerdown="focusGraphContainer">
             <!-- Separater Grid Container -->
             <div class="grid-container">
@@ -116,27 +119,11 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :feedback-shapes="feedbackShapes" />
+        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)" />
       </div>
       <!-- /canvas-area -->
     </v-card-text>
 
-    <v-dialog v-model="validationDialogVisible" max-width="640">
-      <v-card>
-        <v-card-title>Validation Errors</v-card-title>
-        <v-card-text>
-          <ul class="validation-errors">
-            <li v-for="(message, index) in validationMessages" :key="`validation-${index}`">
-              {{ message }}
-            </li>
-          </ul>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn color="primary" variant="text" @click="validationDialogVisible = false">Close</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-card>
 </template>
 
@@ -145,11 +132,14 @@ import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } fr
 import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorHandler, SelectionCellsHandler, SelectionHandler, CellState, EdgeStyle, GraphDataModel, PanningHandler, ImageBox, Client, KeyHandler, TooltipHandler, FitPlugin, Clipboard, ConnectionConstraint } from '@maxgraph/core'
 import type { GraphPluginConstructor } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
+import type { TaskEditDocument } from '@/services/api/types/model'
+import type { TaskEditSyncState } from '@/utils/taskEdits'
 import { provideGraphContext } from '@/composables/useGraphContext'
 import { useGraphOperations } from '@/composables/useGraphOperations'
 import { useZoomOperations } from '@/composables/useZoomOperations'
 import { useGridSettings } from '@/composables/useGridSettings'
 import { useCanvasOverlays } from '@/composables/useCanvasOverlays'
+import { notifyError } from '@/composables/useNotifications'
 import { setupDynamicGrid } from '@/utils/setupDynamicGrid'
 import { createDefaultShapes, buildShapesFromElements, ensureGraphDropHandlers } from '@/utils/setupToolbar'
 import { setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
@@ -313,6 +303,7 @@ interface CanvasWindowHostApi {
 
 interface CanvasToolbarApi {
   closeConnectionPalette: () => void
+  selectConnectionByReference: (languageId: string, connectionType: string) => boolean
 }
 
 const props = withDefaults(
@@ -332,6 +323,10 @@ const props = withDefaults(
     languageSyntax?: DiagramSyntax[]
     languages?: SidebarLanguage[]
     autonomyMode?: AutonomyMode
+    lockAutonomyMode?: boolean
+    taskActive?: boolean
+    taskEdit?: TaskEditDocument | null
+    taskEditSyncState?: TaskEditSyncState
     previewConnection?: DiagramConnection
     previewMode?: 'simple' | 'scenario' | 'routing'
     overlays?: FeedbackCanvasOverlayEntry[]
@@ -353,6 +348,10 @@ const props = withDefaults(
     languageSyntax: undefined,
     languages: undefined,
     autonomyMode: 'free',
+    lockAutonomyMode: false,
+    taskActive: false,
+    taskEdit: null,
+    taskEditSyncState: 'synced',
     previewConnection: undefined,
     previewMode: 'simple',
     overlays: () => [],
@@ -365,6 +364,10 @@ const emit = defineEmits<{
   'update:model': [GraphDataModel]
   'update:autonomyMode': [AutonomyMode]
   'update:connectionPreferences': [preferences: JsonObject]
+  'window-removed': [id: string]
+  'removeTaskEdit': [id: string]
+  'updateTaskEditDocument': [document: JsonObject]
+  'focusTaskEdit': [id: string]
 }>()
 
 const autonomyMode = ref<AutonomyMode>(props.autonomyMode ?? 'free')
@@ -415,8 +418,6 @@ const overlayEntries = computed(() => props.overlays ?? [])
 const { overlayTooltip, overlayTooltipAnchorStyle, registerGraph, cleanup: cleanupCanvasOverlays } = useCanvasOverlays(graphWrapper, overlayEntries)
 // Zentraler Validator für alle Diagramm-Regeln
 const diagramValidator = new DiagramValidator()
-const validationDialogVisible = ref(false)
-const validationMessages = ref<string[]>([])
 
 const normalizeErrorLines = (rawMessage: string): string[] =>
   rawMessage
@@ -436,11 +437,11 @@ const focusGraphContainer = (evt: PointerEvent) => {
 
 const openValidationDialog = (messages: string[]) => {
   if (messages.length === 0) return
-  validationMessages.value = [...new Set(messages)]
-  validationDialogVisible.value = true
+  notifyError([...new Set(messages)].join('\n'))
 }
 
 const updateAutonomyMode = (mode: AutonomyMode) => {
+  if (props.lockAutonomyMode) return
   autonomyMode.value = mode
   emit('update:autonomyMode', mode)
 }
@@ -1042,8 +1043,7 @@ const initGraph = () => {
 }
 
 const buildLanguageShapes = computed(() => {
-  const allElements = sidebarLanguages.value.flatMap((l) => l.elements)
-  if (allElements.length === 0) {
+  if (sidebarLanguages.value.every((language) => language.elements.length === 0)) {
     return createDefaultShapes({
       rectangle: img_rectangle,
       ellipse: img_ellipse,
@@ -1052,7 +1052,7 @@ const buildLanguageShapes = computed(() => {
       cloud: img_cloud
     })
   }
-  return buildShapesFromElements(allElements, img_elementPlaceholder)
+  return sidebarLanguages.value.flatMap((language) => buildShapesFromElements(language.elements, img_elementPlaceholder, language.id))
 })
 
 const feedbackShapes = computed(() =>
@@ -1174,6 +1174,28 @@ const setCanvasWindows = (definitions: CanvasWindowDefinition[]) => {
   canvasWindowHost.value?.setWindows(definitions)
 }
 
+const selectConnectionByType = (languageId: string, connectionType: string): boolean => {
+  const graphInstance = graph.value
+  if (!graphInstance) return false
+
+  const connectionExistsInLanguage = (props.connectionGroups ?? []).some(
+    (group) => group.id === languageId && group.connections.some((connection) => connection.type === connectionType)
+  )
+  if (!connectionExistsInLanguage) return false
+
+  canvasToolbar.value?.selectConnectionByReference(languageId, connectionType)
+
+  const parentCell = modelLayerCell.value ?? graphInstance.getDefaultParent()
+  const edges = graphInstance.getChildEdges(parentCell)
+  const matchingEdge = edges.find((edge) => (edge as any).connectionId === connectionType)
+    ?? edges.find((edge) => (edge as any).connectionType === connectionType)
+  if (!matchingEdge) return false
+
+  graphInstance.setSelectionCell(matchingEdge)
+  graphInstance.scrollCellToVisible?.(matchingEdge, true)
+  return true
+}
+
 const serializeModel = (): Record<string, unknown> => {
   if (!graph.value) return {}
   return {
@@ -1197,7 +1219,7 @@ const loadPersistedModel = (data: Record<string, unknown>) => {
   }
 }
 
-const onWindowRemoved = () => {}
+const onWindowRemoved = (id: string) => emit('window-removed', id)
 defineExpose({
   graph,
   clearCanvas,
@@ -1206,6 +1228,7 @@ defineExpose({
   removeCanvasWindow,
   clearCanvasWindows,
   setCanvasWindows,
+  selectConnectionByType,
   serializeModel,
   loadPersistedModel
 })
@@ -1242,6 +1265,10 @@ defineExpose({
   gap: 6px;
   min-width: 0;
   min-height: 0;
+}
+
+.canvas-top {
+  flex-shrink: 0;
 }
 
 .canvas-area {
@@ -1335,14 +1362,6 @@ defineExpose({
   border-radius: 4px;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.validation-errors {
-  margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
 /* Responsives Design für kleinere Bildschirme */

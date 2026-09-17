@@ -14,7 +14,6 @@
         <v-btn :color="isConnected ? 'error' : 'primary'" variant="flat" size="small" :prepend-icon="isConnected ? 'mdi-lan-disconnect' : 'mdi-lan-connect'" @click="toggleConnection">
           {{ isConnected ? 'Disconnect' : 'Connect' }}
         </v-btn>
-        <p v-if="errorMessage" class="sync-error">{{ errorMessage }}</p>
       </div>
 
       <div class="sync-log">
@@ -33,6 +32,7 @@ import { ref } from 'vue'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
+import { notifyWarning } from '@/composables/useNotifications'
 
 withDefaults(defineProps<{ showHeader?: boolean }>(), { showHeader: true })
 
@@ -48,7 +48,6 @@ const modelIo = {
 defineExpose({ graph, modelIo })
 
 const isConnected = ref(false)
-const errorMessage = ref('')
 const logEntries = ref<string[]>([])
 
 const toggleConnection = () => {
@@ -58,11 +57,10 @@ const toggleConnection = () => {
   }
 
   if (!graph.value) {
-    errorMessage.value = 'No graph available.'
+    notifyWarning('No graph available.')
     return
   }
 
-  errorMessage.value = ''
   isConnected.value = true
 }
 </script>
@@ -152,15 +150,6 @@ const toggleConnection = () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.sync-error {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: rgb(var(--v-theme-error));
-  background: rgba(var(--v-theme-error), 0.08);
 }
 
 .sync-log {

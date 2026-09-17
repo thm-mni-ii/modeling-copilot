@@ -1,7 +1,6 @@
-"""Idempotente Startdaten für eine neue Modeling-Copilot-Datenbank.
+"""Idempotent seed data for a new Modeling Copilot database.
 
-Die IDs sind absichtlich fest vergeben.  So wird beim erneuten API-Start kein
-zweiter Satz erzeugt und Referenzen auf die Startdaten bleiben stabil.
+Fixed identifiers keep references stable and prevent duplicate seed records.
 """
 
 import json
@@ -10,8 +9,7 @@ from pathlib import Path
 from modeling_api.db.client import db
 from modeling_api.db.store import utcnow
 
-# Initialdaten gehören keinem konkreten Nutzer.  Ein leerer Besitzer markiert
-# sie als globalen, schreibgeschützten Startbestand.
+# An empty owner marks global, read-only seed data.
 SYSTEM_OWNER_ID = ""
 
 UML_CLASS_DIAGRAM_ID = "a7fb2523-f7a0-4d23-b476-72882454b9e8"
@@ -28,35 +26,14 @@ Each <span style="color: rgb(30, 136, 229);"><strong>Order Item</strong></span> 
 
 
 def _uml_class_diagram() -> dict:
-    """Lädt die vollständige DiagramLanguage-Definition des UML-Beispiels."""
+    """Load the complete DiagramLanguage definition for the UML example."""
     return json.loads((_INITIAL_DATA_DIR / "uml_class_diagram.json").read_text(encoding="utf-8"))
 
 
 async def seed_initial_data() -> None:
-    """Speichert Startdaten und führt kleine, idempotente Metadatenmigrationen aus."""
+    """Store fixed seed data for a new Modeling Copilot database."""
     created_at = utcnow()
     language_data = _uml_class_diagram()
-
-    # One-time, idempotent migration of the previous API vocabulary.
-    for collection in (
-        db.language_versions,
-        db.model_versions,
-        db.task_statement_versions,
-    ):
-        await collection.update_many(
-            {"versionName": {"$exists": True}, "releaseName": {"$exists": False}},
-            {"$rename": {"versionName": "releaseName"}},
-        )
-        await collection.update_many(
-            {"versionName": {"$exists": True}}, {"$unset": {"versionName": ""}}
-        )
-    await db.language_versions.update_many({"kind": "named"}, {"$set": {"kind": "release"}})
-    await db.model_versions.update_many({"kind": "named"}, {"$set": {"kind": "release"}})
-    await db.model_versions.update_many({}, {"$unset": {"languageVersions": ""}})
-    await db.model_versions.update_many({}, {"$unset": {"previousVersionId": ""}})
-    await db.languages.update_many(
-        {"archivedAt": {"$exists": False}}, {"$set": {"archivedAt": None}}
-    )
 
     await db.languages.update_one(
         {"_id": UML_CLASS_DIAGRAM_ID},
@@ -89,60 +66,46 @@ async def seed_initial_data() -> None:
         },
         upsert=True,
     )
-    # Keep the fixed, global example compatible with the current editor data
-    # interface. User-created language versions are never touched.
-    await db.language_versions.update_one(
-        {
-            "_id": UML_CLASS_DIAGRAM_VERSION_ID,
-            "languageId": UML_CLASS_DIAGRAM_ID,
-        },
-        {
-            "$set": {
-                "kind": "release",
-                "releaseName": "Initial release",
-                "versionNumber": "1.0",
-                "description": None,
-                "data.feedback": language_data["feedback"],
-            },
-            "$unset": {"versionName": "", "data.id": "", "data.name": "", "data.tags": ""},
-        },
-    )
-
-    await db.task_statements.update_one(
+    await db.task.update_one(
         {"_id": ORDER_MANAGEMENT_TASK_ID},
         {
             "$setOnInsert": {
                 "createdAt": created_at,
-                "source": "initial-data",
-                "externalTaskId": "order-management",
+                "name": "Order Management",
+                "parent": None,
                 "ownerId": SYSTEM_OWNER_ID,
                 "latestVersionId": ORDER_MANAGEMENT_TASK_VERSION_ID,
+                "latestReleaseId": ORDER_MANAGEMENT_TASK_VERSION_ID,
+                "visibility": "published",
+                "archivedAt": None,
             }
         },
         upsert=True,
     )
-    await db.task_statement_versions.update_one(
+    await db.task_version.update_one(
         {"_id": ORDER_MANAGEMENT_TASK_VERSION_ID},
         {
             "$setOnInsert": {
-                "taskStatementId": ORDER_MANAGEMENT_TASK_ID,
+                "taskId": ORDER_MANAGEMENT_TASK_ID,
                 "versionNumber": "1.0",
                 "createdBy": SYSTEM_OWNER_ID,
                 "createdAt": created_at,
+                "kind": "release",
                 "releaseName": "Initial release",
-                "externalVersionId": "1",
+                "description": None,
+                "workspaceLanguages": [
+                    {
+                        "languageId": UML_CLASS_DIAGRAM_ID,
+                        "versionId": UML_CLASS_DIAGRAM_VERSION_ID,
+                        "source": "required",
+                    }
+                ],
                 "data": {
-                    "title": "A3 – Order Management",
-                    "content": ORDER_MANAGEMENT_CONTENT,
+                    "contentHtml": ORDER_MANAGEMENT_CONTENT,
+                    "autonomyMode": "free",
+                    "sampleSolutions": [],
                 },
             }
         },
         upsert=True,
-    )
-    await db.task_statement_versions.update_one(
-        {"_id": ORDER_MANAGEMENT_TASK_VERSION_ID},
-        {
-            "$set": {"releaseName": "Initial release", "versionNumber": "1.0"},
-            "$unset": {"versionName": ""},
-        },
     )

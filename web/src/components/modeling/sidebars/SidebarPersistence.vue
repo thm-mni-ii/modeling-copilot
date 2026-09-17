@@ -41,7 +41,6 @@
             <p v-if="selectedFileName" class="sidebar-hint">Format: XML</p>
           </template>
 
-          <p v-if="errorMessage" class="sidebar-error">{{ errorMessage }}</p>
         </v-card-text>
 
         <v-card-actions>
@@ -60,6 +59,7 @@ import { ref } from 'vue'
 import { exportModelAsXml, importModelFromXml, saveTextFile } from '@/utils/modelPersistence'
 import { useGraphContext } from '@/composables/useGraphContext'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
+import { notifyError, notifyWarning } from '@/composables/useNotifications'
 
 type DialogMode = 'download' | 'upload'
 
@@ -71,12 +71,10 @@ const isDialogOpen = ref(false)
 const dialogMode = ref<DialogMode>('download')
 const selectedFile = ref<File | null>(null)
 const selectedFileName = ref('')
-const errorMessage = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 
 const openDialog = (mode: DialogMode) => {
   dialogMode.value = mode
-  errorMessage.value = ''
   selectedFile.value = null
   selectedFileName.value = ''
   if (fileInput.value) {
@@ -99,14 +97,14 @@ const chooseFile = () => {
 const downloadModel = () => {
   const currentGraph = graph.value
   if (!currentGraph) {
-    errorMessage.value = 'No graph available.'
+    notifyWarning('No graph available.')
     return
   }
 
   try {
     saveTextFile(exportModelAsXml(currentGraph), 'model.xml', 'application/xml')
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'Export failed.'
+    notifyError(error instanceof Error ? error.message : 'Export failed.')
   }
 }
 
@@ -120,7 +118,6 @@ const onFileSelected = async (event: Event) => {
 
   selectedFile.value = file
   selectedFileName.value = file.name
-  errorMessage.value = ''
 }
 
 const importModel = async () => {
@@ -128,7 +125,7 @@ const importModel = async () => {
   const file = selectedFile.value
 
   if (!currentGraph || !file) {
-    errorMessage.value = 'Select a file first.'
+    notifyWarning('Select a file first.')
     return
   }
 
@@ -146,7 +143,7 @@ const importModel = async () => {
 
     closeDialog()
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'Import failed.'
+    notifyError(error instanceof Error ? error.message : 'Import failed.')
   }
 }
 </script>
@@ -186,15 +183,6 @@ const importModel = async () => {
   font-size: 11px;
   line-height: 1.4;
   color: rgba(var(--v-theme-on-surface), 0.56);
-}
-
-.sidebar-error {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: rgba(var(--v-theme-error), 0.08);
-  color: rgba(var(--v-theme-error), 0.95);
-  font-size: 12px;
 }
 
 .sidebar-action-buttons {

@@ -1,31 +1,40 @@
 import type { AxiosResponse } from 'axios'
 import httpClient from '@/services/api/httpClient'
 import type { ApiId, ApiPage } from '@/services/api/types/common'
-import type { CreateTaskStatement, CreateTaskStatementVersion, TaskStatement, TaskStatementVersion, TaskStatementVersionInfo } from '@/services/api/types/task'
+import type { ModelVersion } from '@/services/api/types/model'
+import type { CreateTask, CreateTaskVersion, Task, TaskVersion, TaskVersionInfo, TaskVisibility, UpdateTask } from '@/services/api/types/task'
 
 class TaskService {
-  list(skip = 0, limit = 20, source?: string, externalTaskId?: string): Promise<AxiosResponse<ApiPage<TaskStatement>>> {
-    return httpClient.get('/v1/task-statements', { params: { skip, limit, source, externalTaskId } })
+  list(skip = 0, limit = 20, options: { q?: string; archived?: boolean; mine?: boolean; visibility?: TaskVisibility } = {}): Promise<AxiosResponse<ApiPage<Task>>> {
+    return httpClient.get('/v1/tasks', { params: { skip, limit, ...options } })
   }
 
-  get(taskStatementId: ApiId): Promise<AxiosResponse<TaskStatement>> {
-    return httpClient.get(`/v1/task-statements/${taskStatementId}`)
+  get(taskId: ApiId): Promise<AxiosResponse<Task>> {
+    return httpClient.get(`/v1/tasks/${taskId}`)
   }
 
-  create(task: CreateTaskStatement): Promise<AxiosResponse<TaskStatement>> {
-    return httpClient.post('/v1/task-statements', task)
+  create(task: CreateTask): Promise<AxiosResponse<Task>> {
+    return httpClient.post('/v1/tasks', task)
   }
 
-  listVersions(taskStatementId: ApiId, skip = 0, limit = 20): Promise<AxiosResponse<ApiPage<TaskStatementVersionInfo>>> {
-    return httpClient.get(`/v1/task-statements/${taskStatementId}/versions`, { params: { skip, limit } })
+  update(taskId: ApiId, task: UpdateTask): Promise<AxiosResponse<Task>> {
+    return httpClient.patch(`/v1/tasks/${taskId}`, task)
   }
 
-  getVersion(taskStatementId: ApiId, versionId: ApiId): Promise<AxiosResponse<TaskStatementVersion>> {
-    return httpClient.get(`/v1/task-statements/${taskStatementId}/versions/${versionId}`)
+  listVersions(taskId: ApiId, skip = 0, limit = 20): Promise<AxiosResponse<ApiPage<TaskVersionInfo>>> {
+    return httpClient.get(`/v1/tasks/${taskId}/versions`, { params: { skip, limit } })
   }
 
-  createVersion(taskStatementId: ApiId, version: CreateTaskStatementVersion): Promise<AxiosResponse<TaskStatementVersion>> {
-    return httpClient.post(`/v1/task-statements/${taskStatementId}/versions`, version)
+  getVersion(taskId: ApiId, versionId: ApiId): Promise<AxiosResponse<TaskVersion>> {
+    return httpClient.get(`/v1/tasks/${taskId}/versions/${versionId}`)
+  }
+
+  createVersion(taskId: ApiId, version: CreateTaskVersion): Promise<AxiosResponse<TaskVersion>> {
+    return httpClient.post(`/v1/tasks/${taskId}/versions`, version)
+  }
+
+  getSampleSolution(taskId: ApiId, versionId: ApiId, modelId: ApiId, modelVersionId: ApiId): Promise<AxiosResponse<ModelVersion>> {
+    return httpClient.get(`/v1/tasks/${taskId}/versions/${versionId}/sample-solutions/${modelId}/${modelVersionId}`)
   }
 }
 

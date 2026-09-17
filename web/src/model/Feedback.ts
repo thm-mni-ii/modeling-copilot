@@ -34,8 +34,6 @@ export interface FeedbackCanvasOverlayEntry {
 
 export type FeedbackTargetType = 'element' | 'connection'
 
-export type FeedbackCanvasImplementationTab = 'legacy' | 'configurable'
-
 export interface FeedbackCanvasRulesConfig {
   onlyFeedbackAsSource: boolean
   allowTargetElements: boolean
@@ -54,13 +52,6 @@ export interface FeedbackCanvasElementConfig {
 export interface FeedbackCanvasConfig {
   activeElementId?: string
   configurableElements: FeedbackCanvasElementConfig[]
-  /**
-   * Legacy-Felder für Abwärtskompatibilität bestehender Daten.
-   * Neue Konfiguration nutzt ausschließlich `configurableElements`.
-   */
-  activeImplementation?: FeedbackCanvasImplementationTab
-  configurableElement?: DiagramElement
-  configurableConnection?: DiagramConnection
   rules: FeedbackCanvasRulesConfig
 }
 

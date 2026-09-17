@@ -1,28 +1,38 @@
-"""Schemas für Feedback zu genau einer Modellversion."""
+"""Schemas for feedback attached to one immutable model version."""
 
 from datetime import datetime
 from uuid import UUID
+
+from pydantic import Field
 
 from modeling_api.schemas.common import ApiSchema, JsonObject, Name
 
 
 class FeedbackInfo(ApiSchema):
-    """Feedbackmetadaten ohne den großen Inhaltsblock data."""
+    """Feedback metadata without the potentially large payload."""
 
-    id: UUID
-    model_id: UUID
-    model_version_id: UUID
-    source: Name  # Erzeuger, z. B. ein externer Feedbackdienst
-    external_feedback_id: Name  # Ergebnis-ID des Erzeugers
-    created_at: datetime
-    created_by: str
+    id: UUID = Field(description="Stable feedback identifier.")
+    model_id: UUID = Field(description="Owning model identifier.")
+    model_version_id: UUID = Field(description="Immutable model-version identifier.")
+    source: Name = Field(description="Feedback producer or integration name.")
+    external_feedback_id: Name = Field(
+        description="Producer-defined result identifier used for idempotency."
+    )
+    created_at: datetime = Field(description="UTC creation timestamp.")
+    created_by: str = Field(description="Identifier of the submitting user.")
 
 
 class Feedback(FeedbackInfo):
-    data: JsonObject  # vollständiger Feedbackinhalt als freies Objekt
+    """Complete feedback record."""
+
+    data: JsonObject = Field(description="Complete free-form feedback payload.")
 
 
 class CreateFeedback(ApiSchema):
-    source: Name
-    external_feedback_id: Name
-    data: JsonObject
+    """Request to store feedback for one model version."""
+
+    source: Name = Field(description="Feedback producer or integration name.")
+    external_feedback_id: Name = Field(
+        description="Producer-defined result identifier used for idempotency."
+    )
+    data: JsonObject = Field(description="Complete free-form feedback payload.")

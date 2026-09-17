@@ -53,10 +53,11 @@ const emit = defineEmits<{
   'update:layer-view': [view: CanvasLayerView]
 }>()
 
-const connectionToolbar = ref<{ closePalette: () => void } | null>(null)
+const connectionToolbar = ref<{ closePalette: () => void; selectConnectionByReference: (languageId: string, connectionType: string) => boolean } | null>(null)
 
 defineExpose({
-  closeConnectionPalette: () => connectionToolbar.value?.closePalette()
+  closeConnectionPalette: () => connectionToolbar.value?.closePalette(),
+  selectConnectionByReference: (languageId: string, connectionType: string) => connectionToolbar.value?.selectConnectionByReference(languageId, connectionType) ?? false
 })
 </script>
 

@@ -3,13 +3,17 @@ import { defineStore } from 'pinia'
 import { cloneJson, createEmptyModelSnapshot, normalizeModelSnapshot, type ModelSnapshot } from '@/model/ModelSnapshot'
 import languageService from '@/services/language/language.service'
 import modelService from '@/services/model/model.service'
+import taskService from '@/services/task/task.service'
 import type { DiagramLanguage } from '@/model/DiagramLanguage'
+import type { DiagramTask } from '@/model/Task'
 import { languageReferenceKey, resolveWorkspaceLanguages, type ResolvedLanguageVersion } from '@/services/model/workspaceLanguageResolver'
-import type { ApiId, JsonObject, LanguageVersionReference } from '@/services/api/types/common'
-import type { Model, ModelPatch, ModelVersion, ModelVersionKind, WorkspaceLanguageReference } from '@/services/api/types/model'
+import type { ApiId, JsonObject, LanguageVersionReference, TaskVersionReference } from '@/services/api/types/common'
+import type { Model, ModelPatch, ModelVersion, ModelVersionKind, TaskEditDocument, WorkspaceLanguageReference } from '@/services/api/types/model'
+import type { Task, TaskVersion } from '@/services/api/types/task'
 import { readDraft, removeDraft, writeDraft } from '@/utils/workspaceDrafts'
 import { applyModelPatches, createModelPatch } from '@/utils/modelPatches'
 import { serverNow, synchronizeServerTime } from '@/utils/serverTime'
+import type { TaskEditSyncState } from '@/utils/taskEdits'
 
 export type WorkspaceLanguage = WorkspaceLanguageReference
 export type ModelSyncState = 'synced' | 'dirty' | 'saving' | 'offline' | 'conflict'
@@ -36,11 +40,19 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   const languageDefinitions = ref<Record<string, ResolvedLanguageVersion>>({})
   const data = ref<ModelSnapshot>(createEmptyModelSnapshot('Untitled model'))
   const pendingPreferences = ref<JsonObject>({})
+  const taskReference = ref<TaskVersionReference | null>(null)
+  const task = ref<Task | null>(null)
+  const taskVersion = ref<TaskVersion | null>(null)
+  const taskEdit = ref<TaskEditDocument | null>(null)
+  const taskEditDirty = ref(false)
+  const taskEditSyncState = ref<TaskEditSyncState>('synced')
   const dirty = ref(false)
   const syncState = ref<ModelSyncState>('synced')
 
   let initialDraftKey: string | null = null
   let preferenceSave = Promise.resolve()
+  let taskEditSave = Promise.resolve<TaskEditDocument | null>(null)
+  let taskEditTimer: ReturnType<typeof setTimeout> | null = null
 
   const draftKey = computed(() => model.value?.id ?? 'new-model')
   const preferences = computed<JsonObject>(() => model.value?.preferences ?? pendingPreferences.value)
@@ -55,6 +67,29 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
       version
     }))
   )
+  const diagramTask = computed<DiagramTask | null>(() =>
+    task.value && taskVersion.value
+      ? {
+          id: task.value.id,
+          title: task.value.name,
+          content: taskVersion.value.data.contentHtml,
+          createdAt: taskVersion.value.createdAt,
+          updatedAt: taskVersion.value.createdAt
+        }
+      : null
+  )
+
+  const loadAssignedTask = async (reference: TaskVersionReference | null) => {
+    taskReference.value = reference ? cloneJson(reference) : null
+    if (!reference) {
+      task.value = null
+      taskVersion.value = null
+      return
+    }
+    const [loadedTask, loadedVersion] = await Promise.all([taskService.get(reference.taskId), taskService.getVersion(reference.taskId, reference.versionId)])
+    task.value = loadedTask.data
+    taskVersion.value = loadedVersion.data
+  }
 
   const loadLanguages = async (references: LanguageVersionReference[]) => {
     const resolved = await resolveWorkspaceLanguages(references)
@@ -66,11 +101,11 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     languages.value = selectedLanguagesFrom(version)
     data.value = normalizeModelSnapshot(version.data, modelName)
     baseReleaseId.value = version.kind === 'release' ? version.id : version.baseReleaseId
-    await loadLanguages(version.workspaceLanguages)
+    await Promise.all([loadLanguages(version.workspaceLanguages), loadAssignedTask(version.taskVersion)])
   }
 
   const persistJournal = async () => {
-    if (!dirty.value) return
+    if (!dirty.value && !taskEditDirty.value) return
     const metadata: JsonObject = cloneJson(data.value)
     delete metadata.xml
     try {
@@ -82,7 +117,8 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
         savedAt: new Date().toISOString(),
         patches: cloneJson(pendingPatches.value),
         languages: cloneJson(languages.value),
-        data: metadata
+        data: metadata,
+        taskEdit: cloneJson(taskEdit.value)
       })
     } catch {
       // localStorage may be unavailable; server persistence remains usable.
@@ -108,20 +144,29 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   }
 
   const resetIdentity = () => {
+    if (taskEditTimer) clearTimeout(taskEditTimer)
+    taskEditTimer = null
+    taskEditSave = Promise.resolve(null)
     model.value = null
     baseVersionId.value = null
     baseReleaseId.value = null
     pendingPatches.value = []
     pendingPreferences.value = {}
+    taskReference.value = null
+    task.value = null
+    taskVersion.value = null
+    taskEdit.value = null
+    taskEditDirty.value = false
+    taskEditSyncState.value = 'synced'
     initialDraftKey = null
   }
 
-  const startNew = async (name: string, initialLanguages: WorkspaceLanguage[]) => {
+  const startNew = async (name: string, initialLanguages: WorkspaceLanguage[], initialTask: TaskVersionReference | null = null) => {
     resetIdentity()
     void synchronizeServerTime().catch(() => undefined)
     languages.value = cloneJson(initialLanguages)
     data.value = createEmptyModelSnapshot(name)
-    await loadLanguages(initialLanguages)
+    await Promise.all([loadLanguages(initialLanguages), loadAssignedTask(initialTask)])
     markDirty()
   }
 
@@ -133,6 +178,9 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     const version = (await modelService.getVersion(modelId, targetVersionId)).data
     void synchronizeServerTime().catch(() => undefined)
     model.value = currentModel
+    taskEdit.value = cloneJson(currentModel.taskEdit)
+    taskEditDirty.value = false
+    taskEditSyncState.value = 'synced'
     pendingPreferences.value = currentModel.preferences
     baseVersionId.value = version.id
     initialDraftKey = null
@@ -157,8 +205,9 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   const changeLanguageVersion = async (languageId: ApiId, versionId: ApiId) => {
     const index = languages.value.findIndex((item) => item.languageId === languageId)
     if (index < 0 || languages.value[index].versionId === versionId) return
+    if (languages.value[index].source === 'required') throw new Error('Task languages cannot be changed.')
 
-    // TODO: Validate compatibility and migrate existing model elements before changing a language release.
+    // TODO: Validate existing model elements against the selected language release.
     const updatedLanguages = cloneJson(languages.value)
     updatedLanguages[index] = { ...updatedLanguages[index], versionId }
     await loadLanguages(updatedLanguages)
@@ -167,6 +216,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   }
 
   const removeLanguage = async (languageId: ApiId) => {
+    if (languages.value.some((item) => item.languageId === languageId && item.source === 'required')) throw new Error('Task languages cannot be removed.')
     const updatedLanguages = languages.value.filter((item) => item.languageId !== languageId)
     if (updatedLanguages.length === languages.value.length) return
     await loadLanguages(updatedLanguages)
@@ -227,18 +277,90 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     if (!dirty.value) markDirty()
   }
 
-  const branchSnapshot = async (snapshotData: JsonObject, snapshotLanguages: WorkspaceLanguage[], name: string) => {
+  const branchSnapshot = async (snapshotData: JsonObject, snapshotLanguages: WorkspaceLanguage[], name: string, snapshotTask: TaskVersionReference | null = null, snapshotTaskEdit: TaskEditDocument | null = null) => {
     resetIdentity()
     languages.value = cloneJson(snapshotLanguages)
     data.value = normalizeModelSnapshot(snapshotData, name)
     data.value = { ...data.value, name }
     await loadLanguages(snapshotLanguages)
+    await loadAssignedTask(snapshotTask)
+    taskEdit.value = snapshotTaskEdit ? { ...cloneJson(snapshotTaskEdit), revision: 0, updatedAt: new Date().toISOString() } : null
+    taskEditDirty.value = Boolean(taskEdit.value)
+    taskEditSyncState.value = taskEdit.value ? dirtySyncState() : 'synced'
     markDirty()
   }
 
   const branchVersion = async (modelId: ApiId, versionId: ApiId, name: string) => {
     const snapshot = (await modelService.getVersion(modelId, versionId)).data
-    await branchSnapshot(snapshot.data, selectedLanguagesFrom(snapshot), name)
+    await branchSnapshot(snapshot.data, selectedLanguagesFrom(snapshot), name, snapshot.taskVersion, snapshot.taskEditSnapshot)
+  }
+
+  const scheduleTaskEditSync = () => {
+    if (taskEditTimer) clearTimeout(taskEditTimer)
+    taskEditTimer = setTimeout(() => void syncTaskEdit().catch(() => undefined), 700)
+  }
+
+  const updateTaskEditDocument = (document: JsonObject) => {
+    if (!taskReference.value) return
+    if (taskEdit.value && JSON.stringify(taskEdit.value.document) === JSON.stringify(document)) return
+    taskEdit.value = {
+      schemaVersion: 1,
+      revision: taskEdit.value?.revision ?? 0,
+      updatedAt: new Date().toISOString(),
+      document: cloneJson(document)
+    }
+    taskEditDirty.value = true
+    taskEditSyncState.value = dirtySyncState()
+    void persistJournal()
+    if (model.value) scheduleTaskEditSync()
+  }
+
+  const syncTaskEdit = async () => {
+    if (!model.value || !taskEdit.value || !taskEditDirty.value) return taskEdit.value
+    if (taskEditSyncState.value === 'saving') return taskEditSave
+    if (taskEditTimer) {
+      clearTimeout(taskEditTimer)
+      taskEditTimer = null
+    }
+    const modelId = model.value.id
+    const cut = cloneJson(taskEdit.value)
+    taskEditSyncState.value = 'saving'
+    taskEditSave = taskEditSave
+      .catch(() => null)
+      .then(async () => {
+        try {
+          const saved = (await modelService.updateTaskEdit(modelId, { baseRevision: cut.revision, document: cut.document })).data
+          if (model.value?.id !== modelId) return saved
+          const unchanged = taskEdit.value && JSON.stringify(taskEdit.value.document) === JSON.stringify(cut.document)
+          if (unchanged) {
+            taskEdit.value = saved
+            taskEditDirty.value = false
+            taskEditSyncState.value = 'synced'
+            model.value = { ...model.value, taskEdit: saved }
+            if (dirty.value) await persistJournal()
+            else await removeDraft(draftKey.value)
+          } else if (taskEdit.value) {
+            taskEdit.value = { ...taskEdit.value, revision: saved.revision }
+            taskEditSyncState.value = dirtySyncState()
+            scheduleTaskEditSync()
+          }
+          return saved
+        } catch (error) {
+          taskEditSyncState.value = responseStatus(error) === 409 ? 'conflict' : dirtySyncState()
+          throw error
+        }
+      })
+    return taskEditSave
+  }
+
+  const flushTaskEdit = async () => {
+    while (model.value && taskEdit.value && taskEditDirty.value) await syncTaskEdit()
+    return taskEdit.value
+  }
+
+  const adoptTaskEditSnapshot = async (snapshot: TaskEditDocument) => {
+    updateTaskEditDocument(snapshot.document)
+    await flushTaskEdit()
   }
 
   const save = async (kind: ModelVersionKind = 'checkpoint', releaseName?: string, description?: string) => {
@@ -252,13 +374,16 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
       let currentModel = model.value
       if (!currentModel) {
         initialDraftKey ??= draftKey.value
-        currentModel = (await modelService.create({ name: data.value.name })).data
+        currentModel = (await modelService.create({ name: data.value.name, taskVersion: taskReference.value })).data
         model.value = currentModel
         if (Object.keys(pendingPreferences.value).length > 0) {
           currentModel = (await modelService.update(currentModel.id, { preferences: pendingPreferences.value })).data
           model.value = currentModel
         }
       }
+
+      await flushTaskEdit()
+      currentModel = model.value ?? currentModel
 
       data.value = { ...data.value, name: currentModel.name }
       const actualKind: ModelVersionKind = baseVersionId.value ? kind : 'release'
@@ -272,6 +397,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
           baseVersionId: baseVersionId.value,
           baseReleaseId: actualKind === 'checkpoint' ? baseReleaseId.value : null,
           workspaceLanguages: languagesCut,
+          taskVersion: taskReference.value,
           data: actualKind === 'release' ? dataCut : checkpointData,
           patches: actualKind === 'checkpoint' ? patchCut : [],
           kind: actualKind,
@@ -317,6 +443,12 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     data.value = normalizeModelSnapshot({ ...draft.data, xml }, model.value?.name ?? data.value.name)
     baseReleaseId.value = draft.baseReleaseId
     pendingPatches.value = cloneJson(draft.patches)
+    if (draft.taskEdit && (!taskEdit.value || draft.taskEdit.revision === taskEdit.value.revision)) {
+      taskEdit.value = cloneJson(draft.taskEdit)
+      taskEditDirty.value = true
+      taskEditSyncState.value = dirtySyncState()
+      if (model.value) scheduleTaskEditSync()
+    }
     await loadLanguages(languages.value)
     dirty.value = true
     syncState.value = dirtySyncState()
@@ -336,6 +468,13 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     pendingPatches,
     canRelease,
     editorLanguages,
+    taskReference,
+    task,
+    taskVersion,
+    taskEdit,
+    taskEditDirty,
+    taskEditSyncState,
+    diagramTask,
     startNew,
     load,
     addLanguage,
@@ -347,6 +486,9 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     restoreSnapshot,
     branchSnapshot,
     branchVersion,
+    updateTaskEditDocument,
+    syncTaskEdit,
+    adoptTaskEditSnapshot,
     setData,
     save,
     getRecoveryDraft,
