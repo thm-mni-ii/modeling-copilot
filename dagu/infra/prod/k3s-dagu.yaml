@@ -102,8 +102,6 @@ spec:
               value: "0.0.0.0"
             - name: DAGU_PORT
               value: "8080"
-            # dagu-dags ConfigMap is read-only; keep it as the alt (source) dir
-            # and give Dagu a writable primary dags dir plus separate wiki/data/logs.
             - name: DAGU_DAGS_DIR
               value: /var/lib/dagu/dags
             - name: DAGU_ALT_DAGS_DIR
@@ -148,21 +146,24 @@ spec:
           volumeMounts:
             - name: dagu-data
               mountPath: /var/lib/dagu
-            - name: dagu-dags
+            - name: dagu-workflows
               mountPath: /app/workflows
-            - name: dagu-base-config
+              readOnly: true
+            - name: dagu-base
               mountPath: /var/lib/dagu/base.yaml
-              subPath: base.yaml
+              readOnly: true
       volumes:
         - name: dagu-data
           persistentVolumeClaim:
             claimName: dagu-data
-        - name: dagu-dags
-          configMap:
-            name: dagu-dags
-        - name: dagu-base-config
-          configMap:
-            name: dagu-base-config
+        - name: dagu-workflows
+          hostPath:
+            path: /opt/modeling-copilot/dagu/workflows
+            type: Directory
+        - name: dagu-base
+          hostPath:
+            path: /opt/modeling-copilot/dagu/infra/base.yaml
+            type: File
 
 ---
 apiVersion: v1
