@@ -130,8 +130,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
   }
 
   override isConnectableCell(cell: Cell): boolean {
-    const constraints = (cell.getGeometry() as any)?.constraints
-    return !(constraints && constraints.length > 0)
+    return cell.isConnectable()
   }
 
   override updateEdgeState(pt: Point, constraint: ConnectionConstraint | null): void {
