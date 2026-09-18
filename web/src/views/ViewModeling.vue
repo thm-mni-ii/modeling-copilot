@@ -5,7 +5,6 @@
       <template #canvas-top>
         <div v-if="workspace.diagramTask" class="task-area">
           <TaskTopBar :task="workspace.diagramTask" :window-open="taskWindowOpen" :content-html="workspace.taskVersion?.data.contentHtml ?? ''" :task-edit="workspace.taskEdit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" @pop-out="taskWindowOpen = true" @select-connection="selectTaskConnection" @update:task-edit-document="workspace.updateTaskEditDocument" />
-          <v-btn v-if="sampleSolutions.length" size="small" variant="text" prepend-icon="mdi-lightbulb-on-outline" @click="openSampleSolution(0)">Sample solutions ({{ sampleSolutions.length }})</v-btn>
         </div>
       </template>
       <template #window-content="{ definition }">
@@ -22,13 +21,6 @@
         ><v-card-actions><v-btn @click="discardDraft">Open server version</v-btn><v-spacer /><v-btn color="primary" @click="restoreDraft">Restore local draft</v-btn></v-card-actions></v-card
       ></v-dialog
     >
-    <v-dialog v-model="sampleDialog" max-width="1000">
-      <v-card>
-        <v-card-title class="d-flex align-center">Sample solution {{ sampleIndex + 1 }}<v-spacer /><v-btn icon="mdi-chevron-left" :disabled="sampleIndex <= 0" @click="openSampleSolution(sampleIndex - 1)" /><v-btn icon="mdi-chevron-right" :disabled="sampleIndex >= sampleSolutions.length - 1" @click="openSampleSolution(sampleIndex + 1)" /></v-card-title>
-        <v-card-text><ModelSnapshotPreview :data="sampleData" :height="600" /></v-card-text>
-        <v-card-actions><v-spacer /><v-btn @click="sampleDialog = false">Close</v-btn></v-card-actions>
-      </v-card>
-    </v-dialog>
   </v-container>
 </template>
 
@@ -44,7 +36,6 @@ import { buildTaskConnectionOptions, buildTaskElementOptions } from '@/component
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { JsonObject } from '@/services/api/types/common'
 import type { CanvasWindowDefinition } from '@/model/CanvasWindow'
-import taskService from '@/services/task/task.service'
 import { removeTaskEdit } from '@/utils/taskEdits'
 import { notifyError } from '@/composables/useNotifications'
 
@@ -61,10 +52,6 @@ const recoveryData = ref<JsonObject | null>(null)
 const hydrating = ref(false)
 const loading = ref(false)
 const taskWindowOpen = ref(false)
-const sampleDialog = ref(false)
-const sampleIndex = ref(0)
-const sampleData = ref<JsonObject | null>(null)
-const sampleSolutions = computed(() => workspace.taskVersion?.data.sampleSolutions ?? [])
 const taskWindows = computed<CanvasWindowDefinition[]>(() =>
   taskWindowOpen.value && workspace.diagramTask
     ? [{ id: 'task-description', title: workspace.diagramTask.title, x: 260, y: 120, width: 520, height: 360, role: 'task' }]
@@ -117,14 +104,6 @@ const focusTaskEdit = (id: string) => {
   const targets = [...document.querySelectorAll<HTMLElement>(`[data-task-edit-id="${CSS.escape(id)}"]`)]
   targets[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   targets.forEach((target) => target.animate([{ outline: '2px solid rgb(25, 118, 210)' }, { outline: '2px solid transparent' }], { duration: 1400 }))
-}
-const openSampleSolution = async (index: number) => {
-  const reference = sampleSolutions.value[index]
-  const taskReference = workspace.taskReference
-  if (!reference || !taskReference) return
-  sampleIndex.value = index
-  sampleDialog.value = true
-  sampleData.value = (await taskService.getSampleSolution(taskReference.taskId, taskReference.versionId, reference.modelId, reference.versionId)).data.data
 }
 onMounted(async () => {
   loading.value = true
