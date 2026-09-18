@@ -20,7 +20,8 @@
       <!-- Canvas Vorschau (rechts) -->
       <v-col cols="4" class="pl-2 preview-column">
         <v-card class="preview-card">
-          <v-card-title class="py-2">
+          <v-card-title class="py-2 d-flex align-center">
+            <v-btn icon="mdi-dock-left" size="small" variant="text" :title="previewSidebarVisible ? 'Hide element palette' : 'Show element palette'" :aria-label="previewSidebarVisible ? 'Hide element palette' : 'Show element palette'" :aria-expanded="previewSidebarVisible" @click="previewSidebarVisible = !previewSidebarVisible" />
             <span class="text-h6">Preview</span>
           </v-card-title>
 
@@ -28,7 +29,7 @@
 
           <v-card-text>
             <div class="preview-canvas">
-              <DrawingCanvas ref="drawingCanvasRef" :show-elements="false" :model="canvasModel" :language-elements="languageElementsForCanvas" :language-connections="languageConnectionsForCanvas" :language-syntax="languageSyntaxForCanvas" />
+              <DrawingCanvas ref="drawingCanvasRef" :show-elements="previewSidebarVisible" :model="canvasModel" :language-elements="languageElementsForCanvas" :language-connections="languageConnectionsForCanvas" :language-syntax="languageSyntaxForCanvas" />
             </div>
 
             <v-alert v-if="!selectedElement" type="info" variant="tonal" class="mt-3"> Select an Element to see a preview </v-alert>
@@ -59,6 +60,7 @@ const store = useDiagramLanguages()
 const selectedElementIndex = ref<number>(-1)
 const canvasModel = ref<GraphDataModel>()
 const drawingCanvasRef = ref()
+const previewSidebarVisible = ref(false)
 
 // Zusätzliche Refs für Canvas-Integration
 const elementDefinition = ref<DiagramElement | null>(null)

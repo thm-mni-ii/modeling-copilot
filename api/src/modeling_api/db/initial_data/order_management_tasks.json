@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "eabb0468-22af-47dd-b756-cf08645a2cd5",
+      "name": "Order Management – Plain Text",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "94dd0962-e316-43ec-b1b7-6ff29efc804a",
+      "latestReleaseId": "94dd0962-e316-43ec-b1b7-6ff29efc804a",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "94dd0962-e316-43ec-b1b7-6ff29efc804a",
+        "taskId": "eabb0468-22af-47dd-b756-cf08645a2cd5",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Plain text",
+        "description": "Unformatted task text without model references.",
+        "workspaceLanguages": [
+          {
+            "languageId": "a7fb2523-f7a0-4d23-b476-72882454b9e8",
+            "versionId": "51cd9919-36b9-42d9-861d-8c619a2ac6d5",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<p>Task: UML Class Diagram for Order Management</p><p>A Customer with a customerNumber places Orders, each identified by an orderNumber. An Order consists of at least one Order Item with a quantity.<br>Each Order Item refers to exactly one Product, identified by a productNumber. Products implement the Sellable interface.</p>",
+          "autonomyMode": "free",
+          "sampleSolutions": [
+            {
+              "modelId": "3e50579b-c60a-400a-b07c-a4df598134f8",
+              "versionId": "ce1df9b4-3054-49fc-8a4a-499f81ff8de9"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "05813885-10a8-424e-b418-7029716e7a5e",
+      "name": "Order Management – Marked",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "428fb4fb-68c8-43c5-8c10-3b6698be39d2",
+      "latestReleaseId": "428fb4fb-68c8-43c5-8c10-3b6698be39d2",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "428fb4fb-68c8-43c5-8c10-3b6698be39d2",
+        "taskId": "05813885-10a8-424e-b418-7029716e7a5e",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Marked text",
+        "description": "Task text with visual text formatting.",
+        "workspaceLanguages": [
+          {
+            "languageId": "a7fb2523-f7a0-4d23-b476-72882454b9e8",
+            "versionId": "51cd9919-36b9-42d9-861d-8c619a2ac6d5",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Task: UML Class Diagram for Order Management</h2><p>A <span style=\"color: rgb(30, 136, 229);\"><strong>Customer</strong></span> with a <span style=\"color: rgb(67, 160, 71);\"><em>customerNumber</em></span> places <span style=\"color: rgb(30, 136, 229);\"><strong>Orders</strong></span>, each identified by an <span style=\"color: rgb(67, 160, 71);\"><em>orderNumber</em></span>. An <span style=\"color: rgb(30, 136, 229);\"><strong>Order</strong></span> consists of at least one <span style=\"color: rgb(30, 136, 229);\"><strong>Order Item</strong></span> with a <span style=\"color: rgb(67, 160, 71);\"><em>quantity</em></span>.<br>Each <span style=\"color: rgb(30, 136, 229);\"><strong>Order Item</strong></span> refers to exactly one <span style=\"color: rgb(30, 136, 229);\"><strong>Product</strong></span>, identified by a <span style=\"color: rgb(67, 160, 71);\"><em>productNumber</em></span>. <span style=\"color: rgb(30, 136, 229);\"><strong>Products</strong></span> implement the <span style=\"color: rgb(251, 140, 0);\"><strong>Sellable</strong></span> interface.</p>",
+          "autonomyMode": "informative",
+          "sampleSolutions": [
+            {
+              "modelId": "3e50579b-c60a-400a-b07c-a4df598134f8",
+              "versionId": "ce1df9b4-3054-49fc-8a4a-499f81ff8de9"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "97d5fd11-89c0-4653-91a3-8262d9d53664",
+      "name": "Order Management – Annotated",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "16d93359-5e67-45c4-a9d4-7d75cda6d129",
+      "latestReleaseId": "16d93359-5e67-45c4-a9d4-7d75cda6d129",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "16d93359-5e67-45c4-a9d4-7d75cda6d129",
+        "taskId": "97d5fd11-89c0-4653-91a3-8262d9d53664",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Annotated text",
+        "description": "Highlighted task text with interactive model element and connection references.",
+        "workspaceLanguages": [
+          {
+            "languageId": "a7fb2523-f7a0-4d23-b476-72882454b9e8",
+            "versionId": "51cd9919-36b9-42d9-861d-8c619a2ac6d5",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Task: UML Class Diagram for Order Management</h2><p>Create the model from the highlighted elements and attributes. Highlighted model elements can be dragged directly into the canvas.</p><p>A <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-class\">Customer</span></mark> with a <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-text-label\">customerNumber</span></mark> places <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-class\">Orders</span></mark>, each identified by an <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-text-label\">orderNumber</span></mark>. An <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-class\">Order</span></mark> consists of at least one <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-class\">Order Item</span></mark> with a <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-text-label\">quantity</span></mark>.<br>Each <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-class\">Order Item</span></mark> refers to exactly one <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-class\">Product</span></mark>, identified by a <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-text-label\">productNumber</span></mark>. <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-class\">Product</span></mark> implements the <mark data-color=\"#FFE0B2\" style=\"background-color: #FFE0B2;\"><span data-task-element-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-element-type=\"uml-interface\">Sellable</span></mark> interface.</p><h3>Connections</h3><ul><li>Connect Customer to Order with an <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-connection-type=\"uml-association\">Association</span></mark>.</li><li>Connect Order to Order Item with a <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-connection-type=\"uml-composition\">Composition</span></mark>.</li><li>Connect Order Item to Product with an <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-connection-type=\"uml-association\">Association</span></mark>.</li><li>Connect Product to Sellable with a <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a7fb2523-f7a0-4d23-b476-72882454b9e8\" data-task-connection-type=\"uml-realization\">Realization</span></mark>.</li></ul>",
+          "autonomyMode": "validating",
+          "sampleSolutions": [
+            {
+              "modelId": "3e50579b-c60a-400a-b07c-a4df598134f8",
+              "versionId": "ce1df9b4-3054-49fc-8a4a-499f81ff8de9"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
