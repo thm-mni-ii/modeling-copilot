@@ -1,0 +1,1 @@
+{"$schema":"http://json-schema.org/draft-07/schema#","title":"minimal matching unit output","type":"object","required":["status","capability","summary","result"],"properties":{"status":{"const":"ok"},"capability":{"const":"minimal-matching-unit"},"step":{"type":"string"},"summary":{"type":"string"},"result":{"type":"object","properties":{"units":{"type":"array"}}}}}

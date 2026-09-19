@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     docs_enabled: bool = True  # Swagger unter /docs anzeigen
     cors_origins: str = "http://localhost:5173"  # kommagetrennte Liste
 
+    # Dagu is accessed only by this API.  DAGU_API_KEY is supplied through a
+    # deployment secret and must never be exposed to the web client.
+    dagu_base_url: str = "http://dagu:8080"
+    dagu_api_key: str = ""
+    dagu_request_timeout_seconds: float = 15
+
 
 # Einmalig beim Start gelesen; alle Module importieren diese Instanz.
 settings = Settings()

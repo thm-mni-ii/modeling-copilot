@@ -3,10 +3,11 @@
   "title": "template-service input",
   "type": "object",
   "properties": {
-    "message": {
-      "type": "string",
-      "description": "Example field. Replace with real inputs for a concrete workflow service."
-    }
+    "message": { "type": "string" },
+    "evaluationId": { "type": "string", "description": "Optional correlation ID for an evaluation run." },
+    "step": { "type": "string", "description": "Workflow step name shown in dummy output." },
+    "input": { "type": "object", "description": "Future capability input; currently accepted unchanged." },
+    "demoDelaySeconds": { "type": "number", "minimum": 0, "maximum": 30, "description": "Optional delay so step progression is observable." }
   },
   "additionalProperties": true
 }

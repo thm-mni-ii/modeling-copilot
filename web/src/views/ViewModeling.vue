@@ -1,10 +1,10 @@
 <template>
   <v-container fluid class="pa-4 modeling-view">
     <v-progress-linear v-if="loading" indeterminate class="model-loading" />
-    <DrawingCanvas ref="canvas" v-model:model="graphModel" class="editor-canvas" model-management :languages="workspace.editorLanguages" :language-connections="connections" :connection-groups="connectionGroups" :connection-preferences="workspace.preferences" :language-syntax="syntax" :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? 'free'" :lock-autonomy-mode="Boolean(workspace.taskVersion)" :canvas-windows="taskWindows" :task-active="Boolean(workspace.taskReference)" :task-edit="workspace.taskEdit" :task-edit-sync-state="workspace.taskEditSyncState" @window-removed="onWindowRemoved" @update:model="captureCanvas" @update:connection-preferences="workspace.updatePreferences" @remove-task-edit="removeTaskEditById" @update-task-edit-document="workspace.updateTaskEditDocument" @focus-task-edit="focusTaskEdit">
+    <DrawingCanvas ref="canvas" v-model:model="graphModel" class="editor-canvas" model-management :model-id="workspace.model?.id ?? null" :open-evaluation-id="startedEvaluationId" :languages="workspace.editorLanguages" :language-connections="connections" :connection-groups="connectionGroups" :connection-preferences="workspace.preferences" :language-syntax="syntax" :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? 'free'" :lock-autonomy-mode="Boolean(workspace.taskVersion)" :canvas-windows="taskWindows" :task-active="Boolean(workspace.taskReference)" :task-edit="workspace.taskEdit" :task-edit-sync-state="workspace.taskEditSyncState" @window-removed="onWindowRemoved" @update:model="captureCanvas" @update:connection-preferences="workspace.updatePreferences" @remove-task-edit="removeTaskEditById" @update-task-edit-document="workspace.updateTaskEditDocument" @focus-task-edit="focusTaskEdit">
       <template #canvas-top>
         <div v-if="workspace.diagramTask" class="task-area">
-          <TaskTopBar :task="workspace.diagramTask" :window-open="taskWindowOpen" :content-html="workspace.taskVersion?.data.contentHtml ?? ''" :task-edit="workspace.taskEdit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" @pop-out="taskWindowOpen = true" @select-connection="selectTaskConnection" @update:task-edit-document="workspace.updateTaskEditDocument" />
+          <TaskTopBar :task="workspace.diagramTask" :window-open="taskWindowOpen" :content-html="workspace.taskVersion?.data.contentHtml ?? ''" :task-edit="workspace.taskEdit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" :evaluation-workflows="workspace.taskVersion?.data.evaluationWorkflows ?? []" @pop-out="taskWindowOpen = true" @start-evaluation="startEvaluation" @select-connection="selectTaskConnection" @update:task-edit-document="workspace.updateTaskEditDocument" />
         </div>
       </template>
       <template #window-content="{ definition }">
@@ -37,7 +37,8 @@ import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { JsonObject } from '@/services/api/types/common'
 import type { CanvasWindowDefinition } from '@/model/CanvasWindow'
 import { removeTaskEdit } from '@/utils/taskEdits'
-import { notifyError } from '@/composables/useNotifications'
+import { notifyError, notifySuccess } from '@/composables/useNotifications'
+import evaluationService from '@/services/evaluation/evaluation.service'
 
 interface Props {
   modelId?: string
@@ -51,6 +52,7 @@ const recoveryDialog = ref(false)
 const recoveryData = ref<JsonObject | null>(null)
 const hydrating = ref(false)
 const loading = ref(false)
+const startedEvaluationId = ref<string | null>(null)
 const taskWindowOpen = ref(false)
 const taskWindows = computed<CanvasWindowDefinition[]>(() =>
   taskWindowOpen.value && workspace.diagramTask
@@ -104,6 +106,20 @@ const focusTaskEdit = (id: string) => {
   const targets = [...document.querySelectorAll<HTMLElement>(`[data-task-edit-id="${CSS.escape(id)}"]`)]
   targets[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   targets.forEach((target) => target.animate([{ outline: '2px solid rgb(25, 118, 210)' }, { outline: '2px solid transparent' }], { duration: 1400 }))
+}
+const startEvaluation = async () => {
+  if (!workspace.model || !workspace.taskVersion) return
+  if (!workspace.taskVersion.data.evaluationWorkflows[0]) return
+  try {
+    // A checkpoint creates an immutable submission reference whenever canvas
+    // changes have not been persisted yet.
+    if (workspace.dirty) await workspace.save('checkpoint')
+    const evaluation = (await evaluationService.start(workspace.model.id)).data
+    startedEvaluationId.value = evaluation.id
+    notifySuccess('Auswertung wurde gestartet.')
+  } catch (error) {
+    notifyError((error as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Die Auswertung konnte nicht gestartet werden.')
+  }
 }
 onMounted(async () => {
   loading.value = true

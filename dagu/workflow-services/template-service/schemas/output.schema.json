@@ -8,6 +8,10 @@
       "type": "string",
       "enum": ["ok", "error"]
     },
+    "capability": { "type": "string" },
+    "step": { "type": "string" },
+    "summary": { "type": "string" },
+    "result": { "type": "object" },
     "echo": {
       "type": "object",
       "description": "Echoes back the received input. Placeholder for real output fields."

@@ -74,6 +74,12 @@
               <span id="task-sample-solutions-label" class="task-setting-field__label">Sample solution releases</span>
               <v-select v-model="selectedSolutionKeys" :items="solutionOptions" aria-labelledby="task-sample-solutions-label" multiple chips closable-chips density="compact" variant="outlined" hide-details />
             </div>
+            <div class="task-setting-field">
+              <span id="task-evaluation-workflows-label" class="task-setting-field__label">Evaluation workflows</span>
+              <v-select v-model="selectedEvaluationWorkflow" :items="evaluationWorkflowOptions" aria-labelledby="task-evaluation-workflows-label" density="compact" variant="outlined" clearable hide-details>
+                <template #item="{ props: itemProps, item }"><v-list-item v-bind="itemProps" :subtitle="item.raw.description"><template #append><v-chip v-for="(value, key) in item.raw.labels" :key="String(key)" size="x-small" class="ml-1">{{ key }}={{ value }}</v-chip></template></v-list-item></template>
+              </v-select>
+            </div>
           </div>
 
           <TaskRichEditor v-model="contentModel" :element-options="elementOptions" :connection-options="connectionOptions" class="task-rich-editor" />
@@ -132,6 +138,8 @@ import type { ModelVersionReference } from '@/services/api/types/common'
 import type { WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { Task, TaskVersion, TaskVersionInfo, TaskVersionKind, TaskVisibility } from '@/services/api/types/task'
 import { notifyError } from '@/composables/useNotifications'
+import evaluationService from '@/services/evaluation/evaluation.service'
+import type { EvaluationWorkflow } from '@/services/api/types/evaluation'
 
 const tasks = ref<Task[]>([])
 const currentTask = ref<Task | null>(null)
@@ -150,6 +158,8 @@ const contentModel = ref('')
 const autonomyMode = ref<AutonomyMode>('free')
 const selectedLanguageKeys = ref<string[]>([])
 const selectedSolutionKeys = ref<string[]>([])
+const selectedEvaluationWorkflow = ref<string | null>(null)
+const evaluationWorkflows = ref<EvaluationWorkflow[]>([])
 const selectedVersionId = ref<string | null>(null)
 const createDialog = ref(false)
 const newTaskName = ref('')
@@ -165,6 +175,7 @@ const parseReferenceKey = (value: string) => {
   return { entityId: value.slice(0, separator), versionId: value.slice(separator + 1) }
 }
 const languageOptions = computed(() => availableLanguageOptions.value)
+const evaluationWorkflowOptions = computed(() => evaluationWorkflows.value.map((workflow) => ({ title: workflow.name, value: workflow.name, description: workflow.description ?? 'No description', labels: workflow.labels })))
 const versionOptions = computed(() => versions.value.map((version) => ({ title: versionLabel(version), value: version.id })))
 const selectedTaskLanguages = computed<TaskOptionLanguage[]>(() =>
   selectedLanguageKeys.value.flatMap((key) => {
@@ -243,6 +254,7 @@ const resetEditor = () => {
   autonomyMode.value = 'free'
   selectedLanguageKeys.value = []
   selectedSolutionKeys.value = []
+  selectedEvaluationWorkflow.value = null
 }
 const loadVersion = async (versionId: string | null) => {
   if (!currentTask.value || !versionId) return
@@ -253,6 +265,7 @@ const loadVersion = async (versionId: string | null) => {
   autonomyMode.value = version.data.autonomyMode
   selectedLanguageKeys.value = version.workspaceLanguages.map((item) => versionReferenceKey(item.languageId, item.versionId))
   selectedSolutionKeys.value = version.data.sampleSolutions.map((item) => versionReferenceKey(item.modelId, item.versionId))
+  selectedEvaluationWorkflow.value = version.data.evaluationWorkflows?.[0] ?? null
   await loadSelectedLanguages()
 }
 const loadSelectedLanguages = async () => {
@@ -312,7 +325,7 @@ const saveVersion = async (kind: TaskVersionKind) => {
         kind,
         ...(kind === 'release' ? { releaseName: releaseName.value.trim(), description: releaseDescription.value.trim() || null } : {}),
         workspaceLanguages: workspaceLanguages(),
-        data: { contentHtml: contentModel.value, autonomyMode: autonomyMode.value, sampleSolutions: sampleSolutions() }
+        data: { contentHtml: contentModel.value, autonomyMode: autonomyMode.value, sampleSolutions: sampleSolutions(), evaluationWorkflows: selectedEvaluationWorkflow.value ? [selectedEvaluationWorkflow.value] : [] }
       })
     ).data
     currentTask.value = (await taskService.get(currentTask.value.id)).data
@@ -351,6 +364,7 @@ const toggleArchiveTask = async () => {
   }
 }
 const loadCatalogs = async () => {
+  evaluationWorkflows.value = (await evaluationService.listWorkflows()).data
   languages.value = (await languageService.list(0, 100, { archived: false })).data.items
   const languageReleases = await Promise.all(languages.value.map(async (language) => ({ language, versions: (await languageService.listVersions(language.id, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
   availableLanguageOptions.value = languageReleases.flatMap(({ language, versions: entries }) => entries.map((version) => ({ title: `${language.name} · ${version.releaseName ?? 'Release'} · v${version.versionNumber}`, value: versionReferenceKey(language.id, version.id) })))

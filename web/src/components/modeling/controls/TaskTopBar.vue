@@ -20,6 +20,7 @@
           <v-btn v-if="!windowOpen" size="x-small" variant="text" density="compact" title="Open as a free-floating window" class="task-topbar__action-btn" @click="emit('pop-out')">
             <v-icon size="15">mdi-open-in-new</v-icon>
           </v-btn>
+          <v-btn v-if="evaluationWorkflows.length" size="x-small" color="primary" variant="tonal" prepend-icon="mdi-play-circle-outline" @click="emit('start-evaluation')">Auswertung starten</v-btn>
         </div>
       </div>
 
@@ -57,10 +58,12 @@ const props = withDefaults(
     taskEdit: TaskEditDocument | null
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
+    evaluationWorkflows?: string[]
   }>(),
   {
     elementOptions: () => [],
-    connectionOptions: () => []
+    connectionOptions: () => [],
+    evaluationWorkflows: () => []
   }
 )
 
@@ -68,6 +71,7 @@ const emit = defineEmits<{
   'pop-out': []
   'update:taskEditDocument': [document: JsonObject]
   'select-connection': [reference: { languageId: string; connectionType: string }]
+  'start-evaluation': []
 }>()
 
 const expanded = ref(true)
