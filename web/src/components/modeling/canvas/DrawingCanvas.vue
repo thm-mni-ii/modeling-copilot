@@ -119,7 +119,7 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)" />
+        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)" />
       </div>
       <!-- /canvas-area -->
     </v-card-text>
@@ -327,6 +327,8 @@ const props = withDefaults(
     taskActive?: boolean
     taskEdit?: TaskEditDocument | null
     taskEditSyncState?: TaskEditSyncState
+    modelId?: string | null
+    openEvaluationId?: string | null
     previewConnection?: DiagramConnection
     previewMode?: 'simple' | 'scenario' | 'routing'
     overlays?: FeedbackCanvasOverlayEntry[]
@@ -352,6 +354,8 @@ const props = withDefaults(
     taskActive: false,
     taskEdit: null,
     taskEditSyncState: 'synced',
+    modelId: null,
+    openEvaluationId: null,
     previewConnection: undefined,
     previewMode: 'simple',
     overlays: () => [],

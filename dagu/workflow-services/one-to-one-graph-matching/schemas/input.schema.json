@@ -1,0 +1,1 @@
+{"$schema":"http://json-schema.org/draft-07/schema#","title":"one-to-one graph matching input","type":"object","properties":{"step":{"type":"string"},"input":{"type":"object","description":"Future parsed graph pair."},"demoDelaySeconds":{"type":"number","minimum":0,"maximum":30}},"additionalProperties":true}

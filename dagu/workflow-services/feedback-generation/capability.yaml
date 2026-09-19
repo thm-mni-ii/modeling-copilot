@@ -1,0 +1,7 @@
+id: feedback-generation
+version: 0.1.1
+type: workflow
+image: modeling-copilot/feedback-generation:0.1.1
+inputSchema: schemas/input.schema.json
+outputSchema: schemas/output.schema.json
+description: Eigenständiges Skeleton für die Aggregation eines Dummy-Feedbacks.
