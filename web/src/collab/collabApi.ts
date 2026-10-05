@@ -15,6 +15,9 @@ collabClient.interceptors.request.use((config) => {
   return config
 })
 
+/** The workpiece as a thing: its name and what the tool registered, not its content. */
+export const getWorkpiece = (id: string) => collabClient.get<{ _id: string; name: string; contract: Record<string, unknown> }>(`/workpieces/${encodeURIComponent(id)}`)
+
 /** Rights the current token holds, everywhere or at one thing of collab-kit. */
 export const getRights = (target?: { kind: string; id: string }) => collabClient.get<string[]>('/me/rights', { params: target })
 
@@ -23,6 +26,7 @@ export const collabErrorMessage = (error: unknown) => {
   if (!collabUrl) return 'VITE_COLLAB_URL is not set'
   const status = (error as { response?: { status?: number } }).response?.status
   if (status === 401) return 'token rejected (expired?)'
+  if (status === 404) return 'not found'
   if (status !== undefined) return `request failed with HTTP ${status}`
   return `not reachable at ${collabUrl}`
 }
