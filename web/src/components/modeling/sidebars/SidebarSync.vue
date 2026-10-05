@@ -11,7 +11,7 @@
       </div>
 
       <div class="sync-actions">
-        <v-btn :color="isConnected ? 'error' : 'primary'" variant="flat" size="small" :prepend-icon="isConnected ? 'mdi-lan-disconnect' : 'mdi-lan-connect'" @click="toggleConnection">
+        <v-btn :color="isConnected ? 'error' : 'primary'" variant="flat" size="small" :loading="connecting" :prepend-icon="isConnected ? 'mdi-lan-disconnect' : 'mdi-lan-connect'" @click="toggleConnection">
           {{ isConnected ? 'Disconnect' : 'Connect' }}
         </v-btn>
       </div>
@@ -29,6 +29,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
+import { collabErrorMessage, getRights } from '@/collab/collabApi'
 import { watchGraphChanges } from '@/collab/graphChanges'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
@@ -49,12 +50,14 @@ const modelIo = {
 defineExpose({ graph, modelIo })
 
 const isConnected = ref(false)
+const connecting = ref(false)
 const logEntries = ref<string[]>([])
 let stopWatching: (() => void) | null = null
 
 const log = (text: string) => logEntries.value.unshift(`${new Date().toLocaleTimeString()} ${text}`)
 
-const toggleConnection = () => {
+const toggleConnection = async () => {
+  if (connecting.value) return
   if (isConnected.value) {
     stopWatching?.()
     stopWatching = null
@@ -68,7 +71,18 @@ const toggleConnection = () => {
     return
   }
 
-  stopWatching = watchGraphChanges(graph.value, (cellCount) => log(`model changed · ${cellCount} cells`))
+  connecting.value = true
+  try {
+    const rights = (await getRights()).data
+    log(`collab-kit · rights: ${rights.join(', ') || 'none'}`)
+  } catch (error) {
+    log(`collab-kit · ${collabErrorMessage(error)}`)
+    return
+  } finally {
+    connecting.value = false
+  }
+
+  stopWatching =watchGraphChanges(graph.value, (cellCount) => log(`model changed · ${cellCount} cells`))
   isConnected.value = true
   log('connected')
 }
