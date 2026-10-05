@@ -5,6 +5,8 @@ import { collabUrl } from './collabApi'
 
 export interface CollabSession {
   doc: Y.Doc
+  /** Fulfilled once the document holds what collab-kit has. */
+  synced: Promise<void>
   close: () => void
 }
 
@@ -25,14 +27,22 @@ export const openCollabSession = (workpieceId: string, onStatus: (status: string
   provider.on('connection-close', () => {
     provider.protocols = ['bearer', bearerToken.value]
   })
+  let markSynced!: () => void
+  const synced = new Promise<void>((resolve) => {
+    markSynced = resolve
+  })
+
   provider.on('status', ({ status }) => onStatus(status))
-  provider.on('sync', (synced) => {
-    if (synced) onStatus('synced')
+  provider.on('sync', (isSynced) => {
+    if (!isSynced) return
+    markSynced()
+    onStatus('synced')
   })
   provider.on('closed', ({ code, reason }) => onStatus(`closed ${code} ${reason}`))
 
   return {
     doc,
+    synced,
     close: () => {
       provider.destroy()
       doc.destroy()
