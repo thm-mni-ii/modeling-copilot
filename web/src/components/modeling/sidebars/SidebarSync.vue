@@ -11,6 +11,7 @@
       </div>
 
       <div class="sync-actions">
+        <v-text-field v-model="workpieceId" label="Workpiece ID" density="compact" variant="outlined" hide-details :disabled="isConnected || connecting" />
         <v-btn :color="isConnected ? 'error' : 'primary'" variant="flat" size="small" :loading="connecting" :prepend-icon="isConnected ? 'mdi-lan-disconnect' : 'mdi-lan-connect'" @click="toggleConnection">
           {{ isConnected ? 'Disconnect' : 'Connect' }}
         </v-btn>
@@ -29,7 +30,8 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
-import { collabErrorMessage, getRights } from '@/collab/collabApi'
+import { collabErrorMessage, getRights, getWorkpiece } from '@/collab/collabApi'
+import { openCollabSession, type CollabSession } from '@/collab/collabSession'
 import { watchGraphChanges } from '@/collab/graphChanges'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
@@ -49,18 +51,36 @@ const modelIo = {
 
 defineExpose({ graph, modelIo })
 
+const WORKPIECE_KEY = 'collabWorkpieceId'
+
 const isConnected = ref(false)
 const connecting = ref(false)
+const workpieceId = ref(localStorage.getItem(WORKPIECE_KEY) ?? '')
 const logEntries = ref<string[]>([])
 let stopWatching: (() => void) | null = null
+let session: CollabSession | null = null
+let lastLiveStatus = ''
 
 const log = (text: string) => logEntries.value.unshift(`${new Date().toLocaleTimeString()} ${text}`)
+
+// Reconnect attempts repeat the same status; the log keeps only the changes.
+const logLiveStatus = (status: string) => {
+  if (status === lastLiveStatus) return
+  lastLiveStatus = status
+  log(`live · ${status}`)
+}
+
+const disconnect = () => {
+  stopWatching?.()
+  stopWatching = null
+  session?.close()
+  session = null
+}
 
 const toggleConnection = async () => {
   if (connecting.value) return
   if (isConnected.value) {
-    stopWatching?.()
-    stopWatching = null
+    disconnect()
     isConnected.value = false
     log('disconnected')
     return
@@ -71,23 +91,33 @@ const toggleConnection = async () => {
     return
   }
 
+  const id = workpieceId.value.trim()
+  if (!id) {
+    notifyWarning('Enter a workpiece ID.')
+    return
+  }
+
   connecting.value = true
   try {
-    const rights = (await getRights()).data
-    log(`collab-kit · rights: ${rights.join(', ') || 'none'}`)
+    const workpiece = (await getWorkpiece(id)).data
+    const rights = (await getRights({ kind: 'workpiece', id })).data
+    log(`collab-kit · workpiece "${workpiece.name}" · rights: ${rights.join(', ') || 'none'}`)
   } catch (error) {
-    log(`collab-kit · ${collabErrorMessage(error)}`)
+    log(`collab-kit · workpiece ${id}: ${collabErrorMessage(error)}`)
     return
   } finally {
     connecting.value = false
   }
 
-  stopWatching =watchGraphChanges(graph.value, (cellCount) => log(`model changed · ${cellCount} cells`))
+  localStorage.setItem(WORKPIECE_KEY, id)
+  lastLiveStatus = ''
+  session = openCollabSession(id, logLiveStatus)
+  stopWatching = watchGraphChanges(graph.value, (cellCount) => log(`model changed · ${cellCount} cells`))
   isConnected.value = true
   log('connected')
 }
 
-onBeforeUnmount(() => stopWatching?.())
+onBeforeUnmount(disconnect)
 </script>
 
 <style scoped>
