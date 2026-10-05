@@ -28,7 +28,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
+import { watchGraphChanges } from '@/collab/graphChanges'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
@@ -49,10 +50,16 @@ defineExpose({ graph, modelIo })
 
 const isConnected = ref(false)
 const logEntries = ref<string[]>([])
+let stopWatching: (() => void) | null = null
+
+const log = (text: string) => logEntries.value.unshift(`${new Date().toLocaleTimeString()} ${text}`)
 
 const toggleConnection = () => {
   if (isConnected.value) {
+    stopWatching?.()
+    stopWatching = null
     isConnected.value = false
+    log('disconnected')
     return
   }
 
@@ -61,8 +68,12 @@ const toggleConnection = () => {
     return
   }
 
+  stopWatching = watchGraphChanges(graph.value, (cellCount) => log(`model changed · ${cellCount} cells`))
   isConnected.value = true
+  log('connected')
 }
+
+onBeforeUnmount(() => stopWatching?.())
 </script>
 
 <style scoped>
