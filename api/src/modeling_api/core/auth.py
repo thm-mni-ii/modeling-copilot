@@ -1,10 +1,13 @@
 """JWT authentication for protected API endpoints.
 
 Tokens are issued by an external identity system. This API validates their
-signature and expiry, then reads the configured user and role claims.
+signature against the issuer's published keys (or a shared secret for HS
+algorithms), their expiry and optionally issuer and audience, then reads the
+configured user and role claims.
 """
 
 from dataclasses import dataclass, field
+from functools import cache
 
 import jwt
 from fastapi import Depends
@@ -33,13 +36,35 @@ class User:
         return self.global_role == "ADMIN"
 
 
+@cache
+def _jwks_client() -> jwt.PyJWKClient:
+    """Shared client that fetches the issuer's keys on first use and caches them."""
+    return jwt.PyJWKClient(settings.jwt_jwks_uri)
+
+
+def _signing_key(token: str) -> object:
+    """Return the shared secret for HS algorithms, else the issuer key named by the token."""
+    if settings.jwt_algorithm.startswith("HS"):
+        return settings.jwt_secret
+    # Refused before the lookup, so a token signed otherwise never triggers a key fetch.
+    if jwt.get_unverified_header(token).get("alg") != settings.jwt_algorithm:
+        raise jwt.InvalidAlgorithmError("The token is signed with another algorithm.")
+    return _jwks_client().get_signing_key_from_jwt(token).key
+
+
 def _decode_claims(token: str) -> dict:
-    """Validate signature and expiry, raising PyJWTError on failure."""
+    """Validate signature, expiry, issuer and audience, raising PyJWTError on failure."""
+    audience = [value.strip() for value in settings.jwt_audience.split(",") if value.strip()]
     return jwt.decode(
         token,
-        settings.jwt_secret,
-        algorithms=["HS256"],
-        options={"require": ["exp", settings.jwt_user_claim]},
+        _signing_key(token),
+        # Pinned from the configuration, never taken from the token header.
+        algorithms=[settings.jwt_algorithm],
+        audience=audience or None,
+        issuer=settings.jwt_issuer or None,
+        leeway=settings.jwt_leeway_seconds,
+        # PyJWT rejects any token carrying aud unless the check is switched off.
+        options={"require": ["exp", settings.jwt_user_claim], "verify_aud": bool(audience)},
     )
 
 
