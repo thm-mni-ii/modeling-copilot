@@ -32,7 +32,7 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { collabErrorMessage, getRights, getWorkpiece } from '@/collab/collabApi'
 import { openCollabSession, type CollabSession } from '@/collab/collabSession'
-import { watchGraphChanges } from '@/collab/graphChanges'
+import { bindGraph } from '@/collab/graphBinding'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
@@ -57,7 +57,7 @@ const isConnected = ref(false)
 const connecting = ref(false)
 const workpieceId = ref(localStorage.getItem(WORKPIECE_KEY) ?? '')
 const logEntries = ref<string[]>([])
-let stopWatching: (() => void) | null = null
+let unbind: (() => void) | null = null
 let session: CollabSession | null = null
 let lastLiveStatus = ''
 
@@ -71,8 +71,8 @@ const logLiveStatus = (status: string) => {
 }
 
 const disconnect = () => {
-  stopWatching?.()
-  stopWatching = null
+  unbind?.()
+  unbind = null
   session?.close()
   session = null
 }
@@ -97,10 +97,12 @@ const toggleConnection = async () => {
     return
   }
 
+  let canWrite = false
   connecting.value = true
   try {
     const workpiece = (await getWorkpiece(id)).data
     const rights = (await getRights({ kind: 'workpiece', id })).data
+    canWrite = rights.includes('edit')
     log(`collab-kit · workpiece "${workpiece.name}" · rights: ${rights.join(', ') || 'none'}`)
   } catch (error) {
     log(`collab-kit · workpiece ${id}: ${collabErrorMessage(error)}`)
@@ -112,7 +114,7 @@ const toggleConnection = async () => {
   localStorage.setItem(WORKPIECE_KEY, id)
   lastLiveStatus = ''
   session = openCollabSession(id, logLiveStatus)
-  stopWatching = watchGraphChanges(graph.value, (cellCount) => log(`model changed · ${cellCount} cells`))
+  unbind = bindGraph(graph.value, session, canWrite, log)
   isConnected.value = true
   log('connected')
 }
