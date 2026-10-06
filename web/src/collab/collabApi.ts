@@ -38,8 +38,32 @@ export interface CollabWorkpiece {
   contract: Record<string, unknown>
 }
 
-/** What marks a room or workpiece as one of the Copilot's. */
-const ROOM_SETTINGS = { tool: 'modeling-copilot' }
+/** A set of people; what it stands for is the tool's, kept in settings. */
+export interface CollabGroup {
+  _id: string
+  name: string
+  settings: Record<string, unknown>
+  members: string[]
+  createdAt: string
+  createdBy: string
+}
+
+/** A place a grant holds at; without one it holds everywhere. */
+export interface CollabScope {
+  kind: string
+  id: string
+}
+
+/** What one group may do at one place. */
+export interface CollabGrant {
+  _id: string
+  groupId: string
+  scope?: CollabScope
+  rights: string[]
+}
+
+/** What marks a room, group or workpiece as one of the Copilot's. */
+const TOOL_SETTINGS = { tool: 'modeling-copilot' }
 const WORKPIECE_CONTRACT = { tool: 'modeling-copilot', format: 'copilot-cells', version: 1 }
 
 export const getWorkpiece = (id: string) => collabClient.get<CollabWorkpiece>(`/workpieces/${encodeURIComponent(id)}`)
@@ -50,7 +74,7 @@ export const listRooms = () => collabClient.get<CollabRoom[]>('/me/rooms')
 export const getRoom = (id: string) => collabClient.get<CollabRoom>(`/rooms/${encodeURIComponent(id)}`)
 
 /** Takes manage everywhere, as a room lies in nothing. */
-export const createRoom = (name: string) => collabClient.post<CollabRoom>('/rooms', { name, settings: ROOM_SETTINGS })
+export const createRoom = (name: string) => collabClient.post<CollabRoom>('/rooms', { name, settings: TOOL_SETTINGS })
 
 /** A new workpiece right in the room; takes manage at the room. */
 export const createWorkpieceInRoom = (roomId: string, name: string) => collabClient.post<CollabWorkpiece>('/workpieces', { name, roomId, contract: WORKPIECE_CONTRACT })
@@ -61,6 +85,30 @@ export const addToRoom = (roomId: string, workpieceId: string) => collabClient.p
 /** Takes the workpiece out of the room; the workpiece itself stays. */
 export const removeFromRoom = (roomId: string, workpieceId: string) => collabClient.delete<CollabRoom>(`/rooms/${encodeURIComponent(roomId)}/references`, { params: { kind: 'workpiece', id: workpieceId } })
 
+export const getGroup = (id: string) => collabClient.get<CollabGroup>(`/groups/${encodeURIComponent(id)}`)
+
+/** The groups the token is a member of; an admin is often in none. */
+export const listMyGroups = () => collabClient.get<CollabGroup[]>('/me/groups')
+
+/** Takes manage everywhere; a new group holds no grant yet. */
+export const createGroup = (name: string) => collabClient.post<CollabGroup>('/groups', { name, settings: TOOL_SETTINGS })
+
+/** The actor key is the Feedbacksystem user ID. */
+export const addMember = (groupId: string, actorId: string) => collabClient.post<CollabGroup>(`/groups/${encodeURIComponent(groupId)}/members`, { actorId })
+
+export const removeMember = (groupId: string, actorId: string) => collabClient.delete<CollabGroup>(`/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(actorId)}`)
+
+/** Every grant at a place; takes manage there. */
+export const listGrantsAt = (scope: CollabScope) => collabClient.get<CollabGrant[]>('/grants', { params: { scopeKind: scope.kind, scopeId: scope.id } })
+
+/** Every grant of a group; takes manage at the group. */
+export const listGrantsOf = (groupId: string) => collabClient.get<CollabGrant[]>('/grants', { params: { groupId } })
+
+/** Replaces what the group may do at the place, or everywhere without one; open connections are asked again. */
+export const setGrant = (groupId: string, scope: CollabScope | undefined, rights: string[]) => collabClient.put<CollabGrant>('/grants', { groupId, scope, rights })
+
+export const removeGrant = (groupId: string, scope: CollabScope | undefined) => collabClient.delete<{ removed: boolean }>('/grants', { params: { groupId, scopeKind: scope?.kind, scopeId: scope?.id } })
+
 // collab-kit has no route for these yet; the UI keeps their controls disabled until it has.
 const missingRoute = (what: string): Promise<never> => Promise.reject(new Error(`collab-kit cannot ${what} yet.`))
 
@@ -69,6 +117,15 @@ export const renameRoom = (roomId: string, name: string) => missingRoute(`rename
 export const deleteRoom = (roomId: string) => missingRoute(`delete room ${roomId}`)
 
 export const listWorkpieces = () => missingRoute('list workpieces')
+
+export const listGroups = () => missingRoute('list groups')
+
+export const renameGroup = (groupId: string, name: string) => missingRoute(`rename group ${groupId} to "${name}"`)
+
+export const deleteGroup = (groupId: string) => missingRoute(`delete group ${groupId}`)
+
+/** Names to the actor keys; collab-kit keeps them from the tokens but gives none out. */
+export const listActorNames = (actorIds: string[]) => missingRoute(`name the actors ${actorIds.join(', ')}`)
 
 /** Rights the current token holds, everywhere or at one thing of collab-kit. */
 export const getRights = (target?: { kind: string; id: string }) => collabClient.get<string[]>('/me/rights', { params: target })
@@ -83,5 +140,6 @@ export const collabErrorMessage = (error: unknown) => {
   if (typeof response?.data?.error === 'string') return response.data.error
   if (status === 404) return 'not found'
   if (status !== undefined) return `request failed with HTTP ${status}`
-  return `not reachable at ${collabUrl}`
+  // A request the browser blocks for CORS looks the same to the page, it hides the reason.
+  return `not reachable at ${collabUrl} or blocked by CORS`
 }

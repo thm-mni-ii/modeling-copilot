@@ -124,6 +124,11 @@ const toggleConnection = async () => {
   localStorage.setItem(WORKPIECE_KEY, id)
   lastLiveStatus = ''
   session = openCollabSession(id, logLiveStatus)
+  session.onClosed((reason) => {
+    disconnect()
+    isConnected.value = false
+    log(`disconnected by collab-kit · ${reason}`)
+  })
   unbind = bindGraph(graph.value, session, canWrite, log)
   stopPresence = startPresence(graph.value, session, (list) => (people.value = list))
   isConnected.value = true
