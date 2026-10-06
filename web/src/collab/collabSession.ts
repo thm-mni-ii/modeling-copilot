@@ -5,6 +5,8 @@ import { collabUrl } from './collabApi'
 
 export interface CollabSession {
   doc: Y.Doc
+  /** Who is at the workpiece and what they point at; collab-kit passes it on but never stores it. */
+  awareness: WebsocketProvider['awareness']
   /** Fulfilled once the document holds what collab-kit has. */
   synced: Promise<void>
   close: () => void
@@ -42,6 +44,7 @@ export const openCollabSession = (workpieceId: string, onStatus: (status: string
 
   return {
     doc,
+    awareness: provider.awareness,
     synced,
     close: () => {
       provider.destroy()
