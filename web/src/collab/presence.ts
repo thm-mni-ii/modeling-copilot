@@ -2,6 +2,7 @@ import { CellHighlight, InternalEvent, type Graph } from '@maxgraph/core'
 import authService from '@/services/auth/auth.service'
 import type { TokenClaims } from '@/services/api/types/auth'
 import type { CollabSession } from './collabSession'
+import { startCursors } from './cursors'
 
 /** One person at the workpiece, once however many tabs they have open. */
 export interface Person {
@@ -67,7 +68,12 @@ export const startPresence = (graph: Graph, session: CollabSession, onPeople: (p
     return Array.from(people.values()).sort((a, b) => Number(b.self) - Number(a.self) || a.name.localeCompare(b.name))
   }
 
+  // Pointers move many times a second; list and frames follow only who is there and what they select.
+  let shown = ''
   const onChange = () => {
+    const seen = JSON.stringify(states().map(([clientId, { user, selection }]) => [clientId, user, selection]))
+    if (seen === shown) return
+    shown = seen
     onPeople(listPeople())
     drawFrames()
   }
@@ -77,6 +83,7 @@ export const startPresence = (graph: Graph, session: CollabSession, onPeople: (p
   const redrawLater = () => queueMicrotask(drawFrames)
 
   awareness.on('change', onChange)
+  const stopCursors = startCursors(graph, awareness, colorOf)
   selectionModel.addListener(InternalEvent.CHANGE, sendSelection)
   model.addListener(InternalEvent.CHANGE, redrawLater)
 
@@ -94,6 +101,7 @@ export const startPresence = (graph: Graph, session: CollabSession, onPeople: (p
 
   return () => {
     stopped = true
+    stopCursors()
     awareness.off('change', onChange)
     selectionModel.removeListener(sendSelection)
     model.removeListener(redrawLater)
