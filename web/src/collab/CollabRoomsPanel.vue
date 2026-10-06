@@ -28,6 +28,7 @@
 
       <div class="d-flex ga-2 mt-3">
         <v-text-field v-model="newModelName" label="New model" density="compact" variant="outlined" hide-details @keyup.enter="addModel" />
+        <v-select v-model="newModelLanguage" :items="languages" item-title="name" item-value="id" label="Language" density="compact" variant="outlined" hide-details class="collab-rooms__language" />
         <v-btn variant="tonal" prepend-icon="mdi-plus" :loading="busy === 'model'" @click="addModel">Create</v-btn>
       </div>
       <div class="d-flex ga-2 mt-3">
@@ -48,11 +49,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
+import type { LanguageOverview } from '@/services/api/types/language'
+import languageService from '@/services/language/language.service'
 import { rightsOf, type AccessLevel } from './access'
 import { addToRoom, createRoom, createWorkpieceInRoom, getRoom, getWorkpiece, listGrantsAt, removeFromRoom, removeGrant, setGrant, type CollabGrant, type CollabRoom, type CollabScope, type CollabWorkpiece } from './collabApi'
 import CollabAccessList from './CollabAccessList.vue'
+import { UML_CLASS_DIAGRAM } from './openWorkpiece'
 import { useCollabAction, useCollabDirectory } from './useCollabDirectory'
 
 const { rooms, groups, loading, showRoom, groupName } = useCollabDirectory()
@@ -64,6 +68,8 @@ const grants = ref<CollabGrant[]>([])
 const newRoomName = ref('')
 const newModelName = ref('')
 const existingId = ref('')
+const languages = ref<LanguageOverview[]>([])
+const newModelLanguage = ref<string | null>(null)
 
 const selected = computed(() => rooms.value.find((room) => room._id === selectedId.value) ?? null)
 const scope = computed<CollabScope | undefined>(() => (selected.value ? { kind: 'room', id: selected.value._id } : undefined))
@@ -108,14 +114,30 @@ const addRoom = () => {
   )
 }
 
+// Every own model of the workpiece starts with this language; the UML class diagram unless another is chosen.
+const loadLanguages = async () => {
+  try {
+    languages.value = (await languageService.list(0, 100)).data.items.filter((language) => language.latestVersionId)
+  } catch (error) {
+    notifyError(`Languages could not be loaded: ${(error as Error).message}`)
+  }
+  newModelLanguage.value = languages.value.find((language) => language.id === UML_CLASS_DIAGRAM.languageId)?.id ?? languages.value[0]?.id ?? null
+}
+
 const addModel = () => {
   const room = selected.value
   const name = newModelName.value.trim()
+  const language = languages.value.find((entry) => entry.id === newModelLanguage.value)
   if (!room || !name) return
+  if (!language?.latestVersionId) {
+    notifyError('Choose a language for the model')
+    return
+  }
+  const versionId = language.latestVersionId
   void run(
     'model',
     async () => {
-      await createWorkpieceInRoom(room._id, name)
+      await createWorkpieceInRoom(room._id, name, [{ languageId: language.id, versionId, source: 'required' }])
       showRoom((await getRoom(room._id)).data)
       newModelName.value = ''
       notifySuccess('Model created')
@@ -189,6 +211,7 @@ const copyId = async (id: string) => {
 // The first room is shown once the list is in; a changed room from collab-kit replaces the selected object.
 watch(rooms, () => (selectedId.value ??= rooms.value[0]?._id ?? null), { immediate: true, deep: true })
 watch(selected, loadDetail, { immediate: true })
+onMounted(loadLanguages)
 </script>
 
 <style scoped>
@@ -202,6 +225,10 @@ watch(selected, loadDetail, { immediate: true })
 .collab-rooms__list {
   border-right: 1px solid rgba(var(--v-theme-outline), 0.15);
   padding-right: 16px;
+}
+
+.collab-rooms__language {
+  flex: 0 0 200px;
 }
 
 .collab-rooms__label {
