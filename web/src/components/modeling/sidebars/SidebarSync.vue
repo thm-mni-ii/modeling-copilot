@@ -11,6 +11,7 @@
       </div>
 
       <div class="sync-actions">
+        <CollabRoomList :active-workpiece-id="linkedWorkpieceId" :connected="isConnected" @open="openFromRoom" />
         <v-text-field v-model="workpieceId" label="Workpiece ID" density="compact" variant="outlined" hide-details :disabled="isConnected || connecting" />
         <v-btn :color="isConnected ? 'error' : 'primary'" variant="flat" size="small" :loading="connecting" :prepend-icon="isConnected ? 'mdi-lan-disconnect' : 'mdi-lan-connect'" @click="toggleConnection">
           {{ isConnected ? 'Disconnect' : 'Connect' }}
@@ -32,17 +33,13 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
-import { collabErrorMessage, getRights, getWorkpiece } from '@/collab/collabApi'
-import { openCollabSession, type CollabSession } from '@/collab/collabSession'
-import { bindGraph } from '@/collab/graphBinding'
-import { startPresence, type Person } from '@/collab/presence'
-import CollabPeople from '@/collab/CollabPeople.vue'
 import CollabManageButton from '@/collab/CollabManageButton.vue'
+import CollabPeople from '@/collab/CollabPeople.vue'
+import CollabRoomList from '@/collab/CollabRoomList.vue'
+import { useCollabConnection } from '@/collab/useCollabConnection'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
-import { notifyWarning } from '@/composables/useNotifications'
 
 withDefaults(defineProps<{ showHeader?: boolean }>(), { showHeader: true })
 
@@ -57,85 +54,7 @@ const modelIo = {
 
 defineExpose({ graph, modelIo })
 
-const WORKPIECE_KEY = 'collabWorkpieceId'
-
-const isConnected = ref(false)
-const connecting = ref(false)
-const workpieceId = ref(localStorage.getItem(WORKPIECE_KEY) ?? '')
-const logEntries = ref<string[]>([])
-const people = ref<Person[]>([])
-let unbind: (() => void) | null = null
-let stopPresence: (() => void) | null = null
-let session: CollabSession | null = null
-let lastLiveStatus = ''
-
-const log = (text: string) => logEntries.value.unshift(`${new Date().toLocaleTimeString()} ${text}`)
-
-// Reconnect attempts repeat the same status; the log keeps only the changes.
-const logLiveStatus = (status: string) => {
-  if (status === lastLiveStatus) return
-  lastLiveStatus = status
-  log(`live · ${status}`)
-}
-
-const disconnect = () => {
-  unbind?.()
-  unbind = null
-  stopPresence?.()
-  stopPresence = null
-  session?.close()
-  session = null
-}
-
-const toggleConnection = async () => {
-  if (connecting.value) return
-  if (isConnected.value) {
-    disconnect()
-    isConnected.value = false
-    log('disconnected')
-    return
-  }
-
-  if (!graph.value) {
-    notifyWarning('No graph available.')
-    return
-  }
-
-  const id = workpieceId.value.trim()
-  if (!id) {
-    notifyWarning('Enter a workpiece ID.')
-    return
-  }
-
-  let canWrite = false
-  connecting.value = true
-  try {
-    const workpiece = (await getWorkpiece(id)).data
-    const rights = (await getRights({ kind: 'workpiece', id })).data
-    canWrite = rights.includes('edit')
-    log(`collab-kit · workpiece "${workpiece.name}" · rights: ${rights.join(', ') || 'none'}`)
-  } catch (error) {
-    log(`collab-kit · workpiece ${id}: ${collabErrorMessage(error)}`)
-    return
-  } finally {
-    connecting.value = false
-  }
-
-  localStorage.setItem(WORKPIECE_KEY, id)
-  lastLiveStatus = ''
-  session = openCollabSession(id, logLiveStatus)
-  session.onClosed((reason) => {
-    disconnect()
-    isConnected.value = false
-    log(`disconnected by collab-kit · ${reason}`)
-  })
-  unbind = bindGraph(graph.value, session, canWrite, log)
-  stopPresence = startPresence(graph.value, session, (list) => (people.value = list))
-  isConnected.value = true
-  log('connected')
-}
-
-onBeforeUnmount(disconnect)
+const { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, toggleConnection, openFromRoom } = useCollabConnection(graph)
 </script>
 
 <style scoped>

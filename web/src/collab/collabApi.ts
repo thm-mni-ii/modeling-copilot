@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useBearerToken } from '@/composables/useBearerToken'
+import type { WorkspaceLanguageReference } from '@/services/api/types/model'
 
 /** Address of collab-kit, which checks the same Feedbacksystem token as the API. */
 export const collabUrl: string | undefined = import.meta.env.VITE_COLLAB_URL
@@ -64,7 +65,8 @@ export interface CollabGrant {
 
 /** What marks a room, group or workpiece as one of the Copilot's. */
 const TOOL_SETTINGS = { tool: 'modeling-copilot' }
-const WORKPIECE_CONTRACT = { tool: 'modeling-copilot', format: 'copilot-cells', version: 1 }
+/** What every own model of the workpiece is created with: the cell format and its languages. */
+const workpieceContract = (languages: WorkspaceLanguageReference[]) => ({ tool: 'modeling-copilot', format: 'copilot-cells', version: 1, languages })
 
 export const getWorkpiece = (id: string) => collabClient.get<CollabWorkpiece>(`/workpieces/${encodeURIComponent(id)}`)
 
@@ -77,7 +79,7 @@ export const getRoom = (id: string) => collabClient.get<CollabRoom>(`/rooms/${en
 export const createRoom = (name: string) => collabClient.post<CollabRoom>('/rooms', { name, settings: TOOL_SETTINGS })
 
 /** A new workpiece right in the room; takes manage at the room. */
-export const createWorkpieceInRoom = (roomId: string, name: string) => collabClient.post<CollabWorkpiece>('/workpieces', { name, roomId, contract: WORKPIECE_CONTRACT })
+export const createWorkpieceInRoom = (roomId: string, name: string, languages: WorkspaceLanguageReference[]) => collabClient.post<CollabWorkpiece>('/workpieces', { name, roomId, contract: workpieceContract(languages) })
 
 /** Puts an existing workpiece into the room; takes manage at the room and at the workpiece. */
 export const addToRoom = (roomId: string, workpieceId: string) => collabClient.post<CollabRoom>(`/rooms/${encodeURIComponent(roomId)}/references`, { kind: 'workpiece', id: workpieceId })
