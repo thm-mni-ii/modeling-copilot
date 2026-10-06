@@ -19,9 +19,12 @@ export const bindGraph = (graph: Graph, session: CollabSession, canWrite: boolea
   const applyRemote = (what: string) => {
     const xml = joinModel(shared)
     if (!xml) return
+    // Loading replaces every cell, so the selection is taken over by ID to what still exists.
+    const selected = graph.getSelectionCells().flatMap((cell) => cell.getId() ?? [])
     applyingRemote = true
     try {
       importModelFromXml(graph, xml)
+      graph.setSelectionCells(selected.flatMap((id) => model.getCell(id) ?? []))
     } finally {
       applyingRemote = false
     }

@@ -17,6 +17,8 @@
         </v-btn>
       </div>
 
+      <CollabPeople v-if="isConnected" :people="people" />
+
       <div class="sync-log">
         <div class="sync-log-header">Event Log</div>
         <div class="sync-log-body">
@@ -33,6 +35,8 @@ import { onBeforeUnmount, ref } from 'vue'
 import { collabErrorMessage, getRights, getWorkpiece } from '@/collab/collabApi'
 import { openCollabSession, type CollabSession } from '@/collab/collabSession'
 import { bindGraph } from '@/collab/graphBinding'
+import { startPresence, type Person } from '@/collab/presence'
+import CollabPeople from '@/collab/CollabPeople.vue'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
@@ -57,7 +61,9 @@ const isConnected = ref(false)
 const connecting = ref(false)
 const workpieceId = ref(localStorage.getItem(WORKPIECE_KEY) ?? '')
 const logEntries = ref<string[]>([])
+const people = ref<Person[]>([])
 let unbind: (() => void) | null = null
+let stopPresence: (() => void) | null = null
 let session: CollabSession | null = null
 let lastLiveStatus = ''
 
@@ -73,6 +79,8 @@ const logLiveStatus = (status: string) => {
 const disconnect = () => {
   unbind?.()
   unbind = null
+  stopPresence?.()
+  stopPresence = null
   session?.close()
   session = null
 }
@@ -115,6 +123,7 @@ const toggleConnection = async () => {
   lastLiveStatus = ''
   session = openCollabSession(id, logLiveStatus)
   unbind = bindGraph(graph.value, session, canWrite, log)
+  stopPresence = startPresence(graph.value, session, (list) => (people.value = list))
   isConnected.value = true
   log('connected')
 }
