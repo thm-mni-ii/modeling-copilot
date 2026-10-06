@@ -15,6 +15,7 @@
         <v-btn :color="isConnected ? 'error' : 'primary'" variant="flat" size="small" :loading="connecting" :prepend-icon="isConnected ? 'mdi-lan-disconnect' : 'mdi-lan-connect'" @click="toggleConnection">
           {{ isConnected ? 'Disconnect' : 'Connect' }}
         </v-btn>
+        <CollabManageButton />
       </div>
 
       <CollabPeople v-if="isConnected" :people="people" />
@@ -37,6 +38,7 @@ import { openCollabSession, type CollabSession } from '@/collab/collabSession'
 import { bindGraph } from '@/collab/graphBinding'
 import { startPresence, type Person } from '@/collab/presence'
 import CollabPeople from '@/collab/CollabPeople.vue'
+import CollabManageButton from '@/collab/CollabManageButton.vue'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
