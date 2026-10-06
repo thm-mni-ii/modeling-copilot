@@ -21,10 +21,11 @@ services:
     environment:
       MONGODB_URI: mongodb://admin:admin@mongo:27017/?authSource=admin
       # Tokens of the local Feedbacksystem 2.0: RS256 against the key set its
-      # identity service publishes on host port 8080.
+      # identity service publishes on host port 8080. The issuer is the web
+      # shell on port 8083, through which the tokens are requested.
       JWT_ALGORITHM: RS256
       JWT_JWKS_URI: http://host.docker.internal:8080/oauth2/jwks
-      JWT_ISSUER: http://localhost:8080
+      JWT_ISSUER: http://localhost:8083
       DOCS_ENABLED: "true"
       CORS_ORIGINS: http://localhost:5173
       DAGU_BASE_URL: http://dagu:8080
