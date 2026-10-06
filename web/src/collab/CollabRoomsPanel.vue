@@ -36,6 +36,9 @@
       </div>
       <p class="text-caption text-medium-emphasis mt-1 mb-0">A list of all models to choose from needs collab-kit.</p>
 
+      <div class="collab-rooms__label">Access</div>
+      <CollabAccessList :rows="accessRows" :options="groupOptions" add-label="Give a group access" empty-text="No group has access yet" :busy="busy" @change="changeAccess" @remove="removeAccess" @add="changeAccess" />
+
       <div class="d-flex align-center ga-2 mt-5">
         <v-btn variant="text" color="error" prepend-icon="mdi-delete-outline" disabled>Delete room</v-btn>
         <span class="text-caption text-medium-emphasis">Needs collab-kit</span>
@@ -45,65 +48,48 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
-import { addToRoom, collabErrorMessage, createRoom, createWorkpieceInRoom, getRoom, getWorkpiece, listRooms, removeFromRoom, type CollabRoom, type CollabWorkpiece } from './collabApi'
+import { rightsOf, type AccessLevel } from './access'
+import { addToRoom, createRoom, createWorkpieceInRoom, getRoom, getWorkpiece, listGrantsAt, removeFromRoom, removeGrant, setGrant, type CollabGrant, type CollabRoom, type CollabScope, type CollabWorkpiece } from './collabApi'
+import CollabAccessList from './CollabAccessList.vue'
+import { useCollabAction, useCollabDirectory } from './useCollabDirectory'
 
-const rooms = ref<CollabRoom[]>([])
+const { rooms, groups, loading, showRoom, groupName } = useCollabDirectory()
+const { busy, run } = useCollabAction()
+
 const selectedId = ref<string | null>(null)
 const models = ref<CollabWorkpiece[]>([])
-const loading = ref(false)
-// What is being sent right now: a new room, a new or existing model, or the ID of a model taken out.
-const busy = ref<string | null>(null)
+const grants = ref<CollabGrant[]>([])
 const newRoomName = ref('')
 const newModelName = ref('')
 const existingId = ref('')
 
 const selected = computed(() => rooms.value.find((room) => room._id === selectedId.value) ?? null)
+const scope = computed<CollabScope | undefined>(() => (selected.value ? { kind: 'room', id: selected.value._id } : undefined))
 
 const modelIdsOf = (room: CollabRoom) => room.references.filter((reference) => reference.kind === 'workpiece').map((reference) => reference.id)
 
-/** Puts the room collab-kit answered with in place of the one shown. */
-const showRoom = (room: CollabRoom) => {
-  const index = rooms.value.findIndex((known) => known._id === room._id)
-  if (index === -1) rooms.value.push(room)
-  else rooms.value.splice(index, 1, room)
-}
-
-const loadRooms = async () => {
-  loading.value = true
-  try {
-    rooms.value = (await listRooms()).data.sort((a, b) => a.name.localeCompare(b.name))
-    selectedId.value ??= rooms.value[0]?._id ?? null
-  } catch (error) {
-    notifyError(`Rooms could not be loaded: ${collabErrorMessage(error)}`)
-  } finally {
-    loading.value = false
-  }
-}
+const accessRows = computed(() => grants.value.map((grant) => ({ id: grant.groupId, label: groupName(grant.groupId), rights: grant.rights })))
+const groupOptions = computed(() => groups.value.filter((group) => !grants.value.some((grant) => grant.groupId === group._id)).map((group) => ({ value: group._id, title: group.name })))
 
 // A reference only names the workpiece; one that cannot be read still shows with its ID.
-const loadModels = async () => {
+const loadDetail = async () => {
   const room = selected.value
   if (!room) {
     models.value = []
+    grants.value = []
     return
   }
   const ids = modelIdsOf(room)
-  const results = await Promise.allSettled(ids.map((id) => getWorkpiece(id)))
+  const [found, held] = await Promise.all([Promise.allSettled(ids.map((id) => getWorkpiece(id))), listGrantsAt({ kind: 'room', id: room._id }).catch(() => null)])
   if (selected.value?._id !== room._id) return
-  models.value = results.map((result, index) => (result.status === 'fulfilled' ? result.value.data : { _id: ids[index], name: '(not readable)', contract: {} }))
+  models.value = found.map((result, index) => (result.status === 'fulfilled' ? result.value.data : { _id: ids[index], name: '(not readable)', contract: {} }))
+  grants.value = held?.data ?? []
 }
 
-const run = async (what: string, action: () => Promise<void>, failure: string) => {
-  busy.value = what
-  try {
-    await action()
-  } catch (error) {
-    notifyError(`${failure}: ${collabErrorMessage(error)}`)
-  } finally {
-    busy.value = null
-  }
+const reloadGrants = async () => {
+  if (scope.value) grants.value = (await listGrantsAt(scope.value)).data
 }
 
 const addRoom = () => {
@@ -166,6 +152,31 @@ const removeModel = (id: string) => {
   )
 }
 
+// Setting replaces what the group had here, so adding and changing are the same call.
+const changeAccess = (groupId: string, level: AccessLevel) => {
+  void run(
+    groupId,
+    async () => {
+      await setGrant(groupId, scope.value, rightsOf(level))
+      await reloadGrants()
+      notifySuccess('Access changed')
+    },
+    'Access could not be changed'
+  )
+}
+
+const removeAccess = (groupId: string) => {
+  void run(
+    groupId,
+    async () => {
+      await removeGrant(groupId, scope.value)
+      await reloadGrants()
+      notifySuccess('Access removed')
+    },
+    'Access could not be removed'
+  )
+}
+
 const copyId = async (id: string) => {
   try {
     await navigator.clipboard.writeText(id)
@@ -175,9 +186,9 @@ const copyId = async (id: string) => {
   }
 }
 
-// Also runs when collab-kit answers with a changed room, as that replaces the selected object.
-watch(selected, loadModels)
-onMounted(loadRooms)
+// The first room is shown once the list is in; a changed room from collab-kit replaces the selected object.
+watch(rooms, () => (selectedId.value ??= rooms.value[0]?._id ?? null), { immediate: true, deep: true })
+watch(selected, loadDetail, { immediate: true })
 </script>
 
 <style scoped>

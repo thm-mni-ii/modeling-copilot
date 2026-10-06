@@ -1,14 +1,16 @@
 import type { Graph } from '@maxgraph/core'
 import type { YMapEvent } from 'yjs'
 import { exportModelAsXml, importModelFromXml } from '@/utils/modelPersistence'
+import { getRights } from './collabApi'
 import type { CollabSession } from './collabSession'
 import { watchGraphChanges } from './graphChanges'
 import { joinModel, splitModel, type SharedCell } from './modelCells'
 
 /** Keeps the model in the Yjs document one cell per entry, so edits on different cells merge. */
-export const bindGraph = (graph: Graph, session: CollabSession, canWrite: boolean, log: (text: string) => void) => {
+export const bindGraph = (graph: Graph, session: CollabSession, mayWrite: boolean, log: (text: string) => void) => {
   const shared = session.doc.getMap<SharedCell>('cells')
   const model = graph.getDataModel()
+  let canWrite = mayWrite
   let ready = false
   let applyingRemote = false
   let stopped = false
@@ -52,6 +54,16 @@ export const bindGraph = (graph: Graph, session: CollabSession, canWrite: boolea
   const stopWatching = watchGraphChanges(graph, () => {
     if (ready && canWrite && !applyingRemote) push()
   })
+  // A reader that kept sending would be closed with 1008 on every reconnect, so the rights are asked again.
+  const stopRightsWatch = session.onRightsChanged(() => {
+    getRights({ kind: 'workpiece', id: session.workpieceId })
+      .then(({ data }) => {
+        if (stopped) return
+        canWrite = data.includes('edit')
+        log(`rights changed · ${canWrite ? 'may edit' : 'read only'}`)
+      })
+      .catch(() => log('rights changed · could not ask collab-kit again'))
+  })
   const onRemote = (event: YMapEvent<SharedCell>) => {
     if (!event.transaction.local) applyRemote(`received ${event.keysChanged.size} of ${shared.size} cells`)
   }
@@ -68,6 +80,7 @@ export const bindGraph = (graph: Graph, session: CollabSession, canWrite: boolea
   return () => {
     stopped = true
     stopWatching()
+    stopRightsWatch()
     if (ready) shared.unobserve(onRemote)
     model.prefix = ''
   }

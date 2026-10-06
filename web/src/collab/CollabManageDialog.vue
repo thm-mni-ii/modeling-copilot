@@ -12,9 +12,8 @@
       </v-tabs>
       <v-divider />
       <v-card-text>
-        <!-- Mounted on every opening, so the lists show what collab-kit holds now. -->
         <CollabRoomsPanel v-if="modelValue && tab === 'rooms'" />
-        <p v-else-if="tab === 'groups'" class="text-medium-emphasis mb-0">Groups follow in the next step.</p>
+        <CollabGroupsPanel v-else-if="modelValue && tab === 'groups'" />
       </v-card-text>
       <v-card-actions>
         <v-spacer />
@@ -25,13 +24,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import CollabGroupsPanel from './CollabGroupsPanel.vue'
 import CollabRoomsPanel from './CollabRoomsPanel.vue'
+import { useCollabDirectory } from './useCollabDirectory'
 
-defineProps<{ modelValue: boolean }>()
+const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 
 const tab = ref<'rooms' | 'groups'>('rooms')
+const { load } = useCollabDirectory()
+
+// Loaded on every opening, so both tabs show what collab-kit holds now.
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) void load()
+  },
+  { immediate: true }
+)
 
 const close = () => emit('update:modelValue', false)
 </script>
