@@ -10,19 +10,18 @@
         <v-text-field v-model="newGroupName" label="New group" density="compact" variant="outlined" hide-details @keyup.enter="addGroup" />
         <v-btn icon="mdi-plus" size="small" variant="tonal" :loading="busy === 'group'" aria-label="Create group" @click="addGroup" />
       </div>
-      <div class="d-flex ga-2 mt-2">
-        <v-text-field v-model="openId" label="Open group by ID" density="compact" variant="outlined" hide-details @keyup.enter="openGroup" />
-        <v-btn icon="mdi-folder-open-outline" size="small" variant="tonal" :loading="busy === 'open'" aria-label="Open group" @click="openGroup" />
-      </div>
-      <p class="text-caption text-medium-emphasis mt-1 mb-0">Listed: your groups and those with access somewhere. All groups need collab-kit.</p>
     </div>
 
     <div v-if="selected" class="collab-groups__detail">
-      <v-text-field :model-value="selected.name" label="Name" density="compact" variant="outlined" disabled :hint="`ID ${selected._id} · renaming needs collab-kit`" persistent-hint />
+      <v-text-field v-model="nameDraft" label="Name" density="compact" variant="outlined" hide-details :loading="busy === 'rename'" @keyup.enter="saveName">
+        <template #append-inner>
+          <v-btn v-if="nameDraft.trim() !== selected.name" icon="mdi-check" size="x-small" variant="text" aria-label="Save name" @click="saveName" />
+        </template>
+      </v-text-field>
 
       <div class="collab-groups__label">Members</div>
       <v-list density="compact" border rounded>
-        <v-list-item v-for="member in selected.members" :key="member" :title="`User ${member}`" subtitle="Names need collab-kit">
+        <v-list-item v-for="member in selected.members" :key="member" :title="actorName(member)" :subtitle="`Feedbacksystem ID ${member}`">
           <template #append>
             <v-btn icon="mdi-account-remove-outline" size="small" variant="text" title="Remove member" :loading="busy === `member:${member}`" @click="removeFromGroup(member)" />
           </template>
@@ -37,30 +36,30 @@
       <div class="collab-groups__label">Access</div>
       <CollabAccessList :rows="accessRows" :options="placeOptions" add-label="Give access to" empty-text="This group has no access yet" :busy="busy" @change="changeAccess" @remove="removeAccess" @add="changeAccess" />
 
-      <div class="d-flex align-center ga-2 mt-5">
-        <v-btn variant="text" color="error" prepend-icon="mdi-delete-outline" disabled>Delete group</v-btn>
-        <span class="text-caption text-medium-emphasis">Needs collab-kit</span>
-      </div>
+      <v-btn class="mt-5" variant="text" color="error" prepend-icon="mdi-delete-outline" :loading="busy === 'delete'" @click="removeGroup">Delete group</v-btn>
     </div>
+    <DialogConfirm ref="confirmDialog" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import DialogConfirm from '@/components/dialog/DialogConfirm.vue'
 import { notifySuccess } from '@/composables/useNotifications'
 import { rightsOf, type AccessLevel } from './access'
-import { addMember, createGroup, getGroup, listGrantsOf, removeGrant, removeMember, setGrant, type CollabGrant, type CollabScope } from './collabApi'
+import { addMember, createGroup, deleteGroup, listGrantsOf, removeGrant, removeMember, renameGroup, setGrant, type CollabGrant, type CollabScope } from './collabApi'
 import CollabAccessList from './CollabAccessList.vue'
 import { useCollabAction, useCollabDirectory } from './useCollabDirectory'
 
-const { rooms, groups, loading, showGroup, roomName } = useCollabDirectory()
+const { rooms, groups, loading, loadNames, showGroup, dropGroup, roomName, actorName } = useCollabDirectory()
 const { busy, run } = useCollabAction()
 
 const selectedId = ref<string | null>(null)
 const grants = ref<CollabGrant[]>([])
 const newGroupName = ref('')
-const openId = ref('')
 const newMember = ref('')
+const nameDraft = ref('')
+const confirmDialog = ref<InstanceType<typeof DialogConfirm> | null>(null)
 
 // Access rows and options are keyed by place: a room, another place of collab-kit, or everywhere.
 const EVERYWHERE = 'everywhere'
@@ -106,18 +105,34 @@ const addGroup = () => {
   )
 }
 
-const openGroup = () => {
-  const id = openId.value.trim()
-  if (!id) return
+const saveName = () => {
+  const group = selected.value
+  const name = nameDraft.value.trim()
+  if (!group || !name || name === group.name) return
   void run(
-    'open',
+    'rename',
     async () => {
-      const group = (await getGroup(id)).data
-      showGroup(group)
-      selectedId.value = group._id
-      openId.value = ''
+      showGroup((await renameGroup(group._id, name)).data)
+      notifySuccess('Group renamed')
     },
-    'Group could not be opened'
+    'Group could not be renamed'
+  )
+}
+
+const removeGroup = async () => {
+  const group = selected.value
+  if (!group) return
+  const confirmed = await confirmDialog.value?.openDialog(`Delete group "${group.name}"?`, 'Its members lose the access the group gave them, at once.', 'Delete')
+  if (!confirmed) return
+  void run(
+    'delete',
+    async () => {
+      await deleteGroup(group._id)
+      dropGroup(group._id)
+      selectedId.value = groups.value[0]?._id ?? null
+      notifySuccess('Group deleted')
+    },
+    'Group could not be deleted'
   )
 }
 
@@ -129,6 +144,7 @@ const addToGroup = () => {
     'member',
     async () => {
       showGroup((await addMember(group._id, actorId)).data)
+      await loadNames([actorId])
       newMember.value = ''
       notifySuccess('Member added')
     },
@@ -181,19 +197,33 @@ const removeAccess = (key: string) => {
 watch(groups, () => (selectedId.value ??= groups.value[0]?._id ?? null), { immediate: true, deep: true })
 // Only a change of group reloads its access; adding a member keeps what it has.
 watch(selectedId, loadGrants, { immediate: true })
+watch(selected, (group) => (nameDraft.value = group?.name ?? ''), { immediate: true })
 </script>
 
 <style scoped>
 .collab-groups {
   display: grid;
+  flex: 1 1 auto;
   grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 24px;
-  min-height: 360px;
+  min-height: 0;
+}
+
+/* Each side scrolls on its own, so the list stays in view while the details run long. */
+.collab-groups__list,
+.collab-groups__detail {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .collab-groups__list {
   border-right: 1px solid rgba(var(--v-theme-outline), 0.15);
   padding-right: 16px;
+}
+
+.collab-groups__detail {
+  padding-right: 8px;
 }
 
 .collab-groups__label {

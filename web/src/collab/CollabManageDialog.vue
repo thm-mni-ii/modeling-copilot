@@ -1,6 +1,7 @@
 <template>
-  <v-dialog :model-value="modelValue" max-width="1000" persistent @update:model-value="emit('update:modelValue', $event)">
-    <v-card>
+  <v-dialog :model-value="modelValue" max-width="1000" persistent scrollable @update:model-value="emit('update:modelValue', $event)">
+    <!-- A fixed height keeps the window still between rooms, groups and tabs; title, tabs and Close stay in place. -->
+    <v-card height="80vh">
       <v-card-title class="d-flex align-center">
         Manage collaboration
         <v-spacer />
@@ -11,7 +12,7 @@
         <v-tab value="groups">Groups</v-tab>
       </v-tabs>
       <v-divider />
-      <v-card-text>
+      <v-card-text class="collab-manage__body">
         <CollabRoomsPanel v-if="modelValue && tab === 'rooms'" />
         <CollabGroupsPanel v-else-if="modelValue && tab === 'groups'" />
       </v-card-text>
@@ -46,3 +47,13 @@ watch(
 
 const close = () => emit('update:modelValue', false)
 </script>
+
+<style scoped>
+/* The tabs scroll their list and their details each on their own, so the body itself does not. */
+.collab-manage__body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+</style>

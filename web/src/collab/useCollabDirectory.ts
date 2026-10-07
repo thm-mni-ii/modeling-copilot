@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
-import { collabErrorMessage, getGroup, listGrantsAt, listMyGroups, listRooms, type CollabGroup, type CollabRoom } from './collabApi'
+import { collabErrorMessage, listActorNames, listGroups, listRooms, listWorkpieces, type CollabGroup, type CollabRoom, type CollabWorkpiece } from './collabApi'
 
-// Shared by both tabs of the dialog and kept for the page, so a group created here stays listed.
+// Shared by both tabs of the dialog, loaded on every opening.
 const rooms = ref<CollabRoom[]>([])
 const groups = ref<CollabGroup[]>([])
+const workpieces = ref<CollabWorkpiece[]>([])
+const names = ref<Record<string, string>>({})
 const loading = ref(false)
 
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)
@@ -16,18 +18,32 @@ const replace = <T extends { _id: string }>(list: T[], entry: T) => {
   else list.splice(index, 1, entry)
 }
 
-/**
- * Rooms come complete from /me/rooms. collab-kit cannot list all groups yet, so these are the own
- * ones, those with access to a room, and those created on this page.
- */
+const drop = <T extends { _id: string }>(list: T[], id: string) => {
+  const index = list.findIndex((known) => known._id === id)
+  if (index !== -1) list.splice(index, 1)
+}
+
+/** Names of these people as far as collab-kit gives them; one who never connected has none yet. */
+const loadNames = async (actorIds: string[]) => {
+  const unknown = [...new Set(actorIds)].filter((actorId) => !(actorId in names.value))
+  if (unknown.length === 0) return
+  try {
+    for (const { actorId, label } of (await listActorNames(unknown)).data) {
+      if (label) names.value[actorId] = label
+    }
+  } catch {
+    // Without names the members still show with their IDs.
+  }
+}
+
 const load = async () => {
   loading.value = true
   try {
-    rooms.value = (await listRooms()).data.sort(byName)
-    const grants = await Promise.allSettled(rooms.value.map((room) => listGrantsAt({ kind: 'room', id: room._id })))
-    const ids = new Set([...(await listMyGroups()).data.map((group) => group._id), ...grants.flatMap((result) => (result.status === 'fulfilled' ? result.value.data.map((grant) => grant.groupId) : [])), ...groups.value.map((group) => group._id)])
-    const found = await Promise.allSettled(Array.from(ids, (id) => getGroup(id)))
-    groups.value = found.flatMap((result) => (result.status === 'fulfilled' ? [result.value.data] : [])).sort(byName)
+    const [foundRooms, foundGroups, foundWorkpieces] = await Promise.all([listRooms(), listGroups(), listWorkpieces()])
+    rooms.value = foundRooms.data.sort(byName)
+    groups.value = foundGroups.data.sort(byName)
+    workpieces.value = foundWorkpieces.data.sort(byName)
+    await loadNames(groups.value.flatMap((group) => group.members))
   } catch (error) {
     notifyError(`Rooms and groups could not be loaded: ${collabErrorMessage(error)}`)
   } finally {
@@ -38,12 +54,18 @@ const load = async () => {
 export const useCollabDirectory = () => ({
   rooms,
   groups,
+  workpieces,
   loading,
   load,
+  loadNames,
   showRoom: (room: CollabRoom) => replace(rooms.value, room),
   showGroup: (group: CollabGroup) => replace(groups.value, group),
+  showWorkpiece: (workpiece: CollabWorkpiece) => replace(workpieces.value, workpiece),
+  dropRoom: (id: string) => drop(rooms.value, id),
+  dropGroup: (id: string) => drop(groups.value, id),
   roomName: (id: string) => rooms.value.find((room) => room._id === id)?.name ?? id,
-  groupName: (id: string) => groups.value.find((group) => group._id === id)?.name ?? id
+  groupName: (id: string) => groups.value.find((group) => group._id === id)?.name ?? id,
+  actorName: (id: string) => names.value[id] ?? `User ${id}`
 })
 
 /** One change sent at a time per panel; what is being sent shows as busy, a refusal as notification. */
