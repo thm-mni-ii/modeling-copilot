@@ -111,23 +111,26 @@ export const setGrant = (groupId: string, scope: CollabScope | undefined, rights
 
 export const removeGrant = (groupId: string, scope: CollabScope | undefined) => collabClient.delete<{ removed: boolean }>('/grants', { params: { groupId, scopeKind: scope?.kind, scopeId: scope?.id } })
 
-// collab-kit has no route for these yet; the UI keeps their controls disabled until it has.
-const missingRoute = (what: string): Promise<never> => Promise.reject(new Error(`collab-kit cannot ${what} yet.`))
+/** Every workpiece the token may see; admins see all, to put one into a room. */
+export const listWorkpieces = () => collabClient.get<CollabWorkpiece[]>('/workpieces')
 
-export const renameRoom = (roomId: string, name: string) => missingRoute(`rename room ${roomId} to "${name}"`)
+/** Takes manage at the room; the name change is kept as an event. */
+export const renameRoom = (roomId: string, name: string) => collabClient.patch<CollabRoom>(`/rooms/${encodeURIComponent(roomId)}`, { name })
 
-export const deleteRoom = (roomId: string) => missingRoute(`delete room ${roomId}`)
+/** The workpieces stay, the access the room gave goes with it; open connections are asked again. */
+export const deleteRoom = (roomId: string) => collabClient.delete<{ deleted: boolean }>(`/rooms/${encodeURIComponent(roomId)}`)
 
-export const listWorkpieces = () => missingRoute('list workpieces')
+/** Every group the token may see; admins see all. */
+export const listGroups = () => collabClient.get<CollabGroup[]>('/groups')
 
-export const listGroups = () => missingRoute('list groups')
+/** Takes manage at the group; the name change is kept as an event. */
+export const renameGroup = (groupId: string, name: string) => collabClient.patch<CollabGroup>(`/groups/${encodeURIComponent(groupId)}`, { name })
 
-export const renameGroup = (groupId: string, name: string) => missingRoute(`rename group ${groupId} to "${name}"`)
+/** Its members lose the access it gave; open connections are asked again. */
+export const deleteGroup = (groupId: string) => collabClient.delete<{ deleted: boolean }>(`/groups/${encodeURIComponent(groupId)}`)
 
-export const deleteGroup = (groupId: string) => missingRoute(`delete group ${groupId}`)
-
-/** Names to the actor keys; collab-kit keeps them from the tokens but gives none out. */
-export const listActorNames = (actorIds: string[]) => missingRoute(`name the actors ${actorIds.join(', ')}`)
+/** Names collab-kit keeps from the tokens; only those the token may put a name to, unknown ones left out. */
+export const listActorNames = (actorIds: string[]) => collabClient.get<{ actorId: string; label?: string }[]>('/actors', { params: { ids: actorIds.join(',') } })
 
 /** Rights the current token holds, everywhere or at one thing of collab-kit. */
 export const getRights = (target?: { kind: string; id: string }) => collabClient.get<string[]>('/me/rights', { params: target })

@@ -13,7 +13,11 @@
     </div>
 
     <div v-if="selected" class="collab-rooms__detail">
-      <v-text-field :model-value="selected.name" label="Name" density="compact" variant="outlined" disabled hint="Renaming needs collab-kit" persistent-hint />
+      <v-text-field v-model="nameDraft" label="Name" density="compact" variant="outlined" hide-details :loading="busy === 'rename'" @keyup.enter="saveName">
+        <template #append-inner>
+          <v-btn v-if="nameDraft.trim() !== selected.name" icon="mdi-check" size="x-small" variant="text" aria-label="Save name" @click="saveName" />
+        </template>
+      </v-text-field>
 
       <div class="collab-rooms__label">Models in this room</div>
       <v-list density="compact" border rounded>
@@ -32,19 +36,16 @@
         <v-btn variant="tonal" prepend-icon="mdi-plus" :loading="busy === 'model'" @click="addModel">Create</v-btn>
       </div>
       <div class="d-flex ga-2 mt-3">
-        <v-text-field v-model="existingId" label="Add existing model by ID" density="compact" variant="outlined" hide-details @keyup.enter="addExisting" />
-        <v-btn variant="tonal" prepend-icon="mdi-link-variant" :loading="busy === 'existing'" @click="addExisting">Add</v-btn>
+        <v-autocomplete v-model="existingId" :items="existingOptions" label="Add an existing model" density="compact" variant="outlined" hide-details />
+        <v-btn variant="tonal" prepend-icon="mdi-link-variant" :disabled="!existingId" :loading="busy === 'existing'" @click="addExisting">Add</v-btn>
       </div>
-      <p class="text-caption text-medium-emphasis mt-1 mb-0">A list of all models to choose from needs collab-kit.</p>
 
       <div class="collab-rooms__label">Access</div>
       <CollabAccessList :rows="accessRows" :options="groupOptions" add-label="Give a group access" empty-text="No group has access yet" :busy="busy" @change="changeAccess" @remove="removeAccess" @add="changeAccess" />
 
-      <div class="d-flex align-center ga-2 mt-5">
-        <v-btn variant="text" color="error" prepend-icon="mdi-delete-outline" disabled>Delete room</v-btn>
-        <span class="text-caption text-medium-emphasis">Needs collab-kit</span>
-      </div>
+      <v-btn class="mt-5" variant="text" color="error" prepend-icon="mdi-delete-outline" :loading="busy === 'delete'" @click="removeRoom">Delete room</v-btn>
     </div>
+    <DialogConfirm ref="confirmDialog" />
   </div>
 </template>
 
@@ -53,13 +54,14 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import type { LanguageOverview } from '@/services/api/types/language'
 import languageService from '@/services/language/language.service'
+import DialogConfirm from '@/components/dialog/DialogConfirm.vue'
 import { rightsOf, type AccessLevel } from './access'
-import { addToRoom, createRoom, createWorkpieceInRoom, getRoom, getWorkpiece, listGrantsAt, removeFromRoom, removeGrant, setGrant, type CollabGrant, type CollabRoom, type CollabScope, type CollabWorkpiece } from './collabApi'
+import { addToRoom, createRoom, createWorkpieceInRoom, deleteRoom, getRoom, getWorkpiece, listGrantsAt, removeFromRoom, removeGrant, renameRoom, setGrant, type CollabGrant, type CollabRoom, type CollabScope, type CollabWorkpiece } from './collabApi'
 import CollabAccessList from './CollabAccessList.vue'
 import { UML_CLASS_DIAGRAM } from './openWorkpiece'
 import { useCollabAction, useCollabDirectory } from './useCollabDirectory'
 
-const { rooms, groups, loading, showRoom, groupName } = useCollabDirectory()
+const { rooms, groups, workpieces, loading, showRoom, showWorkpiece, dropRoom, groupName } = useCollabDirectory()
 const { busy, run } = useCollabAction()
 
 const selectedId = ref<string | null>(null)
@@ -67,7 +69,9 @@ const models = ref<CollabWorkpiece[]>([])
 const grants = ref<CollabGrant[]>([])
 const newRoomName = ref('')
 const newModelName = ref('')
-const existingId = ref('')
+const existingId = ref<string | null>(null)
+const nameDraft = ref('')
+const confirmDialog = ref<InstanceType<typeof DialogConfirm> | null>(null)
 const languages = ref<LanguageOverview[]>([])
 const newModelLanguage = ref<string | null>(null)
 
@@ -77,6 +81,11 @@ const scope = computed<CollabScope | undefined>(() => (selected.value ? { kind: 
 const modelIdsOf = (room: CollabRoom) => room.references.filter((reference) => reference.kind === 'workpiece').map((reference) => reference.id)
 
 const accessRows = computed(() => grants.value.map((grant) => ({ id: grant.groupId, label: groupName(grant.groupId), rights: grant.rights })))
+// Every model collab-kit lists that is not in this room yet, with the end of its ID to tell equal names apart.
+const existingOptions = computed(() => {
+  const inRoom = new Set(selected.value ? modelIdsOf(selected.value) : [])
+  return workpieces.value.filter((workpiece) => !inRoom.has(workpiece._id)).map((workpiece) => ({ value: workpiece._id, title: `${workpiece.name} · ${workpiece._id.slice(-6)}` }))
+})
 const groupOptions = computed(() => groups.value.filter((group) => !grants.value.some((grant) => grant.groupId === group._id)).map((group) => ({ value: group._id, title: group.name })))
 
 // A reference only names the workpiece; one that cannot be read still shows with its ID.
@@ -137,7 +146,7 @@ const addModel = () => {
   void run(
     'model',
     async () => {
-      await createWorkpieceInRoom(room._id, name, [{ languageId: language.id, versionId, source: 'required' }])
+      showWorkpiece((await createWorkpieceInRoom(room._id, name, [{ languageId: language.id, versionId, source: 'required' }])).data)
       showRoom((await getRoom(room._id)).data)
       newModelName.value = ''
       notifySuccess('Model created')
@@ -148,13 +157,13 @@ const addModel = () => {
 
 const addExisting = () => {
   const room = selected.value
-  const id = existingId.value.trim()
+  const id = existingId.value
   if (!room || !id) return
   void run(
     'existing',
     async () => {
       showRoom((await addToRoom(room._id, id)).data)
-      existingId.value = ''
+      existingId.value = null
       notifySuccess('Model added to the room')
     },
     'Model could not be added'
@@ -199,6 +208,37 @@ const removeAccess = (groupId: string) => {
   )
 }
 
+const saveName = () => {
+  const room = selected.value
+  const name = nameDraft.value.trim()
+  if (!room || !name || name === room.name) return
+  void run(
+    'rename',
+    async () => {
+      showRoom((await renameRoom(room._id, name)).data)
+      notifySuccess('Room renamed')
+    },
+    'Room could not be renamed'
+  )
+}
+
+const removeRoom = async () => {
+  const room = selected.value
+  if (!room) return
+  const confirmed = await confirmDialog.value?.openDialog(`Delete room "${room.name}"?`, 'Its models stay and can be put into another room. Everyone who had access only through this room loses it at once.', 'Delete')
+  if (!confirmed) return
+  void run(
+    'delete',
+    async () => {
+      await deleteRoom(room._id)
+      dropRoom(room._id)
+      selectedId.value = rooms.value[0]?._id ?? null
+      notifySuccess('Room deleted')
+    },
+    'Room could not be deleted'
+  )
+}
+
 const copyId = async (id: string) => {
   try {
     await navigator.clipboard.writeText(id)
@@ -211,20 +251,34 @@ const copyId = async (id: string) => {
 // The first room is shown once the list is in; a changed room from collab-kit replaces the selected object.
 watch(rooms, () => (selectedId.value ??= rooms.value[0]?._id ?? null), { immediate: true, deep: true })
 watch(selected, loadDetail, { immediate: true })
+watch(selected, (room) => (nameDraft.value = room?.name ?? ''), { immediate: true })
 onMounted(loadLanguages)
 </script>
 
 <style scoped>
 .collab-rooms {
   display: grid;
+  flex: 1 1 auto;
   grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 24px;
-  min-height: 360px;
+  min-height: 0;
+}
+
+/* Each side scrolls on its own, so the list stays in view while the details run long. */
+.collab-rooms__list,
+.collab-rooms__detail {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .collab-rooms__list {
   border-right: 1px solid rgba(var(--v-theme-outline), 0.15);
   padding-right: 16px;
+}
+
+.collab-rooms__detail {
+  padding-right: 8px;
 }
 
 .collab-rooms__language {
