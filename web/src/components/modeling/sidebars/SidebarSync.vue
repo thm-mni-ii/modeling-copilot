@@ -54,7 +54,7 @@ const modelIo = {
 
 defineExpose({ graph, modelIo })
 
-const { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, toggleConnection, openFromRoom } = useCollabConnection(graph)
+const { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, toggleConnection, openFromRoom } = useCollabConnection()
 </script>
 
 <style scoped>

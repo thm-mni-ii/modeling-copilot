@@ -120,6 +120,7 @@
           </v-tooltip>
         </div>
         <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)" />
+        <CollabConnector v-if="props.modelManagement" />
       </div>
       <!-- /canvas-area -->
     </v-card-text>
@@ -158,6 +159,7 @@ import type { CanvasLayerView } from '@/components/modeling/controls/LayerVisibi
 import ModelingHeader from '@/components/modeling/controls/ModelingHeader.vue'
 import SidebarContainer from '@/components/modeling/sidebars/SidebarContainer.vue'
 import SidebarRightContainer from '@/components/modeling/sidebars/SidebarRightContainer.vue'
+import CollabConnector from '@/collab/CollabConnector.vue'
 import type { SidebarLanguage } from '@/components/modeling/sidebars/ElementsSidebar.vue'
 import type { DiagramElement } from '@/model/Element'
 import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connection'

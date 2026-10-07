@@ -56,6 +56,8 @@ onMounted(load)
 
 <style scoped>
 .collab-room-list {
+  /* The sync sidebar scrolls instead; with overflow hidden it could squeeze the box down to its header. */
+  flex-shrink: 0;
   border: 1px solid rgba(var(--v-theme-outline), 0.2);
   border-radius: 8px;
   overflow: hidden;

@@ -24,7 +24,8 @@ const COLORS = ['#e53935', '#1e88e5', '#43a047', '#8e24aa', '#fb8c00', '#00897b'
 const colorOf = (id: string) => COLORS[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % COLORS.length]
 
 /** Announces who this tab is and what it selects, and frames what the others select. */
-export const startPresence = (graph: Graph, session: CollabSession, onPeople: (people: Person[]) => void) => {
+/** Reports the people at the workpiece, and how many clients announce themselves there, own one included. */
+export const startPresence = (graph: Graph, session: CollabSession, onPeople: (people: Person[], clients: number) => void) => {
   const { awareness } = session
   const model = graph.getDataModel()
   const selectionModel = graph.getSelectionModel()
@@ -74,7 +75,7 @@ export const startPresence = (graph: Graph, session: CollabSession, onPeople: (p
     const seen = JSON.stringify(states().map(([clientId, { user, selection }]) => [clientId, user, selection]))
     if (seen === shown) return
     shown = seen
-    onPeople(listPeople())
+    onPeople(listPeople(), awareness.getStates().size)
     drawFrames()
   }
 
@@ -108,6 +109,6 @@ export const startPresence = (graph: Graph, session: CollabSession, onPeople: (p
     awareness.setLocalState(null)
     for (const frame of frames) frame.destroy()
     frames = []
-    onPeople([])
+    onPeople([], 0)
   }
 }

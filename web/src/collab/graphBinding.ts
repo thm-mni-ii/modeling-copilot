@@ -51,8 +51,17 @@ export const bindGraph = (graph: Graph, session: CollabSession, mayWrite: boolea
 
   // A remote model is imported under applyingRemote, so its change is not sent back.
   // Without edit collab-kit would close the connection for every change sent.
-  const stopWatching = watchGraphChanges(graph, () => {
-    if (ready && canWrite && !applyingRemote) push()
+  // The Copilot swaps the whole model when it loads one, restores a version or takes a draft back;
+  // that is no edit to share, so the shared state is shown again once the Copilot is done with it.
+  const stopWatching = watchGraphChanges(graph, (_cellCount, replaced) => {
+    if (!ready || applyingRemote) return
+    if (!replaced) {
+      if (canWrite) push()
+      return
+    }
+    setTimeout(() => {
+      if (!stopped) applyRemote('model replaced locally · shared state restored')
+    })
   })
   // A reader that kept sending would be closed with 1008 on every reconnect, so the rights are asked again.
   const stopRightsWatch = session.onRightsChanged(() => {
