@@ -33,10 +33,10 @@
 </template>
 
 <script setup lang="ts">
-import CollabManageButton from '@/collab/CollabManageButton.vue'
-import CollabPeople from '@/collab/CollabPeople.vue'
-import CollabRoomList from '@/collab/CollabRoomList.vue'
-import { useCollabConnection } from '@/collab/useCollabConnection'
+import CollabManageButton from '@/collab/rooms/CollabManageButton.vue'
+import CollabPeople from '@/collab/presence/CollabPeople.vue'
+import CollabRoomList from '@/collab/rooms/CollabRoomList.vue'
+import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'

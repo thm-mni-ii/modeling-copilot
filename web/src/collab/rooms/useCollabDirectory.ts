@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
-import { collabErrorMessage, listActorNames, listGroups, listRooms, listWorkpieces, type CollabGroup, type CollabRoom, type CollabWorkpiece } from './collabApi'
+import { collabErrorMessage, listActorNames, listGroups, listRooms, listWorkpieces, type CollabGroup, type CollabRoom, type CollabWorkpiece } from '@/collab/connection/collabApi'
 
 // Shared by both tabs of the dialog, loaded on every opening.
 const rooms = ref<CollabRoom[]>([])

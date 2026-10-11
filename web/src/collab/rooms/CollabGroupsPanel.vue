@@ -47,7 +47,7 @@ import { computed, ref, watch } from 'vue'
 import DialogConfirm from '@/components/dialog/DialogConfirm.vue'
 import { notifySuccess } from '@/composables/useNotifications'
 import { rightsOf, type AccessLevel } from './access'
-import { addMember, createGroup, deleteGroup, listGrantsOf, removeGrant, removeMember, renameGroup, setGrant, type CollabGrant, type CollabScope } from './collabApi'
+import { addMember, createGroup, deleteGroup, listGrantsOf, removeGrant, removeMember, renameGroup, setGrant, type CollabGrant, type CollabScope } from '@/collab/connection/collabApi'
 import CollabAccessList from './CollabAccessList.vue'
 import { useCollabAction, useCollabDirectory } from './useCollabDirectory'
 

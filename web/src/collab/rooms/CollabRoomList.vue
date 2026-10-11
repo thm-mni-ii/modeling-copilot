@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
-import { collabErrorMessage, getWorkpiece, listRooms, type CollabRoom, type CollabWorkpiece } from './collabApi'
+import { collabErrorMessage, getWorkpiece, listRooms, type CollabRoom, type CollabWorkpiece } from '@/collab/connection/collabApi'
 
 defineProps<{ activeWorkpieceId: string | null; connected: boolean }>()
 const emit = defineEmits<{ open: [room: CollabRoom, workpiece: CollabWorkpiece] }>()

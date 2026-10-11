@@ -1,7 +1,7 @@
 import { CellHighlight, InternalEvent, type Graph } from '@maxgraph/core'
 import authService from '@/services/auth/auth.service'
 import type { TokenClaims } from '@/services/api/types/auth'
-import type { CollabSession } from './collabSession'
+import type { CollabSession } from '@/collab/connection/collabSession'
 import { startCursors } from './cursors'
 
 /** One person at the workpiece, once however many tabs they have open. */

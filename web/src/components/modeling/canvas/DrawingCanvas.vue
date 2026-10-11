@@ -159,7 +159,7 @@ import type { CanvasLayerView } from '@/components/modeling/controls/LayerVisibi
 import ModelingHeader from '@/components/modeling/controls/ModelingHeader.vue'
 import SidebarContainer from '@/components/modeling/sidebars/SidebarContainer.vue'
 import SidebarRightContainer from '@/components/modeling/sidebars/SidebarRightContainer.vue'
-import CollabConnector from '@/collab/CollabConnector.vue'
+import CollabConnector from '@/collab/connection/CollabConnector.vue'
 import type { SidebarLanguage } from '@/components/modeling/sidebars/ElementsSidebar.vue'
 import type { DiagramElement } from '@/model/Element'
 import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connection'

@@ -56,9 +56,9 @@ import type { LanguageOverview } from '@/services/api/types/language'
 import languageService from '@/services/language/language.service'
 import DialogConfirm from '@/components/dialog/DialogConfirm.vue'
 import { rightsOf, type AccessLevel } from './access'
-import { addToRoom, createRoom, createWorkpieceInRoom, deleteRoom, getRoom, getWorkpiece, listGrantsAt, removeFromRoom, removeGrant, renameRoom, setGrant, type CollabGrant, type CollabRoom, type CollabScope, type CollabWorkpiece } from './collabApi'
+import { addToRoom, createRoom, createWorkpieceInRoom, deleteRoom, getRoom, getWorkpiece, listGrantsAt, removeFromRoom, removeGrant, renameRoom, setGrant, type CollabGrant, type CollabRoom, type CollabScope, type CollabWorkpiece } from '@/collab/connection/collabApi'
 import CollabAccessList from './CollabAccessList.vue'
-import { UML_CLASS_DIAGRAM } from './openWorkpiece'
+import { UML_CLASS_DIAGRAM } from '@/collab/connection/openWorkpiece'
 import { useCollabAction, useCollabDirectory } from './useCollabDirectory'
 
 const { rooms, groups, workpieces, loading, showRoom, showWorkpiece, dropRoom, groupName } = useCollabDirectory()

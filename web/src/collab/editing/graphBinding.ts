@@ -1,8 +1,8 @@
 import type { Graph } from '@maxgraph/core'
 import type { YMapEvent } from 'yjs'
 import { exportModelAsXml, importModelFromXml } from '@/utils/modelPersistence'
-import { getRights } from './collabApi'
-import type { CollabSession } from './collabSession'
+import { getRights } from '@/collab/connection/collabApi'
+import type { CollabSession } from '@/collab/connection/collabSession'
 import { watchGraphChanges } from './graphChanges'
 import { joinModel, splitModel, type SharedCell } from './modelCells'
 

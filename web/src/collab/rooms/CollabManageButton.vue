@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { getRights } from './collabApi'
+import { getRights } from '@/collab/connection/collabApi'
 import CollabManageDialog from './CollabManageDialog.vue'
 
 const canManage = ref(false)
