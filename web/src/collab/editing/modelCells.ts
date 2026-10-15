@@ -1,4 +1,4 @@
-/** One cell as the Yjs document keeps it: its place among its siblings and its XML. */
+/** One cell as a unit of the workpiece: its place among its siblings and its XML. */
 export interface SharedCell {
   index: number
   xml: string
@@ -12,18 +12,23 @@ const parseXml = (xml: string) => {
   return document
 }
 
-/** Splits an exported model into its cells by ID; the export lists siblings in their order. */
-export const splitModel = (xml: string) => {
+/**
+ * Splits an exported model into its cells by ID; the export lists siblings in their order.
+ * A known index stays while the order holds, so deleting a cell rewrites none of its siblings.
+ */
+export const splitModel = (xml: string, known: ReadonlyMap<string, SharedCell>) => {
   const cells = new Map<string, SharedCell>()
-  const siblings = new Map<string, number>()
+  const last = new Map<string, number>()
   const serializer = new XMLSerializer()
 
   for (const cell of parseXml(xml).querySelectorAll(CELLS)) {
     const id = cell.getAttribute('id')
     if (!id) continue
     const parent = cell.getAttribute('parent') ?? ''
-    const index = siblings.get(parent) ?? 0
-    siblings.set(parent, index + 1)
+    const before = last.get(parent) ?? -1
+    const kept = known.get(id)?.index
+    const index = kept !== undefined && kept > before ? kept : before + 1
+    last.set(parent, index)
     cells.set(id, { index, xml: serializer.serializeToString(cell) })
   }
   return cells

@@ -1,7 +1,4 @@
 import { CellHighlight, InternalEvent, type Graph } from '@maxgraph/core'
-import authService from '@/services/auth/auth.service'
-import type { Awareness } from 'y-protocols/awareness'
-import type { TokenClaims } from '@/services/api/types/auth'
 import type { Session } from '@/collab/connection/collabKitV1'
 import { startCursors } from './cursors'
 
@@ -13,9 +10,8 @@ export interface Person {
   self: boolean
 }
 
-/** What every client announces of itself. */
+/** What every client announces of itself besides the person the library puts in. */
 interface PresenceState {
-  user?: { id: string; name: string }
   selection?: string[]
 }
 
@@ -24,24 +20,21 @@ const COLORS = ['#e53935', '#1e88e5', '#43a047', '#8e24aa', '#fb8c00', '#00897b'
 /** The same color for the same person on every screen. */
 const colorOf = (id: string) => COLORS[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % COLORS.length]
 
+/** The name collab-kit has from the token; a token without one shows the ID. */
+const nameOf = (person: { id: string; name?: string }) => person.name ?? `Person ${person.id}`
+
 /**
- * Announces who this tab is and what it selects, frames what the others select, and reports the
- * people at the workpiece and how many clients announce themselves there, own one included.
+ * Announces what this tab selects, frames what the others select, and reports the people at the
+ * workpiece and how many clients announce themselves there, own one included.
  */
 export const startPresence = (graph: Graph, session: Session, onPeople: (people: Person[], clients: number) => void) => {
-  const awareness = session.yjs.awareness as Awareness
   const model = graph.getDataModel()
   const selectionModel = graph.getSelectionModel()
   let frames: CellHighlight[] = []
   let stopped = false
 
-  const states = () => Array.from(awareness.getStates() as Map<number, PresenceState>)
-
   const sendSelection = () => {
-    awareness.setLocalStateField(
-      'selection',
-      graph.getSelectionCells().flatMap((cell) => cell.getId() ?? [])
-    )
+    session.presence.set({ selection: graph.getSelectionCells().flatMap((cell) => cell.getId() ?? []) })
   }
 
   // Frames are drawn in the view only, so they never reach the model and are never synced.
@@ -49,36 +42,34 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     for (const frame of frames) frame.destroy()
     frames = []
     if (stopped) return
-    for (const [clientId, state] of states()) {
-      if (clientId === awareness.clientID || !state.user) continue
-      for (const id of state.selection ?? []) {
-        const cell = model.getCell(id)
-        const view = cell ? graph.view.getState(cell) : null
-        if (!view) continue
-        const frame = new CellHighlight(graph, colorOf(state.user.id), 3)
-        frame.highlight(view)
-        frames.push(frame)
+    for (const person of session.presence.people()) {
+      for (const { clientId, state } of person.clients) {
+        if (clientId === session.clientId) continue
+        for (const id of (state as PresenceState).selection ?? []) {
+          const cell = model.getCell(id)
+          const view = cell ? graph.view.getState(cell) : null
+          if (!view) continue
+          const frame = new CellHighlight(graph, colorOf(person.id), 3)
+          frame.highlight(view)
+          frames.push(frame)
+        }
       }
     }
-  }
-
-  const listPeople = () => {
-    const people = new Map<string, Person>()
-    for (const [clientId, { user }] of states()) {
-      if (!user) continue
-      const self = clientId === awareness.clientID || people.get(user.id)?.self === true
-      people.set(user.id, { id: user.id, name: user.name, color: colorOf(user.id), self })
-    }
-    return Array.from(people.values()).sort((a, b) => Number(b.self) - Number(a.self) || a.name.localeCompare(b.name))
   }
 
   // Pointers move many times a second; list and frames follow only who is there and what they select.
   let shown = ''
   const onChange = () => {
-    const seen = JSON.stringify(states().map(([clientId, { user, selection }]) => [clientId, user, selection]))
+    const people = session.presence.people()
+    const seen = JSON.stringify(people.map(({ id, name, clients }) => [id, name, clients.map(({ clientId, state }) => [clientId, (state as PresenceState).selection])]))
     if (seen === shown) return
     shown = seen
-    onPeople(listPeople(), awareness.getStates().size)
+    const list = people.map((person) => ({ id: person.id, name: nameOf(person), color: colorOf(person.id), self: person.self }))
+    list.sort((a, b) => Number(b.self) - Number(a.self) || a.name.localeCompare(b.name))
+    onPeople(
+      list,
+      people.reduce((count, person) => count + person.clients.length, 0)
+    )
     drawFrames()
   }
 
@@ -86,31 +77,18 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   // Drawn after the event: a frame adds and removes model listeners, which maxGraph runs in place.
   const redrawLater = () => queueMicrotask(drawFrames)
 
-  awareness.on('change', onChange)
-  const stopCursors = startCursors(graph, awareness, colorOf)
+  const stopListening = session.presence.onChange(onChange)
+  const stopCursors = startCursors(graph, session, colorOf, nameOf)
   selectionModel.addListener(InternalEvent.CHANGE, sendSelection)
   model.addListener(InternalEvent.CHANGE, redrawLater)
-
-  // The name comes from the token; without it the others just do not see this tab.
-  void authService
-    .getMe()
-    .then(({ data }) => {
-      if (stopped) return
-      const claims = data as TokenClaims & { name?: string }
-      const id = String(claims.id)
-      // A field, not the whole entry: the library keeps person in it.
-      awareness.setLocalStateField('user', { id, name: claims.name || claims.username || `Person ${id}` })
-      sendSelection()
-    })
-    .catch(() => undefined)
+  sendSelection()
 
   return () => {
     stopped = true
     stopCursors()
-    awareness.off('change', onChange)
+    stopListening()
     selectionModel.removeListener(sendSelection)
     model.removeListener(redrawLater)
-    awareness.setLocalState(null)
     for (const frame of frames) frame.destroy()
     frames = []
     onPeople([], 0)
