@@ -6,6 +6,7 @@ import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { CELLS_MAP, collabErrorMessage } from './collabApi'
 import { loadCollabKit } from './collabKit'
 import type { CollabKitApi, Room, Session, Workpiece } from './collabKitV1'
+import { showConflicts } from '@/collab/editing/conflicts'
 import { bindGraph } from '@/collab/editing/graphBinding'
 import type { SharedCell } from '@/collab/editing/modelCells'
 import { linkOf, openWorkpiece } from './openWorkpiece'
@@ -23,6 +24,7 @@ const people = ref<Person[]>([])
 const editorGraph = shallowRef<Graph>()
 let unbind: (() => void) | null = null
 let stopPresence: (() => void) | null = null
+let stopConflicts: (() => void) | null = null
 let session: Session<SharedCell> | null = null
 let lastLiveStatus = ''
 let lastOnline = ''
@@ -42,6 +44,8 @@ const closeSession = () => {
   unbind = null
   stopPresence?.()
   stopPresence = null
+  stopConflicts?.()
+  stopConflicts = null
   session?.close()
   session = null
   isConnected.value = false
@@ -102,6 +106,7 @@ const connect = async (id: string) => {
     () => undefined
   )
   unbind = bindGraph(graph, opened, log)
+  stopConflicts = showConflicts(graph, opened, log)
   lastOnline = ''
   stopPresence = startPresence(graph, opened, (list, clients) => {
     people.value = list
