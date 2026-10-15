@@ -38,8 +38,7 @@ const load = async () => {
     rooms.value = (await listRooms()).data.sort((a, b) => a.name.localeCompare(b.name))
     const entries = await Promise.all(
       rooms.value.map(async (room) => {
-        const ids = room.references.filter((reference) => reference.kind === 'workpiece').map((reference) => reference.id)
-        const found = await Promise.allSettled(ids.map((id) => getWorkpiece(id)))
+        const found = await Promise.allSettled(room.workpieces.map((id) => getWorkpiece(id)))
         return [room._id, found.flatMap((result) => (result.status === 'fulfilled' ? [result.value.data] : []))] as const
       })
     )

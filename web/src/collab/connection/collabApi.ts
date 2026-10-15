@@ -16,18 +16,12 @@ collabClient.interceptors.request.use((config) => {
   return config
 })
 
-/** A thing a room bundles; for us the workpieces in it. */
-export interface CollabReference {
-  kind: string
-  id: string
-}
-
 /** A room as collab-kit keeps it; settings are the tool's switches and never read by the service. */
 export interface CollabRoom {
   _id: string
   name: string
   settings: Record<string, unknown>
-  references: CollabReference[]
+  workpieces: string[]
   createdAt: string
   createdBy: string
 }
@@ -67,6 +61,8 @@ export interface CollabGrant {
 const TOOL_SETTINGS = { tool: 'modeling-copilot' }
 /** What every own model of the workpiece is created with: the cell format and its languages. */
 const workpieceContract = (languages: WorkspaceLanguageReference[]) => ({ tool: 'modeling-copilot', format: 'copilot-cells', version: 1, languages })
+/** The top map of the doc, one cell per key; named as units, so a conflict names its cell. */
+export const CELLS_MAP = 'cells'
 
 export const getWorkpiece = (id: string) => collabClient.get<CollabWorkpiece>(`/workpieces/${encodeURIComponent(id)}`)
 
@@ -79,13 +75,13 @@ export const getRoom = (id: string) => collabClient.get<CollabRoom>(`/rooms/${en
 export const createRoom = (name: string) => collabClient.post<CollabRoom>('/rooms', { name, settings: TOOL_SETTINGS })
 
 /** A new workpiece right in the room; takes manage at the room. */
-export const createWorkpieceInRoom = (roomId: string, name: string, languages: WorkspaceLanguageReference[]) => collabClient.post<CollabWorkpiece>('/workpieces', { name, roomId, contract: workpieceContract(languages) })
+export const createWorkpieceInRoom = (roomId: string, name: string, languages: WorkspaceLanguageReference[]) => collabClient.post<CollabWorkpiece>('/workpieces', { name, roomId, contract: workpieceContract(languages), units: [{ path: [CELLS_MAP] }] })
 
 /** Puts an existing workpiece into the room; takes manage at the room and at the workpiece. */
-export const addToRoom = (roomId: string, workpieceId: string) => collabClient.post<CollabRoom>(`/rooms/${encodeURIComponent(roomId)}/references`, { kind: 'workpiece', id: workpieceId })
+export const addToRoom = (roomId: string, workpieceId: string) => collabClient.post<CollabRoom>(`/rooms/${encodeURIComponent(roomId)}/workpieces`, { workpieceId })
 
 /** Takes the workpiece out of the room; the workpiece itself stays. */
-export const removeFromRoom = (roomId: string, workpieceId: string) => collabClient.delete<CollabRoom>(`/rooms/${encodeURIComponent(roomId)}/references`, { params: { kind: 'workpiece', id: workpieceId } })
+export const removeFromRoom = (roomId: string, workpieceId: string) => collabClient.delete<CollabRoom>(`/rooms/${encodeURIComponent(roomId)}/workpieces/${encodeURIComponent(workpieceId)}`)
 
 export const getGroup = (id: string) => collabClient.get<CollabGroup>(`/groups/${encodeURIComponent(id)}`)
 
@@ -139,7 +135,7 @@ export const getRights = (target?: { kind: string; id: string }) => collabClient
 export const collabErrorMessage = (error: unknown) => {
   if (!collabUrl) return 'VITE_COLLAB_URL is not set'
   const response = (error as { response?: { status?: number; data?: { error?: unknown } } }).response
-  const status = response?.status
+  const status = response?.status ?? (error as { status?: number }).status
   if (status === 401) return 'token rejected (expired?)'
   // collab-kit names the reason of every other refusal, such as "unknown workpiece".
   if (typeof response?.data?.error === 'string') return response.data.error

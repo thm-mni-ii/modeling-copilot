@@ -3,7 +3,7 @@
     <div class="collab-rooms__list">
       <v-progress-linear v-if="loading" indeterminate />
       <v-list density="compact" nav>
-        <v-list-item v-for="room in rooms" :key="room._id" :title="room.name" :subtitle="`${modelIdsOf(room).length} models`" :active="room._id === selectedId" @click="selectedId = room._id" />
+        <v-list-item v-for="room in rooms" :key="room._id" :title="room.name" :subtitle="`${room.workpieces.length} models`" :active="room._id === selectedId" @click="selectedId = room._id" />
       </v-list>
       <p v-if="!loading && rooms.length === 0" class="text-caption text-medium-emphasis px-2">No rooms yet</p>
       <div class="d-flex ga-2 mt-2">
@@ -56,7 +56,7 @@ import type { LanguageOverview } from '@/services/api/types/language'
 import languageService from '@/services/language/language.service'
 import DialogConfirm from '@/components/dialog/DialogConfirm.vue'
 import { rightsOf, type AccessLevel } from './access'
-import { addToRoom, createRoom, createWorkpieceInRoom, deleteRoom, getRoom, getWorkpiece, listGrantsAt, removeFromRoom, removeGrant, renameRoom, setGrant, type CollabGrant, type CollabRoom, type CollabScope, type CollabWorkpiece } from '@/collab/connection/collabApi'
+import { addToRoom, createRoom, createWorkpieceInRoom, deleteRoom, getRoom, getWorkpiece, listGrantsAt, removeFromRoom, removeGrant, renameRoom, setGrant, type CollabGrant, type CollabScope, type CollabWorkpiece } from '@/collab/connection/collabApi'
 import CollabAccessList from './CollabAccessList.vue'
 import { UML_CLASS_DIAGRAM } from '@/collab/connection/openWorkpiece'
 import { useCollabAction, useCollabDirectory } from './useCollabDirectory'
@@ -78,17 +78,15 @@ const newModelLanguage = ref<string | null>(null)
 const selected = computed(() => rooms.value.find((room) => room._id === selectedId.value) ?? null)
 const scope = computed<CollabScope | undefined>(() => (selected.value ? { kind: 'room', id: selected.value._id } : undefined))
 
-const modelIdsOf = (room: CollabRoom) => room.references.filter((reference) => reference.kind === 'workpiece').map((reference) => reference.id)
-
 const accessRows = computed(() => grants.value.map((grant) => ({ id: grant.groupId, label: groupName(grant.groupId), rights: grant.rights })))
 // Every model collab-kit lists that is not in this room yet, with the end of its ID to tell equal names apart.
 const existingOptions = computed(() => {
-  const inRoom = new Set(selected.value ? modelIdsOf(selected.value) : [])
+  const inRoom = new Set(selected.value?.workpieces)
   return workpieces.value.filter((workpiece) => !inRoom.has(workpiece._id)).map((workpiece) => ({ value: workpiece._id, title: `${workpiece.name} · ${workpiece._id.slice(-6)}` }))
 })
 const groupOptions = computed(() => groups.value.filter((group) => !grants.value.some((grant) => grant.groupId === group._id)).map((group) => ({ value: group._id, title: group.name })))
 
-// A reference only names the workpiece; one that cannot be read still shows with its ID.
+// The room only names its workpieces; one that cannot be read still shows with its ID.
 const loadDetail = async () => {
   const room = selected.value
   if (!room) {
@@ -96,7 +94,7 @@ const loadDetail = async () => {
     grants.value = []
     return
   }
-  const ids = modelIdsOf(room)
+  const ids = room.workpieces
   const [found, held] = await Promise.all([Promise.allSettled(ids.map((id) => getWorkpiece(id))), listGrantsAt({ kind: 'room', id: room._id }).catch(() => null)])
   if (selected.value?._id !== room._id) return
   models.value = found.map((result, index) => (result.status === 'fulfilled' ? result.value.data : { _id: ids[index], name: '(not readable)', contract: {} }))

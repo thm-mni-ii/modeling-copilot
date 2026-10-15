@@ -3,9 +3,11 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch, type Ref } from 'vue
 import { useRouter } from 'vue-router'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import { collabErrorMessage, getRights, getWorkpiece, type CollabRoom, type CollabWorkpiece } from './collabApi'
-import { openCollabSession, type CollabSession } from './collabSession'
+import { CELLS_MAP, collabErrorMessage, getWorkpiece, type CollabRoom, type CollabWorkpiece } from './collabApi'
+import { loadCollabKit } from './collabKit'
+import type { CollabKitApi, Session } from './collabKitV1'
 import { bindGraph } from '@/collab/editing/graphBinding'
+import type { SharedCell } from '@/collab/editing/modelCells'
 import { linkOf, openWorkpiece } from './openWorkpiece'
 import { startPresence, type Person } from '@/collab/presence/presence'
 
@@ -21,7 +23,7 @@ const people = ref<Person[]>([])
 const editorGraph = shallowRef<Graph>()
 let unbind: (() => void) | null = null
 let stopPresence: (() => void) | null = null
-let session: CollabSession | null = null
+let session: Session<SharedCell> | null = null
 let lastLiveStatus = ''
 let lastOnline = ''
 
@@ -34,7 +36,8 @@ const logLiveStatus = (status: string) => {
   log(`live · ${status}`)
 }
 
-const disconnect = () => {
+/** Ends the session for good; the next connect opens a new one. */
+const closeSession = () => {
   unbind?.()
   unbind = null
   stopPresence?.()
@@ -50,14 +53,21 @@ const connect = async (id: string) => {
     notifyWarning('No graph available.')
     return
   }
+  // The same workpiece again: the doc kept what changed meanwhile and sends it on.
+  if (session?.workpieceId === id) {
+    session.connect()
+    isConnected.value = true
+    return
+  }
 
-  let canWrite = false
+  let ck: CollabKitApi
   connecting.value = true
   try {
+    ck = await loadCollabKit()
+    const me = await ck.me.who()
+    log(`collab-kit · library v1 · ${me.label ?? 'no name'} (${me.actorId})`)
     const workpiece = (await getWorkpiece(id)).data
-    const rights = (await getRights({ kind: 'workpiece', id })).data
-    canWrite = rights.includes('edit')
-    log(`collab-kit · workpiece "${workpiece.name}" · rights: ${rights.join(', ') || 'none'}`)
+    log(`collab-kit · workpiece "${workpiece.name}"`)
   } catch (error) {
     log(`collab-kit · workpiece ${id}: ${collabErrorMessage(error)}`)
     return
@@ -71,14 +81,29 @@ const connect = async (id: string) => {
   workpieceId.value = id
   localStorage.setItem(WORKPIECE_KEY, id)
   lastLiveStatus = ''
-  session = openCollabSession(id, logLiveStatus)
-  session.onClosed((reason) => {
-    disconnect()
-    log(`disconnected by collab-kit · ${reason}`)
+  closeSession()
+  // The session asks for token and rights itself before every connection.
+  const opened = ck.open<SharedCell>(id, { map: CELLS_MAP })
+  session = opened
+  let synced = false
+  opened.on('status', logLiveStatus)
+  opened.on('closed', ({ code, reason }) => {
+    log(`closed by collab-kit · ${code} ${reason}`)
+    // Before synced the doc never held the state of collab-kit, so the next connect starts afresh.
+    if (synced) isConnected.value = false
+    else closeSession()
   })
-  unbind = bindGraph(graph, session, canWrite, log)
+  // Rejected when the session ends before; closed tells why.
+  opened.synced.then(
+    () => {
+      synced = true
+      log(`live · synced · ${opened.mayWrite ? 'may edit' : 'read only'}`)
+    },
+    () => undefined
+  )
+  unbind = bindGraph(graph, opened, log)
   lastOnline = ''
-  stopPresence = startPresence(graph, session, (list, clients) => {
+  stopPresence = startPresence(graph, opened, (list, clients) => {
     people.value = list
     // Selections change often; the log notes only who is there and how many clients announce themselves.
     const online = `${list.map((person) => (person.self ? `${person.name} (you)` : person.name)).join(', ') || 'nobody'} · ${clients} clients`
@@ -93,8 +118,9 @@ const connect = async (id: string) => {
 /** The button under the ID field: connects to the ID typed in, or disconnects. */
 const toggleConnection = () => {
   if (isConnected.value) {
-    disconnect()
-    log('disconnected')
+    // Only the connection goes; edits made meanwhile go out on connect.
+    session?.disconnect()
+    isConnected.value = false
     return
   }
   const id = workpieceId.value.trim()
@@ -119,7 +145,7 @@ export const useCollabConnection = () => {
       await connect(workpiece._id)
       return
     }
-    disconnect()
+    closeSession()
     try {
       await openWorkpiece(router, room, workpiece)
     } catch (error) {
@@ -151,8 +177,8 @@ export const holdCollabConnection = (graph: Ref<Graph | undefined>) => {
   watch(isConnected, (live) => document.body.classList.toggle(LIVE_CLASS, live), { immediate: true })
 
   onBeforeUnmount(() => {
-    if (isConnected.value) log('left the editor · disconnected')
-    disconnect()
+    if (session) log('left the editor · closed')
+    closeSession()
     editorGraph.value = undefined
     document.body.classList.remove(LIVE_CLASS)
   })

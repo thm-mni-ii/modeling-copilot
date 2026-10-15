@@ -1,22 +1,23 @@
 import type { Graph } from '@maxgraph/core'
-import type { YMapEvent } from 'yjs'
+import type { Doc, YMapEvent } from 'yjs'
 import { exportModelAsXml, importModelFromXml } from '@/utils/modelPersistence'
-import { getRights } from '@/collab/connection/collabApi'
-import type { CollabSession } from '@/collab/connection/collabSession'
+import { CELLS_MAP } from '@/collab/connection/collabApi'
+import type { Session } from '@/collab/connection/collabKitV1'
 import { watchGraphChanges } from './graphChanges'
 import { joinModel, splitModel, type SharedCell } from './modelCells'
 
 /** Keeps the model in the Yjs document one cell per entry, so edits on different cells merge. */
-export const bindGraph = (graph: Graph, session: CollabSession, mayWrite: boolean, log: (text: string) => void) => {
-  const shared = session.doc.getMap<SharedCell>('cells')
+export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text: string) => void) => {
+  // The library's own Yjs; import type keeps a second one out of the build.
+  const doc = session.yjs.doc as Doc
+  const shared = doc.getMap<SharedCell>(CELLS_MAP)
   const model = graph.getDataModel()
-  let canWrite = mayWrite
   let ready = false
   let applyingRemote = false
   let stopped = false
 
   // Cells created in this session get IDs no one else creates; maxGraph's counter follows only numeric IDs.
-  model.prefix = `${session.doc.clientID}-`
+  model.prefix = `${session.clientId}-`
 
   const applyRemote = (what: string) => {
     const xml = joinModel(shared)
@@ -42,7 +43,7 @@ export const bindGraph = (graph: Graph, session: CollabSession, mayWrite: boolea
       return !known || known.xml !== cell.xml || known.index !== cell.index
     })
     if (changed.length === 0 && removed.length === 0) return
-    session.doc.transact(() => {
+    doc.transact(() => {
       for (const id of removed) shared.delete(id)
       for (const [id, cell] of changed) shared.set(id, cell)
     })
@@ -56,35 +57,30 @@ export const bindGraph = (graph: Graph, session: CollabSession, mayWrite: boolea
   const stopWatching = watchGraphChanges(graph, (_cellCount, replaced) => {
     if (!ready || applyingRemote) return
     if (!replaced) {
-      if (canWrite) push()
+      if (session.mayWrite) push()
       return
     }
     setTimeout(() => {
       if (!stopped) applyRemote('model replaced locally · shared state restored')
     })
   })
-  // A reader that kept sending would be closed with 1008 on every reconnect, so the rights are asked again.
-  const stopRightsWatch = session.onRightsChanged(() => {
-    getRights({ kind: 'workpiece', id: session.workpieceId })
-      .then(({ data }) => {
-        if (stopped) return
-        canWrite = data.includes('edit')
-        log(`rights changed · ${canWrite ? 'may edit' : 'read only'}`)
-      })
-      .catch(() => log('rights changed · could not ask collab-kit again'))
-  })
+  // The library asks for the rights again on every reconnect and keeps mayWrite up to date.
+  const stopRightsWatch = session.on('rightsChanged', (mayWrite) => log(`rights changed · ${mayWrite ? 'may edit' : 'read only'}`))
   const onRemote = (event: YMapEvent<SharedCell>) => {
     if (!event.transaction.local) applyRemote(`received ${event.keysChanged.size} of ${shared.size} cells`)
   }
 
   // Nothing goes out before the state of collab-kit is in; the first one in fills an empty workpiece.
-  void session.synced.then(() => {
-    if (stopped) return
-    if (shared.size > 0) applyRemote(`received model · ${shared.size} cells`)
-    else if (canWrite) push()
-    shared.observe(onRemote)
-    ready = true
-  })
+  void session.synced.then(
+    () => {
+      if (stopped) return
+      if (shared.size > 0) applyRemote(`received model · ${shared.size} cells`)
+      else if (session.mayWrite) push()
+      shared.observe(onRemote)
+      ready = true
+    },
+    () => undefined
+  )
 
   return () => {
     stopped = true

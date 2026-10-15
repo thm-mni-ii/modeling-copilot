@@ -1,7 +1,8 @@
 import { CellHighlight, InternalEvent, type Graph } from '@maxgraph/core'
 import authService from '@/services/auth/auth.service'
+import type { Awareness } from 'y-protocols/awareness'
 import type { TokenClaims } from '@/services/api/types/auth'
-import type { CollabSession } from '@/collab/connection/collabSession'
+import type { Session } from '@/collab/connection/collabKitV1'
 import { startCursors } from './cursors'
 
 /** One person at the workpiece, once however many tabs they have open. */
@@ -23,10 +24,12 @@ const COLORS = ['#e53935', '#1e88e5', '#43a047', '#8e24aa', '#fb8c00', '#00897b'
 /** The same color for the same person on every screen. */
 const colorOf = (id: string) => COLORS[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % COLORS.length]
 
-/** Announces who this tab is and what it selects, and frames what the others select. */
-/** Reports the people at the workpiece, and how many clients announce themselves there, own one included. */
-export const startPresence = (graph: Graph, session: CollabSession, onPeople: (people: Person[], clients: number) => void) => {
-  const { awareness } = session
+/**
+ * Announces who this tab is and what it selects, frames what the others select, and reports the
+ * people at the workpiece and how many clients announce themselves there, own one included.
+ */
+export const startPresence = (graph: Graph, session: Session, onPeople: (people: Person[], clients: number) => void) => {
+  const awareness = session.yjs.awareness as Awareness
   const model = graph.getDataModel()
   const selectionModel = graph.getSelectionModel()
   let frames: CellHighlight[] = []
@@ -95,7 +98,8 @@ export const startPresence = (graph: Graph, session: CollabSession, onPeople: (p
       if (stopped) return
       const claims = data as TokenClaims & { name?: string }
       const id = String(claims.id)
-      awareness.setLocalState({ user: { id, name: claims.name || claims.username || `Person ${id}` } })
+      // A field, not the whole entry: the library keeps person in it.
+      awareness.setLocalStateField('user', { id, name: claims.name || claims.username || `Person ${id}` })
       sendSelection()
     })
     .catch(() => undefined)
