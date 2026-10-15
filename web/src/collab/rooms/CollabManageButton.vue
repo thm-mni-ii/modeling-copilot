@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { getRights } from '@/collab/connection/collabApi'
+import { loadCollabKit } from '@/collab/connection/collabKit'
 import CollabManageDialog from './CollabManageDialog.vue'
 
 const canManage = ref(false)
@@ -14,7 +14,8 @@ const open = ref(false)
 // Rooms and groups lie in nothing, so creating them takes manage everywhere; without it there is nothing to manage.
 onMounted(async () => {
   try {
-    canManage.value = (await getRights()).data.includes('manage')
+    const ck = await loadCollabKit()
+    canManage.value = (await ck.me.rights()).includes('manage')
   } catch {
     canManage.value = false
   }

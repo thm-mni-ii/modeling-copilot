@@ -1,146 +1,30 @@
-import axios from 'axios'
-import { useBearerToken } from '@/composables/useBearerToken'
 import type { WorkspaceLanguageReference } from '@/services/api/types/model'
+import type { NewWorkpiece } from './collabKitV1'
 
 /** Address of collab-kit, which checks the same Feedbacksystem token as the API. */
 export const collabUrl: string | undefined = import.meta.env.VITE_COLLAB_URL
 
-const collabClient = axios.create({ baseURL: collabUrl })
+/** What marks a room or group as one of the Copilot's. */
+export const TOOL_SETTINGS = { tool: 'modeling-copilot' }
 
-collabClient.interceptors.request.use((config) => {
-  if (!collabUrl) throw new Error('VITE_COLLAB_URL is not set.')
-  const { bearerToken } = useBearerToken()
-  if (bearerToken.value) {
-    config.headers.Authorization = `Bearer ${bearerToken.value}`
-  }
-  return config
-})
-
-/** A room as collab-kit keeps it; settings are the tool's switches and never read by the service. */
-export interface CollabRoom {
-  _id: string
-  name: string
-  settings: Record<string, unknown>
-  workpieces: string[]
-  createdAt: string
-  createdBy: string
-}
-
-/** The workpiece as a thing: its name and what the tool registered, not its content. */
-export interface CollabWorkpiece {
-  _id: string
-  name: string
-  contract: Record<string, unknown>
-}
-
-/** A set of people; what it stands for is the tool's, kept in settings. */
-export interface CollabGroup {
-  _id: string
-  name: string
-  settings: Record<string, unknown>
-  members: string[]
-  createdAt: string
-  createdBy: string
-}
-
-/** A place a grant holds at; without one it holds everywhere. */
-export interface CollabScope {
-  kind: string
-  id: string
-}
-
-/** What one group may do at one place. */
-export interface CollabGrant {
-  _id: string
-  groupId: string
-  scope?: CollabScope
-  rights: string[]
-}
-
-/** What marks a room, group or workpiece as one of the Copilot's. */
-const TOOL_SETTINGS = { tool: 'modeling-copilot' }
-/** What every own model of the workpiece is created with: the cell format and its languages. */
-const workpieceContract = (languages: WorkspaceLanguageReference[]) => ({ tool: 'modeling-copilot', format: 'copilot-cells', version: 1, languages })
 /** The top map of the doc, one cell per key; named as units, so a conflict names its cell. */
 export const CELLS_MAP = 'cells'
 
-export const getWorkpiece = (id: string) => collabClient.get<CollabWorkpiece>(`/workpieces/${encodeURIComponent(id)}`)
-
-/** Every room the token may see; whoever sees everywhere gets them all. */
-export const listRooms = () => collabClient.get<CollabRoom[]>('/me/rooms')
-
-export const getRoom = (id: string) => collabClient.get<CollabRoom>(`/rooms/${encodeURIComponent(id)}`)
-
-/** Takes manage everywhere, as a room lies in nothing. */
-export const createRoom = (name: string) => collabClient.post<CollabRoom>('/rooms', { name, settings: TOOL_SETTINGS })
-
-/** A new workpiece right in the room; takes manage at the room. */
-export const createWorkpieceInRoom = (roomId: string, name: string, languages: WorkspaceLanguageReference[]) => collabClient.post<CollabWorkpiece>('/workpieces', { name, roomId, contract: workpieceContract(languages), units: [{ path: [CELLS_MAP] }] })
-
-/** Puts an existing workpiece into the room; takes manage at the room and at the workpiece. */
-export const addToRoom = (roomId: string, workpieceId: string) => collabClient.post<CollabRoom>(`/rooms/${encodeURIComponent(roomId)}/workpieces`, { workpieceId })
-
-/** Takes the workpiece out of the room; the workpiece itself stays. */
-export const removeFromRoom = (roomId: string, workpieceId: string) => collabClient.delete<CollabRoom>(`/rooms/${encodeURIComponent(roomId)}/workpieces/${encodeURIComponent(workpieceId)}`)
-
-export const getGroup = (id: string) => collabClient.get<CollabGroup>(`/groups/${encodeURIComponent(id)}`)
-
-/** The groups the token is a member of; an admin is often in none. */
-export const listMyGroups = () => collabClient.get<CollabGroup[]>('/me/groups')
-
-/** Takes manage everywhere; a new group holds no grant yet. */
-export const createGroup = (name: string) => collabClient.post<CollabGroup>('/groups', { name, settings: TOOL_SETTINGS })
-
-/** The actor key is the Feedbacksystem user ID. */
-export const addMember = (groupId: string, actorId: string) => collabClient.post<CollabGroup>(`/groups/${encodeURIComponent(groupId)}/members`, { actorId })
-
-export const removeMember = (groupId: string, actorId: string) => collabClient.delete<CollabGroup>(`/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(actorId)}`)
-
-/** Every grant at a place; takes manage there. */
-export const listGrantsAt = (scope: CollabScope) => collabClient.get<CollabGrant[]>('/grants', { params: { scopeKind: scope.kind, scopeId: scope.id } })
-
-/** Every grant of a group; takes manage at the group. */
-export const listGrantsOf = (groupId: string) => collabClient.get<CollabGrant[]>('/grants', { params: { groupId } })
-
-/** Replaces what the group may do at the place, or everywhere without one; open connections are asked again. */
-export const setGrant = (groupId: string, scope: CollabScope | undefined, rights: string[]) => collabClient.put<CollabGrant>('/grants', { groupId, scope, rights })
-
-export const removeGrant = (groupId: string, scope: CollabScope | undefined) => collabClient.delete<{ removed: boolean }>('/grants', { params: { groupId, scopeKind: scope?.kind, scopeId: scope?.id } })
-
-/** Every workpiece the token may see; admins see all, to put one into a room. */
-export const listWorkpieces = () => collabClient.get<CollabWorkpiece[]>('/workpieces')
-
-/** Takes manage at the room; the name change is kept as an event. */
-export const renameRoom = (roomId: string, name: string) => collabClient.patch<CollabRoom>(`/rooms/${encodeURIComponent(roomId)}`, { name })
-
-/** The workpieces stay, the access the room gave goes with it; open connections are asked again. */
-export const deleteRoom = (roomId: string) => collabClient.delete<{ deleted: boolean }>(`/rooms/${encodeURIComponent(roomId)}`)
-
-/** Every group the token may see; admins see all. */
-export const listGroups = () => collabClient.get<CollabGroup[]>('/groups')
-
-/** Takes manage at the group; the name change is kept as an event. */
-export const renameGroup = (groupId: string, name: string) => collabClient.patch<CollabGroup>(`/groups/${encodeURIComponent(groupId)}`, { name })
-
-/** Its members lose the access it gave; open connections are asked again. */
-export const deleteGroup = (groupId: string) => collabClient.delete<{ deleted: boolean }>(`/groups/${encodeURIComponent(groupId)}`)
-
-/** Names collab-kit keeps from the tokens; only those the token may put a name to, unknown ones left out. */
-export const listActorNames = (actorIds: string[]) => collabClient.get<{ actorId: string; label?: string }[]>('/actors', { params: { ids: actorIds.join(',') } })
-
-/** Rights the current token holds, everywhere or at one thing of collab-kit. */
-export const getRights = (target?: { kind: string; id: string }) => collabClient.get<string[]>('/me/rights', { params: target })
+/** A Copilot workpiece in a room: the cell format with its languages, and the cells as units. */
+export const newWorkpiece = (roomId: string, name: string, languages: WorkspaceLanguageReference[]): NewWorkpiece => ({
+  name,
+  roomId,
+  contract: { tool: 'modeling-copilot', format: 'copilot-cells', version: 1, languages },
+  units: [{ path: [CELLS_MAP] }]
+})
 
 /** Short reason for the sync log and notifications. */
 export const collabErrorMessage = (error: unknown) => {
   if (!collabUrl) return 'VITE_COLLAB_URL is not set'
-  const response = (error as { response?: { status?: number; data?: { error?: unknown } } }).response
-  const status = response?.status ?? (error as { status?: number }).status
+  const { status, message } = error as { status?: number; message?: string }
   if (status === 401) return 'token rejected (expired?)'
   // collab-kit names the reason of every other refusal, such as "unknown workpiece".
-  if (typeof response?.data?.error === 'string') return response.data.error
-  if (status === 404) return 'not found'
-  if (status !== undefined) return `request failed with HTTP ${status}`
+  if (status !== undefined) return message || `request failed with HTTP ${status}`
   // A request the browser blocks for CORS looks the same to the page, it hides the reason.
   return `not reachable at ${collabUrl} or blocked by CORS`
 }

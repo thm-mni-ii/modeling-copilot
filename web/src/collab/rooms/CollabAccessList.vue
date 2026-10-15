@@ -17,11 +17,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import type { Right } from '@/collab/connection/collabKitV1'
 import { ACCESS_LEVELS, describeRights, levelOf, type AccessLevel } from './access'
 
 /** Access shown from either side: groups of a room, or rooms of a group; the same grants behind both. */
 defineProps<{
-  rows: { id: string; label: string; rights: string[] }[]
+  rows: { id: string; label: string; rights: readonly Right[] }[]
   options: { value: string; title: string }[]
   addLabel: string
   emptyText: string

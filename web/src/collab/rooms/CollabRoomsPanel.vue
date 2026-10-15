@@ -56,7 +56,9 @@ import type { LanguageOverview } from '@/services/api/types/language'
 import languageService from '@/services/language/language.service'
 import DialogConfirm from '@/components/dialog/DialogConfirm.vue'
 import { rightsOf, type AccessLevel } from './access'
-import { addToRoom, createRoom, createWorkpieceInRoom, deleteRoom, getRoom, getWorkpiece, listGrantsAt, removeFromRoom, removeGrant, renameRoom, setGrant, type CollabGrant, type CollabScope, type CollabWorkpiece } from '@/collab/connection/collabApi'
+import { newWorkpiece, TOOL_SETTINGS } from '@/collab/connection/collabApi'
+import { loadCollabKit } from '@/collab/connection/collabKit'
+import type { CollabKitApi, Grant, Reference, Workpiece } from '@/collab/connection/collabKitV1'
 import CollabAccessList from './CollabAccessList.vue'
 import { UML_CLASS_DIAGRAM } from '@/collab/connection/openWorkpiece'
 import { useCollabAction, useCollabDirectory } from './useCollabDirectory'
@@ -65,8 +67,8 @@ const { rooms, groups, workpieces, loading, showRoom, showWorkpiece, dropRoom, g
 const { busy, run } = useCollabAction()
 
 const selectedId = ref<string | null>(null)
-const models = ref<CollabWorkpiece[]>([])
-const grants = ref<CollabGrant[]>([])
+const models = ref<Pick<Workpiece, '_id' | 'name'>[]>([])
+const grants = ref<Grant[]>([])
 const newRoomName = ref('')
 const newModelName = ref('')
 const existingId = ref<string | null>(null)
@@ -76,7 +78,7 @@ const languages = ref<LanguageOverview[]>([])
 const newModelLanguage = ref<string | null>(null)
 
 const selected = computed(() => rooms.value.find((room) => room._id === selectedId.value) ?? null)
-const scope = computed<CollabScope | undefined>(() => (selected.value ? { kind: 'room', id: selected.value._id } : undefined))
+const scope = computed<Reference | undefined>(() => (selected.value ? { kind: 'room', id: selected.value._id } : undefined))
 
 const accessRows = computed(() => grants.value.map((grant) => ({ id: grant.groupId, label: groupName(grant.groupId), rights: grant.rights })))
 // Every model collab-kit lists that is not in this room yet, with the end of its ID to tell equal names apart.
@@ -94,15 +96,16 @@ const loadDetail = async () => {
     grants.value = []
     return
   }
+  const ck = await loadCollabKit()
   const ids = room.workpieces
-  const [found, held] = await Promise.all([Promise.allSettled(ids.map((id) => getWorkpiece(id))), listGrantsAt({ kind: 'room', id: room._id }).catch(() => null)])
+  const [found, held] = await Promise.all([Promise.allSettled(ids.map((id) => ck.workpieces.get(id))), ck.grants.list({ scope: { kind: 'room', id: room._id } }).catch(() => null)])
   if (selected.value?._id !== room._id) return
-  models.value = found.map((result, index) => (result.status === 'fulfilled' ? result.value.data : { _id: ids[index], name: '(not readable)', contract: {} }))
-  grants.value = held?.data ?? []
+  models.value = found.map((result, index) => (result.status === 'fulfilled' ? result.value : { _id: ids[index], name: '(not readable)' }))
+  grants.value = held ?? []
 }
 
-const reloadGrants = async () => {
-  if (scope.value) grants.value = (await listGrantsAt(scope.value)).data
+const reloadGrants = async (ck: CollabKitApi) => {
+  if (scope.value) grants.value = await ck.grants.list({ scope: scope.value })
 }
 
 const addRoom = () => {
@@ -110,8 +113,8 @@ const addRoom = () => {
   if (!name) return
   void run(
     'room',
-    async () => {
-      const room = (await createRoom(name)).data
+    async (ck) => {
+      const room = await ck.rooms.create({ name, settings: TOOL_SETTINGS })
       showRoom(room)
       selectedId.value = room._id
       newRoomName.value = ''
@@ -143,9 +146,9 @@ const addModel = () => {
   const versionId = language.latestVersionId
   void run(
     'model',
-    async () => {
-      showWorkpiece((await createWorkpieceInRoom(room._id, name, [{ languageId: language.id, versionId, source: 'required' }])).data)
-      showRoom((await getRoom(room._id)).data)
+    async (ck) => {
+      showWorkpiece(await ck.workpieces.create(newWorkpiece(room._id, name, [{ languageId: language.id, versionId, source: 'required' }])))
+      showRoom(await ck.rooms.get(room._id))
       newModelName.value = ''
       notifySuccess('Model created')
     },
@@ -159,8 +162,8 @@ const addExisting = () => {
   if (!room || !id) return
   void run(
     'existing',
-    async () => {
-      showRoom((await addToRoom(room._id, id)).data)
+    async (ck) => {
+      showRoom(await ck.rooms.addWorkpiece(room._id, id))
       existingId.value = null
       notifySuccess('Model added to the room')
     },
@@ -173,8 +176,8 @@ const removeModel = (id: string) => {
   if (!room) return
   void run(
     id,
-    async () => {
-      showRoom((await removeFromRoom(room._id, id)).data)
+    async (ck) => {
+      showRoom(await ck.rooms.removeWorkpiece(room._id, id))
       notifySuccess('Model taken out of the room')
     },
     'Model could not be taken out'
@@ -185,9 +188,9 @@ const removeModel = (id: string) => {
 const changeAccess = (groupId: string, level: AccessLevel) => {
   void run(
     groupId,
-    async () => {
-      await setGrant(groupId, scope.value, rightsOf(level))
-      await reloadGrants()
+    async (ck) => {
+      await ck.grants.set({ groupId, scope: scope.value, rights: rightsOf(level) })
+      await reloadGrants(ck)
       notifySuccess('Access changed')
     },
     'Access could not be changed'
@@ -197,9 +200,9 @@ const changeAccess = (groupId: string, level: AccessLevel) => {
 const removeAccess = (groupId: string) => {
   void run(
     groupId,
-    async () => {
-      await removeGrant(groupId, scope.value)
-      await reloadGrants()
+    async (ck) => {
+      await ck.grants.remove({ groupId, scope: scope.value })
+      await reloadGrants(ck)
       notifySuccess('Access removed')
     },
     'Access could not be removed'
@@ -212,8 +215,8 @@ const saveName = () => {
   if (!room || !name || name === room.name) return
   void run(
     'rename',
-    async () => {
-      showRoom((await renameRoom(room._id, name)).data)
+    async (ck) => {
+      showRoom(await ck.rooms.update(room._id, { name }))
       notifySuccess('Room renamed')
     },
     'Room could not be renamed'
@@ -227,8 +230,8 @@ const removeRoom = async () => {
   if (!confirmed) return
   void run(
     'delete',
-    async () => {
-      await deleteRoom(room._id)
+    async (ck) => {
+      await ck.rooms.remove(room._id)
       dropRoom(room._id)
       selectedId.value = rooms.value[0]?._id ?? null
       notifySuccess('Room deleted')

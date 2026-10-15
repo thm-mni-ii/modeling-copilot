@@ -3,7 +3,7 @@ import type { JsonObject } from '@/services/api/types/common'
 import type { Model, WorkspaceLanguageReference } from '@/services/api/types/model'
 import modelService from '@/services/model/model.service'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import type { CollabRoom, CollabWorkpiece } from './collabApi'
+import type { Room, Workpiece } from './collabKitV1'
 
 /** The UML class diagram the Copilot seeds with fixed IDs; the default language of a shared model. */
 export const UML_CLASS_DIAGRAM: WorkspaceLanguageReference = {
@@ -24,7 +24,7 @@ export const linkOf = (preferences: JsonObject | undefined): CollabLink | null =
 }
 
 /** The languages the workpiece was created with; older ones without get the UML class diagram. */
-const languagesOf = (workpiece: CollabWorkpiece): WorkspaceLanguageReference[] => {
+const languagesOf = (workpiece: Workpiece): WorkspaceLanguageReference[] => {
   const languages = workpiece.contract.languages
   const usable = Array.isArray(languages) && languages.every((language) => typeof language?.languageId === 'string' && typeof language?.versionId === 'string')
   return usable && languages.length > 0 ? (languages as WorkspaceLanguageReference[]) : [UML_CLASS_DIAGRAM]
@@ -47,7 +47,7 @@ const findLinkedModel = async (workpieceId: string): Promise<Model | null> => {
  * loads a model when it mounts, and it writes its canvas into the workspace store meanwhile, so it
  * is left first; the new model is set up in between.
  */
-export const openWorkpiece = async (router: Router, room: CollabRoom, workpiece: CollabWorkpiece) => {
+export const openWorkpiece = async (router: Router, room: Room, workpiece: Workpiece) => {
   const workspace = useModelWorkspaceStore()
   const existing = await findLinkedModel(workpiece._id)
   await router.replace('/')

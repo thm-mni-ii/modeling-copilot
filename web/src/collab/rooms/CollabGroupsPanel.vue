@@ -47,7 +47,9 @@ import { computed, ref, watch } from 'vue'
 import DialogConfirm from '@/components/dialog/DialogConfirm.vue'
 import { notifySuccess } from '@/composables/useNotifications'
 import { rightsOf, type AccessLevel } from './access'
-import { addMember, createGroup, deleteGroup, listGrantsOf, removeGrant, removeMember, renameGroup, setGrant, type CollabGrant, type CollabScope } from '@/collab/connection/collabApi'
+import { TOOL_SETTINGS } from '@/collab/connection/collabApi'
+import { loadCollabKit } from '@/collab/connection/collabKit'
+import type { Grant, Reference } from '@/collab/connection/collabKitV1'
 import CollabAccessList from './CollabAccessList.vue'
 import { useCollabAction, useCollabDirectory } from './useCollabDirectory'
 
@@ -55,7 +57,7 @@ const { rooms, groups, loading, loadNames, showGroup, dropGroup, roomName, actor
 const { busy, run } = useCollabAction()
 
 const selectedId = ref<string | null>(null)
-const grants = ref<CollabGrant[]>([])
+const grants = ref<Grant[]>([])
 const newGroupName = ref('')
 const newMember = ref('')
 const nameDraft = ref('')
@@ -63,13 +65,13 @@ const confirmDialog = ref<InstanceType<typeof DialogConfirm> | null>(null)
 
 // Access rows and options are keyed by place: a room, another place of collab-kit, or everywhere.
 const EVERYWHERE = 'everywhere'
-const keyOf = (scope?: CollabScope) => (scope ? `${scope.kind}:${scope.id}` : EVERYWHERE)
-const scopeOf = (key: string): CollabScope | undefined => {
+const keyOf = (scope?: Reference) => (scope ? `${scope.kind}:${scope.id}` : EVERYWHERE)
+const scopeOf = (key: string): Reference | undefined => {
   if (key === EVERYWHERE) return undefined
   const [kind, id] = key.split(':')
   return { kind, id }
 }
-const labelOf = (scope?: CollabScope) => (!scope ? 'Everywhere' : scope.kind === 'room' ? roomName(scope.id) : `${scope.kind} ${scope.id}`)
+const labelOf = (scope?: Reference) => (!scope ? 'Everywhere' : scope.kind === 'room' ? roomName(scope.id) : `${scope.kind} ${scope.id}`)
 
 const selected = computed(() => groups.value.find((group) => group._id === selectedId.value) ?? null)
 const accessRows = computed(() => grants.value.map((grant) => ({ id: keyOf(grant.scope), label: labelOf(grant.scope), rights: grant.rights })))
@@ -85,8 +87,9 @@ const loadGrants = async () => {
     grants.value = []
     return
   }
-  const held = await listGrantsOf(group._id).catch(() => null)
-  if (selected.value?._id === group._id) grants.value = held?.data ?? []
+  const ck = await loadCollabKit()
+  const held = await ck.grants.list({ groupId: group._id }).catch(() => null)
+  if (selected.value?._id === group._id) grants.value = held ?? []
 }
 
 const addGroup = () => {
@@ -94,8 +97,8 @@ const addGroup = () => {
   if (!name) return
   void run(
     'group',
-    async () => {
-      const group = (await createGroup(name)).data
+    async (ck) => {
+      const group = await ck.groups.create({ name, settings: TOOL_SETTINGS })
       showGroup(group)
       selectedId.value = group._id
       newGroupName.value = ''
@@ -111,8 +114,8 @@ const saveName = () => {
   if (!group || !name || name === group.name) return
   void run(
     'rename',
-    async () => {
-      showGroup((await renameGroup(group._id, name)).data)
+    async (ck) => {
+      showGroup(await ck.groups.update(group._id, { name }))
       notifySuccess('Group renamed')
     },
     'Group could not be renamed'
@@ -126,8 +129,8 @@ const removeGroup = async () => {
   if (!confirmed) return
   void run(
     'delete',
-    async () => {
-      await deleteGroup(group._id)
+    async (ck) => {
+      await ck.groups.remove(group._id)
       dropGroup(group._id)
       selectedId.value = groups.value[0]?._id ?? null
       notifySuccess('Group deleted')
@@ -142,8 +145,8 @@ const addToGroup = () => {
   if (!group || !actorId) return
   void run(
     'member',
-    async () => {
-      showGroup((await addMember(group._id, actorId)).data)
+    async (ck) => {
+      showGroup(await ck.groups.addMember(group._id, actorId))
       await loadNames([actorId])
       newMember.value = ''
       notifySuccess('Member added')
@@ -157,8 +160,8 @@ const removeFromGroup = (actorId: string) => {
   if (!group) return
   void run(
     `member:${actorId}`,
-    async () => {
-      showGroup((await removeMember(group._id, actorId)).data)
+    async (ck) => {
+      showGroup(await ck.groups.removeMember(group._id, actorId))
       notifySuccess('Member removed')
     },
     'Member could not be removed'
@@ -171,8 +174,8 @@ const changeAccess = (key: string, level: AccessLevel) => {
   if (!group) return
   void run(
     key,
-    async () => {
-      await setGrant(group._id, scopeOf(key), rightsOf(level))
+    async (ck) => {
+      await ck.grants.set({ groupId: group._id, scope: scopeOf(key), rights: rightsOf(level) })
       await loadGrants()
       notifySuccess('Access changed')
     },
@@ -185,8 +188,8 @@ const removeAccess = (key: string) => {
   if (!group) return
   void run(
     key,
-    async () => {
-      await removeGrant(group._id, scopeOf(key))
+    async (ck) => {
+      await ck.grants.remove({ groupId: group._id, scope: scopeOf(key) })
       await loadGrants()
       notifySuccess('Access removed')
     },

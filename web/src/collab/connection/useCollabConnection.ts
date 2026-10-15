@@ -3,9 +3,9 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch, type Ref } from 'vue
 import { useRouter } from 'vue-router'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import { CELLS_MAP, collabErrorMessage, getWorkpiece, type CollabRoom, type CollabWorkpiece } from './collabApi'
+import { CELLS_MAP, collabErrorMessage } from './collabApi'
 import { loadCollabKit } from './collabKit'
-import type { CollabKitApi, Session } from './collabKitV1'
+import type { CollabKitApi, Room, Session, Workpiece } from './collabKitV1'
 import { bindGraph } from '@/collab/editing/graphBinding'
 import type { SharedCell } from '@/collab/editing/modelCells'
 import { linkOf, openWorkpiece } from './openWorkpiece'
@@ -66,7 +66,7 @@ const connect = async (id: string) => {
     ck = await loadCollabKit()
     const me = await ck.me.who()
     log(`collab-kit · library v1 · ${me.label ?? 'no name'} (${me.actorId})`)
-    const workpiece = (await getWorkpiece(id)).data
+    const workpiece = await ck.workpieces.get(id)
     log(`collab-kit · workpiece "${workpiece.name}"`)
   } catch (error) {
     log(`collab-kit · workpiece ${id}: ${collabErrorMessage(error)}`)
@@ -140,7 +140,7 @@ export const useCollabConnection = () => {
   const linkedWorkpieceId = computed(() => linkOf(workspace.model?.preferences)?.workpieceId ?? null)
 
   /** A model of a room: the open one just connects, any other opens the own model of it. */
-  const openFromRoom = async (room: CollabRoom, workpiece: CollabWorkpiece) => {
+  const openFromRoom = async (room: Room, workpiece: Workpiece) => {
     if (linkedWorkpieceId.value === workpiece._id) {
       await connect(workpiece._id)
       return

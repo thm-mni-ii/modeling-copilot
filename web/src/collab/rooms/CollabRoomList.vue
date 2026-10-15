@@ -22,24 +22,27 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
-import { collabErrorMessage, getWorkpiece, listRooms, type CollabRoom, type CollabWorkpiece } from '@/collab/connection/collabApi'
+import { collabErrorMessage } from '@/collab/connection/collabApi'
+import { loadCollabKit } from '@/collab/connection/collabKit'
+import type { Room, Workpiece } from '@/collab/connection/collabKitV1'
 
 defineProps<{ activeWorkpieceId: string | null; connected: boolean }>()
-const emit = defineEmits<{ open: [room: CollabRoom, workpiece: CollabWorkpiece] }>()
+const emit = defineEmits<{ open: [room: Room, workpiece: Workpiece] }>()
 
-const rooms = ref<CollabRoom[]>([])
-const models = ref<Record<string, CollabWorkpiece[]>>({})
+const rooms = ref<Room[]>([])
+const models = ref<Record<string, Workpiece[]>>({})
 const loading = ref(false)
 
 // Every room the token may see, with the models in it it may read.
 const load = async () => {
   loading.value = true
   try {
-    rooms.value = (await listRooms()).data.sort((a, b) => a.name.localeCompare(b.name))
+    const ck = await loadCollabKit()
+    rooms.value = (await ck.me.rooms()).sort((a, b) => a.name.localeCompare(b.name))
     const entries = await Promise.all(
       rooms.value.map(async (room) => {
-        const found = await Promise.allSettled(room.workpieces.map((id) => getWorkpiece(id)))
-        return [room._id, found.flatMap((result) => (result.status === 'fulfilled' ? [result.value.data] : []))] as const
+        const found = await Promise.allSettled(room.workpieces.map((id) => ck.workpieces.get(id)))
+        return [room._id, found.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))] as const
       })
     )
     models.value = Object.fromEntries(entries)
