@@ -1,14 +1,28 @@
 <template>
   <div class="collab-people">
-    <div class="collab-people__header">Online</div>
-    <div v-if="people.length === 0" class="collab-people__empty">Nobody announced yet</div>
-    <div v-for="person in people" :key="person.id" class="collab-people__entry">
-      <span class="collab-people__dot" :style="{ background: person.color }" />
-      <span>{{ person.name }}</span>
-      <span v-if="person.self" class="collab-people__self">(you)</span>
+    <div class="collab-people__header">
+      <span>Online</span>
+      <v-btn :icon="open ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="x-small" variant="text" :aria-label="open ? 'Collapse online' : 'Expand online'" @click="open = !open" />
     </div>
+    <v-expand-transition>
+      <div v-show="open" class="collab-people__body">
+        <div v-if="people.length === 0" class="collab-people__empty">Nobody announced yet</div>
+        <div v-for="person in people" :key="person.id" class="collab-people__entry">
+          <span class="collab-people__dot" :style="{ background: person.color }" />
+          <span>{{ person.name }}</span>
+          <span v-if="person.self" class="collab-people__self">(you)</span>
+        </div>
+      </div>
+    </v-expand-transition>
   </div>
 </template>
+
+<script lang="ts">
+import { ref } from 'vue'
+
+// Kept beside the component, so it stays closed while another sidebar tab is shown.
+const open = ref(true)
+</script>
 
 <script setup lang="ts">
 import type { Person } from './presence'
@@ -26,13 +40,19 @@ defineProps<{ people: Person[] }>()
 }
 
 .collab-people__header {
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 4px 10px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: rgba(var(--v-theme-on-surface), 0.62);
   text-transform: uppercase;
+}
+
+.collab-people__body {
+  border-top: 1px solid rgba(var(--v-theme-outline), 0.15);
 }
 
 .collab-people__empty,

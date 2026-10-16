@@ -1,6 +1,6 @@
 import type { Graph } from '@maxgraph/core'
 import { computed, onBeforeUnmount, ref, shallowRef, watch, type Ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { CELLS_MAP, collabErrorMessage } from './collabApi'
@@ -139,10 +139,14 @@ const toggleConnection = () => {
 /** The connection as the sync sidebar shows it, and opening the models of rooms. */
 export const useCollabConnection = () => {
   const router = useRouter()
+  const route = useRoute()
   const workspace = useModelWorkspaceStore()
 
-  /** The workpiece the open model shares, if it is one of a room. */
-  const linkedWorkpieceId = computed(() => linkOf(workspace.model?.preferences)?.workpieceId ?? null)
+  /**
+   * The workpiece the open model shares, if it is one of a room. None while the store still holds
+   * the model before: the editor mounts first and loads its model only then.
+   */
+  const linkedWorkpieceId = computed(() => (workspace.model && workspace.model.id === route.params.modelId ? linkOf(workspace.model.preferences)?.workpieceId ?? null : null))
 
   /** A model of a room: the open one just connects, any other opens the own model of it. */
   const openFromRoom = async (room: Room, workpiece: Workpiece) => {
@@ -173,6 +177,11 @@ export const holdCollabConnection = (graph: Ref<Graph | undefined>) => {
   watch(
     [linkedWorkpieceId, editorGraph],
     ([id, current]) => {
+      // Another model in the editor ends the session of the one before, so its state never lands in this one.
+      if (session && session.workpieceId !== id) {
+        log('other model in the editor · closed')
+        closeSession()
+      }
       if (id && current && !isConnected.value) void connect(id)
     },
     { immediate: true }

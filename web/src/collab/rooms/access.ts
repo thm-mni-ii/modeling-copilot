@@ -1,3 +1,4 @@
+import { loadCollabKit } from '@/collab/connection/collabKit'
 import type { Right } from '@/collab/connection/collabKitV1'
 
 /** The six rights of collab-kit; plan and decide matter once tasks come in. */
@@ -18,3 +19,13 @@ export const rightsOf = (level: AccessLevel) => ACCESS_LEVELS.find((entry) => en
 export const levelOf = (rights: readonly Right[]): AccessLevel | null => ACCESS_LEVELS.find((entry) => entry.rights.length === rights.length && entry.rights.every((right) => rights.includes(right)))?.value ?? null
 
 export const describeRights = (rights: readonly Right[]) => ACCESS_LEVELS.find((entry) => entry.value === levelOf(rights))?.title ?? `Custom (${rights.join(', ')})`
+
+/** Rooms and groups lie in nothing, so creating them takes manage everywhere; false when collab-kit cannot be reached. */
+export const mayManageAll = async () => {
+  try {
+    const ck = await loadCollabKit()
+    return (await ck.me.rights()).includes('manage')
+  } catch {
+    return false
+  }
+}

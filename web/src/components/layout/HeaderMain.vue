@@ -23,6 +23,7 @@
         <span> Tasks </span>
         <v-tooltip activator="parent" location="bottom"> Create and manage tasks </v-tooltip>
       </v-btn>
+      <CollabNavButton />
       <v-btn prepend-icon="mdi-logout" @click="logout">
         <span> Logout </span>
         <v-tooltip activator="parent" location="bottom"> Logout </v-tooltip>
@@ -33,6 +34,7 @@
 
 <script setup lang="ts">
 import IconFBS from '@/components/icons/IconFBS.vue'
+import CollabNavButton from '@/collab/rooms/CollabNavButton.vue'
 
 import { computed, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'

@@ -21,8 +21,9 @@ export const showConflicts = (graph: Graph, session: Session, log: (text: string
     const cell = graph.getDataModel().getCell(id)
     const state = cell ? graph.view.getState(cell) : null
     if (!state) return
-    // Dashed, so it is not taken for the selection of another person.
+    // Dashed and outside the frame of a person who selects the cell, so it is neither taken for nor hidden by it.
     const frame = new CellHighlight(graph, '#d32f2f', 3, true)
+    frame.spacing = 6
     frame.highlight(state)
     frames.set(
       frame,

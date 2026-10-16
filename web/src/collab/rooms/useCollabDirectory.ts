@@ -4,7 +4,7 @@ import { collabErrorMessage } from '@/collab/connection/collabApi'
 import { loadCollabKit } from '@/collab/connection/collabKit'
 import type { CollabKitApi, Group, Room, Workpiece } from '@/collab/connection/collabKitV1'
 
-// Shared by both tabs of the dialog, loaded on every opening.
+// Shared by both tabs of the collab page, loaded on every visit.
 const rooms = ref<Room[]>([])
 const groups = ref<Group[]>([])
 const workpieces = ref<Workpiece[]>([])

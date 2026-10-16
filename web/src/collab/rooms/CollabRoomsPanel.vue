@@ -1,50 +1,64 @@
 <template>
   <div class="collab-rooms">
-    <div class="collab-rooms__list">
+    <v-card class="collab-rooms__list" variant="outlined">
       <v-progress-linear v-if="loading" indeterminate />
-      <v-list density="compact" nav>
-        <v-list-item v-for="room in rooms" :key="room._id" :title="room.name" :subtitle="`${room.workpieces.length} models`" :active="room._id === selectedId" @click="selectedId = room._id" />
+      <v-list density="compact" nav class="collab-rooms__items">
+        <v-list-item v-for="room in rooms" :key="room._id" :title="room.name" :subtitle="`${room.workpieces.length} models`" :active="room._id === selectedId" color="primary" rounded="lg" prepend-icon="mdi-door" @click="selectedId = room._id" />
+        <v-list-item v-if="!loading && rooms.length === 0" disabled title="No rooms yet." />
       </v-list>
-      <p v-if="!loading && rooms.length === 0" class="text-caption text-medium-emphasis px-2">No rooms yet</p>
-      <div class="d-flex ga-2 mt-2">
-        <v-text-field v-model="newRoomName" label="New room" density="compact" variant="outlined" hide-details @keyup.enter="addRoom" />
-        <v-btn icon="mdi-plus" size="small" variant="tonal" :loading="busy === 'room'" aria-label="Create room" @click="addRoom" />
-      </div>
-    </div>
+    </v-card>
 
-    <div v-if="selected" class="collab-rooms__detail">
-      <v-text-field v-model="nameDraft" label="Name" density="compact" variant="outlined" hide-details :loading="busy === 'rename'" @keyup.enter="saveName">
-        <template #append-inner>
-          <v-btn v-if="nameDraft.trim() !== selected.name" icon="mdi-check" size="x-small" variant="text" aria-label="Save name" @click="saveName" />
-        </template>
-      </v-text-field>
-
-      <div class="collab-rooms__label">Models in this room</div>
-      <v-list density="compact" border rounded>
-        <v-list-item v-for="model in models" :key="model._id" :title="model.name" :subtitle="model._id">
-          <template #append>
-            <v-btn icon="mdi-content-copy" size="small" variant="text" title="Copy ID" @click="copyId(model._id)" />
-            <v-btn icon="mdi-link-variant-off" size="small" variant="text" title="Remove from room" :loading="busy === model._id" @click="removeModel(model._id)" />
+    <v-card v-if="selected" class="collab-rooms__detail" variant="outlined">
+      <v-card-title class="d-flex align-center ga-2">
+        <v-text-field v-model="nameDraft" label="Room name" density="compact" variant="outlined" hide-details :loading="busy === 'rename'" @keyup.enter="saveName">
+          <template #append-inner>
+            <v-btn v-if="nameDraft.trim() !== selected.name" icon="mdi-check" size="x-small" variant="text" aria-label="Save name" @click="saveName" />
           </template>
-        </v-list-item>
-        <v-list-item v-if="models.length === 0" subtitle="No models in this room" />
-      </v-list>
+        </v-text-field>
+        <v-btn icon="mdi-delete-outline" color="error" variant="text" title="Delete room" :loading="busy === 'delete'" @click="removeRoom" />
+      </v-card-title>
+      <v-divider />
+      <v-card-text class="collab-rooms__content">
+        <div class="collab-rooms__label">Models in this room</div>
+        <v-list density="compact" border rounded>
+          <v-list-item v-for="model in models" :key="model._id" :title="model.name" :subtitle="model._id">
+            <template #append>
+              <v-btn icon="mdi-content-copy" size="small" variant="text" title="Copy ID" @click="copyId(model._id)" />
+              <v-btn icon="mdi-link-variant-off" size="small" variant="text" title="Remove from room" :loading="busy === model._id" @click="removeModel(model._id)" />
+            </template>
+          </v-list-item>
+          <v-list-item v-if="models.length === 0" subtitle="No models in this room" />
+        </v-list>
 
-      <div class="d-flex ga-2 mt-3">
-        <v-text-field v-model="newModelName" label="New model" density="compact" variant="outlined" hide-details @keyup.enter="addModel" />
-        <v-select v-model="newModelLanguage" :items="languages" item-title="name" item-value="id" label="Language" density="compact" variant="outlined" hide-details class="collab-rooms__language" />
-        <v-btn variant="tonal" prepend-icon="mdi-plus" :loading="busy === 'model'" @click="addModel">Create</v-btn>
+        <div class="d-flex ga-2 mt-3">
+          <v-text-field v-model="newModelName" label="New model" density="compact" variant="outlined" hide-details @keyup.enter="addModel" />
+          <v-select v-model="newModelLanguage" :items="languages" item-title="name" item-value="id" label="Language" density="compact" variant="outlined" hide-details class="collab-rooms__language" />
+          <v-btn variant="tonal" prepend-icon="mdi-plus" :loading="busy === 'model'" @click="addModel">Create</v-btn>
+        </div>
+        <div class="d-flex ga-2 mt-3">
+          <v-autocomplete v-model="existingId" :items="existingOptions" label="Add an existing model" density="compact" variant="outlined" hide-details />
+          <v-btn variant="tonal" prepend-icon="mdi-link-variant" :disabled="!existingId" :loading="busy === 'existing'" @click="addExisting">Add</v-btn>
+        </div>
+
+        <div class="collab-rooms__label">Access</div>
+        <CollabAccessList :rows="accessRows" :options="groupOptions" add-label="Give a group access" empty-text="No group has access yet" :busy="busy" @change="changeAccess" @remove="removeAccess" @add="changeAccess" />
+      </v-card-text>
+    </v-card>
+
+    <v-card v-else class="collab-rooms__detail d-flex align-center justify-center" variant="outlined">
+      <div class="text-center text-medium-emphasis">
+        <v-icon size="48">mdi-door</v-icon>
+        <div class="mt-2">Select a room or create a new one.</div>
       </div>
-      <div class="d-flex ga-2 mt-3">
-        <v-autocomplete v-model="existingId" :items="existingOptions" label="Add an existing model" density="compact" variant="outlined" hide-details />
-        <v-btn variant="tonal" prepend-icon="mdi-link-variant" :disabled="!existingId" :loading="busy === 'existing'" @click="addExisting">Add</v-btn>
-      </div>
+    </v-card>
 
-      <div class="collab-rooms__label">Access</div>
-      <CollabAccessList :rows="accessRows" :options="groupOptions" add-label="Give a group access" empty-text="No group has access yet" :busy="busy" @change="changeAccess" @remove="removeAccess" @add="changeAccess" />
-
-      <v-btn class="mt-5" variant="text" color="error" prepend-icon="mdi-delete-outline" :loading="busy === 'delete'" @click="removeRoom">Delete room</v-btn>
-    </div>
+    <v-dialog v-model="createDialog" max-width="520">
+      <v-card>
+        <v-card-title>Create room</v-card-title>
+        <v-card-text><v-text-field v-model="newRoomName" label="Room name" autofocus @keyup.enter="addRoom" /></v-card-text>
+        <v-card-actions><v-spacer /><v-btn @click="createDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!newRoomName.trim()" :loading="busy === 'room'" @click="addRoom">Create</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
     <DialogConfirm ref="confirmDialog" />
   </div>
 </template>
@@ -70,6 +84,7 @@ const selectedId = ref<string | null>(null)
 const models = ref<Pick<Workpiece, '_id' | 'name'>[]>([])
 const grants = ref<Grant[]>([])
 const newRoomName = ref('')
+const createDialog = ref(false)
 const newModelName = ref('')
 const existingId = ref<string | null>(null)
 const nameDraft = ref('')
@@ -118,6 +133,7 @@ const addRoom = () => {
       showRoom(room)
       selectedId.value = room._id
       newRoomName.value = ''
+      createDialog.value = false
       notifySuccess('Room created')
     },
     'Room could not be created'
@@ -254,32 +270,39 @@ watch(rooms, () => (selectedId.value ??= rooms.value[0]?._id ?? null), { immedia
 watch(selected, loadDetail, { immediate: true })
 watch(selected, (room) => (nameDraft.value = room?.name ?? ''), { immediate: true })
 onMounted(loadLanguages)
+
+// The page holds the button for a new room, the dialog stays here with what it creates.
+defineExpose({ openCreate: () => (createDialog.value = true) })
 </script>
 
 <style scoped>
 .collab-rooms {
-  display: grid;
-  flex: 1 1 auto;
-  grid-template-columns: 260px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  gap: 24px;
+  display: flex;
+  flex: 1;
   min-height: 0;
-}
-
-/* Each side scrolls on its own, so the list stays in view while the details run long. */
-.collab-rooms__list,
-.collab-rooms__detail {
-  min-height: 0;
-  overflow-y: auto;
+  gap: 12px;
 }
 
 .collab-rooms__list {
-  border-right: 1px solid rgba(var(--v-theme-outline), 0.15);
-  padding-right: 16px;
+  width: 300px;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
 }
 
 .collab-rooms__detail {
-  padding-right: 8px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* List and details scroll each on their own, so the list stays in view while the details run long. */
+.collab-rooms__items,
+.collab-rooms__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .collab-rooms__language {
@@ -291,5 +314,9 @@ onMounted(loadLanguages)
   font-size: 12px;
   font-weight: 600;
   color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.collab-rooms__label:first-child {
+  margin-top: 0;
 }
 </style>

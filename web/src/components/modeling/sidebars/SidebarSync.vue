@@ -11,29 +11,21 @@
       </div>
 
       <div class="sync-actions">
-        <CollabRoomList :active-workpiece-id="linkedWorkpieceId" :connected="isConnected" @open="openFromRoom" />
         <v-text-field v-model="workpieceId" label="Workpiece ID" density="compact" variant="outlined" hide-details :disabled="isConnected || connecting" />
         <v-btn :color="isConnected ? 'error' : 'primary'" variant="flat" size="small" :loading="connecting" :prepend-icon="isConnected ? 'mdi-lan-disconnect' : 'mdi-lan-connect'" @click="toggleConnection">
           {{ isConnected ? 'Disconnect' : 'Connect' }}
         </v-btn>
-        <CollabManageButton />
       </div>
 
+      <CollabRoomList :active-workpiece-id="linkedWorkpieceId" :connected="isConnected" @open="openFromRoom" />
       <CollabPeople v-if="isConnected" :people="people" />
-
-      <div class="sync-log">
-        <div class="sync-log-header">Event Log</div>
-        <div class="sync-log-body">
-          <div v-if="logEntries.length === 0" class="sync-log-empty">No events yet</div>
-          <div v-for="(entry, index) in logEntries" :key="index" class="sync-log-entry">{{ entry }}</div>
-        </div>
-      </div>
+      <CollabLog :entries="logEntries" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import CollabManageButton from '@/collab/rooms/CollabManageButton.vue'
+import CollabLog from '@/collab/connection/CollabLog.vue'
 import CollabPeople from '@/collab/presence/CollabPeople.vue'
 import CollabRoomList from '@/collab/rooms/CollabRoomList.vue'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
@@ -69,6 +61,7 @@ const { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, peo
 
 .sidebar-sync__content {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
@@ -142,44 +135,5 @@ const { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, peo
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.sync-log {
-  display: flex;
-  flex-direction: column;
-  min-height: 180px;
-  border: 1px solid rgba(var(--v-theme-outline), 0.2);
-  border-radius: 8px;
-  overflow: hidden;
-  background: rgba(var(--v-theme-on-surface), 0.01);
-}
-
-.sync-log-header {
-  padding: 8px 10px;
-  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.15);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: rgba(var(--v-theme-on-surface), 0.62);
-  text-transform: uppercase;
-}
-
-.sync-log-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.sync-log-empty {
-  padding: 10px;
-  font-size: 12px;
-  color: rgba(var(--v-theme-on-surface), 0.52);
-}
-
-.sync-log-entry {
-  padding: 8px 10px;
-  border-top: 1px solid rgba(var(--v-theme-outline), 0.08);
-  font-size: 12px;
-  color: rgba(var(--v-theme-on-surface), 0.75);
 }
 </style>
