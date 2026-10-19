@@ -1,7 +1,8 @@
-import type { Graph } from '@maxgraph/core'
+import { InternalEvent, type Cell, type Graph } from '@maxgraph/core'
 import { notifyWarning } from '@/composables/useNotifications'
 import { exportModelAsXml, importModelFromXml } from '@/utils/modelPersistence'
 import type { Session } from '@/collab/connection/collabKitV1'
+import { applyCells, cellsOfUndoneEdit, type HeldText } from './applyCells'
 import { watchGraphChanges } from './graphChanges'
 import { joinModel, splitModel, type SharedCell } from './modelCells'
 import { lockGraph } from './readOnly'
@@ -15,6 +16,8 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
   let stopped = false
   let unlock: (() => void) | null = null
   let warned = false
+  // Text another changed while it is edited here, with the text before; the own text wins.
+  const heldBack = new Map<Cell, unknown>()
 
   const known = () => new Map(session.units.entries())
 
@@ -36,14 +39,52 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
     log(what)
   }
 
+  // Only the cells a change touched, so the selection and an edit in progress stay; what it cannot read loads the whole model.
+  const applyChanged = (keys: string[], what: string) => {
+    applyingRemote = true
+    let held: HeldText | null
+    try {
+      held = applyCells(graph, keys, known())
+    } catch {
+      applyingRemote = false
+      applyRemote(`${what} · full reload`)
+      return
+    }
+    applyingRemote = false
+    if (held && !heldBack.has(held.cell)) {
+      heldBack.set(held.cell, held.before)
+      notifyWarning('Someone else changed this text while you edit it. Yours replaces it when you finish; Esc keeps theirs.')
+    }
+    log(what)
+  }
+
+  // Held-back text whose edit has ended: left as it was, theirs comes in; changed, it went out as own text.
+  const takeOverHeld = () => {
+    if (stopped) return
+    const ids: string[] = []
+    for (const [cell, before] of heldBack) {
+      if (graph.isEditing(cell)) continue
+      heldBack.delete(cell)
+      const id = cell.getId()
+      if (id && model.getCell(id) === cell && cell.value === before) ids.push(id)
+    }
+    if (ids.length > 0) applyChanged(ids, `took over ${ids.length} text changed meanwhile`)
+  }
+  // Fired once the editor wrote its text, if any; it may come from within a model change, so taken over after it.
+  const onEditingStopped = () => setTimeout(takeOverHeld)
+  graph.addListener(InternalEvent.EDITING_STOPPED, onEditingStopped)
+
   // Compared with the shared cells, so only what differs goes out, all in one update.
+  // Held-back text stays out while unchanged, as it would overwrite the newer one of another.
   const push = () => {
+    for (const [cell, before] of heldBack) if (cell.value !== before) heldBack.delete(cell)
+    const holding = new Set([...heldBack.keys()].flatMap((cell) => cell.getId() ?? []))
     const shared = known()
     const cells = splitModel(exportModelAsXml(graph, false), shared)
     const removed = Array.from(shared.keys()).filter((id) => !cells.has(id))
     const changed = Array.from(cells).filter(([id, cell]) => {
       const before = shared.get(id)
-      return !before || before.xml !== cell.xml || before.index !== cell.index
+      return !holding.has(id) && (!before || before.xml !== cell.xml || before.index !== cell.index)
     })
     if (changed.length === 0 && removed.length === 0) return
     session.units.update({ set: Object.fromEntries(changed), delete: removed })
@@ -64,10 +105,20 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
   // The Copilot swaps the whole model when it loads one, restores a version or takes a draft back;
   // that is no edit to share, so the shared state is shown again once the Copilot is done with it.
   // A reader's edit passes the lock only through the Copilot's own buttons, and is taken back the same way.
-  const stopWatching = watchGraphChanges(graph, (_cellCount, replaced) => {
+  const stopWatching = watchGraphChanges(graph, (_cellCount, replaced, edit) => {
     if (!ready || applyingRemote) return
+    // The Copilot's undo took back a change of another; nothing goes out, the shared state of those cells comes back.
+    const undone = cellsOfUndoneEdit(edit)
+    if (undone) {
+      setTimeout(() => {
+        if (!stopped) applyChanged(undone, 'undo of a change from outside · shared state restored')
+      })
+      return
+    }
     if (!replaced && session.mayWrite) {
       push()
+      // An edit may end without telling; the next change of its own then lets held-back text in.
+      if (heldBack.size > 0) setTimeout(takeOverHeld)
       return
     }
     if (!replaced && !warned) {
@@ -94,7 +145,9 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
       if (cells.size > 0) applyRemote(`received model · ${cells.size} cells`)
       else if (session.mayWrite) push()
       stopRemote = session.units.onChange((keys, remote) => {
-        if (remote) applyRemote(`received ${keys.length} of ${session.units.entries().length} cells`)
+        if (!remote) return
+        applyChanged(keys, `received ${keys.length} of ${session.units.entries().length} cells`)
+        if (heldBack.size > 0) takeOverHeld()
       })
       ready = true
     },
@@ -104,6 +157,7 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
   return () => {
     stopped = true
     stopWatching()
+    graph.removeListener(onEditingStopped)
     stopRightsWatch()
     stopRemote?.()
     unlock?.()

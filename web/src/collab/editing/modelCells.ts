@@ -12,6 +12,15 @@ const parseXml = (xml: string) => {
   return document
 }
 
+/** The element of one shared cell, to read its attributes or decode it. */
+export const cellElement = (cell: SharedCell) => parseXml(cell.xml).documentElement
+
+/** Siblings by index, then by ID; plain comparison, so every browser sorts the same way whatever its locale. */
+export const siblingOrder = (cells: ReadonlyMap<string, SharedCell>) => {
+  const place = (id: string) => cells.get(id)?.index ?? 0
+  return (a: string, b: string) => place(a) - place(b) || (a < b ? -1 : a > b ? 1 : 0)
+}
+
 /**
  * Splits an exported model into its cells by ID; the export lists siblings in their order.
  * A known index stays while the order holds, so deleting a cell rewrites none of its siblings.
@@ -54,9 +63,8 @@ export const joinModel = (cells: ReadonlyMap<string, SharedCell>) => {
     elements.set(id, element)
   }
 
-  // Plain comparison, so every browser sorts the same way whatever its locale.
-  const place = (id: string) => cells.get(id)?.index ?? 0
-  for (const ids of children.values()) ids.sort((a, b) => place(a) - place(b) || (a < b ? -1 : a > b ? 1 : 0))
+  const order = siblingOrder(cells)
+  for (const ids of children.values()) ids.sort(order)
 
   // Only what hangs below the root is reachable, so a cell whose parent is gone drops out.
   const reachable = new Set<string>()
