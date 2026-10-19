@@ -67,7 +67,7 @@ import type { Grant, Reference } from '@/collab/connection/collabKitV1'
 import CollabAccessList from './CollabAccessList.vue'
 import { useCollabAction, useCollabDirectory } from './useCollabDirectory'
 
-const { rooms, groups, loading, loadNames, showGroup, dropGroup, roomName, actorName } = useCollabDirectory()
+const { rooms, groups, loading, showGroup, dropGroup, roomName, actorName } = useCollabDirectory()
 const { busy, run } = useCollabAction()
 
 const selectedId = ref<string | null>(null)
@@ -163,7 +163,6 @@ const addToGroup = () => {
     'member',
     async (ck) => {
       showGroup(await ck.groups.addMember(group._id, actorId))
-      await loadNames([actorId])
       newMember.value = ''
       notifySuccess('Member added')
     },

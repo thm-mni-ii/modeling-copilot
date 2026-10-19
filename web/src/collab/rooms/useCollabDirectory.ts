@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
 import { collabErrorMessage } from '@/collab/connection/collabApi'
 import { loadCollabKit } from '@/collab/connection/collabKit'
-import type { CollabKitApi, Group, Room, Workpiece } from '@/collab/connection/collabKitV1'
+import type { CollabKitApi, Group, Named, Room, Workpiece } from '@/collab/connection/collabKitV1'
 
 // Shared by both tabs of the collab page, loaded on every visit.
 const rooms = ref<Room[]>([])
@@ -25,19 +25,8 @@ const drop = <T extends { _id: string }>(list: T[], id: string) => {
   if (index !== -1) list.splice(index, 1)
 }
 
-/** Names of these people as far as collab-kit gives them; one who never connected has none yet. */
-const loadNames = async (actorIds: string[]) => {
-  const unknown = [...new Set(actorIds)].filter((actorId) => !(actorId in names.value))
-  if (unknown.length === 0) return
-  try {
-    const ck = await loadCollabKit()
-    for (const { actorId, label } of await ck.actors.names(unknown)) {
-      if (label) names.value[actorId] = label
-    }
-  } catch {
-    // Without names the members still show with their IDs.
-  }
-}
+/** The names collab-kit puts into its answers; one who never connected has none yet and shows with the ID. */
+const takeNames = (answer: Named<object>) => Object.assign(names.value, answer.names)
 
 const load = async () => {
   loading.value = true
@@ -47,7 +36,7 @@ const load = async () => {
     rooms.value = foundRooms.sort(byName)
     groups.value = foundGroups.sort(byName)
     workpieces.value = foundWorkpieces.sort(byName)
-    await loadNames(groups.value.flatMap((group) => group.members))
+    for (const group of foundGroups) takeNames(group)
   } catch (error) {
     notifyError(`Rooms and groups could not be loaded: ${collabErrorMessage(error)}`)
   } finally {
@@ -61,9 +50,11 @@ export const useCollabDirectory = () => ({
   workpieces,
   loading,
   load,
-  loadNames,
   showRoom: (room: Room) => replace(rooms.value, room),
-  showGroup: (group: Group) => replace(groups.value, group),
+  showGroup: (group: Named<Group>) => {
+    takeNames(group)
+    replace(groups.value, group)
+  },
   showWorkpiece: (workpiece: Workpiece) => replace(workpieces.value, workpiece),
   dropRoom: (id: string) => drop(rooms.value, id),
   dropGroup: (id: string) => drop(groups.value, id),
