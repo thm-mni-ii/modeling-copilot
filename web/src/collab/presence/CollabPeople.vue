@@ -10,7 +10,7 @@
         <div v-for="person in people" :key="person.id" class="collab-people__entry">
           <span class="collab-people__dot" :style="{ background: person.color }" />
           <span>{{ person.name }}</span>
-          <span v-if="person.self" class="collab-people__self">(you)</span>
+          <span v-if="noteOf(person)" class="collab-people__note">{{ noteOf(person) }}</span>
         </div>
       </div>
     </v-expand-transition>
@@ -28,6 +28,9 @@ const open = ref(true)
 import type { Person } from './presence'
 
 defineProps<{ people: Person[] }>()
+
+/** What else to tell of a person, such as "(you) · read only · 2 tabs". */
+const noteOf = (person: Person) => [person.self ? '(you)' : '', person.readOnly ? 'read only' : '', person.tabs > 1 ? `${person.tabs} tabs` : ''].filter(Boolean).join(' · ')
 </script>
 
 <style scoped>
@@ -75,7 +78,7 @@ defineProps<{ people: Person[] }>()
   flex-shrink: 0;
 }
 
-.collab-people__self {
+.collab-people__note {
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 </style>

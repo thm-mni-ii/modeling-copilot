@@ -1,8 +1,10 @@
 import type { Graph } from '@maxgraph/core'
+import { notifyWarning } from '@/composables/useNotifications'
 import { exportModelAsXml, importModelFromXml } from '@/utils/modelPersistence'
 import type { Session } from '@/collab/connection/collabKitV1'
 import { watchGraphChanges } from './graphChanges'
 import { joinModel, splitModel, type SharedCell } from './modelCells'
+import { lockGraph } from './readOnly'
 
 /** Keeps the model in the units of the session one cell per key, so edits on different cells merge. */
 export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text: string) => void) => {
@@ -11,6 +13,8 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
   let ready = false
   let applyingRemote = false
   let stopped = false
+  let unlock: (() => void) | null = null
+  let warned = false
 
   const known = () => new Map(session.units.entries())
 
@@ -46,27 +50,46 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
     log(`${session.status === 'connected' ? 'sent' : 'kept for connect ·'} ${changed.length} of ${cells.size} cells · ${removed.length} removed`)
   }
 
+  // A reader works on a locked graph; unlocked again, the warning comes again with the next lock.
+  const setReadOnly = (readOnly: boolean) => {
+    if (readOnly && !unlock) unlock = lockGraph(graph)
+    if (!readOnly && unlock) {
+      unlock()
+      unlock = null
+      warned = false
+    }
+  }
+
   // A remote model is imported under applyingRemote, so its change is not sent back.
-  // Without edit units.update throws, so a reader sends nothing.
   // The Copilot swaps the whole model when it loads one, restores a version or takes a draft back;
   // that is no edit to share, so the shared state is shown again once the Copilot is done with it.
+  // A reader's edit passes the lock only through the Copilot's own buttons, and is taken back the same way.
   const stopWatching = watchGraphChanges(graph, (_cellCount, replaced) => {
     if (!ready || applyingRemote) return
-    if (!replaced) {
-      if (session.mayWrite) push()
+    if (!replaced && session.mayWrite) {
+      push()
       return
     }
+    if (!replaced && !warned) {
+      warned = true
+      notifyWarning('You may only view this model.')
+    }
     setTimeout(() => {
-      if (!stopped) applyRemote('model replaced locally · shared state restored')
+      if (!stopped) applyRemote(replaced ? 'model replaced locally · shared state restored' : 'read only · own change taken back')
     })
   })
   // The library asks for the rights again on every reconnect and keeps mayWrite up to date.
-  const stopRightsWatch = session.on('rightsChanged', (mayWrite) => log(`rights changed · ${mayWrite ? 'may edit' : 'read only'}`))
+  const stopRightsWatch = session.on('rightsChanged', (mayWrite) => {
+    log(`rights changed · ${mayWrite ? 'may edit' : 'read only'}`)
+    if (!stopped) setReadOnly(!mayWrite)
+  })
 
   // Nothing goes out before the state of collab-kit is in; the first one in fills an empty workpiece.
   void session.synced.then(
     () => {
       if (stopped) return
+      // The rights came before the connection; they change later only with rightsChanged.
+      setReadOnly(!session.mayWrite)
       const cells = known()
       if (cells.size > 0) applyRemote(`received model · ${cells.size} cells`)
       else if (session.mayWrite) push()
@@ -83,6 +106,7 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
     stopWatching()
     stopRightsWatch()
     stopRemote?.()
+    unlock?.()
     model.prefix = ''
   }
 }

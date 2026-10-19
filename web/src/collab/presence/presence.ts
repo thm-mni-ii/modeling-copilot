@@ -8,11 +8,16 @@ export interface Person {
   name: string
   color: string
   self: boolean
+  /** Whether a session of the person may only read; each announces it, CK tells no one the rights of others. */
+  readOnly: boolean
+  /** How many sessions the person has open, such as tabs. */
+  tabs: number
 }
 
 /** What every client announces of itself besides the person the library puts in. */
 interface PresenceState {
   selection?: string[]
+  readOnly?: boolean
 }
 
 const COLORS = ['#e53935', '#1e88e5', '#43a047', '#8e24aa', '#fb8c00', '#00897b', '#d81b60', '#6d4c41']
@@ -24,8 +29,9 @@ const colorOf = (id: string) => COLORS[Array.from(id).reduce((sum, char) => sum 
 const nameOf = (person: { id: string; name?: string }) => person.name ?? `Person ${person.id}`
 
 /**
- * Announces what this tab selects, frames what the others select, and reports the people at the
- * workpiece and how many clients announce themselves there, own one included.
+ * Announces what this tab selects and whether it may only read, frames what the others select,
+ * and reports the people at the workpiece and how many clients announce themselves there, own
+ * one included.
  */
 export const startPresence = (graph: Graph, session: Session, onPeople: (people: Person[], clients: number) => void) => {
   const model = graph.getDataModel()
@@ -35,6 +41,9 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
 
   const sendSelection = () => {
     session.presence.set({ selection: graph.getSelectionCells().flatMap((cell) => cell.getId() ?? []) })
+  }
+  const sendRights = () => {
+    if (!stopped) session.presence.set({ readOnly: !session.mayWrite })
   }
 
   // Frames are drawn in the view only, so they never reach the model and are never synced.
@@ -61,10 +70,17 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   let shown = ''
   const onChange = () => {
     const people = session.presence.people()
-    const seen = JSON.stringify(people.map(({ id, name, clients }) => [id, name, clients.map(({ clientId, state }) => [clientId, (state as PresenceState).selection])]))
+    const seen = JSON.stringify(people.map(({ id, name, clients }) => [id, name, clients.map(({ clientId, state }) => [clientId, (state as PresenceState).selection, (state as PresenceState).readOnly])]))
     if (seen === shown) return
     shown = seen
-    const list = people.map((person) => ({ id: person.id, name: nameOf(person), color: colorOf(person.id), self: person.self }))
+    const list = people.map((person) => ({
+      id: person.id,
+      name: nameOf(person),
+      color: colorOf(person.id),
+      self: person.self,
+      readOnly: person.clients.some(({ state }) => (state as PresenceState).readOnly === true),
+      tabs: person.clients.length
+    }))
     list.sort((a, b) => Number(b.self) - Number(a.self) || a.name.localeCompare(b.name))
     onPeople(
       list,
@@ -82,11 +98,15 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   selectionModel.addListener(InternalEvent.CHANGE, sendSelection)
   model.addListener(InternalEvent.CHANGE, redrawLater)
   sendSelection()
+  // The rights are known once connected; the first answer is no change, so synced tells it.
+  const stopRightsWatch = session.on('rightsChanged', sendRights)
+  void session.synced.then(sendRights, () => undefined)
 
   return () => {
     stopped = true
     stopCursors()
     stopListening()
+    stopRightsWatch()
     selectionModel.removeListener(sendSelection)
     model.removeListener(redrawLater)
     for (const frame of frames) frame.destroy()
