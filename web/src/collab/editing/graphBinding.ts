@@ -6,6 +6,7 @@ import { applyCells, cellsOfUndoneEdit, type HeldText } from './applyCells'
 import { watchGraphChanges } from './graphChanges'
 import { joinModel, splitModel, type SharedCell } from './modelCells'
 import { lockGraph } from './readOnly'
+import { sharedHistory } from './sharedHistory'
 
 /** Keeps the model in the units of the session one cell per key, so edits on different cells merge. */
 export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text: string) => void) => {
@@ -74,9 +75,24 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
   const onEditingStopped = () => setTimeout(takeOverHeld)
   graph.addListener(InternalEvent.EDITING_STOPPED, onEditingStopped)
 
-  // Compared with the shared cells, so only what differs goes out, all in one update.
+  // Undo and redo take back only own steps; what comes back is taken in like a change from outside.
+  const step = (back: boolean) => {
+    if (stopped || !session.mayWrite) return
+    if (back) session.units.undo()
+    else session.units.redo()
+    showHistory()
+  }
+  // Read after update, undo and redo; within onChange the library still tells the state before.
+  // A reader gets it too, with nothing to undo, so the editor's own history stays out.
+  const showHistory = () => {
+    if (stopped) return
+    const mayWrite = session.mayWrite
+    sharedHistory.value = { undo: () => step(true), redo: () => step(false), canUndo: mayWrite && session.units.canUndo(), canRedo: mayWrite && session.units.canRedo() }
+  }
+
+  // Compared with the shared cells, so only what differs goes out, all in one update and one step to undo.
   // Held-back text stays out while unchanged, as it would overwrite the newer one of another.
-  const push = () => {
+  const push = (undoable = true) => {
     for (const [cell, before] of heldBack) if (cell.value !== before) heldBack.delete(cell)
     const holding = new Set([...heldBack.keys()].flatMap((cell) => cell.getId() ?? []))
     const shared = known()
@@ -87,8 +103,9 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
       return !holding.has(id) && (!before || before.xml !== cell.xml || before.index !== cell.index)
     })
     if (changed.length === 0 && removed.length === 0) return
-    session.units.update({ set: Object.fromEntries(changed), delete: removed })
+    session.units.update({ set: Object.fromEntries(changed), delete: removed }, { undoable })
     log(`${session.status === 'connected' ? 'sent' : 'kept for connect ·'} ${changed.length} of ${cells.size} cells · ${removed.length} removed`)
+    showHistory()
   }
 
   // A reader works on a locked graph; unlocked again, the warning comes again with the next lock.
@@ -132,8 +149,13 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
   // The library asks for the rights again on every reconnect and keeps mayWrite up to date.
   const stopRightsWatch = session.on('rightsChanged', (mayWrite) => {
     log(`rights changed · ${mayWrite ? 'may edit' : 'read only'}`)
-    if (!stopped) setReadOnly(!mayWrite)
+    if (stopped) return
+    setReadOnly(!mayWrite)
+    showHistory()
   })
+
+  // From the start, so the editor's own history is out even before the state of collab-kit is in.
+  showHistory()
 
   // Nothing goes out before the state of collab-kit is in; the first one in fills an empty workpiece.
   void session.synced.then(
@@ -142,14 +164,16 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
       // The rights came before the connection; they change later only with rightsChanged.
       setReadOnly(!session.mayWrite)
       const cells = known()
+      // A whole state is no step to undo, else an undo would empty the workpiece again.
       if (cells.size > 0) applyRemote(`received model · ${cells.size} cells`)
-      else if (session.mayWrite) push()
+      else if (session.mayWrite) push(false)
       stopRemote = session.units.onChange((keys, remote) => {
         if (!remote) return
         applyChanged(keys, `received ${keys.length} of ${session.units.entries().length} cells`)
         if (heldBack.size > 0) takeOverHeld()
       })
       ready = true
+      showHistory()
     },
     () => undefined
   )
@@ -161,6 +185,7 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
     stopRightsWatch()
     stopRemote?.()
     unlock?.()
+    sharedHistory.value = null
     model.prefix = ''
   }
 }

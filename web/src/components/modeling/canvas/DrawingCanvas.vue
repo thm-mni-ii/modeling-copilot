@@ -24,8 +24,8 @@
           />
         </template>
         <template #save-tools>
-          <v-btn icon="mdi-undo" size="x-small" :disabled="!canUndo" title="Undo (Ctrl+Z)" @click="undoGraph" />
-          <v-btn icon="mdi-redo" size="x-small" :disabled="!canRedo" title="Redo (Ctrl+Y)" @click="redoGraph" />
+          <v-btn icon="mdi-undo" size="x-small" :disabled="!(sharedHistory?.canUndo ?? canUndo)" title="Undo (Ctrl+Z)" @click="undoGraph" />
+          <v-btn icon="mdi-redo" size="x-small" :disabled="!(sharedHistory?.canRedo ?? canRedo)" title="Redo (Ctrl+Y)" @click="redoGraph" />
         </template>
         <template #sidebar-toggle>
           <v-btn icon="mdi-dock-right" size="x-small" variant="text" :title="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-label="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-expanded="!rightSidebarCollapsed" @click="rightSidebarCollapsed = !rightSidebarCollapsed" />
@@ -160,6 +160,7 @@ import ModelingHeader from '@/components/modeling/controls/ModelingHeader.vue'
 import SidebarContainer from '@/components/modeling/sidebars/SidebarContainer.vue'
 import SidebarRightContainer from '@/components/modeling/sidebars/SidebarRightContainer.vue'
 import CollabConnector from '@/collab/connection/CollabConnector.vue'
+import { sharedHistory } from '@/collab/editing/sharedHistory'
 import type { SidebarLanguage } from '@/components/modeling/sidebars/ElementsSidebar.vue'
 import type { DiagramElement } from '@/model/Element'
 import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connection'
@@ -598,6 +599,11 @@ const applyLayerVisibility = () => {
 }
 
 const undoGraph = () => {
+  // Ein Modell aus einem Raum nimmt nur eigene Schritte zurück, über collab-kit.
+  if (sharedHistory.value) {
+    sharedHistory.value.undo()
+    return
+  }
   if (!graph.value || !undoManagerApi?.canUndo()) {
     return
   }
@@ -630,6 +636,10 @@ const pasteFromClipboard = () => {
 }
 
 const redoGraph = () => {
+  if (sharedHistory.value) {
+    sharedHistory.value.redo()
+    return
+  }
   if (!graph.value || !undoManagerApi?.canRedo()) {
     return
   }
