@@ -190,6 +190,16 @@ export const holdCollabConnection = (graph: Ref<Graph | undefined>) => {
   // Marks the page while edits go live to collab-kit, so the sync tab shows it whichever tab is open.
   watch(isConnected, (live) => document.body.classList.toggle(LIVE_CLASS, live), { immediate: true })
 
+  // A model of a room shows the shared state, whatever the Copilot kept of its own. Runs before the
+  // action: the local draft goes before the editor offers it, and a restore is explained, as the
+  // shared state replaces it at once.
+  const workspace = useModelWorkspaceStore()
+  workspace.$onAction(({ name }) => {
+    if (!linkedWorkpieceId.value) return
+    if (name === 'getRecoverySnapshot') void workspace.discardRecoveryDraft()
+    else if (name === 'restoreSnapshot') notifyWarning('This model is shared through a room, so the shared state comes back at once. Branch from the timeline to keep this state.')
+  })
+
   onBeforeUnmount(() => {
     if (session) log('left the editor · closed')
     closeSession()
