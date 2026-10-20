@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useBearerToken } from '@/composables/useBearerToken'
 import authService from '@/services/auth/auth.service'
+import { isEmbedded, requestFbsToken, startFbsBridge } from '@/services/auth/fbsBridge'
 import { useUserStore } from '@/stores/userStore'
 
 const router = createRouter({
@@ -52,6 +53,8 @@ const router = createRouter({
 const nonAdminPages = ['Login', 'Home', 'Modeling', 'View404Page']
 
 router.beforeEach(async (to, from, next) => {
+  // Embedded in the Feedbacksystem, the token comes from the host.
+  if (isEmbedded) await startFbsBridge()
   const publicPages = ['/login']
   const authRequired = !publicPages.includes(to.path)
   const { bearerToken, clearToken } = useBearerToken()
@@ -60,7 +63,9 @@ router.beforeEach(async (to, from, next) => {
   const adminRequired = !nonAdminPages.includes(to.name as string)
   const userStore = useUserStore()
 
-  const loginValid = await authService.validateToken().then((response) => {
+  const loginValid = await authService.validateToken().then(async (response) => {
+    // An expired token of the host is renewed once before logging out.
+    if (response.data !== true && isEmbedded && loggedIn && (await requestFbsToken())) response = await authService.validateToken()
     if (response.data === true) {
       return true
     } else {
