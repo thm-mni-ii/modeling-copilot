@@ -2,7 +2,7 @@
   <v-container fluid class="pa-3">
     <!-- Properties of the element, set as they are named there; a hyphen would name another one. -->
     <!-- eslint-disable-next-line vue/attribute-hyphenation -->
-    <ck-management v-if="ck" lang="en" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" @ck-open="open" />
+    <ck-management v-if="ck" lang="en" theme="light" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" @ck-open="open" />
   </v-container>
 </template>
 
