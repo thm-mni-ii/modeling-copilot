@@ -4,9 +4,6 @@ import type { NewWorkpiece } from './collabKitV1'
 /** Address of collab-kit, which checks the same Feedbacksystem token as the API. */
 export const collabUrl: string | undefined = import.meta.env.VITE_COLLAB_URL
 
-/** What marks a room or group as one of the Copilot's. */
-export const TOOL_SETTINGS = { tool: 'modeling-copilot' }
-
 /** The top map of the doc, one cell per key; named as units, so a conflict names its cell. */
 export const CELLS_MAP = 'cells'
 

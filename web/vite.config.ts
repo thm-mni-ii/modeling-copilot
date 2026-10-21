@@ -29,7 +29,8 @@ export default defineConfig({
     }
   },
   plugins: [
-    vue(),
+    // collab-kit brings its own elements, such as <ck-management>.
+    vue({ template: { compilerOptions: { isCustomElement: (tag) => tag.startsWith('ck-') } } }),
     eslintPlugin(),
     vuetify({
       autoImport: true

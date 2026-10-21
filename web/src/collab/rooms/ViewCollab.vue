@@ -1,56 +1,41 @@
 <template>
-  <v-container fluid class="pa-3 collab-view">
-    <div class="d-flex align-center mb-3 ga-2">
-      <div>
-        <h1 class="text-h5">Collaboration</h1>
-        <p class="text-medium-emphasis mb-0">Rooms, groups and who may work where in collab-kit.</p>
-      </div>
-      <v-spacer />
-      <v-btn v-if="mayManage" prepend-icon="mdi-plus" color="primary" @click="panel?.openCreate()">{{ tab === 'rooms' ? 'New room' : 'New group' }}</v-btn>
-    </div>
-
-    <v-progress-linear v-if="mayManage === null" indeterminate />
-    <template v-else-if="mayManage">
-      <v-tabs v-model="tab" class="mb-3"><v-tab value="rooms">Rooms</v-tab><v-tab value="groups">Groups</v-tab></v-tabs>
-      <CollabRoomsPanel v-if="tab === 'rooms'" ref="panel" />
-      <CollabGroupsPanel v-else ref="panel" />
-    </template>
-    <v-card v-else class="collab-view__denied d-flex align-center justify-center" variant="outlined">
-      <div class="text-center text-medium-emphasis">
-        <v-icon size="48">mdi-lock-outline</v-icon>
-        <div class="mt-2">Managing rooms and groups takes the right manage everywhere in collab-kit.</div>
-      </div>
-    </v-card>
+  <v-container fluid class="pa-3">
+    <!-- Properties of the element, set as they are named there; a hyphen would name another one. -->
+    <!-- eslint-disable-next-line vue/attribute-hyphenation -->
+    <ck-management v-if="ck" lang="en" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" @ck-open="open" />
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { mayManageAll } from './access'
-import CollabGroupsPanel from './CollabGroupsPanel.vue'
-import CollabRoomsPanel from './CollabRoomsPanel.vue'
-import { useCollabDirectory } from './useCollabDirectory'
+import { onMounted, shallowRef } from 'vue'
+import { notifyError } from '@/composables/useNotifications'
+import { collabErrorMessage, newWorkpiece } from '@/collab/connection/collabApi'
+import { loadCollabKit } from '@/collab/connection/collabKit'
+import type { CollabKitApi, ManagementOpen, Room } from '@/collab/connection/collabKitV1'
+import { UML_CLASS_DIAGRAM } from '@/collab/connection/openWorkpiece'
+import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
-const tab = ref<'rooms' | 'groups'>('rooms')
-const panel = ref<{ openCreate: () => void } | null>(null)
-const mayManage = ref<boolean | null>(null)
-const { load } = useCollabDirectory()
+const ck = shallowRef<CollabKitApi>()
+const { openFromRoom } = useCollabConnection()
 
-// The route is open to everyone, so collab-kit decides here, as it does for every change.
+/** A workpiece created in a room is a class diagram of the Copilot. */
+const createWorkpiece = (room: Room, name: string) => newWorkpiece(room._id, name, [UML_CLASS_DIAGRAM])
+
+const open = ({ detail }: CustomEvent<ManagementOpen>) => openFromRoom(detail.room, detail.workpiece)
+
+// The element is defined once collab-kit is loaded, and shows nothing before ck; what each one may do there, collab-kit decides.
 onMounted(async () => {
-  mayManage.value = await mayManageAll()
-  if (mayManage.value) await load()
+  try {
+    ck.value = await loadCollabKit()
+  } catch (error) {
+    notifyError(`collab-kit could not be loaded: ${collabErrorMessage(error)}`)
+  }
 })
 </script>
 
 <style scoped>
 .collab-view {
-  height: calc(100vh - var(--v-layout-top, 0px));
-  display: flex;
-  flex-direction: column;
-}
-
-.collab-view__denied {
-  flex: 1;
+  --ck-accent: rgb(var(--v-theme-primary));
+  --ck-on-accent: rgb(var(--v-theme-on-primary));
 }
 </style>
