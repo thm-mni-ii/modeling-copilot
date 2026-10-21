@@ -1,9 +1,11 @@
 /** What the client library shows, and the source of v1.d.ts: nothing of the library inside. */
+/** The entry of the library, one per instance of CK. */
+export declare function createCollabKitApi(options: CollabKitOptions): CollabKitApi;
 /** Where CK runs and how the tool gets a token. */
 export interface CollabKitOptions {
     /** Address of CK as http or https; the socket is the same address with ws or wss and /ws. */
     readonly url: string;
-    /** Asked before every connection and every call, so a renewed token counts at once. */
+    /** Asked before every connection and call and 30 s before exp, so a renewed token counts at once. */
     getToken(): string | Promise<string>;
 }
 /** What the library offers for one instance of CK: sessions, and one function per route. */
@@ -19,6 +21,12 @@ export interface CollabKitApi {
     readonly events: EventRoutes;
     readonly actors: ActorRoutes;
     readonly me: MeRoutes;
+}
+/** A refusal of CK, or of the library in its place: a status and what CK said. */
+export declare class CollabKitError extends Error {
+    /** The HTTP status of a call, or the close code that ended a session. */
+    readonly status: number;
+    constructor(status: number, message: string);
 }
 /** How a session reads the workpiece. */
 export interface OpenOptions {
@@ -42,7 +50,7 @@ export interface Session<Value = unknown> {
     text(name: string): SharedText;
     readonly presence: Presence;
     /** Calls the listener on every such event; gives back how to stop. */
-    on<Kind extends keyof SessionEvents>(kind: Kind, listener: (value: SessionEvents[Kind]) => void): () => void;
+    on<Kind extends keyof SessionEvents<Value>>(kind: Kind, listener: (value: SessionEvents<Value>[Kind]) => void): () => void;
     /** Lets go of the connection, keeps the doc; what changes meanwhile goes out on connect. */
     disconnect(): void;
     /** Connects again after disconnect or closed. */
@@ -56,33 +64,63 @@ export interface Session<Value = unknown> {
     close(): void;
 }
 /** The value each event of a session brings. */
-export interface SessionEvents {
+export interface SessionEvents<Value = unknown> {
     readonly status: Status;
     /** May write now or not, when CK answers otherwise than before. */
     readonly rightsChanged: boolean;
     /** CK ended the session; it stays closed until connect is called. */
     readonly closed: Closed;
     /** A change lost at this workpiece, to whoever was involved and whoever was not. */
-    readonly conflict: Conflict;
+    readonly conflict: Conflict<Value>;
 }
 /** Why a session ended: the close code, or 4000 plus the status of a call before connecting. */
 export interface Closed {
     readonly code: number;
     readonly reason: string;
 }
+/** A change lost because two changed the same place without knowing of each other. */
+export interface Conflict<Value = unknown> {
+    /** The key of the unit, if the workpiece names the map as holding units. */
+    readonly unit?: string;
+    readonly cause: 'overwritten' | 'place-removed';
+    /** Whose change was lost. */
+    readonly loser: string;
+    /** Whose value stands, or who removed the place. */
+    readonly winner: string;
+    /** Whether the own person lost. */
+    readonly mine: boolean;
+    readonly names: Names;
+    /** The work-lost event as the routes give it. */
+    readonly event: Named<CollabEvent>;
+    /** The own value lost, only in the session that set it through units.update, until close. */
+    readonly lostValue?: Value;
+}
 /** The units of the workpiece: one value per key of the map. */
 export interface Units<Value = unknown> {
     get(key: string): Value | undefined;
     entries(): [string, Value][];
-    /** Sets and deletes in one change; throws without edit, where CK would close with 1008. */
-    update(change: UnitChange<Value>): void;
-    /** The keys a change touched, and whether it came from elsewhere. */
+    /** Sets and deletes as one change and one step; throws without edit, as CK would with 1008. */
+    update(change: UnitChange<Value>, options?: UpdateOptions): void;
+    /** The keys a change touched, and whether the editor has yet to take it: remote, undo, redo. */
     onChange(listener: (keys: string[], remote: boolean) => void): () => void;
+    /** Takes back the last own step, never what others set since; tells whether there was one. */
+    undo(): boolean;
+    /** Does again what undo took back; tells whether there was something. */
+    redo(): boolean;
+    /** Whether there is a step to take back; read after update, undo and redo, false after close. */
+    canUndo(): boolean;
+    /** Whether there is a step to do again. */
+    canRedo(): boolean;
 }
 /** One change to the units; a value is always written whole. */
 export interface UnitChange<Value = unknown> {
     readonly set?: Readonly<Record<string, Value>>;
     readonly delete?: readonly string[];
+}
+/** How a change goes in; undoable false keeps it out of undo, as when loading a whole state. */
+export interface UpdateOptions {
+    /** Left out, true. */
+    readonly undoable?: boolean;
 }
 /** A text of the workpiece, changed and told of as change lists; the editor is up to the tool. */
 export interface SharedText {
@@ -91,17 +129,25 @@ export interface SharedText {
     /** The whole content with its attributes, to load an editor. */
     delta(): TextDelta;
     /** Applies one change; throws without edit, where CK would close with 1008. */
-    update(delta: TextDelta): void;
+    update(delta: TextDelta, options?: UpdateOptions): void;
     /** Every change in the same form; own only for update of this session. */
     onChange(listener: (delta: TextDelta, own: boolean) => void): () => void;
     /** A place that moves along when others type before it, as JSON for presence. */
     cursor(index: number): TextPosition;
     /** Where a place stands now; undefined if it lies in another text or is unknown. */
     indexOf(position: TextPosition): number | undefined;
+    /** An anchor at a point or passage, moving along like cursor; typing at an edge stays out. */
+    anchor(index: number, length?: number): Anchor;
+    /** Where an anchor of this text stands now; undefined for any other anchor. */
+    rangeOf(anchor: Anchor): TextRange | undefined;
     /** Takes back the last own change, never one of others; tells whether there was one. */
     undo(): boolean;
     /** Does again what undo took back; tells whether there was something. */
     redo(): boolean;
+    /** Whether there is a change to take back; read after update, undo, redo; false after close. */
+    canUndo(): boolean;
+    /** Whether there is a change to do again. */
+    canRedo(): boolean;
 }
 /** A change to a text, step by step from its start; attributes are free, null removes one. */
 export type TextDelta = readonly ({
@@ -115,6 +161,11 @@ export type TextDelta = readonly ({
 })[];
 /** A place in a text as Yjs keeps it; only indexOf reads it. */
 export type TextPosition = Free;
+/** A passage of a text; length 0 is a point, or a passage deleted whole. */
+export interface TextRange {
+    readonly index: number;
+    readonly length: number;
+}
 /** Who is at the workpiece; what an entry holds besides person is up to the tool. */
 export interface Presence {
     /** Adds or replaces these fields of the own entry; person stays the library's. */
@@ -137,28 +188,10 @@ export interface PresenceClient {
     readonly clientId: number;
     readonly state: Readonly<Record<string, unknown>>;
 }
-/** A change lost because two changed the same place without knowing of each other. */
-export interface Conflict {
-    /** The key of the unit, if the workpiece names the map as holding units. */
-    readonly unit?: string;
-    readonly cause: 'overwritten' | 'place-removed';
-    /** Whose change was lost. */
-    readonly loser: string;
-    /** Whose value stands, or who removed the place. */
-    readonly winner: string;
-    /** Whether the own person lost. */
-    readonly mine: boolean;
-    readonly names: Names;
-    /** The work-lost event as the routes give it. */
-    readonly event: Named<CollabEvent>;
-}
+/** Free fields of the tool, which CK stores and never reads. */
+export type Free = Readonly<Record<string, unknown>>;
 /** Key to name for the people in an answer, as far as CK knows a name. */
 export type Names = Readonly<Record<string, string>>;
-/** Whom a token names, as GET /me gives it. */
-export interface Me {
-    readonly actorId: string;
-    readonly label?: string;
-}
 /** An answer of CK with the names of the people in it, as far as any are known. */
 export type Named<Value> = Value & {
     readonly names?: Names;
@@ -174,8 +207,11 @@ export interface Reference {
 export interface Anchor extends Reference {
     readonly unit?: string;
 }
-/** Free fields of the tool, which CK stores and never reads. */
-export type Free = Readonly<Record<string, unknown>>;
+/** Whom a token names, as GET /me gives it. */
+export interface Me {
+    readonly actorId: string;
+    readonly label?: string;
+}
 /** An event as the routes give it; kind and detail are free where the tool writes them. */
 export interface CollabEvent {
     readonly _id: string;
@@ -301,22 +337,63 @@ export interface ActorName {
 export interface Reasoned {
     readonly reason?: string;
 }
-/** A new room; creating one takes manage everywhere. */
-export interface NewRoom {
-    readonly name: string;
-    readonly settings?: Free;
-}
 /** A new name, new settings or both, for a room or a group; only the name leaves a trace. */
 export interface PlaceChange {
     readonly name?: string;
     readonly settings?: Free;
     readonly reason?: string;
 }
+/** Where to look: the thing and all in it, one unit, or with scope whole the thing alone. */
+export interface AnchorQuery {
+    readonly anchorKind: string;
+    readonly anchorId: string;
+    readonly unit?: string;
+    readonly scope?: 'whole';
+}
+/** A new room; creating one takes manage everywhere. */
+export interface NewRoom {
+    readonly name: string;
+    readonly settings?: Free;
+}
+/** Events of a room and all it bundles, oldest first after since. */
+export interface RoomEventQuery {
+    readonly since?: string;
+    readonly kind?: string;
+    readonly createdBy?: string;
+    readonly limit?: number;
+}
+/** The routes under /rooms, and the stream of a room. */
+export interface RoomRoutes {
+    create(room: NewRoom): Promise<Named<Room>>;
+    get(id: string): Promise<Named<Room>>;
+    update(id: string, change: PlaceChange): Promise<Named<Room>>;
+    remove(id: string, options?: Reasoned): Promise<{
+        readonly deleted: boolean;
+    }>;
+    addWorkpiece(id: string, workpieceId: string): Promise<Named<Room>>;
+    removeWorkpiece(id: string, workpieceId: string): Promise<Named<Room>>;
+    events(id: string, query?: RoomEventQuery): Promise<Named<CollabEvent>[]>;
+    activity(id: string): Promise<Named<Activity>[]>;
+    /** Who is connected to which of its workpieces right now; asked for, never told. */
+    presence(id: string): Promise<Named<RoomPresence>[]>;
+}
 /** A new group; creating one takes manage everywhere. */
 export interface NewGroup {
     readonly name: string;
     readonly members?: readonly string[];
     readonly settings?: Free;
+}
+/** The routes under /groups. */
+export interface GroupRoutes {
+    create(group: NewGroup): Promise<Named<Group>>;
+    list(): Promise<Named<Group>[]>;
+    get(id: string): Promise<Named<Group>>;
+    update(id: string, change: PlaceChange): Promise<Named<Group>>;
+    remove(id: string, options?: Reasoned): Promise<{
+        readonly deleted: boolean;
+    }>;
+    addMember(id: string, actorId: string): Promise<Named<Group>>;
+    removeMember(id: string, actorId: string): Promise<Named<Group>>;
 }
 /** What a group may do at a place, replacing what it had there. */
 export interface GrantChange {
@@ -335,6 +412,14 @@ export interface GrantRemoval {
 export interface GrantQuery {
     readonly groupId?: string;
     readonly scope?: Reference;
+}
+/** The routes under /grants. */
+export interface GrantRoutes {
+    set(grant: GrantChange): Promise<Named<Grant>>;
+    remove(grant: GrantRemoval): Promise<{
+        readonly removed: boolean;
+    }>;
+    list(query?: GrantQuery): Promise<Named<Grant>[]>;
 }
 /** A new workpiece, in a room or outside every room. */
 export interface NewWorkpiece {
@@ -365,12 +450,18 @@ export interface NewMerge {
     readonly from: string;
     readonly reason?: string;
 }
-/** Where to look: the thing and all in it, one unit, or with scope whole the thing alone. */
-export interface AnchorQuery {
-    readonly anchorKind: string;
-    readonly anchorId: string;
-    readonly unit?: string;
-    readonly scope?: 'whole';
+/** The routes under /workpieces; the content itself goes through a session. */
+export interface WorkpieceRoutes {
+    create(workpiece: NewWorkpiece): Promise<Named<Workpiece>>;
+    list(): Promise<Named<Workpiece>[]>;
+    get(id: string): Promise<Named<Workpiece>>;
+    updates(id: string, query?: UpdateQuery): Promise<Named<UpdateSummary>[]>;
+    activity(id: string): Promise<Named<Activity>[]>;
+    /** The state after the change at, or the newest. */
+    state(id: string, at?: string): Promise<State>;
+    checkpoint(id: string, checkpoint?: NewCheckpoint): Promise<Named<CollabEvent>>;
+    fork(id: string, fork: NewFork): Promise<Named<Workpiece>>;
+    merge(id: string, merge: NewMerge): Promise<Named<CollabEvent>>;
 }
 /** A comment on a thing, or an answer to another comment on the same thing. */
 export interface NewComment {
@@ -393,6 +484,14 @@ export interface CommentChange {
     readonly body?: Free;
     readonly state?: string;
     readonly reason?: string;
+}
+/** The routes under /comments. */
+export interface CommentRoutes {
+    create(comment: NewComment): Promise<Named<CollabComment>>;
+    get(id: string): Promise<Named<CollabComment>>;
+    list(query: CommentQuery): Promise<Named<CollabComment>[]>;
+    update(id: string, change: CommentChange): Promise<Named<CollabComment>>;
+    remove(id: string, options?: Reasoned): Promise<Named<CollabComment>>;
 }
 /** A new task, at a thing, under another task, or at nothing. */
 export interface NewTask {
@@ -422,6 +521,15 @@ export interface TaskChange {
     readonly state: string;
     readonly reason?: string;
 }
+/** The routes under /tasks. */
+export interface TaskRoutes {
+    create(task: NewTask): Promise<Named<Task>>;
+    get(id: string): Promise<Named<Task>>;
+    list(query: TaskQuery): Promise<Named<Task>[]>;
+    update(id: string, change: TaskChange): Promise<Named<Task>>;
+    addAssignee(id: string, assignee: Assignee, options?: Reasoned): Promise<Named<Task>>;
+    removeAssignee(id: string, assignee: Assignee, options?: Reasoned): Promise<Named<Task>>;
+}
 /** What the tool reports itself, such as a visit; kinds of CK are refused. */
 export interface NewEvent {
     readonly kind: string;
@@ -439,12 +547,21 @@ export interface EventQuery extends AnchorQuery {
     readonly createdBy?: string;
     readonly limit?: number;
 }
-/** Events of a room and all it bundles, oldest first after since. */
-export interface RoomEventQuery {
-    readonly since?: string;
-    readonly kind?: string;
-    readonly createdBy?: string;
-    readonly limit?: number;
+/** The routes under /events, and the events of all rooms at once. */
+export interface EventRoutes {
+    create(event: NewEvent): Promise<Named<CollabEvent>>;
+    list(query: EventQuery): Promise<Named<CollabEvent>[]>;
+    /** No route: every room of /me/rooms asked, each event once, oldest first, limit for all. */
+    inRooms(query?: RoomEventQuery): Promise<Named<CollabEvent>[]>;
+}
+/** The route under /actors. */
+export interface ActorRoutes {
+    /** The stored names of these people, as far as the token may put a name to them. */
+    names(actorIds: readonly string[]): Promise<ActorName[]>;
+}
+/** Tasks given to the own person or one of its groups. */
+export interface MyTaskQuery {
+    readonly state?: string;
 }
 /** Events concerning the own person, wherever it still sees. */
 export interface MyEventQuery {
@@ -452,85 +569,6 @@ export interface MyEventQuery {
     readonly before?: string;
     readonly kind?: string;
     readonly limit?: number;
-}
-/** Tasks given to the own person or one of its groups. */
-export interface MyTaskQuery {
-    readonly state?: string;
-}
-/** The routes under /rooms, and the stream of a room. */
-export interface RoomRoutes {
-    create(room: NewRoom): Promise<Named<Room>>;
-    get(id: string): Promise<Named<Room>>;
-    update(id: string, change: PlaceChange): Promise<Named<Room>>;
-    remove(id: string, options?: Reasoned): Promise<{
-        readonly deleted: boolean;
-    }>;
-    addWorkpiece(id: string, workpieceId: string): Promise<Named<Room>>;
-    removeWorkpiece(id: string, workpieceId: string): Promise<Named<Room>>;
-    events(id: string, query?: RoomEventQuery): Promise<Named<CollabEvent>[]>;
-    activity(id: string): Promise<Named<Activity>[]>;
-    /** Who is connected to which of its workpieces right now; asked for, never told. */
-    presence(id: string): Promise<Named<RoomPresence>[]>;
-}
-/** The routes under /groups. */
-export interface GroupRoutes {
-    create(group: NewGroup): Promise<Named<Group>>;
-    list(): Promise<Named<Group>[]>;
-    get(id: string): Promise<Named<Group>>;
-    update(id: string, change: PlaceChange): Promise<Named<Group>>;
-    remove(id: string, options?: Reasoned): Promise<{
-        readonly deleted: boolean;
-    }>;
-    addMember(id: string, actorId: string): Promise<Named<Group>>;
-    removeMember(id: string, actorId: string): Promise<Named<Group>>;
-}
-/** The routes under /grants. */
-export interface GrantRoutes {
-    set(grant: GrantChange): Promise<Named<Grant>>;
-    remove(grant: GrantRemoval): Promise<{
-        readonly removed: boolean;
-    }>;
-    list(query?: GrantQuery): Promise<Named<Grant>[]>;
-}
-/** The routes under /workpieces; the content itself goes through a session. */
-export interface WorkpieceRoutes {
-    create(workpiece: NewWorkpiece): Promise<Named<Workpiece>>;
-    list(): Promise<Named<Workpiece>[]>;
-    get(id: string): Promise<Named<Workpiece>>;
-    updates(id: string, query?: UpdateQuery): Promise<Named<UpdateSummary>[]>;
-    activity(id: string): Promise<Named<Activity>[]>;
-    /** The state after the change at, or the newest. */
-    state(id: string, at?: string): Promise<State>;
-    checkpoint(id: string, checkpoint?: NewCheckpoint): Promise<Named<CollabEvent>>;
-    fork(id: string, fork: NewFork): Promise<Named<Workpiece>>;
-    merge(id: string, merge: NewMerge): Promise<Named<CollabEvent>>;
-}
-/** The routes under /comments. */
-export interface CommentRoutes {
-    create(comment: NewComment): Promise<Named<CollabComment>>;
-    get(id: string): Promise<Named<CollabComment>>;
-    list(query: CommentQuery): Promise<Named<CollabComment>[]>;
-    update(id: string, change: CommentChange): Promise<Named<CollabComment>>;
-    remove(id: string, options?: Reasoned): Promise<Named<CollabComment>>;
-}
-/** The routes under /tasks. */
-export interface TaskRoutes {
-    create(task: NewTask): Promise<Named<Task>>;
-    get(id: string): Promise<Named<Task>>;
-    list(query: TaskQuery): Promise<Named<Task>[]>;
-    update(id: string, change: TaskChange): Promise<Named<Task>>;
-    addAssignee(id: string, assignee: Assignee, options?: Reasoned): Promise<Named<Task>>;
-    removeAssignee(id: string, assignee: Assignee, options?: Reasoned): Promise<Named<Task>>;
-}
-/** The routes under /events. */
-export interface EventRoutes {
-    create(event: NewEvent): Promise<Named<CollabEvent>>;
-    list(query: EventQuery): Promise<Named<CollabEvent>[]>;
-}
-/** The route under /actors. */
-export interface ActorRoutes {
-    /** The stored names of these people, as far as the token may put a name to them. */
-    names(actorIds: readonly string[]): Promise<ActorName[]>;
 }
 /** The routes under /me: what concerns the token itself. */
 export interface MeRoutes {
@@ -542,11 +580,3 @@ export interface MeRoutes {
     tasks(query?: MyTaskQuery): Promise<Named<Task>[]>;
     events(query?: MyEventQuery): Promise<Named<CollabEvent>[]>;
 }
-/** A refusal of CK, or of the library in its place: a status and what CK said. */
-export declare class CollabKitError extends Error {
-    /** The HTTP status of a call, or the close code that ended a session. */
-    readonly status: number;
-    constructor(status: number, message: string);
-}
-/** The entry of the library, one per instance of CK. */
-export declare function createCollabKitApi(options: CollabKitOptions): CollabKitApi;
