@@ -90,9 +90,9 @@ source api/.venv/bin/activate
 ```
 
 Local development defaults are defined in
-`api/src/modeling_api/core/config.py`. The application currently expects a JWT
-bearer token issued by an external system; it does not provide user
-registration or password login.
+`api/src/modeling_api/core/config.py`. The application expects a JWT bearer
+token issued by Feedbacksystem 2.0 and verifies it against the published keys
+of its identity service; it does not provide user registration or password login.
 
 ## Checks
 

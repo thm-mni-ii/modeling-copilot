@@ -153,11 +153,17 @@ spec:
             # Kubernetes expands the two previously declared variables here.
             - name: MONGODB_URI
               value: mongodb://$(DB_USER):$(DB_PASSWORD)@mongo:27017/?authSource=admin
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: modeling-copilot-api-secrets
-                  key: JWT_SECRET
+            # Tokens of the feedback system: RS256 against the key set it publishes,
+            # no shared secret.
+            - name: JWT_ALGORITHM
+              value: RS256
+            - name: JWT_JWKS_URI
+              value: https://feedback.mni.thm.de/oauth2/jwks
+            - name: JWT_ISSUER
+              value: https://feedback.mni.thm.de
+            # Client id the tokens are issued to; blank means not checked.
+            - name: JWT_AUDIENCE
+              value: ''
           envFrom:
             - configMapRef:
                 name: modeling-copilot-config
