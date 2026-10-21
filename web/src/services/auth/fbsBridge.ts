@@ -14,14 +14,20 @@ const TOKEN_TIMEOUT_MS = 10_000
 const MIN_RENEW_DELAY_MS = 10_000
 
 export const isEmbedded = window.self !== window.top
+export const fbsConnectionError = ref<string | null>(null)
+export const fbsAuthenticated = ref(false)
+export const fbsConnecting = ref(false)
+export const fbsTargetPath = ref('/')
 
 // Theme and locale of the Feedbacksystem, not used by the Copilot yet.
 export const fbsTheme = ref<string | null>(null)
 export const fbsLocale = ref<string | null>(null)
 
-let starting: Promise<void> | null = null
+let starting: Promise<string | null> | null = null
+let listening = false
+let connected = false
 let pending: Promise<string | null> | null = null
-let waiting: ((token: string) => void)[] = []
+const waiting = new Set<(token: string | null) => void>()
 let renewAt = 0
 let renewTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -41,11 +47,13 @@ const expiresAt = (token: string) => {
 
 const nextToken = () =>
   new Promise<string | null>((resolve) => {
-    const timer = setTimeout(() => resolve(null), TOKEN_TIMEOUT_MS)
-    waiting.push((token) => {
+    const finish = (token: string | null) => {
       clearTimeout(timer)
+      waiting.delete(finish)
       resolve(token)
-    })
+    }
+    const timer = setTimeout(() => finish(null), TOKEN_TIMEOUT_MS)
+    waiting.add(finish)
   })
 
 const receiveToken = (token: string) => {
@@ -53,8 +61,8 @@ const receiveToken = (token: string) => {
   bearerToken.value = token
   // httpClient reads the token from localStorage.
   persistToken()
+  connected = true
   waiting.forEach((resolve) => resolve(token))
-  waiting = []
 
   clearTimeout(renewTimer)
   const exp = expiresAt(token)
@@ -92,16 +100,39 @@ const onVisible = () => {
 }
 
 const start = async () => {
-  if (!hostOrigin) return
-  window.addEventListener('message', onMessage)
-  document.addEventListener('visibilitychange', onVisible)
+  fbsConnectionError.value = null
+  if (!hostOrigin) {
+    fbsConnectionError.value = 'The Feedbacksystem address is not configured.'
+    return null
+  }
+  if (!listening) {
+    window.addEventListener('message', onMessage)
+    document.addEventListener('visibilitychange', onVisible)
+    listening = true
+  }
+  fbsConnecting.value = true
   const first = nextToken()
-  post('FBS_INIT_HANDSHAKE', { providerId, version: '1.0.0' })
-  await first
+  const handshake = () => post('FBS_INIT_HANDSHAKE', { providerId, version: '1.0.0' })
+  const retry = setInterval(handshake, 2000)
+  try {
+    handshake()
+    const token = await first
+    if (!token) fbsConnectionError.value = `No sign-in token was received from the Feedbacksystem. Open the application through ${hostOrigin}.`
+    return token
+  } finally {
+    clearInterval(retry)
+    fbsConnecting.value = false
+  }
 }
 
-/** Connects to the Feedbacksystem once; resolves with the first token or after a timeout. */
-export const startFbsBridge = () => (starting ??= start())
+/** Shares concurrent attempts, but permits a new handshake after failure. */
+export const startFbsBridge = (): Promise<string | null> => {
+  const token = useBearerToken().bearerToken.value
+  if (connected && token && !fbsConnectionError.value) return Promise.resolve(token)
+  return (starting ??= start().finally(() => {
+    starting = null
+  }))
+}
 
 /** Asks the host for a fresh token; resolves with it, or with null if the host does not answer. */
 export const requestFbsToken = () => {

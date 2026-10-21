@@ -37,6 +37,8 @@ import IconFBS from '@/components/icons/IconFBS.vue'
 import { computed, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { useBearerToken } from '@/composables/useBearerToken'
+import { isEmbedded } from '@/services/auth/fbsBridge'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -44,6 +46,10 @@ const isAdmin = computed(() => userStore.globalRole === 'ADMIN')
 onMounted(() => void userStore.ensureGlobalRole())
 
 const logout = () => {
+  if (!isEmbedded) {
+    useBearerToken().clearToken()
+    userStore.reset()
+  }
   router.push('/login')
 }
 </script>
