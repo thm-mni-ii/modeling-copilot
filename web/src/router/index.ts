@@ -40,6 +40,11 @@ const router = createRouter({
       component: () => import('../views/ViewTaskEditor.vue')
     },
     {
+      path: '/collab',
+      name: 'Collab',
+      component: () => import('@/collab/rooms/ViewCollab.vue')
+    },
+    {
       path: '/404',
       name: 'View404Page',
       component: () => import('../views/View404Page.vue')
@@ -51,7 +56,7 @@ const router = createRouter({
   ]
 })
 
-const nonAdminPages = ['Login', 'Home', 'Modeling', 'View404Page']
+const nonAdminPages = ['Login', 'Home', 'Modeling', 'View404Page', 'Collab']
 
 router.beforeEach(async (to) => {
   if (!isEmbedded && isFeedbacksystemCallback()) {
