@@ -24,6 +24,31 @@ stations are highlighted once. Reduced-motion preferences disable these animatio
 
 ## Editing templates
 
+The editor uses a compact reorderable task list and a detail panel for the selected
+step. On narrow screens, task selection opens the detail view; "Back to path"
+returns to the list. The header shows save status and provides path settings,
+preview, and an explicit Save action. Description, publication, and archiving live
+in Path settings. Unsaved changes are protected when navigating away or closing
+the page.
+
+"Add tasks" supports search and multiple selection. Tasks use their latest release
+by default; previously used tasks can be added again for review. Tasks without a
+release cannot be selected. The selected task's detail panel provides release
+selection and a step title. Duplicating a step creates independent challenge
+settings and makes the copy depend on completing the original step.
+
+Availability starts with simple choices: immediately, after the previous task,
+from a date, or custom rules. Challenge cards offer None, Solo, Time, and Help
+Budget. Only the relevant budget parameter is initially shown. Optional text,
+icon and color controls are available under customization, with an introduction
+dialog preview. Existing custom icons and colors remain selectable.
+
+All tasks are validated before saving, including hidden details and dependency
+cycles. Invalid tasks are marked in the list and selected for correction. A step
+cannot be removed while other rules still reference it. Reordering preserves
+existing task references and shows a notice explaining that behavior. Path preview
+shows a new learner's map without creating runs or models.
+
 Add tasks, reorder them using drag-and-drop or the up/down controls, and configure
 unlock rules per step. New steps require the previous step to be completed by
 default; this rule can be removed. Display order alone does not restrict access.
