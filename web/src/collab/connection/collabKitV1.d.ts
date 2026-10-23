@@ -1,6 +1,8 @@
 /** What v1.js and manage-v1.js show, and the source of v1.d.ts: nothing of the library inside. */
 /** The entry of the library, one per instance of CK. */
 export declare function createCollabKitApi(options: CollabKitOptions): CollabKitApi;
+/** Whether a key in an answer is a pseudonym of CK, with no name behind it. */
+export declare function isPseudonym(key: string): boolean;
 /** Where CK runs and how the tool gets a token. */
 export interface CollabKitOptions {
     /** Address of CK as http or https; the socket is the same address with ws or wss and /ws. */
@@ -40,7 +42,7 @@ export interface Session<Value = unknown> {
     readonly workpieceId: string;
     /** Fulfilled once the state of CK is in; rejected if the session ends before. */
     readonly synced: Promise<void>;
-    /** The Yjs client of this session, the same over every reconnect. */
+    /** The Yjs client of this session, new only when the own anonymity changes, so none ties both. */
     readonly clientId: number;
     /** Whether this person may change the workpiece, as CK said before the last connection. */
     readonly mayWrite: boolean;
@@ -55,7 +57,7 @@ export interface Session<Value = unknown> {
     disconnect(): void;
     /** Connects again after disconnect or closed. */
     connect(): void;
-    /** Yjs itself, unknown so v1.d.ts needs no Yjs; who uses it names the type with import type. */
+    /** Yjs itself, unknown so v1.d.ts needs no Yjs; the awareness is new with anonymityChanged. */
     readonly yjs: {
         readonly doc: unknown;
         readonly awareness: unknown;
@@ -68,6 +70,8 @@ export interface SessionEvents<Value = unknown> {
     readonly status: Status;
     /** May write now or not, when CK answers otherwise than before. */
     readonly rightsChanged: boolean;
+    /** Writes anonymously now or not, when CK answers otherwise; clientId and awareness are new. */
+    readonly anonymityChanged: boolean;
     /** CK ended the session; it stays closed until connect is called. */
     readonly closed: Closed;
     /** A change lost at this workpiece, to whoever was involved and whoever was not. */
@@ -174,7 +178,7 @@ export interface Presence {
     people(): Person[];
     onChange(listener: () => void): () => void;
 }
-/** A person at the workpiece, as their sessions announce them; a hint, not a proof. */
+/** A person at the workpiece as CK names them from the token; by pseudonym where anonymous. */
 export interface Person {
     readonly id: string;
     readonly name?: string;
@@ -250,6 +254,8 @@ export interface Grant {
     readonly groupId: string;
     readonly scope?: Reference;
     readonly rights: readonly Right[];
+    /** Its members write anonymously at the place and below. */
+    readonly anonymous?: true;
     readonly createdAt: string;
     readonly createdBy: string;
 }
@@ -400,6 +406,8 @@ export interface GrantChange {
     readonly groupId: string;
     readonly scope?: Reference;
     readonly rights: readonly Right[];
+    /** Whether its members write anonymously there; left out, openly, as the grant is set whole. */
+    readonly anonymous?: boolean;
     readonly reason?: string;
 }
 /** Which grant to take away. */
@@ -421,7 +429,7 @@ export interface GrantRoutes {
     }>;
     list(query?: GrantQuery): Promise<Named<Grant>[]>;
 }
-/** A new workpiece, in a room or outside every room. */
+/** A new workpiece; creating one takes edit in the room, outside every room edit everywhere. */
 export interface NewWorkpiece {
     readonly name: string;
     readonly contract?: Free;
@@ -438,7 +446,7 @@ export interface NewCheckpoint {
     readonly label?: string;
     readonly reason?: string;
 }
-/** A fork up to the change at, or of all there is. */
+/** A fork up to the change at, or of all; it takes edit in the room, without one at the source. */
 export interface NewFork {
     readonly name: string;
     readonly at?: string;
@@ -575,6 +583,8 @@ export interface MeRoutes {
     who(): Promise<Me>;
     /** The rights at a thing, or everywhere without one. */
     rights(target?: Reference): Promise<Right[]>;
+    /** Whether the own person writes anonymously at a thing, so the tool leaves names out there. */
+    anonymous(target?: Reference): Promise<boolean>;
     rooms(): Promise<Named<Room>[]>;
     groups(): Promise<Named<Group>[]>;
     tasks(query?: MyTaskQuery): Promise<Named<Task>[]>;
