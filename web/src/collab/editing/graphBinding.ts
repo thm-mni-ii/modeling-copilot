@@ -23,7 +23,11 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
   const known = () => new Map(session.units.entries())
 
   // Cells created in this session get IDs no one else creates; maxGraph's counter follows only numeric IDs.
-  model.prefix = `${session.clientId}-`
+  // A new client comes with a change of the own anonymity, so new cells never tie the open and the anonymous one.
+  const takePrefix = () => {
+    model.prefix = `${session.clientId}-`
+  }
+  takePrefix()
 
   const applyRemote = (what: string) => {
     const xml = joinModel(known())
@@ -153,6 +157,11 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
     setReadOnly(!mayWrite)
     showHistory()
   })
+  // Told once the library made the new client, so its ID is already the new one.
+  const stopAnonymityWatch = session.on('anonymityChanged', (anonymous) => {
+    log(`anonymity changed · ${anonymous ? 'anonymous' : 'by name'} · new cells ${session.clientId}-…`)
+    if (!stopped) takePrefix()
+  })
 
   // From the start, so the editor's own history is out even before the state of collab-kit is in.
   showHistory()
@@ -183,6 +192,7 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
     stopWatching()
     graph.removeListener(onEditingStopped)
     stopRightsWatch()
+    stopAnonymityWatch()
     stopRemote?.()
     unlock?.()
     sharedHistory.value = null

@@ -21,6 +21,8 @@ const connecting = ref(false)
 const workpieceId = ref(localStorage.getItem(WORKPIECE_KEY) ?? '')
 const logEntries = ref<string[]>([])
 const people = ref<Person[]>([])
+// Whether the own person writes anonymously at the workpiece, so others see a pseudonym.
+const anonymous = ref(false)
 const editorGraph = shallowRef<Graph>()
 let unbind: (() => void) | null = null
 let stopPresence: (() => void) | null = null
@@ -49,6 +51,7 @@ const closeSession = () => {
   session?.close()
   session = null
   isConnected.value = false
+  anonymous.value = false
 }
 
 const connect = async (id: string) => {
@@ -65,13 +68,15 @@ const connect = async (id: string) => {
   }
 
   let ck: CollabKitApi
+  let anonymousHere = false
   connecting.value = true
   try {
     ck = await loadCollabKit()
     const me = await ck.me.who()
     log(`collab-kit · library v1 · ${me.label ?? 'no name'} (${me.actorId})`)
     const workpiece = await ck.workpieces.get(id)
-    log(`collab-kit · workpiece "${workpiece.name}"`)
+    anonymousHere = await ck.me.anonymous({ kind: 'workpiece', id })
+    log(`collab-kit · workpiece "${workpiece.name}"${anonymousHere ? ' · anonymous' : ''}`)
   } catch (error) {
     log(`collab-kit · workpiece ${id}: ${collabErrorMessage(error)}`)
     return
@@ -89,8 +94,11 @@ const connect = async (id: string) => {
   // The session asks for token and rights itself before every connection.
   const opened = ck.open<SharedCell>(id, { map: CELLS_MAP })
   session = opened
+  anonymous.value = anonymousHere
   let synced = false
   opened.on('status', logLiveStatus)
+  // The library asks again on every reconnect and tells the new value only when it changed.
+  opened.on('anonymityChanged', (value) => (anonymous.value = value))
   opened.on('closed', ({ code, reason }) => {
     log(`closed by collab-kit · ${code} ${reason}`)
     // Before synced the doc never held the state of collab-kit, so the next connect starts afresh.
@@ -162,7 +170,7 @@ export const useCollabConnection = () => {
     }
   }
 
-  return { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, toggleConnection, openFromRoom }
+  return { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, anonymous, toggleConnection, openFromRoom }
 }
 
 /**
