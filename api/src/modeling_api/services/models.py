@@ -7,7 +7,14 @@ from uuid import UUID
 from modeling_api.core.auth import User
 from modeling_api.core.errors import conflict, not_found
 from modeling_api.db.client import db
-from modeling_api.db.store import Document, insert, list_page, save_version, to_api, utcnow
+from modeling_api.db.store import (
+    Document,
+    insert,
+    list_page,
+    save_version,
+    to_api,
+    utcnow,
+)
 from modeling_api.schemas.models import (
     CreateModel,
     CreateModelVersion,
@@ -37,37 +44,71 @@ async def list_models(
         filters["taskVersion"] = {"$ne": None} if task_bound else None
     if q and q.strip():
         filters["name"] = {"$regex": escape(q.strip()), "$options": "i"}
-    return await list_page(
-        db.models,
-        filters,
-        skip,
-        limit,
-        sort_field=sort,
-        sort_desc=order != "asc",
-        omit=("taskEditBaseSignature", "taskEdit"),
+    cursor = await db.models.aggregate(
+        [
+            {"$match": filters},
+            {
+                "$lookup": {
+                    "from": "learning_path_step_runs",
+                    "localField": "_id",
+                    "foreignField": "modelId",
+                    "as": "_pathSteps",
+                }
+            },
+            {"$match": {"_pathSteps": {"$eq": []}}},
+            {
+                "$facet": {
+                    "items": [
+                        {"$sort": {sort: -1 if order != "asc" else 1, "_id": -1}},
+                        {"$skip": skip},
+                        {"$limit": limit},
+                        {
+                            "$project": {
+                                "_pathSteps": 0,
+                                "taskEditBaseSignature": 0,
+                                "taskEdit": 0,
+                            }
+                        },
+                    ],
+                    "count": [{"$count": "total"}],
+                }
+            },
+        ]
     )
+    result = await cursor.to_list(length=1)
+    page = result[0]
+    return {
+        "items": [to_api(item) for item in page["items"]],
+        "total": page["count"][0]["total"] if page["count"] else 0,
+    }
 
 
 async def create_model(body: CreateModel, user: User) -> Document:
     if body.task_version is not None:
         from modeling_api.services.tasks import ensure_release_reference
 
-        await ensure_release_reference(body.task_version.task_id, body.task_version.version_id, user)
-    return await insert(
-        db.models,
-        {
-            "name": body.name,
-            "ownerId": user.id,
-            "latestVersionId": None,
-            "taskVersion": body.task_version.model_dump(mode="json", by_alias=True)
+        await ensure_release_reference(
+            body.task_version.task_id, body.task_version.version_id, user
+        )
+    return await insert(db.models, model_fields(body, user))
+
+
+def model_fields(body: CreateModel, user: User) -> Document:
+    """Shared initialization for ordinary and path-owned task models."""
+    return {
+        "name": body.name,
+        "ownerId": user.id,
+        "latestVersionId": None,
+        "taskVersion": (
+            body.task_version.model_dump(mode="json", by_alias=True)
             if body.task_version
-            else None,
-            "taskEdit": None,
-            "preferences": {},
-            "updatedAt": utcnow(),
-            "archivedAt": None,
-        },
-    )
+            else None
+        ),
+        "taskEdit": None,
+        "preferences": {},
+        "updatedAt": utcnow(),
+        "archivedAt": None,
+    }
 
 
 async def get_model(model_id: UUID, user: User) -> Document:
@@ -96,6 +137,8 @@ async def delete_model(model_id: UUID, user: User) -> None:
     """Administrative hard delete; the regular UI archives models instead."""
     await get_model(model_id, user)
     model_id_str = str(model_id)
+    if await db.learning_path_step_runs.find_one({"modelId": model_id_str}):
+        raise conflict("Models referenced by a learning-path step cannot be deleted.")
     await db.feedback.delete_many({"modelId": model_id_str})
     await db.model_versions.delete_many({"modelId": model_id_str})
     await db.models.delete_one({"_id": model_id_str, "ownerId": user.id})

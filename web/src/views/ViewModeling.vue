@@ -1,10 +1,51 @@
 <template>
   <v-container fluid class="pa-4 modeling-view">
+    <div v-if="stepRun" class="d-flex align-center ga-3 mb-2">
+      <v-btn prepend-icon="mdi-map-marker-path" @click="returnToPath(false)">Back to learning path</v-btn>
+      <v-btn variant="tonal" :loading="pathBusy" @click="returnToPath(true)">Complete task</v-btn>
+    </div>
     <v-progress-linear v-if="loading" indeterminate class="model-loading" />
-    <DrawingCanvas ref="canvas" v-model:model="graphModel" class="editor-canvas" model-management :model-id="workspace.model?.id ?? null" :open-evaluation-id="startedEvaluationId" :languages="workspace.editorLanguages" :language-connections="connections" :connection-groups="connectionGroups" :connection-preferences="workspace.preferences" :language-syntax="syntax" :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? 'free'" :lock-autonomy-mode="Boolean(workspace.taskVersion)" :canvas-windows="taskWindows" :task-active="Boolean(workspace.taskReference)" :task-edit="workspace.taskEdit" :task-edit-sync-state="workspace.taskEditSyncState" @window-removed="onWindowRemoved" @update:model="captureCanvas" @update:connection-preferences="workspace.updatePreferences" @remove-task-edit="removeTaskEditById" @update-task-edit-document="workspace.updateTaskEditDocument" @focus-task-edit="focusTaskEdit">
+    <ChallengeOverlay v-if="!loading && stepRun?.challenge" :key="stepRun.id" :attempt="stepRun.challenge" :stopping="challengeBusy" @stop="stopChallenge" />
+    <DrawingCanvas
+      ref="canvas"
+      v-model:model="graphModel"
+      class="editor-canvas"
+      model-management
+      :model-id="workspace.model?.id ?? null"
+      :open-evaluation-id="startedEvaluationId"
+      :languages="workspace.editorLanguages"
+      :language-connections="connections"
+      :connection-groups="connectionGroups"
+      :connection-preferences="workspace.preferences"
+      :language-syntax="syntax"
+      :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? 'free'"
+      :lock-autonomy-mode="Boolean(workspace.taskVersion)"
+      :canvas-windows="taskWindows"
+      :task-active="Boolean(workspace.taskReference)"
+      :task-edit="workspace.taskEdit"
+      :task-edit-sync-state="workspace.taskEditSyncState"
+      @window-removed="onWindowRemoved"
+      @update:model="captureCanvas"
+      @update:connection-preferences="workspace.updatePreferences"
+      @remove-task-edit="removeTaskEditById"
+      @update-task-edit-document="workspace.updateTaskEditDocument"
+      @focus-task-edit="focusTaskEdit"
+    >
       <template #canvas-top>
         <div v-if="workspace.diagramTask" class="task-area">
-          <TaskTopBar :task="workspace.diagramTask" :window-open="taskWindowOpen" :content-html="workspace.taskVersion?.data.contentHtml ?? ''" :task-edit="workspace.taskEdit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" :evaluation-workflows="workspace.taskVersion?.data.evaluationWorkflows ?? []" @pop-out="taskWindowOpen = true" @start-evaluation="startEvaluation" @select-connection="selectTaskConnection" @update:task-edit-document="workspace.updateTaskEditDocument" />
+          <TaskTopBar
+            :task="workspace.diagramTask"
+            :window-open="taskWindowOpen"
+            :content-html="workspace.taskVersion?.data.contentHtml ?? ''"
+            :task-edit="workspace.taskEdit"
+            :element-options="taskElementOptions"
+            :connection-options="taskConnectionOptions"
+            :evaluation-workflows="workspace.taskVersion?.data.evaluationWorkflows ?? []"
+            @pop-out="taskWindowOpen = true"
+            @start-evaluation="startEvaluation"
+            @select-connection="selectTaskConnection"
+            @update:task-edit-document="workspace.updateTaskEditDocument"
+          />
         </div>
       </template>
       <template #window-content="{ definition }">
@@ -38,7 +79,9 @@ import type { JsonObject } from '@/services/api/types/common'
 import type { CanvasWindowDefinition } from '@/model/CanvasWindow'
 import { removeTaskEdit } from '@/utils/taskEdits'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
+import paths, { type StepRunContext } from '@/services/learningPaths'
 import evaluationService from '@/services/evaluation/evaluation.service'
+import ChallengeOverlay from '@/components/learningPaths/ChallengeOverlay.vue'
 
 interface Props {
   modelId?: string
@@ -52,13 +95,38 @@ const recoveryDialog = ref(false)
 const recoveryData = ref<JsonObject | null>(null)
 const hydrating = ref(false)
 const loading = ref(false)
+const pathBusy = ref(false)
+const stepRun = ref<StepRunContext | null>(null)
+const challengeBusy = ref(false)
+const stopChallenge = async () => {
+  if (!stepRun.value || challengeBusy.value) return
+  challengeBusy.value = true
+  try {
+    stepRun.value = (await paths.stopChallenge(stepRun.value.runId, stepRun.value.stepId)).data
+  } catch {
+    notifyError('The challenge could not be ended. Please try again.')
+  } finally {
+    challengeBusy.value = false
+  }
+}
+const returnToPath = async (complete: boolean) => {
+  const path = stepRun.value
+  if (!path) return
+  pathBusy.value = true
+  try {
+    captureCanvas()
+    if (workspace.dirty || workspace.taskEditDirty) await workspace.save()
+    if (complete) await paths.complete(path.runId, path.stepId)
+    await router.push(`/learning-path-runs/${path.runId}`)
+  } catch {
+    notifyError('The learning path could not be opened.')
+  } finally {
+    pathBusy.value = false
+  }
+}
 const startedEvaluationId = ref<string | null>(null)
 const taskWindowOpen = ref(false)
-const taskWindows = computed<CanvasWindowDefinition[]>(() =>
-  taskWindowOpen.value && workspace.diagramTask
-    ? [{ id: 'task-description', title: workspace.diagramTask.title, x: 260, y: 120, width: 520, height: 360, role: 'task' }]
-    : []
-)
+const taskWindows = computed<CanvasWindowDefinition[]>(() => (taskWindowOpen.value && workspace.diagramTask ? [{ id: 'task-description', title: workspace.diagramTask.title, x: 260, y: 120, width: 520, height: 360, role: 'task' }] : []))
 const connections = computed(() => workspace.editorLanguages.flatMap((language) => language.connections))
 const taskElementOptions = computed(() => buildTaskElementOptions(workspace.editorLanguages))
 const taskConnectionOptions = computed(() => buildTaskConnectionOptions(workspace.editorLanguages))
@@ -116,9 +184,9 @@ const startEvaluation = async () => {
     if (workspace.dirty) await workspace.save('checkpoint')
     const evaluation = (await evaluationService.start(workspace.model.id)).data
     startedEvaluationId.value = evaluation.id
-    notifySuccess('Auswertung wurde gestartet.')
+    notifySuccess('Evaluation started.')
   } catch (error) {
-    notifyError((error as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Die Auswertung konnte nicht gestartet werden.')
+    notifyError((error as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'The evaluation could not be started.')
   }
 }
 onMounted(async () => {
@@ -126,6 +194,7 @@ onMounted(async () => {
   try {
     if (props.modelId) {
       await workspace.load(props.modelId)
+      stepRun.value = (await paths.stepRunForModel(props.modelId)).data
       await syncCanvas()
       const recoverySnapshot = await workspace.getRecoverySnapshot()
       if (recoverySnapshot) {

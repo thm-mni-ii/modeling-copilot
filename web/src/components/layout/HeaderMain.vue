@@ -8,8 +8,8 @@
 
     <template #append>
       <v-btn to="/" active-class="active" prepend-icon="mdi-folder-outline">
-        <span> Modelle </span>
-        <v-tooltip activator="parent" location="bottom"> Meine Modelle </v-tooltip>
+        <span> Models </span>
+        <v-tooltip activator="parent" location="bottom"> My models </v-tooltip>
       </v-btn>
       <v-btn to="/diagramLanguages" active-class="active" prepend-icon="mdi-view-list">
         <span> Languages </span>
@@ -23,6 +23,8 @@
         <span> Tasks </span>
         <v-tooltip activator="parent" location="bottom"> Create and manage tasks </v-tooltip>
       </v-btn>
+      <v-btn to="/learning-path-runs" prepend-icon="mdi-map-marker-path">Learning paths</v-btn>
+      <v-btn v-if="isAdmin" to="/learning-path-templates" prepend-icon="mdi-map-plus">Path templates</v-btn>
       <CollabNavButton />
       <v-btn prepend-icon="mdi-logout" @click="logout">
         <span> Logout </span>

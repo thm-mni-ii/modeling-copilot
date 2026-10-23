@@ -5,9 +5,11 @@ Fixed identifiers keep references stable and prevent duplicate seed records.
 
 import json
 from pathlib import Path
+from uuid import UUID, uuid5
 
 from modeling_api.db.client import db
 from modeling_api.db.store import utcnow
+from modeling_api.schemas.learning_paths import SaveTemplate
 
 # An empty owner marks global, read-only seed data.
 SYSTEM_OWNER_ID = ""
@@ -15,6 +17,7 @@ SYSTEM_OWNER_ID = ""
 UML_CLASS_DIAGRAM_ID = "a7fb2523-f7a0-4d23-b476-72882454b9e8"
 UML_CLASS_DIAGRAM_VERSION_ID = "51cd9919-36b9-42d9-861d-8c619a2ac6d5"
 UML_CLASS_DIAGRAM_NAME = "UML Class Diagram"
+ORDER_MANAGEMENT_LEARNING_PATH_ID = "5eff2fa9-17c4-4bd5-b44e-fc98bc05f325"
 
 _INITIAL_DATA_DIR = Path(__file__).with_name("initial_data")
 
@@ -125,7 +128,8 @@ async def seed_initial_data() -> None:
         upsert=True,
     )
 
-    for task in _order_management_tasks():
+    tasks = _order_management_tasks()
+    for task in tasks:
         version = task["version"]
         task_on_insert = {
             key: value
@@ -158,3 +162,100 @@ async def seed_initial_data() -> None:
             },
             upsert=True,
         )
+
+    challenges = [
+        {
+            "type": "solo",
+            "title": "Solo Challenge",
+            "description": "Start by modeling independently and see how far you can get without support. Help remains available at any time.",
+            "icon": "mdi-account-outline",
+            "color": "#356458",
+        },
+        {
+            "type": "time",
+            "title": "Time Challenge",
+            "description": "Try to get as far as you can in 15 minutes. The timer keeps running when you switch tabs. You can continue working after time runs out.",
+            "icon": "mdi-timer-outline",
+            "color": "#93691d",
+            "durationSeconds": 900,
+        },
+        {
+            "type": "help_budget",
+            "title": "Help Budget Challenge",
+            "description": "Try to use no more than three internal hints. Additional help remains available at any time.",
+            "icon": "mdi-lightbulb-outline",
+            "color": "#536b94",
+            "helpBudget": 3,
+        },
+    ]
+    steps = []
+    for index, task in enumerate(tasks * 2):
+        repeated = index >= len(tasks)
+        steps.append(
+            {
+                "id": str(
+                    uuid5(
+                        UUID(ORDER_MANAGEMENT_LEARNING_PATH_ID),
+                        f"{task['id']}:repeat" if repeated else task["id"],
+                    )
+                ),
+                "title": f"{task['name']} · Review" if repeated else task["name"],
+                "taskVersion": {
+                    "taskId": task["id"],
+                    "versionId": task["version"]["id"],
+                },
+                "unlock": {
+                    "mode": "all",
+                    "conditions": (
+                        [{"type": "completed", "stepId": steps[-1]["id"]}]
+                        if steps
+                        else []
+                    ),
+                },
+                "challenge": challenges[index] if index < len(challenges) else None,
+            }
+        )
+    # Seed configuration only. Personal step runs, challenge timestamps and model
+    # references are created by start_step, never during database initialization.
+    path_fields = SaveTemplate(
+        name="Order Management",
+        description="Six practice stations: three Order Management tasks with one challenge each, followed by the same tasks for review. Complete each station to unlock the next.",
+        published=True,
+        archived=False,
+        steps=steps,
+    ).model_dump(mode="json", by_alias=True, exclude={"updated_at"})
+    await db.learning_path_templates.update_one(
+        {"_id": ORDER_MANAGEMENT_LEARNING_PATH_ID},
+        {
+            "$setOnInsert": {
+                **path_fields,
+                "ownerId": SYSTEM_OWNER_ID,
+                "createdAt": created_at,
+                "updatedAt": created_at,
+                "retiredStepIds": [],
+            }
+        },
+        upsert=True,
+    )
+
+    # Upgrade only the untouched previous example, preserving edited templates.
+    original_steps = [
+        {
+            **{key: value for key, value in step.items() if key != "challenge"},
+            "unlock": {"mode": "all", "conditions": []},
+        }
+        for step in steps[: len(tasks)]
+    ]
+    await db.learning_path_templates.update_one(
+        {
+            "_id": ORDER_MANAGEMENT_LEARNING_PATH_ID,
+            "ownerId": SYSTEM_OWNER_ID,
+            "name": "Order Management",
+            "description": "Explore the three Order Management tasks: plain text, marked text, and annotated text.",
+            "published": True,
+            "archived": False,
+            "retiredStepIds": [],
+            "steps": original_steps,
+        },
+        {"$set": {**path_fields, "updatedAt": created_at}},
+    )

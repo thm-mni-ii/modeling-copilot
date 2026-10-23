@@ -11,11 +11,22 @@ from modeling_api.core.config import settings
 from modeling_api.core.errors import ErrorResponse, register_error_handlers
 from modeling_api.db.client import client, create_indexes, db
 from modeling_api.db.initial_data import seed_initial_data
-from modeling_api.routes import auth, evaluations, feedback, languages, models, server_time, tasks
+from modeling_api.db.migrations import migrate_learning_path_context
+from modeling_api.routes import (
+    learning_paths,
+    auth,
+    evaluations,
+    feedback,
+    languages,
+    models,
+    server_time,
+    tasks,
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await migrate_learning_path_context()
     await create_indexes()
     await seed_initial_data()
     yield
@@ -38,7 +49,9 @@ app = FastAPI(
 register_error_handlers(app)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
+    allow_origins=[
+        origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()
+    ],
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
     expose_headers=["Location"],
@@ -57,6 +70,7 @@ api = APIRouter(
 )
 api.include_router(languages.router)
 api.include_router(tasks.router)
+api.include_router(learning_paths.router)
 api.include_router(models.router)
 api.include_router(feedback.router)
 api.include_router(evaluations.router)

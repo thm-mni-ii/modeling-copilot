@@ -35,6 +35,21 @@ const router = createRouter({
       component: () => import('../views/ViewDiagramLanguageOverview.vue')
     },
     {
+      path: '/learning-path-templates/:id?/edit',
+      name: 'LearningPathEditor',
+      component: () => import('../views/ViewLearningPathEditor.vue')
+    },
+    {
+      path: '/learning-path-templates',
+      name: 'LearningPathTemplates',
+      component: () => import('../views/ViewLearningPaths.vue')
+    },
+    {
+      path: '/learning-path-runs/:id?',
+      name: 'LearningPathRuns',
+      component: () => import('../views/ViewLearningPaths.vue')
+    },
+    {
       path: '/tasks',
       name: 'Tasks',
       component: () => import('../views/ViewTaskEditor.vue')
@@ -56,7 +71,7 @@ const router = createRouter({
   ]
 })
 
-const nonAdminPages = ['Login', 'Home', 'Modeling', 'View404Page', 'Collab']
+const nonAdminPages = ['LearningPathRuns', 'Login', 'Home', 'Modeling', 'View404Page', 'Collab']
 
 router.beforeEach(async (to) => {
   if (!isEmbedded && isFeedbacksystemCallback()) {

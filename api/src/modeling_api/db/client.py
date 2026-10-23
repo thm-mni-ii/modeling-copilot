@@ -36,14 +36,22 @@ async def create_indexes() -> None:
         ]
     )
     await db.models.create_index(
-        [("ownerId", ASCENDING), ("taskVersion.taskId", ASCENDING), ("updatedAt", DESCENDING)]
+        [
+            ("ownerId", ASCENDING),
+            ("taskVersion.taskId", ASCENDING),
+            ("updatedAt", DESCENDING),
+        ]
     )
 
     await db.feedback.create_index(
         [("source", ASCENDING), ("externalFeedbackId", ASCENDING)], unique=True
     )
     await db.feedback.create_index(
-        [("modelId", ASCENDING), ("modelVersionId", ASCENDING), ("createdAt", DESCENDING)]
+        [
+            ("modelId", ASCENDING),
+            ("modelVersionId", ASCENDING),
+            ("createdAt", DESCENDING),
+        ]
     )
     await db.model_versions.create_index(
         [("modelId", ASCENDING), ("baseReleaseId", ASCENDING), ("createdAt", ASCENDING)]
@@ -51,4 +59,16 @@ async def create_indexes() -> None:
     await db.evaluations.create_index(
         [("ownerId", ASCENDING), ("taskId", ASCENDING), ("createdAt", DESCENDING)]
     )
-    await db.evaluations.create_index([("dagName", ASCENDING), ("dagRunId", ASCENDING)], unique=True)
+    await db.evaluations.create_index(
+        [("dagName", ASCENDING), ("dagRunId", ASCENDING)], unique=True
+    )
+
+    await db.learning_path_step_runs.create_index(
+        [("runId", ASCENDING), ("stepId", ASCENDING)], unique=True
+    )
+    await db.learning_path_step_runs.create_index(
+        "modelId", unique=True, partialFilterExpression={"modelId": {"$type": "string"}}
+    )
+    await db.learning_path_runs.create_index(
+        [("ownerId", ASCENDING), ("templateId", ASCENDING)], unique=True
+    )
