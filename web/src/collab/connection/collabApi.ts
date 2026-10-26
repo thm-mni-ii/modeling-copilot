@@ -1,8 +1,9 @@
 import type { WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { NewWorkpiece } from './collabKitV1'
 
-/** Address of collab-kit, which checks the same Feedbacksystem token as the API. */
-export const collabUrl: string | undefined = import.meta.env.VITE_COLLAB_URL
+/** Address of collab-kit, which checks the same Feedbacksystem token as the API; a bare path means on this host. */
+const configuredUrl: string | undefined = import.meta.env.VITE_COLLAB_URL
+export const collabUrl = configuredUrl ? new URL(configuredUrl, window.location.origin).href.replace(/\/+$/, '') : undefined
 
 /** The top map of the doc, one cell per key; named as units, so a conflict names its cell. */
 export const CELLS_MAP = 'cells'
