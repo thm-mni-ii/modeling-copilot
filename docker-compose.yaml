@@ -65,6 +65,48 @@ services:
       - ./dagu/infra/dev/10-use-host-kube-api.sh:/etc/kube/init.sh:ro
     restart: unless-stopped
 
+  ck-mongo:
+    image: mongo:8.0
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      # Initiates the replica set on first start and reports healthy once it is primary.
+      test: >
+        mongosh --quiet --eval "
+          try { rs.status().ok }
+          catch { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }
+        "
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    volumes:
+      - ck-mongo-data:/data/db
+    restart: unless-stopped
+
+  collab-kit:
+    image: ghcr.io/thm-mni-ii/collab-kit:v0.5.0
+    # Published for amd64 only, Apple Silicon runs it emulated.
+    platform: linux/amd64
+    ports:
+      - "127.0.0.1:24202:24202"
+    environment:
+      MONGODB_URI: mongodb://ck-mongo:27017/?replicaSet=rs0&directConnection=true
+      MONGODB_DB: collab_kit
+      # Same Feedbacksystem 2.0 tokens as the api.
+      JWT_ALGORITHM: RS256
+      JWT_JWKS_URI: http://host.docker.internal:8080/oauth2/jwks
+      JWT_ISSUER: http://localhost:8083
+      ACTOR_CLAIM: id
+      TOP_CLAIM: globalRole
+      TOP_VALUES: ADMIN,MODERATOR
+      ALLOWED_ORIGINS: http://localhost:8085
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      ck-mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
   workflow-synonym-matching:
     image: modeling-copilot/synonym-matching:0.1.1
     build:
@@ -103,6 +145,7 @@ services:
 volumes:
   mongo-data:
   dagu-data:
+  ck-mongo-data:
 
 networks:
   database:
