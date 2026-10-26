@@ -11,16 +11,26 @@ import router from './router'
 import { registerPlugins } from './plugins'
 import vuetify from './plugins/vuetify'
 
+import { isEmbedded } from './services/auth/fbsBridge'
+import { completeFeedbacksystemRenewal, isFeedbacksystemCallback, resumeFeedbacksystemSession } from './services/auth/fbsOidc'
+
 import '@maxgraph/core/css/common.css'
 
 import { Client } from '@maxgraph/core'
 Client.setImageBasePath('/images/')
 
-const pinia = createPinia()
-const app = createApp(App)
-registerPlugins()
+// The hidden frame of a token renewal only hands the response back to the page.
+if (isEmbedded && isFeedbacksystemCallback()) {
+  void completeFeedbacksystemRenewal()
+} else {
+  if (!isEmbedded) void resumeFeedbacksystemSession()
 
-app.use(router)
-app.use(vuetify)
-app.use(pinia)
-app.mount('#app')
+  const pinia = createPinia()
+  const app = createApp(App)
+  registerPlugins()
+
+  app.use(router)
+  app.use(vuetify)
+  app.use(pinia)
+  app.mount('#app')
+}

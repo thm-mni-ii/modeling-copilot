@@ -84,9 +84,7 @@ services:
     restart: unless-stopped
 
   collab-kit:
-    image: ghcr.io/thm-mni-ii/collab-kit:v0.5.0
-    # Published for amd64 only, Apple Silicon runs it emulated.
-    platform: linux/amd64
+    image: ghcr.io/thm-mni-ii/collab-kit:v0.5.1
     ports:
       - "127.0.0.1:24202:24202"
     environment:
