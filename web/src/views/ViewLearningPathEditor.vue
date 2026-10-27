@@ -19,19 +19,28 @@
     <p v-if="draft.published" class="published-note mb-4"><v-icon size="16" class="mr-1">mdi-information-outline</v-icon> Saved changes apply to all runs, including paths already in progress.</p>
 
     <div class="editor-grid" :class="{ 'editor-grid--detail': showDetail }">
-      <aside class="path-sidebar" aria-label="Path tasks">
+      <aside class="path-sidebar" aria-label="Path activities and features">
         <div class="sidebar-header">
           <div>
             <h2 class="text-subtitle-1 font-weight-bold">Your path</h2>
             <span class="text-caption text-medium-emphasis">{{ draft.steps.length }} {{ draft.steps.length === 1 ? 'activity' : 'activities' }} · drag to reorder</span>
           </div>
         </div>
+        <div class="path-features">
+          <p class="text-overline text-medium-emphasis mb-1">Lernpfad-Feature</p>
+          <button type="button" class="pulse-feature" :class="{ 'pulse-feature--selected': detailMode === 'pulse', 'pulse-feature--enabled': draft.pulseSurveys?.enabled, 'pulse-feature--error': attempted && pulseIssue }" :aria-pressed="detailMode === 'pulse'" aria-controls="path-detail-panel" :disabled="!ready" @click="selectPulseSettings">
+            <v-icon size="24" :color="draft.pulseSurveys?.enabled ? 'success' : undefined">mdi-comment-question-outline</v-icon>
+            <span class="pulse-feature-copy"><strong>Impuls-Fragen</strong><span>{{ draft.pulseSurveys?.enabled ? `${draft.pulseSurveys.surveyIds.length} Fragebögen im Pool · Aktiv` : 'Inaktiv · Begleitende Fragen beim Modellieren' }}</span></span>
+            <v-chip size="x-small" :color="draft.pulseSurveys?.enabled ? 'success' : undefined" variant="tonal">Konfiguration</v-chip>
+          </button>
+        </div>
+        <p class="text-overline text-medium-emphasis px-4 pt-3">Activities</p>
         <v-alert v-if="orderNotice" type="info" variant="tonal" density="compact" closable class="ma-3 text-caption" @click:close="orderNotice = ''">{{ orderNotice }}</v-alert>
         <draggable v-model="draft.steps" item-key="id" handle=".step-handle" class="step-list" ghost-class="step-row--ghost" :animation="150" @end="onReorder">
           <template #item="{ element, index }">
-            <div class="step-row" :class="{ 'step-row--active': selectedId === element.id, 'step-row--error': issues[element.id]?.length }">
+            <div class="step-row" :class="{ 'step-row--active': detailMode === 'activity' && selectedId === element.id, 'step-row--error': issues[element.id]?.length }">
               <span class="step-handle" aria-hidden="true"><v-icon size="18">mdi-drag-vertical</v-icon></span>
-              <button type="button" class="step-select" :aria-pressed="selectedId === element.id" @click="selectStep(element.id)">
+              <button type="button" class="step-select" :aria-pressed="detailMode === 'activity' && selectedId === element.id" @click="selectStep(element.id)">
                 <span class="step-number">{{ index + 1 }}</span
                 ><span class="step-copy"
                   ><strong
@@ -65,8 +74,20 @@
         </div>
       </aside>
 
-      <section class="step-details" aria-label="Selected task settings">
-        <template v-if="selected">
+      <section id="path-detail-panel" class="step-details" :aria-label="detailMode === 'pulse' ? 'Impuls-Fragen konfigurieren' : 'Selected activity settings'">
+        <template v-if="detailMode === 'pulse'">
+          <v-btn class="mobile-back mb-3" variant="text" prepend-icon="mdi-arrow-left" @click="showDetail = false">Back to path</v-btn>
+          <div class="detail-heading">
+            <div>
+              <p class="text-overline text-medium-emphasis">Lernpfad-Feature · Konfiguration</p>
+              <h2 ref="detailHeading" tabindex="-1" class="text-h5"><v-icon color="primary" class="mr-2">mdi-comment-question-outline</v-icon>Impuls-Fragen</h2>
+            </div>
+            <v-chip :color="draft.pulseSurveys?.enabled ? 'success' : undefined" size="small" variant="tonal">{{ draft.pulseSurveys?.enabled ? 'Aktiv' : 'Inaktiv' }}</v-chip>
+          </div>
+          <p class="text-body-2 text-medium-emphasis mt-4">Kurze, zufällig angebotene Fragen begleiten die Aufgabenbearbeitung. Sie gelten für den gesamten Lernpfad und können von Lernenden weggeklickt werden.</p>
+          <PulseSurveySettings v-model="draft.pulseSurveys" :steps="draft.steps" :surveys="surveyList" :loading="loadingTasks" />
+        </template>
+        <template v-else-if="selected">
           <v-btn class="mobile-back mb-3" variant="text" prepend-icon="mdi-arrow-left" @click="showDetail = false">Back to path</v-btn>
           <div class="detail-heading">
             <div>
@@ -179,21 +200,23 @@ import draggable from 'vuedraggable'
 import ChallengeConfigEditor from '@/components/learningPaths/ChallengeConfigEditor.vue'
 import LearningPathAvailability from '@/components/learningPaths/LearningPathAvailability.vue'
 import LearningPathTaskPicker from '@/components/learningPaths/LearningPathTaskPicker.vue'
+import PulseSurveySettings from '@/components/learningPaths/PulseSurveySettings.vue'
 import LearningPathSurveyPicker from '@/components/learningPaths/LearningPathSurveyPicker.vue'
 import TreasurePathBoard from '@/components/learningPaths/TreasurePathBoard.vue'
 import paths, { type PathRun, type PathStep, type PathTemplate } from '@/services/learningPaths'
 import surveys, { type Survey } from '@/services/surveys'
 import taskService from '@/services/task/task.service'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
-import { availabilitySummary, conditionSummary, validatePathSteps } from '@/utils/learningPathEditor'
+import { availabilitySummary, conditionSummary, validatePathSteps, validatePulseConfig } from '@/utils/learningPathEditor'
 
 const route = useRoute(),
   router = useRouter()
 const draft = ref<PathTemplate>({ id: '', name: '', description: '', published: false, archived: false, revision: 0, updatedAt: null, steps: [] })
 const tasks = ref<Task[]>([]),
   versions = ref<Record<string, TaskVersionInfo[]>>({})
+const detailMode = ref<'activity' | 'pulse'>('activity')
 const selectedId = ref<string | null>(null),
-  selected = computed(() => draft.value.steps.find((step) => step.id === selectedId.value) ?? null)
+  selected = computed(() => detailMode.value === 'activity' ? draft.value.steps.find((step) => step.id === selectedId.value) ?? null : null)
 const selectedIndex = computed(() => draft.value.steps.findIndex((step) => step.id === selectedId.value))
 const busy = ref(false),
   loading = ref(true),
@@ -239,6 +262,7 @@ const pickerDialog = ref(false),
 const pendingVersion = ref<string | null>(null),
   loadingVersions = ref('')
 const dirty = computed(() => ready.value && saved.value !== JSON.stringify(draft.value))
+const pulseIssue = computed(() => validatePulseConfig(draft.value.pulseSurveys, draft.value.steps))
 const issues = computed(() => {
   if (!attempted.value) return {}
   const result = validatePathSteps(draft.value.steps)
@@ -260,7 +284,14 @@ const releaseLabel = (step: PathStep) => {
   return version ? `${version.releaseName} · v${version.versionNumber}` : tasks.value.find((task) => task.id === step.taskVersion?.taskId)?.latestReleaseId === step.taskVersion?.versionId ? 'Latest release' : 'Saved release'
 }
 const selectStep = async (id: string) => {
+  detailMode.value = 'activity'
   selectedId.value = id
+  showDetail.value = true
+  await nextTick()
+  detailHeading.value?.focus({ preventScroll: true })
+}
+const selectPulseSettings = async () => {
+  detailMode.value = 'pulse'
   showDetail.value = true
   await nextTick()
   detailHeading.value?.focus({ preventScroll: true })
@@ -307,7 +338,7 @@ const confirmRemove = () => {
   if (!removeId.value || dependents.value.length) return
   const index = draft.value.steps.findIndex((step) => step.id === removeId.value)
   if (index < 0) return
-  const wasSelected = selectedId.value === removeId.value
+  const wasSelected = detailMode.value === 'activity' && selectedId.value === removeId.value
   draft.value.steps.splice(index, 1)
   removeId.value = null
   if (wasSelected) {
@@ -367,6 +398,12 @@ const save = async () => {
   if (draft.value.published && !draft.value.steps.length) {
     error.value = 'Add at least one activity before publishing.'
     settingsDialog.value = true
+    return
+  }
+  const pulseError = pulseIssue.value
+  if (pulseError) {
+    error.value = pulseError
+    await selectPulseSettings()
     return
   }
   const invalid = Object.keys(issues.value)[0]
@@ -534,6 +571,65 @@ onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload))
   justify-content: space-between;
   padding: 18px 16px;
   border-bottom: 1px solid rgb(var(--v-theme-on-surface), 0.08);
+  gap: 12px;
+}
+.sidebar-header > div:first-child {
+  min-width: 0;
+}
+.path-features {
+  padding: 12px;
+  border-bottom: 1px solid rgb(var(--v-theme-on-surface), 0.1);
+  background: rgb(var(--v-theme-on-surface), 0.025);
+}
+.path-features > p {
+  padding-left: 4px;
+  font-size: 0.6rem !important;
+}
+.pulse-feature {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 10px;
+  border: 1px solid rgb(var(--v-theme-on-surface), 0.18);
+  border-radius: 10px;
+  text-align: left;
+  background: rgb(var(--v-theme-surface));
+}
+.pulse-feature:hover:enabled {
+  border-color: rgb(var(--v-theme-on-surface), 0.45);
+}
+.pulse-feature--enabled {
+  border-color: rgb(var(--v-theme-success), 0.45);
+  background: rgb(var(--v-theme-success), 0.08);
+}
+.pulse-feature--selected {
+  outline: 2px solid rgb(var(--v-theme-on-surface), 0.45);
+  outline-offset: 2px;
+}
+.pulse-feature--error {
+  border-color: rgb(var(--v-theme-error));
+}
+.pulse-feature:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-on-surface));
+  outline-offset: 3px;
+}
+.pulse-feature:disabled {
+  opacity: 0.5;
+}
+.pulse-feature-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.pulse-feature-copy strong {
+  font-size: 0.8rem;
+}
+.pulse-feature-copy > span {
+  font-size: 0.65rem;
+  color: rgb(var(--v-theme-on-surface), 0.65);
 }
 .step-list {
   min-height: 12px;

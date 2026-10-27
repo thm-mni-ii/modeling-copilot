@@ -27,7 +27,7 @@
           <v-btn icon="mdi-undo" size="x-small" :disabled="!(sharedHistory?.canUndo ?? canUndo)" title="Undo (Ctrl+Z)" @click="undoGraph" />
           <v-btn icon="mdi-redo" size="x-small" :disabled="!(sharedHistory?.canRedo ?? canRedo)" title="Redo (Ctrl+Y)" @click="redoGraph" />
         </template>
-        <template #sidebar-toggle>
+        <template v-if="!$slots['sidebar-top']" #sidebar-toggle>
           <v-btn icon="mdi-dock-right" size="x-small" variant="text" :title="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-label="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-expanded="!rightSidebarCollapsed" @click="rightSidebarCollapsed = !rightSidebarCollapsed" />
         </template>
         <template #autonomy><AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" /></template>
@@ -119,7 +119,9 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)" />
+        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
+          <template v-if="$slots['sidebar-top']" #top><slot name="sidebar-top" /></template>
+        </SidebarRightContainer>
         <CollabConnector v-if="props.modelManagement" />
       </div>
       <!-- /canvas-area -->

@@ -1,5 +1,6 @@
 <template>
-  <SidebarFrame v-model:width="sidebarWidth" side="right" :collapsed="collapsed">
+  <SidebarFrame v-model:width="sidebarWidth" side="right" :collapsed="hasJourney ? false : collapsed" :min-width="hasJourney ? 280 : 105" :max-width="hasJourney ? 440 : 315">
+    <template v-if="hasJourney" #top><slot name="top" /></template>
     <template #tabs>
       <SidebarTabs :model-value="activeTab" :tabs="tabs" icons-only aria-label="Model tools" @update:model-value="selectTab" />
     </template>
@@ -36,6 +37,7 @@ type SidebarTab = 'feedback' | 'persistence' | 'sync' | 'languages' | 'task' | '
 
 const props = defineProps<{
   collapsed: boolean
+  hasJourney?: boolean
   taskActive?: boolean
   taskEdit?: TaskEditDocument | null
   taskEditSyncState?: TaskEditSyncState
@@ -64,6 +66,9 @@ const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'tas
 
 const DEFAULT_WIDTH = 210
 const sidebarWidth = ref(DEFAULT_WIDTH)
+watch(() => props.hasJourney, (hasJourney) => {
+  sidebarWidth.value = hasJourney ? Math.max(280, sidebarWidth.value) : DEFAULT_WIDTH
+}, { immediate: true })
 const activeTab = ref<SidebarTab>('languages')
 const activeTabLabel = computed(() => tabs.value.find((tab) => tab.value === activeTab.value)?.label ?? '')
 const selectTab = (value: string) => {

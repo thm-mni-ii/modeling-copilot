@@ -58,6 +58,8 @@ async def get_template(template_id, user, existing_run=False):
 async def save_template(body: SaveTemplate, user, template_id=None):
     require_admin(user)
     is_new = template_id is None
+    for survey_id in body.pulse_surveys.survey_ids:
+        await surveys.render(survey_id, user, "use")
     for step in body.steps:
         for survey_id in (step.survey_id, step.before_survey_id, step.after_survey_id):
             if survey_id:
@@ -309,6 +311,19 @@ def evaluate_condition(condition, states, run, now):
     return now >= target, f"Available from {target.isoformat()}", target
 
 
+async def run_coin_balance(run, template):
+    active_steps = {step["id"] for step in template["steps"] if not step.get("archivedAt")}
+    completed = sum(
+        1 for state in run["stepStates"]
+        if state["stepId"] in active_steps and state.get("completedAt")
+    )
+    # One unique answered reaction per offer makes rewards durable and idempotent.
+    pulse_coins = await db.learning_path_pulse_events.count_documents(
+        {"runId": run["_id"], "event": "answered"}
+    )
+    return completed + pulse_coins
+
+
 async def get_run(run_id, user):
     run = await owned_run(run_id, user)
     template = await template_document(run["templateId"])
@@ -379,6 +394,7 @@ async def get_run(run_id, user):
         "description": template["description"],
         "steps": steps,
         "completed": completed,
+        "coins": await run_coin_balance(run, template),
         "total": len(counted),
         "skipped": skipped,
         "progress": (
@@ -532,6 +548,7 @@ async def get_model_context(model_id, user):
         "stepId": state["stepId"],
         "modelId": str(model_id),
         "title": step["title"] if step else model["name"],
+        "coins": await run_coin_balance(run, template),
         "taskVersion": model["taskVersion"],
         "startedAt": state["openedAt"],
         "completedAt": state.get("completedAt"),
@@ -640,6 +657,16 @@ async def open_survey(run_id, step_id, user, phase=None):
 
 
 async def save_survey_session(run_id, step_id, body, user, action, phase=None):
+    if phase and phase.startswith("pulse:"):
+        from modeling_api.services import pulse_surveys
+
+        try:
+            offer_id = UUID(phase.removeprefix("pulse:"))
+        except ValueError:
+            raise not_found()
+        return await pulse_surveys.save(run_id, step_id, offer_id, body, user, action)
+    if phase not in (None, "before", "after"):
+        raise not_found()
     run, step, state, reference = await survey_context(run_id, step_id, user, phase)
     if state.get(session_reference_field(phase)) != str(body.session_id):
         raise conflict(

@@ -10,11 +10,13 @@ from modeling_api.schemas.learning_paths import (
     PathRun,
     StartedStep,
     PathModelContext,
+    PulsePoll,
+    PulsePollResult,
 )
 from modeling_api.schemas.common import Page
 from modeling_api.schemas.survey_sessions import SurveySessionInput, SurveySessionView
 from modeling_api.schemas.challenges import StartStep
-from modeling_api.services import learning_paths as service
+from modeling_api.services import learning_paths as service, pulse_surveys
 
 router = APIRouter(tags=["Learning paths"])
 
@@ -113,7 +115,7 @@ async def draft_survey(
     step_id: UUID,
     body: SurveySessionInput,
     user: CurrentUser,
-    phase: Literal["before", "after"] | None = None,
+    phase: str | None = None,
 ):
     return await service.save_survey_session(
         run_id, step_id, body, user, "draft", phase
@@ -126,7 +128,7 @@ async def submit_survey(
     step_id: UUID,
     body: SurveySessionInput,
     user: CurrentUser,
-    phase: Literal["before", "after"] | None = None,
+    phase: str | None = None,
 ):
     return await service.save_survey_session(
         run_id, step_id, body, user, "submit", phase
@@ -142,3 +144,23 @@ async def skip_survey(
     phase: Literal["before", "after"] | None = None,
 ):
     return await service.save_survey_session(run_id, step_id, body, user, "skip", phase)
+
+
+@router.post("/learning-path-runs/{run_id}/steps/{step_id}/pulse/poll", response_model=PulsePollResult)
+async def poll_pulse(run_id: UUID, step_id: UUID, body: PulsePoll, user: CurrentUser):
+    return await pulse_surveys.poll(run_id, step_id, body, user)
+
+
+@router.post("/learning-path-runs/{run_id}/pulse/{offer_id}/open", response_model=SurveySessionView)
+async def open_pulse(run_id: UUID, offer_id: UUID, user: CurrentUser):
+    return await pulse_surveys.open_offer(run_id, offer_id, user)
+
+
+@router.post("/learning-path-runs/{run_id}/pulse/{offer_id}/dismiss")
+async def dismiss_pulse(run_id: UUID, offer_id: UUID, user: CurrentUser):
+    return await pulse_surveys.dismiss(run_id, offer_id, user)
+
+
+@router.post("/learning-path-runs/{run_id}/pulse/{offer_id}/expire")
+async def expire_pulse(run_id: UUID, offer_id: UUID, user: CurrentUser):
+    return await pulse_surveys.expire(run_id, offer_id, user)

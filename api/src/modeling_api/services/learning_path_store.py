@@ -68,6 +68,7 @@ def template_meta(body, step_ids):
                 else "published" if body.published else "draft"
             ),
             "stepIds": [str(i) for i in step_ids],
+            "pulseSurveys": body.pulse_surveys,
         }
     ).model_dump(mode="json", by_alias=True)
 
@@ -100,6 +101,7 @@ def template_view(doc):
         "published": doc["status"] == "published",
         "archived": doc["status"] == "archived",
         "revision": doc["revision"],
+        "pulseSurveys": doc.get("pulseSurveys", {"enabled": False}),
         "updatedAt": doc["updatedAt"],
         "ownerId": doc["createdBy"],
         "createdAt": doc["createdAt"],

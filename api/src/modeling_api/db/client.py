@@ -71,6 +71,20 @@ async def create_indexes() -> None:
     )
 
     await db.learning_path_template_steps.create_index("templateId")
+    await db.learning_path_pulse_events.create_index(
+        [("runId", ASCENDING), ("stepId", ASCENDING), ("at", DESCENDING)]
+    )
+    await db.learning_path_pulse_events.create_index(
+        [("runId", ASCENDING), ("stepId", ASCENDING), ("offerSeq", ASCENDING)],
+        unique=True, partialFilterExpression={"event": "offered"},
+    )
+    await db.learning_path_pulse_events.create_index(
+        [("offerId", ASCENDING)], unique=True,
+        partialFilterExpression={"reaction": True},
+    )
+    await db.learning_path_pulse_events.create_index(
+        [("runId", ASCENDING), ("sessionKey", ASCENDING), ("event", ASCENDING)]
+    )
     await db.learning_path_run_steps.create_index("modelId")
     await db.learning_path_run_steps.create_index(
         [("runId", ASCENDING), ("stepId", ASCENDING)], unique=True

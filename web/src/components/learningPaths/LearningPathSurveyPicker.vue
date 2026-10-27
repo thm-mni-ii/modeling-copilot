@@ -1,9 +1,9 @@
 <template>
   <v-dialog :model-value="modelValue" max-width="720" @update:model-value="emit('update:modelValue', $event)">
     <v-card>
-      <v-card-title class="d-flex align-center">Add questionnaires<v-spacer /><v-btn icon="mdi-close" variant="text" aria-label="Close questionnaire picker" @click="emit('update:modelValue', false)" /></v-card-title>
+      <v-card-title class="d-flex align-center">{{ purpose === 'pulse' ? 'Impuls-Fragen auswählen' : 'Add questionnaires' }}<v-spacer /><v-btn icon="mdi-close" variant="text" aria-label="Close questionnaire picker" @click="emit('update:modelValue', false)" /></v-card-title>
       <v-card-text>
-        <p class="text-body-2 text-medium-emphasis mb-4">Select questionnaires to add as separate stations. Each uses its current published release.</p>
+        <p class="text-body-2 text-medium-emphasis mb-4">{{ purpose === 'pulse' ? 'Die Impulse werden zufällig aus diesem Pool ausgewählt. Jeder Fragebogen verwendet seine aktuelle veröffentlichte Version.' : 'Select questionnaires to add as separate stations. Each uses its current published release.' }}</p>
         <v-text-field v-model="query" label="Search questionnaires" prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable hide-details autofocus />
         <v-progress-linear v-if="loading" indeterminate class="mt-3" />
         <div class="picker-results mt-3">
@@ -17,7 +17,7 @@
         </div>
       </v-card-text>
       <v-card-actions class="px-6 pb-5">
-        <span class="text-body-2 text-medium-emphasis">{{ selected.length }} selected</span><v-spacer /><v-btn @click="emit('update:modelValue', false)">Cancel</v-btn><v-btn color="primary" variant="flat" :disabled="!selected.length || loading" @click="emit('add', [...selected])">Add {{ selected.length || '' }} {{ selected.length === 1 ? 'questionnaire' : 'questionnaires' }}</v-btn>
+        <span class="text-body-2 text-medium-emphasis">{{ selected.length }} selected</span><v-spacer /><v-btn @click="emit('update:modelValue', false)">Cancel</v-btn><v-btn color="primary" variant="flat" :disabled="!selected.length || loading" @click="emit('add', [...selected])">{{ purpose === 'pulse' ? 'Übernehmen' : `Add ${selected.length || ''} ${selected.length === 1 ? 'questionnaire' : 'questionnaires'}` }}</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -28,7 +28,7 @@ import { computed, ref, watch } from 'vue'
 import type { Survey } from '@/services/surveys'
 import type { PathStep } from '@/services/learningPaths'
 
-const props = defineProps<{ modelValue: boolean; surveys: Survey[]; steps: PathStep[]; loading: boolean }>()
+const props = defineProps<{ modelValue: boolean; surveys: Survey[]; steps: PathStep[]; loading: boolean; purpose?: 'stations' | 'pulse' }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean]; add: [ids: string[]] }>()
 const selected = ref<string[]>([]),
   query = ref('')

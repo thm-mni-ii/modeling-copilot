@@ -259,6 +259,7 @@ async def seed_initial_data() -> None:
     )
 
     await seed_survey_learning_path(tasks, created_at)
+    await seed_pulse_learning_path(tasks, created_at)
 
 
 async def seed_survey_learning_path(tasks, created_at):
@@ -299,43 +300,7 @@ async def seed_survey_learning_path(tasks, created_at):
             }
         ).model_dump(exclude_none=True)
         demo_title = f"Example: {title} (demonstration only)"
-        version = {
-            "_id": version_id,
-            "surveyId": survey_id,
-            "version": 1,
-            "title": demo_title,
-            "definition": definition,
-            "kind": "release",
-            "createdAt": created_at,
-            "createdBy": SYSTEM_OWNER_ID,
-            "releasedAt": created_at,
-            "releasedBy": SYSTEM_OWNER_ID,
-        }
-        await db.survey_versions.update_one(
-            {"_id": version_id}, {"$setOnInsert": version}, upsert=True
-        )
-        await db.surveys.update_one(
-            {"_id": survey_id},
-            {
-                "$setOnInsert": {
-                    "title": demo_title,
-                    "definition": definition,
-                    "version": 1,
-                    "latestVersionId": version_id,
-                    "latestKind": "release",
-                    "activeReleaseId": version_id,
-                    "activeReleaseVersion": 1,
-                    "revision": 1,
-                    "schemaVersion": 2,
-                    "deletedAt": None,
-                    "createdAt": created_at,
-                    "updatedAt": created_at,
-                    "createdBy": SYSTEM_OWNER_ID,
-                    "updatedBy": SYSTEM_OWNER_ID,
-                }
-            },
-            upsert=True,
-        )
+        await _seed_survey(survey_id, version_id, demo_title, definition, created_at)
         references.append((survey_id, version_id))
     for index in range(5):
         is_survey = index % 2 == 0
@@ -370,6 +335,96 @@ async def seed_survey_learning_path(tasks, created_at):
             description="Demonstration data, not validated research instruments. Standalone questionnaires and two modeling tasks with required questionnaires before and after each task.",
             published=True,
             steps=steps,
+        ),
+        created_at,
+    )
+
+
+async def _seed_survey(survey_id, version_id, title, definition, created_at):
+    version = {
+        "_id": version_id,
+        "surveyId": survey_id,
+        "version": 1,
+        "title": title,
+        "definition": definition,
+        "kind": "release",
+        "createdAt": created_at,
+        "createdBy": SYSTEM_OWNER_ID,
+        "releasedAt": created_at,
+        "releasedBy": SYSTEM_OWNER_ID,
+    }
+    await db.survey_versions.update_one(
+        {"_id": version_id}, {"$setOnInsert": version}, upsert=True
+    )
+    await db.surveys.update_one(
+        {"_id": survey_id},
+        {
+            "$setOnInsert": {
+                "title": title,
+                "definition": definition,
+                "version": 1,
+                "latestVersionId": version_id,
+                "latestKind": "release",
+                "activeReleaseId": version_id,
+                "activeReleaseVersion": 1,
+                "revision": 1,
+                "schemaVersion": 2,
+                "deletedAt": None,
+                "createdAt": created_at,
+                "updatedAt": created_at,
+                "createdBy": SYSTEM_OWNER_ID,
+                "updatedBy": SYSTEM_OWNER_ID,
+            }
+        },
+        upsert=True,
+    )
+
+
+LIKERT_UNSURE = "Kann ich gerade nicht einschätzen"
+
+
+def _pulse_definition(name, title, high):
+    return Definition.model_validate({
+        "elements": [{
+            "type": "radiogroup", "name": name, "title": title, "isRequired": True,
+            "choices": ["1 – gar nicht", "2", "3", "4", f"5 – {high}", LIKERT_UNSURE],
+        }]
+    }).model_dump(exclude_none=True)
+
+
+async def seed_pulse_learning_path(tasks, created_at):
+    namespace = UUID(ORDER_MANAGEMENT_LEARNING_PATH_ID)
+    survey_ids = []
+    for name, title, high in (
+        ("random_understand", "Wie gut verstehst du gerade, was du bei dieser Aufgabe tun sollst?", "sehr gut"),
+        ("random_need", "Wie stark brauchst du gerade Unterstützung, um diese Aufgabe zu bearbeiten?", "sehr stark"),
+    ):
+        survey_id = uuid5(namespace, f"pulse:{name}")
+        survey_ids.append(str(survey_id))
+        await _seed_survey(
+            str(survey_id), str(uuid5(survey_id, "release:1")),
+            f"Example: {name.upper()} (demonstration only)",
+            _pulse_definition(name, title, high), created_at,
+        )
+    path_id = uuid5(namespace, "pulse-example")
+    await _seed_learning_path(
+        path_id,
+        SaveTemplate(
+            name="Example: Modeling with random pulse questions",
+            description="Demonstration tasks with optional random pulse questionnaires during active modeling.",
+            published=True,
+            steps=[
+                {
+                    "id": str(uuid5(path_id, f"task:{index}")), "title": task["name"],
+                    "taskVersion": {"taskId": task["id"], "versionId": task["version"]["id"]},
+                }
+                for index, task in enumerate(tasks[:3])
+            ],
+            pulseSurveys={
+                "enabled": True, "surveyIds": survey_ids, "minGapSeconds": 600,
+                "maxGapSeconds": 1800, "maxPerSession": 3, "maxPerTask": None,
+                "minActiveSeconds": 120, "excludeStepIds": [],
+            },
         ),
         created_at,
     )

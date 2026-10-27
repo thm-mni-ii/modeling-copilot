@@ -23,10 +23,10 @@ import { Model } from 'survey-core'
 import { SurveyComponent } from 'survey-vue3-ui'
 import 'survey-core/survey-core.css'
 import 'survey-core/i18n/german'
-import paths from '@/services/learningPaths'
+import paths, { type SurveyPhase } from '@/services/learningPaths'
 import surveys, { surveyError, type SurveyMode, type SurveyResponse } from '@/services/surveys'
 
-const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; activity?: { runId: string; stepId: string; phase?: 'before' | 'after' } }>(), { mode: 'use' })
+const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; activity?: { runId: string; stepId: string; phase?: SurveyPhase } }>(), { mode: 'use' })
 const emit = defineEmits<{ completed: [response?: SurveyResponse] }>()
 const model = shallowRef<Model | null>(null)
 const loading = ref(false),
@@ -142,12 +142,13 @@ async function load() {
   saving.value = false
   try {
     const activity = props.activity
-    const session = activity ? (await paths.openSurvey(activity.runId, activity.stepId, activity.phase)).data : null
+    const session = activity ? (activity.phase?.startsWith('pulse:') ? (await paths.openPulse(activity.runId, activity.phase.slice(6))).data : (await paths.openSurvey(activity.runId, activity.stepId, activity.phase)).data) : null
     const survey = session ? session.version : (await surveys.render(props.surveyId, props.mode, props.versionId)).data
     if (current !== generation) return
     releaseChanged.value = session?.releaseChanged ?? false
     loadedVersionId = survey.id
-    const instance = new Model({ ...survey.definition, title: survey.title, locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
+    const pulse = activity?.phase?.startsWith('pulse:')
+    const instance = new Model({ ...survey.definition, title: pulse ? '' : survey.title, ...(pulse ? { completeText: 'Absenden' } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
     if (session) {
       loadedSessionId = session.sessionId
       revision = session.revision

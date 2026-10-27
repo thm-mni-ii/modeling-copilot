@@ -257,9 +257,11 @@ watch(
   },
   { immediate: true }
 )
-// Time-based unlocks are re-evaluated by the server while this view is open.
+// Reload only when a known time-based unlock is due in the visible view.
 const timer = setInterval(() => {
-  if (run.value && !loading.value && !busy.value) void load()
+  if (document.visibilityState !== 'visible' || !run.value || loading.value || busy.value) return
+  const now = Date.now()
+  if (run.value.steps.some((step) => step.status === 'locked' && step.availableAt && Date.parse(step.availableAt) <= now)) void load()
 }, 30000)
 onUnmounted(() => {
   clearInterval(timer)

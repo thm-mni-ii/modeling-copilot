@@ -84,6 +84,42 @@ class LearningPathStep(ApiSchema):
         return self
 
 
+class PulseSurveyConfig(ApiSchema):
+    enabled: bool = False
+    survey_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    min_gap_seconds: int = Field(default=600, ge=1, le=86400)
+    max_gap_seconds: int | None = Field(default=1800, ge=1, le=86400)
+    max_per_session: int = Field(default=3, ge=1, le=100)
+    max_per_task: int | None = Field(default=None, ge=1, le=1000)
+    min_active_seconds: int = Field(default=120, ge=0, le=86400)
+    exclude_step_ids: list[UUID] = Field(default_factory=list, max_length=200)
+
+    @model_validator(mode="after")
+    def valid_pulse(self):
+        if self.enabled and not self.survey_ids:
+            raise ValueError("Enabled pulse surveys require a questionnaire pool.")
+        if len(set(self.survey_ids)) != len(self.survey_ids):
+            raise ValueError("Pulse questionnaire IDs must be unique.")
+        if self.max_gap_seconds is not None and self.max_gap_seconds < self.min_gap_seconds:
+            raise ValueError("Maximum pulse gap must be at least the minimum gap.")
+        return self
+
+
+class PulsePoll(ApiSchema):
+    session_key: UUID
+    active_seconds_delta: int = Field(default=0, ge=0, le=30)
+
+
+class PulseOffer(ApiSchema):
+    id: UUID
+    survey_id: UUID
+
+
+class PulsePollResult(ApiSchema):
+    offer: PulseOffer | None = None
+    next_poll_seconds: int = Field(default=30, ge=1, le=30)
+
+
 class SaveTemplate(ApiSchema):
     name: Name
     description: str = Field(default="", max_length=5000)
@@ -91,12 +127,16 @@ class SaveTemplate(ApiSchema):
     archived: bool = False
     steps: list[LearningPathStep] = Field(default_factory=list, max_length=200)
     revision: int = Field(default=0, ge=0)
+    pulse_surveys: PulseSurveyConfig = Field(default_factory=PulseSurveyConfig)
 
     @model_validator(mode="after")
     def valid_graph(self):
         ids = {step.id for step in self.steps}
         if len(ids) != len(self.steps):
             raise ValueError("Step IDs must be unique.")
+        task_ids = {step.id for step in self.steps if step.type == "task"}
+        if not set(self.pulse_surveys.exclude_step_ids) <= task_ids:
+            raise ValueError("Pulse exclusions must reference existing task steps.")
         graph = {
             step.id: {c.step_id for c in step.unlock.conditions if c.step_id}
             for step in self.steps
@@ -174,6 +214,7 @@ class PathRun(ApiSchema):
     description: str
     steps: list[StepRun]
     completed: int
+    coins: int = Field(default=0, ge=0)
     total: int
     progress: int
     skipped: int = 0
@@ -191,6 +232,7 @@ class PathModelContext(ApiSchema):
     run_id: UUID
     step_id: UUID
     model_id: UUID
+    coins: int = Field(default=0, ge=0)
     title: Name
     task_version: TaskVersionReference
     started_at: datetime

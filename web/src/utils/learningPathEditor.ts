@@ -1,4 +1,19 @@
-import type { Condition, PathStep } from '@/services/learningPaths'
+import type { Condition, PathStep, PulseSurveyConfig } from '@/services/learningPaths'
+
+export const validatePulseConfig = (config: PulseSurveyConfig | undefined, steps: PathStep[]): string => {
+  if (!config) return ''
+  if (config.enabled && !config.surveyIds.length) return 'Wähle mindestens einen veröffentlichten Fragebogen für Impulse.'
+  if (config.surveyIds.length > 100) return 'Der Pool darf höchstens 100 Fragebögen enthalten.'
+  const ranges: [number | null, number, number, boolean][] = [
+    [config.minGapSeconds, 1, 86400, false], [config.maxGapSeconds, 1, 86400, true],
+    [config.maxPerSession, 1, 100, false], [config.maxPerTask, 1, 1000, true],
+    [config.minActiveSeconds, 0, 86400, false]
+  ]
+  if (ranges.some(([value, min, max, nullable]) => !(nullable && value === null) && (value === null || !Number.isInteger(value) || value < min || value > max))) return 'Prüfe die ganzzahligen Werte und ihre zulässigen Bereiche.'
+  if (config.maxGapSeconds !== null && config.maxGapSeconds < config.minGapSeconds) return 'Der Maximalabstand muss mindestens dem Mindestabstand entsprechen.'
+  if (config.excludeStepIds.some((id) => !steps.some((step) => step.id === id && step.type !== 'survey'))) return 'Die Impuls-Ausnahmen müssen auf bestehende Tasks verweisen.'
+  return ''
+}
 
 export const conditionSummary = (condition: Condition, steps: PathStep[]): string => {
   const source = steps.find((step) => step.id === condition.stepId)?.title ?? 'a missing task'

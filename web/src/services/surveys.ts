@@ -47,6 +47,8 @@ export interface SurveyVersion extends SurveyVersionInfo {
   definition: SurveyDefinition
 }
 export interface SurveyResponse {
+  rewardCoins?: number
+  coinBalance?: number
   id: string
   surveyId: string
   version: number

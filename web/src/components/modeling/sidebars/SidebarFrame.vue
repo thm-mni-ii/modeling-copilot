@@ -1,5 +1,6 @@
 <template>
   <aside class="sidebar-frame" :class="[`sidebar-frame--${side}`, { 'sidebar-frame--collapsed': collapsed }]" :style="{ width: displayedWidth + 'px', minWidth: displayedWidth + 'px' }">
+    <div v-if="!collapsed && $slots.top" class="sidebar-frame__top"><slot name="top" /></div>
     <div v-if="!collapsed && showTabs && $slots.tabs" class="sidebar-frame__tabs">
       <slot name="tabs" />
     </div>
@@ -89,6 +90,8 @@ const startResize = (event: MouseEvent) => {
   border-bottom: 1px solid rgba(var(--v-theme-outline), 0.14);
   flex-shrink: 0;
 }
+
+.sidebar-frame__top { flex-shrink: 0; }
 
 .sidebar-frame__body {
   display: flex;

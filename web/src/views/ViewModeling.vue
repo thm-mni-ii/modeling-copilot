@@ -1,17 +1,17 @@
 <template>
   <v-container fluid class="pa-4 modeling-view">
-    <div v-if="stepRun" class="d-flex align-center ga-3 mb-2">
-      <v-btn prepend-icon="mdi-map-marker-path" @click="returnToPath(false)">Back to learning path</v-btn>
-      <v-btn variant="tonal" :loading="pathBusy" :disabled="loading || Boolean(activeSurvey) || stepRun.removed || Boolean(stepRun.completedAt)" @click="returnToPath(true)">Complete task</v-btn>
-    </div>
     <v-alert v-if="stepRun?.removed" type="info" variant="tonal" class="mb-3">This station was removed from the learning path. Your model is still available.</v-alert>
+    <v-alert v-if="pulseEnabled && pulse.pollError.value" type="warning" variant="tonal" density="compact" class="mb-3">Impuls-Fragen konnten nicht abgefragt werden: {{ pulse.pollError.value }} Die Abfrage wird automatisch wiederholt.</v-alert>
     <v-progress-linear v-if="loading" indeterminate class="model-loading" />
     <ChallengeOverlay v-if="!loading && !activeSurvey && stepRun?.challenge" :key="stepRun.id" :attempt="stepRun.challenge" :stopping="challengeBusy" @stop="stopChallenge" />
-    <section v-if="activeSurvey && stepRun" class="task-survey pa-4">
-      <h1 class="text-h5 mb-2">{{ surveyPhase === 'before' ? 'Before you start' : 'Complete your task' }}</h1>
-      <p class="mb-4">{{ surveyPhase === 'before' ? 'Submit this questionnaire to begin working on the task.' : 'Submit this questionnaire to complete the task.' }}</p>
-      <SurveyRenderer :key="`${surveyPhase}:${activeSurvey.surveyId}`" ref="taskSurvey" :survey-id="activeSurvey.surveyId" :activity="{ runId: stepRun.runId, stepId: stepRun.stepId, phase: surveyPhase }" @completed="taskSurveyCompleted" />
-    </section>
+    <div v-if="activeSurvey && stepRun" class="task-survey-layout">
+      <section class="task-survey pa-4">
+        <h1 class="text-h5 mb-2">{{ surveyPhase === 'before' ? 'Before you start' : 'Complete your task' }}</h1>
+        <p class="mb-4">{{ surveyPhase === 'before' ? 'Submit this questionnaire to begin working on the task.' : 'Submit this questionnaire to complete the task.' }}</p>
+        <SurveyRenderer :key="`${surveyPhase}:${activeSurvey.surveyId}`" ref="taskSurvey" :survey-id="activeSurvey.surveyId" :activity="{ runId: stepRun.runId, stepId: stepRun.stepId, phase: surveyPhase }" @completed="taskSurveyCompleted" />
+      </section>
+      <aside class="task-survey-journey"><LearningJourneyDock :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy" @leave="returnToPath(false)" @complete="returnToPath(true)" /></aside>
+    </div>
     <DrawingCanvas
       v-show="!loading && !activeSurvey && !pathLoadFailed"
       ref="canvas"
@@ -38,6 +38,11 @@
       @update-task-edit-document="workspace.updateTaskEditDocument"
       @focus-task-edit="focusTaskEdit"
     >
+      <template v-if="stepRun" #sidebar-top>
+        <LearningJourneyDock :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy" @leave="returnToPath(false)" @complete="returnToPath(true)">
+          <template #pulse><PulseSurveyPirate v-if="stepRun && pulseEnabled" :run-id="stepRun.runId" :step-id="stepRun.stepId" :visible="pulse.visible.value" :offer="pulse.offer.value" :offer-opened="pulse.offerOpened.value" :reward-coins="pulse.rewardCoins.value" :coin-balance="pulse.coinBalance.value" :state="pulse.state.value" :busy="pulse.busy.value" :error="pulse.error.value" @open="pulse.open" @dismiss="pulse.dismiss" @answered="pulse.answered" @expired="pulse.expire" /></template>
+        </LearningJourneyDock>
+      </template>
       <template #canvas-top>
         <div v-if="workspace.diagramTask" class="task-area">
           <TaskTopBar
@@ -59,6 +64,7 @@
         <TaskEditEditor v-if="definition.role === 'task'" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @update:model-value="workspace.updateTaskEditDocument" />
       </template>
     </DrawingCanvas>
+
     <v-dialog v-model="recoveryDialog" max-width="1000" persistent
       ><v-card
         ><v-card-title>Unsaved changes found</v-card-title
@@ -73,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import type { GraphDataModel } from '@maxgraph/core'
 import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
@@ -90,6 +96,9 @@ import paths, { type PathModelContext } from '@/services/learningPaths'
 import evaluationService from '@/services/evaluation/evaluation.service'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import ChallengeOverlay from '@/components/learningPaths/ChallengeOverlay.vue'
+import LearningJourneyDock from '@/components/learningPaths/LearningJourneyDock.vue'
+import PulseSurveyPirate from '@/components/learningPaths/PulseSurveyPirate.vue'
+import { usePulseSurvey } from '@/composables/usePulseSurvey'
 
 interface Props {
   modelId?: string
@@ -115,6 +124,11 @@ const activeSurvey = computed(() => {
   if (!path || path.completedAt) return null
   if (path.beforeSurvey && !path.beforeSurvey.completed) return path.beforeSurvey
   return path.completionRequested && path.afterSurvey && !path.afterSurvey.completed ? path.afterSurvey : null
+})
+const pulseEnabled = computed(() => Boolean(stepRun.value && !stepRun.value.removed && !stepRun.value.completedAt && !stepRun.value.completionRequested && !activeSurvey.value && !loading.value && !pathLoadFailed.value && !recoveryDialog.value))
+const pulse = usePulseSurvey(computed(() => stepRun.value?.runId), computed(() => stepRun.value?.stepId), pulseEnabled)
+watch(pulse.coinBalance, (coins) => {
+  if (stepRun.value && coins !== null) stepRun.value.coins = coins
 })
 onBeforeRouteLeave(async () => {
   if (taskSurvey.value?.saving) return false
@@ -237,12 +251,6 @@ const refreshPathContext = async () => {
     notifyError('The learning path settings could not be refreshed.')
   }
 }
-const pathRefreshTimer = window.setInterval(() => void refreshPathContext(), 30000)
-window.addEventListener('focus', refreshPathContext)
-onUnmounted(() => {
-  window.clearInterval(pathRefreshTimer)
-  window.removeEventListener('focus', refreshPathContext)
-})
 onMounted(async () => {
   loading.value = true
   try {
@@ -272,8 +280,7 @@ onMounted(async () => {
 <style scoped>
 .modeling-view {
   position: relative;
-  /* Keep the editor usable even when the footer extends below the viewport. */
-  height: max(900px, calc(100vh - var(--v-layout-top, 0px)));
+  height: calc(100dvh - var(--v-layout-top, 0px) - var(--v-layout-bottom, 0px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -283,7 +290,10 @@ onMounted(async () => {
   inset: 0 0 auto;
   z-index: 20;
 }
+.task-survey-layout { display: flex; flex: 1; min-height: 0; gap: 12px; }
+.task-survey-journey { width: 280px; flex-shrink: 0; }
 .task-survey {
+  min-width: 0;
   overflow-y: auto;
   flex: 1;
 }

@@ -7,7 +7,7 @@ from pydantic import Field
 
 from modeling_api.schemas.common import ApiSchema, Name
 from modeling_api.schemas.challenges import ChallengeConfig
-from modeling_api.schemas.learning_paths import UnlockRule
+from modeling_api.schemas.learning_paths import UnlockRule, PulseSurveyConfig
 
 
 class SurveyReference(ApiSchema):
@@ -52,6 +52,7 @@ class LearningPathTemplateContent(ApiSchema):
     description: str
     status: Literal["draft", "published", "archived"]
     step_ids: list[str]
+    pulse_surveys: PulseSurveyConfig = Field(default_factory=PulseSurveyConfig)
 
 
 class LearningPathStepState(ApiSchema):
@@ -68,6 +69,8 @@ class LearningPathStepState(ApiSchema):
     survey_session_id: str | None = None
     before_survey: str | None = None
     after_survey: str | None = None
+    active_seconds: int = Field(default=0, ge=0)
+    pulse_last_poll_at: datetime | None = None
 
 
 class LearningPathRunFields(ApiSchema):

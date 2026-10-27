@@ -5,11 +5,11 @@
         <h2>{{ finished ? 'Journey finished!' : `${run.completed} / ${run.total} completed` }}</h2>
         <p>{{ run.progress }} %{{ run.skipped ? ` · ${run.skipped} skipped` : '' }}</p>
       </div>
-      <div class="coin-counter" :aria-label="`${run.completed} coins collected`" role="status" aria-live="polite">
+      <div class="coin-counter" :aria-label="`${run.coins ?? run.completed} coins collected`" role="status" aria-live="polite">
         <TreasureMapArt kind="coin" />
         <div>
-          <strong>{{ run.completed }}</strong
-          ><span class="sr-only">{{ run.completed === 1 ? 'coin' : 'coins' }} collected</span>
+          <strong>{{ run.coins ?? run.completed }}</strong
+          ><span class="sr-only">{{ (run.coins ?? run.completed) === 1 ? 'coin' : 'coins' }} collected</span>
         </div>
       </div>
       <v-progress-linear class="journey-progress" :model-value="run.progress" color="#467966" bg-color="#e7dcc2" rounded height="8" aria-label="Treasure journey progress" />
@@ -27,7 +27,7 @@
           <span><v-icon size="16" color="#397052">mdi-check-circle</v-icon> Completed</span>
           <span v-if="run.steps.some((step) => step.type === 'survey')"><v-icon size="16">mdi-skip-next</v-icon> Skipped (unanswered)</span>
         </div>
-        <p class="map-hint">Treasure chests are modeling tasks; bottles contain questionnaires. Complete an activity to collect a coin.</p>
+        <p class="map-hint">Treasure chests are modeling tasks; bottles contain questionnaires. Complete an activity or answer a pulse question to collect a coin.</p>
       </details>
     </div>
 
