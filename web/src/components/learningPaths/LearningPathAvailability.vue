@@ -57,7 +57,12 @@ const preset = computed<Preset>(() => {
   if (rules.length === 1 && rules[0].type === 'at') return 'date'
   return 'custom'
 })
-const presets = [{ title: 'After all previous required activities (default)', value: 'sequence' }, { title: 'Immediately available', value: 'immediate' }, { title: 'Available from a date', value: 'date' }, { title: 'Custom rules', value: 'custom' }]
+const presets = [
+  { title: 'After all previous required activities (default)', value: 'sequence' },
+  { title: 'Immediately available', value: 'immediate' },
+  { title: 'Available from a date', value: 'date' },
+  { title: 'Custom rules', value: 'custom' }
+]
 const conditionTypes = [
   { title: 'Activity completed', value: 'completed' },
   { title: 'Fixed date and time', value: 'at' },

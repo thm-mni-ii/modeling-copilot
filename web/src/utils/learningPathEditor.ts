@@ -62,7 +62,11 @@ export const validatePathSteps = (steps: PathStep[]): Record<string, string[]> =
     const index = steps.findIndex((step) => step.id === id)
     const current = steps[index]
     // A sequential step implicitly waits for every earlier required step.
-    if (current?.unlock.mode === 'sequence') steps.slice(0, index).filter((item) => item.type !== 'survey' || item.required !== false).forEach((item) => visit(item.id))
+    if (current?.unlock.mode === 'sequence')
+      steps
+        .slice(0, index)
+        .filter((item) => item.type !== 'survey' || item.required !== false)
+        .forEach((item) => visit(item.id))
     current?.unlock.conditions.forEach((condition) => {
       if (condition.stepId && ids.has(condition.stepId)) visit(condition.stepId)
     })
