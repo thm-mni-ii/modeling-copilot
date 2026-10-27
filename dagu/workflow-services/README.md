@@ -2,7 +2,7 @@
 
 Die fünf Capability-Images sind eigenständige Services: jedes Verzeichnis
 enthält Dockerfile, Source, Eingabe-/Ausgabe-Schema, Capability-Metadaten,
-README und Test. Sie führen keine Fachlogik aus, geben jedoch strukturierte,
+README. Sie führen keine Fachlogik aus, geben jedoch strukturierte,
 deterministische Dummy-Ergebnisse auf stdout aus. Die Workflow-Schritte nutzen
 eine viersekündige Verzögerung, damit parallele und abhängige Status im
 Frontend sichtbar werden.
