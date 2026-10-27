@@ -1,6 +1,6 @@
 import { Cell, Codec, type Graph, type UndoableEdit } from '@maxgraph/core'
 import { createModelSerializer } from '@/utils/modelPersistence'
-import { cellElement, siblingOrder, type SharedCell } from './modelCells'
+import { cellElement, siblingOrder, type SharedCell } from '@/collab/storage/modelCells'
 
 /** What maxGraph keeps on every cell; anything else is the Copilot's own, such as diagramElementType. */
 const CELL_FIELDS = new Set([...Object.keys(new Cell()), 'mxObjectId'])

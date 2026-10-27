@@ -1,10 +1,10 @@
 import { InternalEvent, type Cell, type Graph } from '@maxgraph/core'
 import { notifyWarning } from '@/composables/useNotifications'
 import { exportModelAsXml, importModelFromXml } from '@/utils/modelPersistence'
-import type { Session } from '@/collab/connection/collabKitV1'
+import type { Session } from '@/collab/kit/collabKitV1'
 import { applyCells, cellsOfUndoneEdit, type HeldText } from './applyCells'
 import { watchGraphChanges } from './graphChanges'
-import { joinModel, splitModel, type SharedCell } from './modelCells'
+import { joinModel, splitModel, type SharedCell } from '@/collab/storage/modelCells'
 import { lockGraph } from './readOnly'
 import { sharedHistory } from './sharedHistory'
 

@@ -1,34 +1,9 @@
 import type { Router } from 'vue-router'
-import type { JsonObject } from '@/services/api/types/common'
-import type { Model, WorkspaceLanguageReference } from '@/services/api/types/model'
+import type { Model } from '@/services/api/types/model'
 import modelService from '@/services/model/model.service'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import type { Room, Workpiece } from './collabKitV1'
-
-/** The UML class diagram the Copilot seeds with fixed IDs; the default language of a shared model. */
-export const UML_CLASS_DIAGRAM: WorkspaceLanguageReference = {
-  languageId: 'a7fb2523-f7a0-4d23-b476-72882454b9e8',
-  versionId: '51cd9919-36b9-42d9-861d-8c619a2ac6d5',
-  source: 'required'
-}
-
-/** Where an own model keeps the workpiece it shares; the other preferences stay as they are. */
-interface CollabLink {
-  workpieceId: string
-  roomId: string
-}
-
-export const linkOf = (preferences: JsonObject | undefined): CollabLink | null => {
-  const link = preferences?.collab as Partial<CollabLink> | undefined
-  return typeof link?.workpieceId === 'string' && typeof link.roomId === 'string' ? { workpieceId: link.workpieceId, roomId: link.roomId } : null
-}
-
-/** The languages the workpiece was created with; older ones without get the UML class diagram. */
-const languagesOf = (workpiece: Workpiece): WorkspaceLanguageReference[] => {
-  const languages = workpiece.contract.languages
-  const usable = Array.isArray(languages) && languages.every((language) => typeof language?.languageId === 'string' && typeof language?.versionId === 'string')
-  return usable && languages.length > 0 ? (languages as WorkspaceLanguageReference[]) : [UML_CLASS_DIAGRAM]
-}
+import type { Room, Workpiece } from '@/collab/kit/collabKitV1'
+import { languagesOf, linkOf } from '@/collab/storage/workpiece'
 
 const PAGE = 100
 

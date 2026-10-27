@@ -1,8 +1,11 @@
 import { useBearerToken } from '@/composables/useBearerToken'
-import { collabUrl } from './collabApi'
 import type { CollabKitApi } from './collabKitV1'
 
 type CollabKitV1 = typeof import('./collabKitV1')
+
+/** Address of collab-kit, which checks the same Feedbacksystem token as the API; a bare path means on this host. */
+const configuredUrl: string | undefined = import.meta.env.VITE_COLLAB_URL
+export const collabUrl = configuredUrl ? new URL(configuredUrl, window.location.origin).href.replace(/\/+$/, '') : undefined
 
 let loading: Promise<CollabKitApi> | null = null
 let library: CollabKitV1 | null = null
@@ -26,3 +29,14 @@ export const loadCollabKit = (): Promise<CollabKitApi> => {
 
 /** Whether a key collab-kit answered with is a pseudonym; keys come only from it, so the library is loaded by then. */
 export const isPseudonym = (key: string) => library?.isPseudonym(key) ?? false
+
+/** Short reason for the sync log and notifications. */
+export const collabErrorMessage = (error: unknown) => {
+  if (!collabUrl) return 'VITE_COLLAB_URL is not set'
+  const { status, message } = error as { status?: number; message?: string }
+  if (status === 401) return 'token rejected (expired?)'
+  // collab-kit names the reason of every other refusal, such as "unknown workpiece".
+  if (status !== undefined) return message || `request failed with HTTP ${status}`
+  // A request the browser blocks for CORS looks the same to the page, it hides the reason.
+  return `not reachable at ${collabUrl} or blocked by CORS`
+}
