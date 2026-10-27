@@ -143,7 +143,11 @@ const saveName = async () => {
 
 .modeling-header__identity {
   min-width: 150px;
-  max-width: min(30vw, 320px);
+  max-width: min(30vw, 240px);
+}
+
+.modeling-header__identity :deep(.modeling-toolbar-group__content) {
+  width: 100%;
 }
 
 .modeling-header__tools,
@@ -154,6 +158,7 @@ const saveName = async () => {
 }
 
 .modeling-header__name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -168,6 +173,11 @@ const saveName = async () => {
   align-items: center;
   gap: 2px;
   min-width: 0;
+  width: 100%;
+}
+
+.modeling-header__identity-actions > .v-btn {
+  flex-shrink: 0;
 }
 
 .modeling-header__spacer {
