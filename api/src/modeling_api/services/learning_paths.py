@@ -1,4 +1,4 @@
-"""Learning paths use live templates and persistent, owner-scoped progress."""
+"""Live learning-path views and commands; configuration belongs to templates."""
 
 from datetime import timedelta
 from uuid import UUID, uuid5, NAMESPACE_URL
@@ -7,11 +7,29 @@ from pymongo.errors import DuplicateKeyError
 
 from modeling_api.core.errors import ApiError, conflict, not_found
 from modeling_api.db.client import db
-from modeling_api.db.store import insert, list_page, to_api, utcnow
-from modeling_api.schemas.learning_paths import SaveTemplate, StepRunContext
+from modeling_api.db.store import list_page, new_id, utcnow
+from modeling_api.schemas.learning_paths import SaveTemplate, PathModelContext
 from modeling_api.schemas.challenges import ChallengeConfig, StartStep
 from modeling_api.schemas.models import CreateModel, CreateModelVersion
-from modeling_api.services import models, tasks
+from modeling_api.schemas.learning_path_documents import LearningPathRunFields
+from modeling_api.services import models, tasks, surveys, survey_sessions
+from modeling_api.services.learning_path_store import (
+    step_document,
+    template_meta,
+    template_view,
+    template_document,
+    attach_steps,
+    attach_states,
+    run_by_model,
+    step_view,
+    step_state,
+    ensure_step_state,
+    update_step_state,
+    link_survey_session,
+    run_sessions,
+    linked_session,
+    session_reference_field,
+)
 
 
 def require_admin(user):
@@ -20,28 +38,36 @@ def require_admin(user):
 
 
 async def list_templates(user, skip=0, limit=100):
-    filters = {} if user.is_admin else {"published": True, "archived": False}
-    return await list_page(db.learning_path_templates, filters, skip, limit)
+    filters = {} if user.is_admin else {"status": "published"}
+    page = await list_page(db.learning_path_templates, filters, skip, limit)
+    docs = [
+        {"_id": item["id"], **{k: v for k, v in item.items() if k != "id"}}
+        for item in page["items"]
+    ]
+    page["items"] = [template_view(doc) for doc in await attach_steps(docs)]
+    return page
 
 
 async def get_template(template_id, user, existing_run=False):
-    doc = await db.learning_path_templates.find_one({"_id": str(template_id)})
-    if not doc or (
-        not user.is_admin
-        and not existing_run
-        and (not doc["published"] or doc["archived"])
-    ):
+    doc = await template_document(template_id)
+    if not user.is_admin and not existing_run and doc["status"] != "published":
         raise not_found()
-    return to_api(doc)
+    return template_view(doc)
 
 
 async def save_template(body: SaveTemplate, user, template_id=None):
     require_admin(user)
+    is_new = template_id is None
     for step in body.steps:
+        for survey_id in (step.survey_id, step.before_survey_id, step.after_survey_id):
+            if survey_id:
+                await surveys.render(survey_id, user, "use")
+        if step.type == "survey":
+            continue
         await tasks.ensure_release_reference(
             step.task_version.task_id, step.task_version.version_id, user
         )
-        if body.published:
+        if body.published and not body.archived:
             task = await db.task.find_one(
                 {
                     "_id": str(step.task_version.task_id),
@@ -51,56 +77,205 @@ async def save_template(body: SaveTemplate, user, template_id=None):
             )
             if not task:
                 raise conflict("Published paths require accessible, published tasks.")
-    fields = body.model_dump(mode="json", by_alias=True, exclude={"updated_at"})
     now = utcnow()
-    fields["updatedAt"] = now.replace(microsecond=(now.microsecond // 1000) * 1000)
-    if template_id is None:
-        return await insert(db.learning_path_templates, {**fields, "ownerId": user.id})
-    old = await get_template(template_id, user)
-    if body.updated_at is None or body.updated_at != old["updatedAt"]:
-        raise conflict()
-    fields["updatedAt"] = max(
-        fields["updatedAt"], old["updatedAt"] + timedelta(milliseconds=1)
+    template_id = str(template_id) if template_id else new_id()
+    old = None
+    if not is_new:
+        old = await template_document(template_id)
+        if body.revision != old["revision"]:
+            raise conflict("The template changed. Reload it before saving.")
+    existing = {s["id"]: s for s in old["steps"]} if old else {}
+    new_ids = [str(s.id) for s in body.steps]
+    foreign = await db.learning_path_template_steps.find_one(
+        {"_id": {"$in": new_ids}, "templateId": {"$ne": template_id}}, {"_id": 1}
     )
-    # Removed steps stay in run records, but cannot be silently reassigned later.
-    retired = set(old.get("retiredStepIds", [])) | (
-        {s["id"] for s in old["steps"]} - {str(s.id) for s in body.steps}
-    )
-    if retired & {str(s.id) for s in body.steps}:
-        raise conflict("A removed step ID cannot be reused. Add a new step instead.")
-    result = await db.learning_path_templates.update_one(
-        {"_id": str(template_id), "updatedAt": old["updatedAt"]},
-        {"$set": {**fields, "retiredStepIds": sorted(retired)}},
-    )
-    if not result.matched_count:
-        raise conflict()
+    if foreign:
+        raise conflict("A step ID already belongs to another template.")
+    for step in body.steps:
+        previous = existing.get(str(step.id))
+        if previous and (
+            previous["kind"] != step.type
+            or (
+                step.type == "task"
+                and previous["task"]["taskId"] != str(step.task_version.task_id)
+            )
+            or (
+                step.type == "survey"
+                and previous["survey"]["surveyId"] != str(step.survey_id)
+            )
+        ):
+            raise conflict(
+                "Changing a station's activity requires a new step ID. Add a new station instead."
+            )
+    # Steps missing from the body are archived, never deleted; they keep their ID.
+    removed = [i for i, s in existing.items() if i not in new_ids and not s.get("archivedAt")]
+    archived = [i for i, s in existing.items() if i not in new_ids and s.get("archivedAt")]
+    meta = template_meta(body, new_ids + removed + archived)
+    if is_new:
+        await db.learning_path_templates.insert_one(
+            {
+                "_id": template_id,
+                **meta,
+                "revision": 1,
+                "createdBy": user.id,
+                "createdAt": now,
+                "updatedAt": now,
+            }
+        )
+    else:
+        # The revision guard comes first so a stale editor writes no steps.
+        result = await db.learning_path_templates.update_one(
+            {"_id": template_id, "revision": body.revision},
+            {"$set": {**meta, "updatedAt": now}, "$inc": {"revision": 1}},
+        )
+        if not result.matched_count:
+            raise conflict()
+    for step in body.steps:
+        await db.learning_path_template_steps.update_one(
+            {"_id": str(step.id)},
+            {
+                "$set": {
+                    **step_document(step, template_id),
+                    "archivedAt": None,
+                    "updatedAt": now,
+                },
+                "$setOnInsert": {"createdAt": now},
+            },
+            upsert=True,
+        )
+    if removed:
+        await db.learning_path_template_steps.update_many(
+            {"_id": {"$in": removed}},
+            {"$set": {"archivedAt": now, "updatedAt": now}},
+        )
     return await get_template(template_id, user)
 
 
 async def start_run(template_id, user):
-    template = await get_template(template_id, user)
-    if not template["published"] or template["archived"]:
+    template = await template_document(template_id)
+    if template["status"] != "published":
         raise conflict("This template is not available for new runs.")
     run_id = str(uuid5(NAMESPACE_URL, f"learning-path:{user.id}:{template_id}"))
-    await db.learning_path_runs.update_one(
-        {"_id": run_id},
-        {
-            "$setOnInsert": {
-                "ownerId": user.id,
-                "templateId": str(template_id),
-                "createdAt": utcnow(),
-            }
-        },
-        upsert=True,
-    )
+    try:
+        await db.learning_path_runs.update_one(
+            {"_id": run_id},
+            {
+                "$setOnInsert": LearningPathRunFields(
+                    learnerId=user.id,
+                    templateId=str(template_id),
+                    createdAt=utcnow(),
+                ).model_dump(by_alias=True)
+            },
+            upsert=True,
+        )
+    except DuplicateKeyError:
+        pass
     return await get_run(run_id, user)
 
 
 async def owned_run(run_id, user):
-    run = await db.learning_path_runs.find_one({"_id": str(run_id), "ownerId": user.id})
+    run = await db.learning_path_runs.find_one(
+        {"_id": str(run_id), "learnerId": user.id}
+    )
     if not run:
         raise not_found()
-    return run
+    return await attach_states(run)
+
+
+async def step_context(run_id, step_id, user, require_available=False):
+    run = await owned_run(run_id, user)
+    template = await template_document(run["templateId"])
+    step = next((s for s in template["steps"] if s["id"] == str(step_id)), None)
+    state = step_state(run, step_id)
+    # Archived steps stay reachable only for learners who already opened them.
+    if not step or (step.get("archivedAt") and not state.get("openedAt")):
+        raise not_found()
+    if require_available and not state.get("openedAt"):
+        states = {s["stepId"]: s for s in run["stepStates"]}
+        if not unlock_status(step, template, states, run, utcnow())[0]:
+            raise conflict("This station is locked.")
+    return run, template, step, state
+
+
+def survey_reference(step, phase=None, state=None):
+    if phase is None:
+        return step.get("survey")
+    survey_id = step.get("task", {}).get(f"{phase}SurveyId")
+    return {"surveyId": survey_id} if survey_id else None
+
+
+def survey_done(state, reference, sessions, phase=None):
+    session = linked_session(state, reference, sessions, phase)
+    return not reference or bool(session and session["status"] == "submitted")
+
+
+async def mark_survey_step_completed(run_id, step_id, session):
+    await update_step_state(
+        run_id,
+        step_id,
+        {"completedAt": session["completedAt"]},
+        {"completedAt": None},
+    )
+
+
+def is_optional(step):
+    return step["kind"] == "survey" and not step["survey"]["required"]
+
+
+def challenge_view(step, state):
+    config = step.get("task", {}).get("challenge")
+    started = state.get("challengeStartedAt")
+    if not config or not started:
+        return None
+    duration = config.get("durationSeconds")
+    return {
+        "config": config,
+        "startedAt": started,
+        "endsAt": (
+            started + timedelta(seconds=duration) if duration is not None else None
+        ),
+        "stoppedAt": state.get("challengeStoppedAt"),
+    }
+
+
+def unlock_status(step, template, states, run, now):
+    """Returns (unlocked, reasons, available_at) for a step nobody opened yet."""
+    unlock = step["unlock"]
+    if unlock["mode"] == "sequence":
+        for earlier in template["steps"]:
+            if earlier["id"] == step["id"]:
+                break
+            if earlier.get("archivedAt") or is_optional(earlier):
+                continue
+            if not states.get(earlier["id"], {}).get("completedAt"):
+                return False, [f"Complete {earlier['title']} first"], None
+        return True, [], None
+    titles = {s["id"]: s["title"] for s in template["steps"]}
+    # Archived steps never block, unless the learner already completed them.
+    ignored = {
+        s["id"]
+        for s in template["steps"]
+        if s.get("archivedAt") and not states.get(s["id"], {}).get("completedAt")
+    }
+    conditions = [c for c in unlock["conditions"] if c.get("stepId") not in ignored]
+    results = [evaluate_condition(c, states, run, now) for c in conditions]
+    unlocked = not results or (
+        all(r[0] for r in results)
+        if unlock["mode"] == "all"
+        else any(r[0] for r in results)
+    )
+    if unlocked:
+        return True, [], None
+    reasons = [
+        r[1] + (f" ({titles[c['stepId']]})" if c.get("stepId") in titles else "")
+        for c, r in zip(conditions, results)
+        if not r[0]
+    ]
+    dates = [r[2] for r in results if not r[0] and r[2]]
+    available_at = (
+        (max(dates) if unlock["mode"] == "all" else min(dates)) if dates else None
+    )
+    return False, reasons, available_at
 
 
 def evaluate_condition(condition, states, run, now):
@@ -108,7 +283,7 @@ def evaluate_condition(condition, states, run, now):
     kind = condition["type"]
     if kind == "completed":
         ok = bool(source.get("completedAt"))
-        return ok, "Complete the prerequisite task first", None
+        return ok, "Complete the prerequisite activity first", None
     if kind == "score":
         # Intentionally unconnected: only a future trusted scoring adapter may satisfy this.
         return (
@@ -136,159 +311,133 @@ def evaluate_condition(condition, states, run, now):
 
 async def get_run(run_id, user):
     run = await owned_run(run_id, user)
-    template = await get_template(run["templateId"], user, existing_run=True)
-    states = {
-        s["stepId"]: s
-        async for s in db.learning_path_step_runs.find({"runId": str(run_id)})
-    }
+    template = await template_document(run["templateId"])
+    sessions = await run_sessions(run)
+    states = {s["stepId"]: s for s in run["stepStates"]}
     now = utcnow()
-    titles = {s["id"]: s["title"] for s in template["steps"]}
     steps = []
+    counted = []
     for step in template["steps"]:
         state = states.get(step["id"], {})
-        results = [
-            evaluate_condition(c, states, run, now)
-            for c in step["unlock"]["conditions"]
-        ]
-        unlocked = not results or (
-            all(r[0] for r in results)
-            if step["unlock"]["mode"] == "all"
-            else any(r[0] for r in results)
+        archived = bool(step.get("archivedAt"))
+        if archived and not state.get("openedAt"):
+            continue
+        unlocked, reasons, available_at = unlock_status(
+            step, template, states, run, now
         )
-        if unlocked and not state.get("unlockedAt"):
-            await db.learning_path_step_runs.update_one(
-                {"runId": str(run_id), "stepId": step["id"]},
-                {
-                    "$setOnInsert": {
-                        "_id": str(uuid5(UUID(str(run_id)), step["id"])),
-                        "runId": str(run_id),
-                        "stepId": step["id"],
-                    },
-                    "$set": {"unlockedAt": now},
-                },
-                upsert=True,
-            )
-        available = unlocked or bool(state.get("unlockedAt") or state.get("modelId"))
+        available = unlocked or bool(state.get("openedAt"))
+        session = linked_session(state, survey_reference(step), sessions)
+        skipped = (
+            session
+            and session["status"] == "skipped"
+            and not step["survey"]["required"]
+        )
         status = (
             "completed"
             if state.get("completedAt")
             else (
-                "in_progress"
-                if state.get("modelId")
-                else "available" if available else "locked"
+                "skipped"
+                if skipped
+                else (
+                    "in_progress"
+                    if state.get("openedAt")
+                    else "available" if available else "locked"
+                )
             )
         )
-        dates = [r[2] for r in results if not r[0] and r[2]]
         steps.append(
             {
-                **step,
-                # Configuration shown on the board; the editor loads the full step run.
-                "challenge": (
-                    (state["challenge"]["config"] if state.get("challenge") else None)
-                    if state.get("startedAt")
-                    else step.get("challenge")
-                ),
-                "taskVersion": state.get("taskVersion", step["taskVersion"]),
+                **step_view(step),
                 "status": status,
                 "modelId": state.get("modelId"),
                 "completedAt": state.get("completedAt"),
-                "reasons": (
-                    [
-                        r[1]
-                        + (
-                            f" ({titles[c['stepId']]})"
-                            if c.get("stepId") in titles
-                            else ""
-                        )
-                        for c, r in zip(step["unlock"]["conditions"], results)
-                        if not r[0]
-                    ]
-                    if not available
-                    else []
-                ),
-                "availableAt": (
-                    (max(dates) if step["unlock"]["mode"] == "all" else min(dates))
-                    if dates
-                    else None
-                ),
+                "reasons": [] if available else reasons,
+                "availableAt": None if available else available_at,
             }
         )
-    completed = sum(s["status"] == "completed" for s in steps)
+        # Archived steps stay visible when begun but never count towards progress.
+        if not archived:
+            counted.append(status)
+    completed = counted.count("completed")
+    skipped = counted.count("skipped")
+    finished = bool(counted) and completed + skipped == len(counted)
+    first_finished_at = run.get("firstFinishedAt")
+    if finished and not first_finished_at:
+        first_finished_at = now
+        await db.learning_path_runs.update_one(
+            {"_id": run["_id"], "firstFinishedAt": None},
+            {"$set": {"firstFinishedAt": now}},
+        )
     return {
-        **to_api(run),
-        "name": template["name"],
+        "id": run["_id"],
+        "ownerId": run["learnerId"],
+        "templateId": run["templateId"],
+        "createdAt": run["createdAt"],
+        "firstFinishedAt": first_finished_at,
+        "templateRevision": template["revision"],
+        "name": template["title"],
         "description": template["description"],
         "steps": steps,
         "completed": completed,
-        "total": len(steps),
-        "progress": round(100 * completed / len(steps)) if steps else 0,
+        "total": len(counted),
+        "skipped": skipped,
+        "progress": (
+            round(100 * (completed + skipped) / len(counted)) if counted else 0
+        ),
+        "finished": finished,
     }
 
 
 async def list_runs(user, skip=0, limit=100):
-    page = await list_page(db.learning_path_runs, {"ownerId": user.id}, skip, limit)
+    page = await list_page(db.learning_path_runs, {"learnerId": user.id}, skip, limit)
     page["items"] = [await get_run(run["id"], user) for run in page["items"]]
     return page
 
 
 async def start_step(run_id, step_id, user, body: StartStep | None = None):
-    run = await get_run(run_id, user)
-    step = next((s for s in run["steps"] if s["id"] == str(step_id)), None)
-    if not step:
-        raise not_found()
-    if step["status"] == "locked":
-        raise conflict("This step is locked.")
-    # Stable model ID and atomic upsert make simultaneous starts idempotent.
-    model_id = str(uuid5(UUID(str(run_id)), str(step_id)))
-    state_filter = {"runId": str(run_id), "stepId": str(step_id)}
-    state = await db.learning_path_step_runs.find_one(state_filter)
-    if not state.get("startedAt"):
+    run, template, step, state = await step_context(
+        run_id, step_id, user, require_available=True
+    )
+    if step["kind"] != "task":
+        raise conflict("Use the questionnaire endpoint.")
+    if not state.get("modelId"):
         configured = (
-            ChallengeConfig.model_validate(step["challenge"])
-            if step.get("challenge")
+            ChallengeConfig.model_validate(step["task"]["challenge"])
+            if step["task"].get("challenge")
             else None
         )
-        acknowledged = body.acknowledged_challenge if body else None
-        if configured != acknowledged:
+        if configured != (body.acknowledged_challenge if body else None):
             raise conflict(
                 "Challenge settings require acknowledgement. Reload the path and review them before starting."
             )
-        reference = step["taskVersion"]
         await tasks.ensure_release_reference(
-            UUID(reference["taskId"]), UUID(reference["versionId"]), user
+            UUID(step["task"]["taskId"]), UUID(step["task"]["releaseId"]), user
         )
         now = utcnow()
-        attempt = (
+        await ensure_step_state(run_id, step_id, now)
+        await update_step_state(
+            run_id,
+            step_id,
             {
-                "config": configured.model_dump(mode="json", by_alias=True),
-                "startedAt": now,
-                "endsAt": (
-                    now + timedelta(seconds=configured.duration_seconds)
-                    if configured.duration_seconds is not None
-                    else None
+                "modelId": str(uuid5(UUID(str(run_id)), str(step_id))),
+                "challengeStartedAt": (
+                    now if not survey_reference(step, "before") else None
                 ),
-                "stoppedAt": None,
-            }
-            if configured
-            else None
-        )
-        # Reserve membership before creating the model so it can never leak into model lists.
-        await db.learning_path_step_runs.update_one(
-            {**state_filter, "startedAt": None},
-            {
-                "$set": {
-                    "modelId": model_id,
-                    "title": step["title"],
-                    "taskVersion": reference,
-                    "startedAt": now,
-                    "challenge": attempt,
-                }
             },
+            {"modelId": None},
         )
-        state = await db.learning_path_step_runs.find_one(state_filter)
+    run = await owned_run(run_id, user)
+    state = step_state(run, step_id)
     model_id = state["modelId"]
     fields = models.model_fields(
-        CreateModel(name=state["title"], taskVersion=state["taskVersion"]), user
+        CreateModel(
+            name=step["title"],
+            taskVersion={
+                "taskId": step["task"]["taskId"],
+                "versionId": step["task"]["releaseId"],
+            },
+        ),
+        user,
     )
     try:
         await db.models.update_one(
@@ -333,51 +482,185 @@ async def start_step(run_id, step_id, user, body: StartStep | None = None):
 
 
 async def complete_step(run_id, step_id, user):
-    await owned_run(run_id, user)
-    result = await db.learning_path_step_runs.update_one(
-        {
-            "runId": str(run_id),
-            "stepId": str(step_id),
-            "modelId": {"$ne": None},
-            "completedAt": None,
-        },
-        {"$set": {"completedAt": utcnow()}},
+    run, template, step, state = await step_context(
+        run_id, step_id, user, require_available=True
     )
-    if not result.matched_count:
-        state = await db.learning_path_step_runs.find_one(
-            {"runId": str(run_id), "stepId": str(step_id)}
-        )
-        if not state or not state.get("completedAt"):
+    if state.get("completedAt"):
+        return await get_run(run_id, user)
+    sessions = await run_sessions(run)
+    if step["kind"] == "task":
+        if not state.get("modelId"):
             raise conflict("Start the task before completing it.")
+        model = await models.get_model(UUID(state["modelId"]), user)
+        if not model.get("latestVersionId"):
+            raise conflict("Finish opening the task before completing it.")
+        if not survey_done(
+            state, survey_reference(step, "before", state), sessions, "before"
+        ):
+            raise conflict("Complete the questionnaire before working on the task.")
+        await update_step_state(
+            run_id, step_id, {"workSubmittedAt": utcnow()}, {"workSubmittedAt": None}
+        )
+        if not survey_done(state, survey_reference(step, "after"), sessions, "after"):
+            return await get_run(run_id, user)
+    else:
+        reference = survey_reference(step)
+        if not survey_done(state, reference, sessions):
+            raise conflict("Submit the questionnaire before completing this station.")
+        await mark_survey_step_completed(
+            run_id, step_id, linked_session(state, reference, sessions)
+        )
+        return await get_run(run_id, user)
+    await update_step_state(
+        run_id, step_id, {"completedAt": utcnow()}, {"completedAt": None}
+    )
     return await get_run(run_id, user)
 
 
-async def get_step_run_for_model(model_id, user):
-    await models.get_model(UUID(str(model_id)), user)
-    state = await db.learning_path_step_runs.find_one({"modelId": str(model_id)})
-    if state is None:
+async def get_model_context(model_id, user):
+    model = await models.get_model(UUID(str(model_id)), user)
+    found = await run_by_model(model_id, user.id)
+    if not found:
         return None
-    await owned_run(state["runId"], user)
-    return StepRunContext.model_validate(to_api(state))
+    run, state = found
+    template = await template_document(run["templateId"])
+    step = next((s for s in template["steps"] if s["id"] == state["stepId"]), None)
+    sessions = await run_sessions(run)
+    context = {
+        "id": str(uuid5(UUID(run["_id"]), state["stepId"])),
+        "runId": run["_id"],
+        "stepId": state["stepId"],
+        "modelId": str(model_id),
+        "title": step["title"] if step else model["name"],
+        "taskVersion": model["taskVersion"],
+        "startedAt": state["openedAt"],
+        "completedAt": state.get("completedAt"),
+        "challenge": challenge_view(step, state) if step else None,
+        "completionRequested": bool(state.get("workSubmittedAt")),
+        "removed": step is None or bool(step.get("archivedAt")),
+        "templateRevision": template["revision"],
+    }
+    for phase in ("before", "after"):
+        assigned = survey_reference(step, phase, state) if step else None
+        context[f"{phase}Survey"] = (
+            {
+                "surveyId": assigned["surveyId"],
+                "completed": survey_done(state, assigned, sessions, phase),
+            }
+            if assigned
+            else None
+        )
+    return PathModelContext.model_validate(context)
+
+
+async def resume_step(run_id, step_id, user):
+    run, template, step, state = await step_context(
+        run_id, step_id, user, require_available=True
+    )
+    if step["kind"] != "task" or not state.get("modelId"):
+        raise not_found()
+    sessions = await run_sessions(run)
+    if survey_done(
+        state, survey_reference(step, "before", state), sessions, "before"
+    ):
+        await update_step_state(
+            run_id,
+            step_id,
+            {"challengeStartedAt": utcnow()},
+            {"challengeStartedAt": None},
+        )
+        if state.get("workSubmittedAt"):
+            await complete_step(run_id, step_id, user)
+    return await get_model_context(state["modelId"], user)
 
 
 async def stop_time_challenge(run_id, step_id, user):
-    await owned_run(run_id, user)
-    state = await db.learning_path_step_runs.find_one(
-        {"runId": str(run_id), "stepId": str(step_id)}
-    )
-    if not state or not state.get("modelId"):
-        raise not_found()
-    attempt = state.get("challenge")
+    run, template, step, state = await step_context(run_id, step_id, user)
+    attempt = challenge_view(step, state)
     if not attempt or attempt["config"]["type"] != "time":
-        raise conflict("This step has no time challenge.")
+        raise conflict("This step has no active time challenge.")
+    await models.ensure_task_questionnaire_completed(state["modelId"])
     now = utcnow()
-    await db.learning_path_step_runs.update_one(
-        {
-            "_id": state["_id"],
-            "challenge.stoppedAt": None,
-            "challenge.endsAt": {"$gt": now},
-        },
-        {"$set": {"challenge.stoppedAt": now}},
+    if attempt["endsAt"] > now:
+        await update_step_state(
+            run_id, step_id, {"challengeStoppedAt": now}, {"challengeStoppedAt": None}
+        )
+    return await get_model_context(state["modelId"], user)
+
+
+async def survey_context(run_id, step_id, user, phase=None):
+    run, template, step, state = await step_context(
+        run_id, step_id, user, require_available=True
     )
-    return await get_step_run_for_model(state["modelId"], user)
+    assignment = survey_reference(step, phase, state)
+    if not assignment:
+        raise not_found()
+    if phase:
+        if not state.get("modelId"):
+            raise conflict("Start the task before opening its questionnaire.")
+        if phase == "after":
+            sessions = await run_sessions(run)
+            if not survey_done(
+                state, survey_reference(step, "before", state), sessions, "before"
+            ) or not state.get("workSubmittedAt"):
+                raise conflict(
+                    "Finish the modeling task before opening its final questionnaire."
+                )
+    return run, step, state, assignment
+
+
+async def open_survey(run_id, step_id, user, phase=None):
+    run, step, state, reference = await survey_context(run_id, step_id, user, phase)
+    await ensure_step_state(run_id, step_id, utcnow())
+    required = True if phase else step["survey"]["required"]
+    session, changed = await survey_sessions.open_path_session(
+        run_id, step_id, reference["surveyId"], phase, required, user
+    )
+    # Confirm the reference is still current before linking it into the station.
+    _, _, _, current = await survey_context(run_id, step_id, user, phase)
+    if current["surveyId"] != reference["surveyId"]:
+        raise conflict(
+            "The questionnaire changed. Reopen the station before continuing."
+        )
+    await link_survey_session(run_id, step_id, session["_id"], phase)
+    if phase and session["status"] == "submitted":
+        await resume_step(run_id, step_id, user)
+    version = await survey_sessions.release(session["releaseId"])
+    return {
+        "version": {
+            "id": version["_id"],
+            **{k: v for k, v in version.items() if k != "_id"},
+        },
+        "answers": session["answers"],
+        "revision": session["revision"],
+        "sessionId": session["_id"],
+        "releaseChanged": changed,
+        "status": session["status"],
+    }
+
+
+async def save_survey_session(run_id, step_id, body, user, action, phase=None):
+    run, step, state, reference = await survey_context(run_id, step_id, user, phase)
+    if state.get(session_reference_field(phase)) != str(body.session_id):
+        raise conflict(
+            "The questionnaire changed. Reopen the station before continuing."
+        )
+    session = await db.survey_sessions.find_one(
+        {"_id": str(body.session_id), "userId": user.id}
+    )
+    if not session:
+        raise not_found()
+    version = await survey_sessions.release(session["releaseId"])
+    if version["surveyId"] != reference["surveyId"]:
+        raise conflict(
+            "The questionnaire changed. Reopen the station before continuing."
+        )
+    required = True if phase else step["survey"]["required"]
+    session = await survey_sessions.save(session, body, action, required)
+    if action == "submit":
+        if phase:
+            await resume_step(run_id, step_id, user)
+        else:
+            await mark_survey_step_completed(run_id, step_id, session)
+        return survey_sessions.response_view(session, version)
+    return {"revision": session["revision"]}

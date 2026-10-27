@@ -49,7 +49,7 @@ async def list_models(
             {"$match": filters},
             {
                 "$lookup": {
-                    "from": "learning_path_step_runs",
+                    "from": "learning_path_run_steps",
                     "localField": "_id",
                     "foreignField": "modelId",
                     "as": "_pathSteps",
@@ -137,7 +137,7 @@ async def delete_model(model_id: UUID, user: User) -> None:
     """Administrative hard delete; the regular UI archives models instead."""
     await get_model(model_id, user)
     model_id_str = str(model_id)
-    if await db.learning_path_step_runs.find_one({"modelId": model_id_str}):
+    if await db.learning_path_run_steps.find_one({"modelId": model_id_str}):
         raise conflict("Models referenced by a learning-path step cannot be deleted.")
     await db.feedback.delete_many({"modelId": model_id_str})
     await db.model_versions.delete_many({"modelId": model_id_str})
@@ -149,8 +149,30 @@ async def get_task_edit(model_id: UUID, user: User) -> Document | None:
     return model.get("taskEdit")
 
 
+async def ensure_task_questionnaire_completed(model_id):
+    from modeling_api.services.learning_path_store import (
+        template_document, run_by_model, run_sessions, linked_session,
+    )
+
+    found = await run_by_model(model_id)
+    if not found:
+        return
+    run, state = found
+    if state.get("completedAt"):
+        return
+    template = await template_document(run["templateId"])
+    step = next((s for s in template["steps"] if s["id"] == state["stepId"]), None)
+    survey_id = step.get("task", {}).get("beforeSurveyId") if step else None
+    assignment = {"surveyId": survey_id} if survey_id else None
+    if assignment:
+        session = linked_session(state, assignment, await run_sessions(run), "before")
+        if not session or session["status"] != "submitted":
+            raise conflict("Complete the questionnaire before working on the task.")
+
+
 async def update_task_edit(model_id: UUID, body: UpdateTaskEdit, user: User) -> Document:
     model = await get_model(model_id, user)
+    await ensure_task_questionnaire_completed(model_id)
     stored_model = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
     if stored_model is None:
         raise not_found()
@@ -268,6 +290,8 @@ async def _materialize_version(version: Document) -> Document:
 
 async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -> Document:
     model = await get_model(model_id, user)
+    if model.get("latestVersionId"):
+        await ensure_task_questionnaire_completed(model_id)
     # Models store direct language selections only. Dependencies are resolved
     # from the selected language versions when needed.
     await check_language_refs(body.workspace_languages)

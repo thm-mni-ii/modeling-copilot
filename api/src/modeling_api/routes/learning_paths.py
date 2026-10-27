@@ -1,6 +1,7 @@
 """Authenticated endpoints for learning-path templates and personal runs."""
 
 from uuid import UUID
+from typing import Literal
 from fastapi import APIRouter
 from modeling_api.routes.deps import CurrentUser, Skip, Limit
 from modeling_api.schemas.learning_paths import (
@@ -8,9 +9,10 @@ from modeling_api.schemas.learning_paths import (
     PathTemplate,
     PathRun,
     StartedStep,
-    StepRunContext,
+    PathModelContext,
 )
 from modeling_api.schemas.common import Page
+from modeling_api.schemas.survey_sessions import SurveySessionInput, SurveySessionView
 from modeling_api.schemas.challenges import StartStep
 from modeling_api.services import learning_paths as service
 
@@ -18,15 +20,16 @@ router = APIRouter(tags=["Learning paths"])
 
 
 @router.get(
-    "/learning-path-step-runs/by-model/{model_id}", response_model=StepRunContext | None
+    "/learning-path-runs/by-model/{model_id}/context",
+    response_model=PathModelContext | None,
 )
-async def step_run_for_model(model_id: UUID, user: CurrentUser):
-    return await service.get_step_run_for_model(model_id, user)
+async def model_context(model_id: UUID, user: CurrentUser):
+    return await service.get_model_context(model_id, user)
 
 
 @router.post(
     "/learning-path-runs/{run_id}/steps/{step_id}/challenge/stop",
-    response_model=StepRunContext,
+    response_model=PathModelContext,
 )
 async def stop_challenge(run_id: UUID, step_id: UUID, user: CurrentUser):
     return await service.stop_time_challenge(run_id, step_id, user)
@@ -77,7 +80,65 @@ async def start_step(
 
 
 @router.post(
+    "/learning-path-runs/{run_id}/steps/{step_id}/resume",
+    response_model=PathModelContext,
+)
+async def resume_step(run_id: UUID, step_id: UUID, user: CurrentUser):
+    return await service.resume_step(run_id, step_id, user)
+
+
+@router.post(
     "/learning-path-runs/{run_id}/steps/{step_id}/complete", response_model=PathRun
 )
 async def complete_step(run_id: UUID, step_id: UUID, user: CurrentUser):
     return await service.complete_step(run_id, step_id, user)
+
+
+@router.post(
+    "/learning-path-runs/{run_id}/steps/{step_id}/survey/open",
+    response_model=SurveySessionView,
+)
+async def open_survey(
+    run_id: UUID,
+    step_id: UUID,
+    user: CurrentUser,
+    phase: Literal["before", "after"] | None = None,
+):
+    return await service.open_survey(run_id, step_id, user, phase)
+
+
+@router.put("/learning-path-runs/{run_id}/steps/{step_id}/survey/draft")
+async def draft_survey(
+    run_id: UUID,
+    step_id: UUID,
+    body: SurveySessionInput,
+    user: CurrentUser,
+    phase: Literal["before", "after"] | None = None,
+):
+    return await service.save_survey_session(
+        run_id, step_id, body, user, "draft", phase
+    )
+
+
+@router.post("/learning-path-runs/{run_id}/steps/{step_id}/survey/submit")
+async def submit_survey(
+    run_id: UUID,
+    step_id: UUID,
+    body: SurveySessionInput,
+    user: CurrentUser,
+    phase: Literal["before", "after"] | None = None,
+):
+    return await service.save_survey_session(
+        run_id, step_id, body, user, "submit", phase
+    )
+
+
+@router.post("/learning-path-runs/{run_id}/steps/{step_id}/survey/skip")
+async def skip_survey(
+    run_id: UUID,
+    step_id: UUID,
+    body: SurveySessionInput,
+    user: CurrentUser,
+    phase: Literal["before", "after"] | None = None,
+):
+    return await service.save_survey_session(run_id, step_id, body, user, "skip", phase)

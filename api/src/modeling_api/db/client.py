@@ -10,6 +10,13 @@ db = client[settings.mongodb_database]
 
 async def create_indexes() -> None:
     """Create indexes required by API query patterns."""
+    await db.surveys.create_index([("deletedAt", ASCENDING), ("createdAt", DESCENDING)])
+    await db.survey_versions.create_index(
+        [("surveyId", ASCENDING), ("version", DESCENDING)], unique=True
+    )
+    await db.survey_sessions.create_index(
+        [("releaseId", ASCENDING), ("status", ASCENDING), ("completedAt", DESCENDING)]
+    )
     for collection in ("languages", "task", "models"):
         await db[collection].create_index(
             [("ownerId", ASCENDING), ("createdAt", DESCENDING), ("_id", DESCENDING)]
@@ -63,12 +70,11 @@ async def create_indexes() -> None:
         [("dagName", ASCENDING), ("dagRunId", ASCENDING)], unique=True
     )
 
-    await db.learning_path_step_runs.create_index(
+    await db.learning_path_template_steps.create_index("templateId")
+    await db.learning_path_run_steps.create_index("modelId")
+    await db.learning_path_run_steps.create_index(
         [("runId", ASCENDING), ("stepId", ASCENDING)], unique=True
     )
-    await db.learning_path_step_runs.create_index(
-        "modelId", unique=True, partialFilterExpression={"modelId": {"$type": "string"}}
-    )
     await db.learning_path_runs.create_index(
-        [("ownerId", ASCENDING), ("templateId", ASCENDING)], unique=True
+        [("learnerId", ASCENDING), ("templateId", ASCENDING)], unique=True
     )

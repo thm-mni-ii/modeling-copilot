@@ -11,9 +11,9 @@ from modeling_api.core.config import settings
 from modeling_api.core.errors import ErrorResponse, register_error_handlers
 from modeling_api.db.client import client, create_indexes, db
 from modeling_api.db.initial_data import seed_initial_data
-from modeling_api.db.migrations import migrate_learning_path_context
 from modeling_api.routes import (
     learning_paths,
+    surveys,
     auth,
     evaluations,
     feedback,
@@ -26,7 +26,6 @@ from modeling_api.routes import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    await migrate_learning_path_context()
     await create_indexes()
     await seed_initial_data()
     yield
@@ -71,6 +70,7 @@ api = APIRouter(
 api.include_router(languages.router)
 api.include_router(tasks.router)
 api.include_router(learning_paths.router)
+api.include_router(surveys.router)
 api.include_router(models.router)
 api.include_router(feedback.router)
 api.include_router(evaluations.router)

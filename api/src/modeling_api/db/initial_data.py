@@ -10,6 +10,8 @@ from uuid import UUID, uuid5
 from modeling_api.db.client import db
 from modeling_api.db.store import utcnow
 from modeling_api.schemas.learning_paths import SaveTemplate
+from modeling_api.services.learning_path_store import step_document, template_meta
+from modeling_api.schemas.surveys import Definition
 
 # An empty owner marks global, read-only seed data.
 SYSTEM_OWNER_ID = ""
@@ -48,6 +50,37 @@ def _order_management_sample_solution() -> dict:
     if payload.get("schemaVersion") != 1 or not isinstance(model, dict):
         raise ValueError("Unsupported Order Management sample-solution format.")
     return model
+
+
+async def _seed_learning_path(path_id, body, created_at):
+    """Seed one template plus its step documents; never personal runs."""
+    step_ids = [str(step.id) for step in body.steps]
+    await db.learning_path_templates.update_one(
+        {"_id": str(path_id)},
+        {
+            "$setOnInsert": {
+                **template_meta(body, step_ids),
+                "createdBy": SYSTEM_OWNER_ID,
+                "revision": 1,
+                "createdAt": created_at,
+                "updatedAt": created_at,
+            }
+        },
+        upsert=True,
+    )
+    for step in body.steps:
+        await db.learning_path_template_steps.update_one(
+            {"_id": str(step.id)},
+            {
+                "$setOnInsert": {
+                    **step_document(step, path_id),
+                    "archivedAt": None,
+                    "createdAt": created_at,
+                    "updatedAt": created_at,
+                }
+            },
+            upsert=True,
+        )
 
 
 async def seed_initial_data() -> None:
@@ -103,11 +136,9 @@ async def seed_initial_data() -> None:
     await db.models.update_one(
         {"_id": sample_model["id"]},
         {
-            "$set": {
+            "$setOnInsert": {
                 "name": sample_model["name"],
                 "ownerId": sample_model["ownerId"],
-            },
-            "$setOnInsert": {
                 "createdAt": created_at,
                 "updatedAt": created_at,
                 **model_on_insert,
@@ -118,12 +149,13 @@ async def seed_initial_data() -> None:
     await db.model_versions.update_one(
         {"_id": sample_version["id"]},
         {
-            "$set": {
+            "$setOnInsert": {
+                "createdAt": created_at,
+                **model_version_on_insert,
                 "releaseName": sample_version["releaseName"],
                 "description": sample_version["description"],
                 "data": sample_version["data"],
             },
-            "$setOnInsert": {"createdAt": created_at, **model_version_on_insert},
         },
         upsert=True,
     )
@@ -145,20 +177,24 @@ async def seed_initial_data() -> None:
         await db.task.update_one(
             {"_id": task["id"]},
             {
-                "$set": {"name": task["name"]},
-                "$setOnInsert": {"createdAt": created_at, **task_on_insert},
+                "$setOnInsert": {
+                    "createdAt": created_at,
+                    "name": task["name"],
+                    **task_on_insert,
+                },
             },
             upsert=True,
         )
         await db.task_version.update_one(
             {"_id": version["id"]},
             {
-                "$set": {
+                "$setOnInsert": {
+                    "createdAt": created_at,
+                    **version_on_insert,
                     "releaseName": version["releaseName"],
                     "description": version["description"],
                     "data": version["data"],
                 },
-                "$setOnInsert": {"createdAt": created_at, **version_on_insert},
             },
             upsert=True,
         )
@@ -204,58 +240,136 @@ async def seed_initial_data() -> None:
                     "taskId": task["id"],
                     "versionId": task["version"]["id"],
                 },
-                "unlock": {
-                    "mode": "all",
-                    "conditions": (
-                        [{"type": "completed", "stepId": steps[-1]["id"]}]
-                        if steps
-                        else []
-                    ),
-                },
+                "unlock": {"mode": "sequence", "conditions": []},
                 "challenge": challenges[index] if index < len(challenges) else None,
             }
         )
     # Seed configuration only. Personal step runs, challenge timestamps and model
     # references are created by start_step, never during database initialization.
-    path_fields = SaveTemplate(
-        name="Order Management",
-        description="Six practice stations: three Order Management tasks with one challenge each, followed by the same tasks for review. Complete each station to unlock the next.",
-        published=True,
-        archived=False,
-        steps=steps,
-    ).model_dump(mode="json", by_alias=True, exclude={"updated_at"})
-    await db.learning_path_templates.update_one(
-        {"_id": ORDER_MANAGEMENT_LEARNING_PATH_ID},
-        {
-            "$setOnInsert": {
-                **path_fields,
-                "ownerId": SYSTEM_OWNER_ID,
-                "createdAt": created_at,
-                "updatedAt": created_at,
-                "retiredStepIds": [],
-            }
-        },
-        upsert=True,
+    await _seed_learning_path(
+        ORDER_MANAGEMENT_LEARNING_PATH_ID,
+        SaveTemplate(
+            name="Order Management",
+            description="Six practice stations: three Order Management tasks with one challenge each, followed by the same tasks for review. Complete each station to unlock the next.",
+            published=True,
+            archived=False,
+            steps=steps,
+        ),
+        created_at,
     )
 
-    # Upgrade only the untouched previous example, preserving edited templates.
-    original_steps = [
-        {
-            **{key: value for key, value in step.items() if key != "challenge"},
-            "unlock": {"mode": "all", "conditions": []},
-        }
-        for step in steps[: len(tasks)]
+    await seed_survey_learning_path(tasks, created_at)
+
+
+async def seed_survey_learning_path(tasks, created_at):
+    """Example content only: never create personal runs, instances or answers."""
+    path_id = uuid5(UUID(ORDER_MANAGEMENT_LEARNING_PATH_ID), "survey-example")
+    steps = []
+    survey_titles = [
+        "Start questionnaire",
+        "Reflection on task 1",
+        "Closing questionnaire",
     ]
-    await db.learning_path_templates.update_one(
-        {
-            "_id": ORDER_MANAGEMENT_LEARNING_PATH_ID,
-            "ownerId": SYSTEM_OWNER_ID,
-            "name": "Order Management",
-            "description": "Explore the three Order Management tasks: plain text, marked text, and annotated text.",
-            "published": True,
-            "archived": False,
-            "retiredStepIds": [],
-            "steps": original_steps,
-        },
-        {"$set": {**path_fields, "updatedAt": created_at}},
+    survey_questions = [
+        "How familiar are you with class diagrams?",
+        "How clear was the modeling task?",
+        "How helpful was this learning path?",
+    ]
+    references = []
+    for index, title in enumerate(survey_titles):
+        survey_id = str(uuid5(path_id, f"survey:{index}"))
+        version_id = str(uuid5(path_id, f"release:{index}"))
+        definition = Definition.model_validate(
+            {
+                "elements": [
+                    {
+                        "type": "rating",
+                        "name": "experience",
+                        "title": survey_questions[index],
+                        "isRequired": True,
+                        "rateMin": 1,
+                        "rateMax": 5,
+                    },
+                    {
+                        "type": "comment",
+                        "name": "comment",
+                        "title": "Additional comments (optional)",
+                    },
+                ]
+            }
+        ).model_dump(exclude_none=True)
+        demo_title = f"Example: {title} (demonstration only)"
+        version = {
+            "_id": version_id,
+            "surveyId": survey_id,
+            "version": 1,
+            "title": demo_title,
+            "definition": definition,
+            "kind": "release",
+            "createdAt": created_at,
+            "createdBy": SYSTEM_OWNER_ID,
+            "releasedAt": created_at,
+            "releasedBy": SYSTEM_OWNER_ID,
+        }
+        await db.survey_versions.update_one(
+            {"_id": version_id}, {"$setOnInsert": version}, upsert=True
+        )
+        await db.surveys.update_one(
+            {"_id": survey_id},
+            {
+                "$setOnInsert": {
+                    "title": demo_title,
+                    "definition": definition,
+                    "version": 1,
+                    "latestVersionId": version_id,
+                    "latestKind": "release",
+                    "activeReleaseId": version_id,
+                    "activeReleaseVersion": 1,
+                    "revision": 1,
+                    "schemaVersion": 2,
+                    "deletedAt": None,
+                    "createdAt": created_at,
+                    "updatedAt": created_at,
+                    "createdBy": SYSTEM_OWNER_ID,
+                    "updatedBy": SYSTEM_OWNER_ID,
+                }
+            },
+            upsert=True,
+        )
+        references.append((survey_id, version_id))
+    for index in range(5):
+        is_survey = index % 2 == 0
+        step = {
+            "id": str(uuid5(path_id, f"activity:{index}")),
+            "type": "survey" if is_survey else "task",
+            "title": (
+                survey_titles[index // 2]
+                if is_survey
+                else f"Task {index // 2 + 1}: {tasks[index // 2]['name']}"
+            ),
+            "required": index != 4,
+            "unlock": {"mode": "sequence", "conditions": []},
+        }
+        if is_survey:
+            step.update(
+                surveyId=references[index // 2][0],
+            )
+        else:
+            task = tasks[index // 2]
+            step["beforeSurveyId"] = references[0][0]
+            step["afterSurveyId"] = references[1][0]
+            step["taskVersion"] = {
+                "taskId": task["id"],
+                "versionId": task["version"]["id"],
+            }
+        steps.append(step)
+    await _seed_learning_path(
+        path_id,
+        SaveTemplate(
+            name="Example: Modeling with questionnaires",
+            description="Demonstration data, not validated research instruments. Standalone questionnaires and two modeling tasks with required questionnaires before and after each task.",
+            published=True,
+            steps=steps,
+        ),
+        created_at,
     )
