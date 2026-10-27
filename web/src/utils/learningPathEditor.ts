@@ -8,7 +8,11 @@ export const conditionSummary = (condition: Condition, steps: PathStep[]): strin
   return `${Number(((condition.seconds ?? 0) / 3600).toFixed(2))} hours after ${condition.stepId ? `“${source}” is completed` : 'the run starts'}`
 }
 
-export const availabilitySummary = (step: PathStep, steps: PathStep[]) => (step.unlock.conditions.length ? step.unlock.conditions.map((condition) => conditionSummary(condition, steps)).join(step.unlock.mode === 'all' ? ' AND ' : ' OR ') : 'Available immediately')
+export const availabilitySummary = (step: PathStep, steps: PathStep[]) => {
+  const availability = step.unlock.mode === 'sequence' ? 'After all previous required activities are completed' : step.unlock.conditions.length ? step.unlock.conditions.map((condition) => conditionSummary(condition, steps)).join(step.unlock.mode === 'all' ? ' AND ' : ' OR ') : 'Available immediately'
+  const dependents = steps.filter((item) => item.unlock.conditions.some((condition) => condition.stepId === step.id))
+  return availability + (dependents.length ? ` · Required for ${dependents.map((item) => item.title).join(', ')}` : '')
+}
 
 export const validatePathSteps = (steps: PathStep[]): Record<string, string[]> => {
   const errors: Record<string, string[]> = {}
@@ -18,9 +22,16 @@ export const validatePathSteps = (steps: PathStep[]): Record<string, string[]> =
   const ids = new Set(steps.map((step) => step.id))
   for (const step of steps) {
     if (!step.title.trim() || step.title.length > 256) add(step.id, 'Enter a step title of up to 256 characters.')
-    if (!step.taskVersion.taskId || !step.taskVersion.versionId) add(step.id, 'Select a published task release.')
+    if (step.type !== 'survey' && (!step.taskVersion?.taskId || !step.taskVersion?.versionId)) add(step.id, 'Select a published task release.')
+    if (step.type === 'survey' && !step.surveyId) add(step.id, 'Select a published questionnaire release.')
+    for (const condition of step.unlock.conditions) {
+      const source = steps.find((item) => item.id === condition.stepId)
+      if (source?.type === 'survey' && source.required === false) add(step.id, 'Optional questionnaires cannot be prerequisites.')
+      if (source?.type === 'survey' && condition.type === 'score') add(step.id, 'Questionnaires do not have scores.')
+    }
     if (step.unlock.conditions.length > 50) add(step.id, 'Use no more than 50 unlock conditions per step.')
     for (const condition of step.unlock.conditions) {
+      if (condition.type === 'score') add(step.id, 'Score conditions are not available yet.')
       if (['completed', 'score'].includes(condition.type) && !condition.stepId) add(step.id, 'Choose a prerequisite task.')
       if (condition.stepId && (!ids.has(condition.stepId) || condition.stepId === step.id)) add(step.id, 'A prerequisite must reference another existing step.')
       if (condition.type === 'score' && (condition.value === null || !Number.isFinite(condition.value) || condition.value < 0 || condition.value > 100)) add(step.id, 'Enter a minimum score between 0 and 100.')
@@ -48,11 +59,13 @@ export const validatePathSteps = (steps: PathStep[]): Record<string, string[]> =
     }
     if (visited.has(id)) return
     active.push(id)
-    steps
-      .find((step) => step.id === id)
-      ?.unlock.conditions.forEach((condition) => {
-        if (condition.stepId && ids.has(condition.stepId)) visit(condition.stepId)
-      })
+    const index = steps.findIndex((step) => step.id === id)
+    const current = steps[index]
+    // A sequential step implicitly waits for every earlier required step.
+    if (current?.unlock.mode === 'sequence') steps.slice(0, index).filter((item) => item.type !== 'survey' || item.required !== false).forEach((item) => visit(item.id))
+    current?.unlock.conditions.forEach((condition) => {
+      if (condition.stepId && ids.has(condition.stepId)) visit(condition.stepId)
+    })
     active.pop()
     visited.add(id)
   }

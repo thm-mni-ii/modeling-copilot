@@ -38,7 +38,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean]; add: [ids: str
 const selected = ref<string[]>([]),
   query = ref('')
 const filtered = computed(() => props.tasks.filter((task) => task.name.toLocaleLowerCase('en').includes((query.value ?? '').toLocaleLowerCase('en'))))
-const usedCount = (id: string) => props.steps.filter((step) => step.taskVersion.taskId === id).length
+const usedCount = (id: string) => props.steps.filter((step) => step.taskVersion?.taskId === id).length
 const toggle = (id: string) => {
   if (!props.tasks.find((task) => task.id === id)?.latestReleaseId) return
   selected.value = selected.value.includes(id) ? selected.value.filter((value) => value !== id) : [...selected.value, id]

@@ -16,16 +16,15 @@
     </header>
     <v-progress-linear v-if="loading" indeterminate class="mb-4" />
     <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}<v-btn v-if="!ready && !loading" variant="text" size="small" @click="load">Retry</v-btn></v-alert>
-    <p v-if="draft.published" class="published-note mb-4"><v-icon size="16" class="mr-1">mdi-information-outline</v-icon> Saved changes apply to existing runs. Started tasks keep their settings.</p>
+    <p v-if="draft.published" class="published-note mb-4"><v-icon size="16" class="mr-1">mdi-information-outline</v-icon> Saved changes apply to all runs, including paths already in progress.</p>
 
     <div class="editor-grid" :class="{ 'editor-grid--detail': showDetail }">
       <aside class="path-sidebar" aria-label="Path tasks">
         <div class="sidebar-header">
           <div>
             <h2 class="text-subtitle-1 font-weight-bold">Your path</h2>
-            <span class="text-caption text-medium-emphasis">{{ draft.steps.length }} {{ draft.steps.length === 1 ? 'task' : 'tasks' }} · drag to reorder</span>
+            <span class="text-caption text-medium-emphasis">{{ draft.steps.length }} {{ draft.steps.length === 1 ? 'activity' : 'activities' }} · drag to reorder</span>
           </div>
-          <v-btn icon="mdi-plus" size="small" variant="tonal" aria-label="Add tasks" :disabled="!ready" @click="pickerDialog = true" />
         </div>
         <v-alert v-if="orderNotice" type="info" variant="tonal" density="compact" closable class="ma-3 text-caption" @click:close="orderNotice = ''">{{ orderNotice }}</v-alert>
         <draggable v-model="draft.steps" item-key="id" handle=".step-handle" class="step-list" ghost-class="step-row--ghost" :animation="150" @end="onReorder">
@@ -35,7 +34,8 @@
               <button type="button" class="step-select" :aria-pressed="selectedId === element.id" @click="selectStep(element.id)">
                 <span class="step-number">{{ index + 1 }}</span
                 ><span class="step-copy"
-                  ><strong>{{ element.title || 'Untitled task' }}</strong
+                  ><strong
+                    ><v-icon size="15">{{ element.type === 'survey' ? 'mdi-clipboard-list-outline' : 'mdi-pencil-outline' }}</v-icon> {{ element.title || 'Untitled task' }}</strong
                   ><span>{{ availabilitySummary(element, draft.steps) }}</span
                   ><span v-if="element.challenge" class="step-challenge"
                     ><v-icon size="13" :color="element.challenge.color ?? undefined">{{ element.challenge.icon }}</v-icon> {{ element.challenge.title }}</span
@@ -59,7 +59,10 @@
           <p>Start with a few tasks.</p>
           <p class="text-caption mt-1">You can add more at any time.</p>
         </div>
-        <v-btn block variant="text" prepend-icon="mdi-plus" class="sidebar-add" :disabled="!ready || draft.steps.length >= 200" @click="pickerDialog = true">Add tasks</v-btn>
+        <div class="pa-3">
+          <p class="text-caption mb-2">Add activity</p>
+          <div class="d-flex flex-wrap ga-2"><v-btn variant="tonal" prepend-icon="mdi-plus" :disabled="!ready || draft.steps.length >= 200" @click="openTaskPicker">Task</v-btn><v-btn variant="tonal" prepend-icon="mdi-clipboard-list-outline" :disabled="!ready || draft.steps.length >= 200" @click="surveyPickerDialog = true">Questionnaire</v-btn></div>
+        </div>
       </aside>
 
       <section class="step-details" aria-label="Selected task settings">
@@ -68,7 +71,7 @@
           <div class="detail-heading">
             <div>
               <p class="text-overline text-medium-emphasis">STEP {{ selectedIndex + 1 }} OF {{ draft.steps.length }}</p>
-              <h2 ref="detailHeading" tabindex="-1" class="text-h5">Task settings</h2>
+              <h2 ref="detailHeading" tabindex="-1" class="text-h5">{{ selected.type === 'survey' ? 'Questionnaire settings' : 'Task settings' }}</h2>
             </div>
             <div><v-btn icon="mdi-content-copy" variant="text" aria-label="Duplicate selected task" @click="duplicate(selected)" /><v-btn icon="mdi-delete-outline" variant="text" aria-label="Remove selected task" @click="removeId = selected.id" /></div>
           </div>
@@ -77,35 +80,49 @@
               <li v-for="issue in issues[selected.id]" :key="issue">{{ issue }}</li>
             </ul></v-alert
           >
-          <v-text-field v-model="selected.title" label="Step title" variant="outlined" class="mt-5" maxlength="256" hide-details="auto" :error-messages="attempted && !selected.title.trim() ? 'A step title is required.' : []" />
-          <div class="task-source mt-3">
+          <div class="d-flex align-center ga-4 mt-5">
+            <v-text-field v-model="selected.title" label="Step title" variant="outlined" class="flex-grow-1" maxlength="256" hide-details="auto" :error-messages="attempted && !selected.title.trim() ? 'A step title is required.' : []" /><v-switch v-if="selected.type === 'survey'" v-model="selected.required" label="Required" color="primary" hide-details class="flex-grow-0" />
+          </div>
+          <div v-if="selected.type !== 'survey'" class="task-source mt-3">
             <v-icon size="19">mdi-clipboard-text-outline</v-icon>
             <div>
               <strong>{{ taskName(selected) }}</strong
               ><span>{{ releaseLabel(selected) }}</span>
             </div>
-            <v-spacer /><v-btn variant="text" size="small" :loading="loadingVersions === selected.taskVersion.taskId" @click="openReleaseDialog">Change release</v-btn>
+            <v-spacer /><v-btn variant="text" size="small" :loading="loadingVersions === selected.taskVersion!.taskId" @click="openReleaseDialog">Change release</v-btn>
+          </div>
+          <template v-if="selected.type === 'survey'">
+            <v-select :model-value="selected.surveyId" :items="surveyOptions" label="Published questionnaire" class="mt-4" @update:model-value="chooseSurvey" />
+            <p class="text-caption">Uses the current published questionnaire. Optional questionnaires can be skipped.</p>
+            <p class="text-body-2 mt-3">{{ availabilitySummary(selected, draft.steps) }}</p>
+          </template>
+          <div v-if="selected.type !== 'survey'" class="mt-5">
+            <h3 class="text-subtitle-1 mb-2">Task questionnaires</h3>
+            <v-select v-model="selected.beforeSurveyId" :items="surveyOptions" label="Before task" clearable hide-details class="mb-3" />
+            <v-select v-model="selected.afterSurveyId" :items="surveyOptions" label="After task" clearable hide-details />
+            <p class="text-caption mt-2">Required in the modeling view before working on or completing this task. Uses the current published questionnaire.</p>
           </div>
           <v-divider class="my-6" />
           <LearningPathAvailability :key="selected.id" v-model="selected.unlock" :step="selected" :steps="draft.steps" />
           <v-divider class="my-6" />
-          <ChallengeConfigEditor :key="`challenge-${selected.id}`" v-model="selected.challenge" :show-errors="attempted" />
+          <ChallengeConfigEditor v-if="selected.type !== 'survey'" :key="`challenge-${selected.id}`" v-model="selected.challenge" :show-errors="attempted" />
         </template>
         <div v-else class="detail-empty">
           <v-icon size="52" color="primary">mdi-map-marker-path</v-icon>
           <h2 class="text-h5 mt-5">Build your learning journey</h2>
           <p class="text-medium-emphasis mt-3">Choose tasks, arrange the path, and add a learning goal.</p>
-          <v-btn color="primary" class="mt-5" prepend-icon="mdi-plus" :disabled="!ready" @click="pickerDialog = true">Add your first tasks</v-btn>
+          <v-btn color="primary" class="mt-5" prepend-icon="mdi-plus" :disabled="!ready" @click="openTaskPicker">Add your first tasks</v-btn>
         </div>
       </section>
     </div>
 
     <LearningPathTaskPicker v-model="pickerDialog" :tasks="tasks" :steps="draft.steps" :loading="loadingTasks" @add="addTasks" />
+    <LearningPathSurveyPicker v-model="surveyPickerDialog" :surveys="surveyList" :steps="draft.steps" :loading="loadingTasks" @add="addSurveys" />
     <v-dialog v-model="settingsDialog" max-width="600"
       ><v-card title="Path settings"
         ><v-card-text
           ><v-textarea v-model="draft.description" label="Description" rows="3" variant="outlined" maxlength="5000" /><v-switch v-model="draft.published" label="Published" color="primary" hide-details />
-          <p class="text-caption text-medium-emphasis mb-3">Published paths are available to learners. At least one task is required.</p>
+          <p class="text-caption text-medium-emphasis mb-3">Published paths are available to learners. At least one activity is required.</p>
           <v-switch v-model="draft.archived" label="Archived" hide-details />
           <p class="text-caption text-medium-emphasis">Archived paths cannot start new runs. Changes are saved with the template.</p></v-card-text
         ><v-card-actions><v-spacer /><v-btn @click="settingsDialog = false">Done</v-btn></v-card-actions></v-card
@@ -114,7 +131,7 @@
     <v-dialog v-model="releaseDialog" max-width="560"
       ><v-card title="Change task release"
         ><v-card-text
-          ><p class="text-body-2 mb-4">The selected release is used when a learner starts this task. Existing work keeps its original release.</p>
+          ><p class="text-body-2 mb-4">The selected release is fixed when a learner starts a new run. Existing runs keep their original releases.</p>
           <v-select v-model="pendingVersion" :items="selectedVersions.map((version) => ({ title: `${version.releaseName} (v${version.versionNumber})`, value: version.id }))" label="Task release" variant="outlined" :loading="Boolean(loadingVersions)" /><v-alert v-if="!selectedVersions.length && !loadingVersions" type="info" variant="tonal">No accessible releases found.</v-alert></v-card-text
         ><v-card-actions><v-btn @click="releaseDialog = false">Cancel</v-btn><v-spacer /><v-btn color="primary" :disabled="!pendingVersion || !selectedVersions.some((version) => version.id === pendingVersion)" @click="applyRelease">Use release</v-btn></v-card-actions></v-card
       ></v-dialog
@@ -133,7 +150,7 @@
             ><p class="mb-3">Update these tasks first. Their rules still reference this step:</p>
             <v-list density="compact"><v-list-item v-for="step in dependents" :key="step.id" :title="step.title" append-icon="mdi-arrow-right" @click="editDependent(step.id)" /></v-list
           ></template>
-          <p v-else>Existing learner work will be kept but hidden from the path.</p></v-card-text
+          <p v-else>Existing runs keep this activity and their learner work.</p></v-card-text
         ><v-card-actions><v-btn @click="removeId = null">Cancel</v-btn><v-spacer /><v-btn color="error" :disabled="Boolean(dependents.length)" @click="confirmRemove">Remove step</v-btn></v-card-actions></v-card
       ></v-dialog
     >
@@ -141,7 +158,7 @@
       ><v-card
         ><v-card-title class="d-flex align-center">{{ draft.name || 'Path preview' }}<v-spacer /><v-btn icon="mdi-close" variant="text" aria-label="Close path preview" @click="previewDialog = false" /></v-card-title
         ><v-card-text
-          ><v-alert type="info" variant="tonal" density="compact" class="mb-4">Preview of a new learner’s run. Select an available chest to edit its settings.</v-alert
+          ><v-alert type="info" variant="tonal" density="compact" class="mb-4">Preview of a new learner’s run. Select an available chest or treasure map to edit its settings.</v-alert
           ><TreasurePathBoard
             :run="previewRun"
             busy=""
@@ -162,15 +179,17 @@ import draggable from 'vuedraggable'
 import ChallengeConfigEditor from '@/components/learningPaths/ChallengeConfigEditor.vue'
 import LearningPathAvailability from '@/components/learningPaths/LearningPathAvailability.vue'
 import LearningPathTaskPicker from '@/components/learningPaths/LearningPathTaskPicker.vue'
+import LearningPathSurveyPicker from '@/components/learningPaths/LearningPathSurveyPicker.vue'
 import TreasurePathBoard from '@/components/learningPaths/TreasurePathBoard.vue'
-import paths, { type Condition, type PathRun, type PathStep, type PathTemplate } from '@/services/learningPaths'
+import paths, { type PathRun, type PathStep, type PathTemplate } from '@/services/learningPaths'
+import surveys, { type Survey } from '@/services/surveys'
 import taskService from '@/services/task/task.service'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
 import { availabilitySummary, conditionSummary, validatePathSteps } from '@/utils/learningPathEditor'
 
 const route = useRoute(),
   router = useRouter()
-const draft = ref<PathTemplate>({ id: '', name: '', description: '', published: false, archived: false, updatedAt: null, steps: [] })
+const draft = ref<PathTemplate>({ id: '', name: '', description: '', published: false, archived: false, revision: 0, updatedAt: null, steps: [] })
 const tasks = ref<Task[]>([]),
   versions = ref<Record<string, TaskVersionInfo[]>>({})
 const selectedId = ref<string | null>(null),
@@ -186,6 +205,32 @@ const busy = ref(false),
 const showDetail = ref(false),
   detailHeading = ref<HTMLElement | null>(null),
   orderNotice = ref('')
+const openTaskPicker = () => {
+  pickerDialog.value = true
+}
+const surveyList = ref<Survey[]>([])
+const surveyOptions = computed(() => surveyList.value.filter((item) => item.activeReleaseId).map((item) => ({ title: item.title, value: item.id })))
+const surveyPickerDialog = ref(false)
+const addSurveys = (ids: string[]) => {
+  if (draft.value.steps.length + ids.length > 200) {
+    error.value = 'A path can contain up to 200 activities.'
+    return
+  }
+  let first: string | null = null
+  for (const id of ids) {
+    const survey = surveyList.value.find((item) => item.id === id)
+    if (!survey?.activeReleaseId) continue
+    const step: PathStep = { id: crypto.randomUUID(), type: 'survey', title: survey.title, taskVersion: null, surveyId: id, required: true, unlock: { mode: 'sequence', conditions: [] }, challenge: null }
+    draft.value.steps.push(step)
+    first ??= step.id
+  }
+  surveyPickerDialog.value = false
+  if (first) void selectStep(first)
+}
+const chooseSurvey = (id: string) => {
+  if (!selected.value) return
+  selected.value.surveyId = id
+}
 const pickerDialog = ref(false),
   settingsDialog = ref(false),
   releaseDialog = ref(false),
@@ -199,7 +244,7 @@ const issues = computed(() => {
   const result = validatePathSteps(draft.value.steps)
   if (draft.value.published && !loadingTasks.value) {
     for (const step of draft.value.steps) {
-      if (tasks.value.find((task) => task.id === step.taskVersion.taskId)?.visibility !== 'published') {
+      if (step.type !== 'survey' && tasks.value.find((task) => task.id === step.taskVersion?.taskId)?.visibility !== 'published') {
         ;(result[step.id] ??= []).push('Publish the source task and make sure it is not archived before publishing this path.')
       }
     }
@@ -207,12 +252,12 @@ const issues = computed(() => {
   return result
 })
 const dependents = computed(() => draft.value.steps.filter((step) => step.id !== removeId.value && step.unlock.conditions.some((condition) => condition.stepId === removeId.value)))
-const selectedVersions = computed(() => (selected.value ? versions.value[selected.value.taskVersion.taskId] ?? [] : []))
+const selectedVersions = computed(() => (selected.value?.taskVersion ? versions.value[selected.value.taskVersion.taskId] ?? [] : []))
 const message = (e: unknown) => (e as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'The action could not be completed.'
-const taskName = (step: PathStep) => tasks.value.find((task) => task.id === step.taskVersion.taskId)?.name ?? step.title
+const taskName = (step: PathStep) => tasks.value.find((task) => task.id === step.taskVersion?.taskId)?.name ?? step.title
 const releaseLabel = (step: PathStep) => {
-  const version = versions.value[step.taskVersion.taskId]?.find((version) => version.id === step.taskVersion.versionId)
-  return version ? `${version.releaseName} · v${version.versionNumber}` : tasks.value.find((task) => task.id === step.taskVersion.taskId)?.latestReleaseId === step.taskVersion.versionId ? 'Latest release' : 'Saved release'
+  const version = versions.value[step.taskVersion?.taskId ?? '']?.find((version) => version.id === step.taskVersion?.versionId)
+  return version ? `${version.releaseName} · v${version.versionNumber}` : tasks.value.find((task) => task.id === step.taskVersion?.taskId)?.latestReleaseId === step.taskVersion?.versionId ? 'Latest release' : 'Saved release'
 }
 const selectStep = async (id: string) => {
   selectedId.value = id
@@ -220,18 +265,16 @@ const selectStep = async (id: string) => {
   await nextTick()
   detailHeading.value?.focus({ preventScroll: true })
 }
-const prerequisite = (id: string): Condition => ({ type: 'completed', stepId: id, at: null, seconds: null, value: null, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
 const addTasks = (ids: string[]) => {
   if (draft.value.steps.length + ids.length > 200) {
-    error.value = 'A path can contain up to 200 tasks.'
+    error.value = 'A path can contain up to 200 activities.'
     return
   }
   let first: string | null = null
   for (const id of ids) {
     const task = tasks.value.find((task) => task.id === id)
     if (!task?.latestReleaseId) continue
-    const previous = draft.value.steps[draft.value.steps.length - 1]
-    const step: PathStep = { id: crypto.randomUUID(), title: task.name, taskVersion: { taskId: id, versionId: task.latestReleaseId }, unlock: { mode: 'all', conditions: previous ? [prerequisite(previous.id)] : [] }, challenge: null }
+    const step: PathStep = { id: crypto.randomUUID(), title: task.name, taskVersion: { taskId: id, versionId: task.latestReleaseId }, unlock: { mode: 'sequence', conditions: [] }, challenge: null }
     draft.value.steps.push(step)
     first ??= step.id
   }
@@ -248,10 +291,10 @@ const move = (index: number, delta: number) => {
 }
 const duplicate = (source: PathStep) => {
   if (draft.value.steps.length >= 200) {
-    error.value = 'A path can contain up to 200 tasks.'
+    error.value = 'A path can contain up to 200 activities.'
     return
   }
-  const step: PathStep = { ...JSON.parse(JSON.stringify(source)), id: crypto.randomUUID(), title: `${source.title.slice(0, 249)} (copy)`, unlock: { mode: 'all', conditions: [prerequisite(source.id)] } }
+  const step: PathStep = { ...JSON.parse(JSON.stringify(source)), id: crypto.randomUUID(), title: `${source.title.slice(0, 249)} (copy)`, unlock: { mode: 'sequence', conditions: [] } }
   draft.value.steps.splice(draft.value.steps.findIndex((item) => item.id === source.id) + 1, 0, step)
   orderNotice.value = 'Task duplicated. The copy becomes available after the original task is completed.'
   void selectStep(step.id)
@@ -299,16 +342,16 @@ const loadVersions = async (taskId: string) => {
 }
 const openReleaseDialog = async () => {
   if (!selected.value) return
-  pendingVersion.value = selected.value.taskVersion.versionId
+  pendingVersion.value = selected.value.taskVersion!.versionId
   releaseDialog.value = true
-  await loadVersions(selected.value.taskVersion.taskId)
+  await loadVersions(selected.value.taskVersion!.taskId)
 }
 const applyRelease = () => {
-  if (selected.value && pendingVersion.value && selectedVersions.value.some((version) => version.id === pendingVersion.value)) selected.value.taskVersion.versionId = pendingVersion.value
+  if (selected.value && pendingVersion.value && selectedVersions.value.some((version) => version.id === pendingVersion.value)) selected.value.taskVersion!.versionId = pendingVersion.value
   releaseDialog.value = false
 }
 watch(
-  () => selected.value?.taskVersion.taskId,
+  () => selected.value?.taskVersion?.taskId,
   (id) => {
     if (id) void loadVersions(id)
   }
@@ -322,7 +365,7 @@ const save = async () => {
     return
   }
   if (draft.value.published && !draft.value.steps.length) {
-    error.value = 'Add at least one task before publishing.'
+    error.value = 'Add at least one activity before publishing.'
     settingsDialog.value = true
     return
   }
@@ -334,12 +377,13 @@ const save = async () => {
   }
   busy.value = true
   try {
-    // Keep edits made during the request; the returned timestamp is still needed for the next save.
+    // Keep edits made during the request; the returned revision is still needed for the next save.
     const submitted = JSON.stringify(draft.value)
     const result = (await paths.save(JSON.parse(submitted))).data
     if (JSON.stringify(draft.value) === submitted) draft.value = result
     else {
       draft.value.id = result.id
+      draft.value.revision = result.revision
       draft.value.updatedAt = result.updatedAt
     }
     saved.value = JSON.stringify(result)
@@ -352,13 +396,18 @@ const save = async () => {
 }
 const previewRun = computed<PathRun>(() => ({
   id: 'template-preview',
+  templateRevision: draft.value.revision,
   templateId: draft.value.id,
   name: draft.value.name,
   description: draft.value.description,
   completed: 0,
   total: draft.value.steps.length,
   progress: 0,
-  steps: draft.value.steps.map((step) => {
+  steps: draft.value.steps.map((step, index) => {
+    if (step.unlock.mode === 'sequence') {
+      const waiting = draft.value.steps.slice(0, index).some((item) => item.type !== 'survey' || item.required !== false)
+      return { ...step, modelId: null, status: waiting ? 'locked' : 'available', availableAt: null, reasons: waiting ? ['After all previous required activities are completed'] : [] }
+    }
     const satisfied = step.unlock.conditions.map((condition) => (condition.type === 'at' ? Boolean(condition.at && Date.parse(condition.at) <= Date.now()) : condition.type === 'after' && !condition.stepId && condition.seconds === 0))
     const available = !satisfied.length || (step.unlock.mode === 'all' ? satisfied.every(Boolean) : satisfied.some(Boolean))
     return { ...step, modelId: null, status: available ? 'available' : 'locked', availableAt: null, reasons: step.unlock.conditions.map((condition) => conditionSummary(condition, draft.value.steps)) }
@@ -387,6 +436,14 @@ const load = async () => {
       if (skip >= page.total || !page.items.length) break
     }
     tasks.value = result
+    const questionnaires: Survey[] = []
+    for (let skip = 0; ; ) {
+      const page = (await surveys.list(skip)).data
+      questionnaires.push(...page.items)
+      skip += page.items.length
+      if (skip >= page.total || !page.items.length) break
+    }
+    surveyList.value = questionnaires
   } catch (e) {
     error.value = message(e)
   } finally {

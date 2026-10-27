@@ -50,6 +50,16 @@ const router = createRouter({
       component: () => import('../views/ViewLearningPaths.vue')
     },
     {
+      path: '/surveys/:id?/edit',
+      name: 'SurveyEditor',
+      component: () => import('../views/ViewSurveyEditor.vue')
+    },
+    {
+      path: '/surveys',
+      name: 'Surveys',
+      component: () => import('../views/ViewSurveys.vue')
+    },
+    {
       path: '/tasks',
       name: 'Tasks',
       component: () => import('../views/ViewTaskEditor.vue')

@@ -21,6 +21,28 @@
         <path d="M22 20V30M17 25H27M97 14V24M92 19H102" stroke="#e6b746" />
       </g>
     </g>
+    <g v-else-if="kind === 'map'" stroke="#795333" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="60" cy="103" rx="43" ry="7" fill="#3d5140" opacity=".13" stroke="none" />
+      <g v-if="!opened" transform="rotate(15 60 62)">
+        <path d="M49 24V42Q33 49 33 63V94Q33 104 43 104H77Q87 104 87 94V63Q87 49 71 42V24Z" fill="#c3e2d5" stroke="#49786b" />
+        <path d="M46 61Q51 56 58 61L74 86L59 95L43 70Q40 64 46 61Z" fill="#f5dfaa" stroke-width="2" />
+        <path d="M46 61Q54 59 55 65Q55 70 49 70L43 70M59 95Q55 88 61 85L69 81" stroke="#b58b54" stroke-width="2" />
+        <path d="M53 70L62 84M58 67L66 80" stroke="#c59b5a" stroke-width="2" />
+        <path d="M42 54Q38 59 38 67V89M77 95H80" stroke="#f5fff8" stroke-width="4" />
+        <path d="M50 14H70L68 27H52Z" fill="#b58453" />
+        <path d="M57 16L58 22M64 15L63 21" stroke="#90613b" stroke-width="2" />
+        <rect x="47" y="25" width="26" height="8" rx="3" fill="#a8ccbd" stroke="#49786b" />
+      </g>
+      <g v-else>
+        <path d="M25 25Q35 19 46 25L85 20Q80 38 88 58L97 94L43 100Q32 94 24 99L18 51Z" fill="#f5dfaa" />
+        <path d="M25 25Q12 22 13 34L18 51Q23 44 31 47Z" fill="#e4bd7c" />
+        <path d="M43 100Q33 87 40 79L92 74L97 94Q99 103 90 105L43 110Q33 108 33 100" fill="#e4bd7c" />
+        <path d="M43 100L88 96Q94 95 92 89" stroke="#b58b54" />
+        <path d="M38 67C25 48 58 51 52 40S81 31 76 52Q73 62 65 65" stroke="#9b7045" stroke-width="2.5" stroke-dasharray="3 6" />
+        <path d="M60 59L71 71M71 59L60 71" stroke="#b9423c" stroke-width="4" />
+        <path d="M34 35L36 40M32 38L38 37M80 62L84 65" stroke="#c59b5a" stroke-width="2" />
+      </g>
+    </g>
     <g v-else-if="kind === 'pirate'" stroke="#403c35" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
       <ellipse cx="60" cy="111" rx="26" ry="5" fill="#315650" opacity=".15" stroke="none" />
       <path d="M48 87L46 105H57L61 89M66 88L69 105H80L75 85" fill="#414c5f" />
@@ -74,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-withDefaults(defineProps<{ kind: 'chest' | 'pirate' | 'palm' | 'mountain' | 'rocks' | 'coin'; opened?: boolean }>(), { opened: false })
+withDefaults(defineProps<{ kind: 'chest' | 'map' | 'pirate' | 'palm' | 'mountain' | 'rocks' | 'coin'; opened?: boolean }>(), { opened: false })
 </script>
 
 <style scoped>

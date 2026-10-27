@@ -26,6 +26,7 @@
       <v-btn to="/learning-path-runs" prepend-icon="mdi-map-marker-path">Learning paths</v-btn>
       <v-btn v-if="isAdmin" to="/learning-path-templates" prepend-icon="mdi-map-plus">Path templates</v-btn>
       <CollabNavButton />
+      <v-btn v-if="isAdmin" to="/surveys" prepend-icon="mdi-form-select">Fragebögen</v-btn>
       <v-btn prepend-icon="mdi-logout" @click="logout">
         <span> Logout </span>
         <v-tooltip activator="parent" location="bottom"> Logout </v-tooltip>

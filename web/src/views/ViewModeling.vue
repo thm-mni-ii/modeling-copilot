@@ -2,11 +2,18 @@
   <v-container fluid class="pa-4 modeling-view">
     <div v-if="stepRun" class="d-flex align-center ga-3 mb-2">
       <v-btn prepend-icon="mdi-map-marker-path" @click="returnToPath(false)">Back to learning path</v-btn>
-      <v-btn variant="tonal" :loading="pathBusy" @click="returnToPath(true)">Complete task</v-btn>
+      <v-btn variant="tonal" :loading="pathBusy" :disabled="loading || Boolean(activeSurvey) || stepRun.removed || Boolean(stepRun.completedAt)" @click="returnToPath(true)">Complete task</v-btn>
     </div>
+    <v-alert v-if="stepRun?.removed" type="info" variant="tonal" class="mb-3">This station was removed from the learning path. Your model is still available.</v-alert>
     <v-progress-linear v-if="loading" indeterminate class="model-loading" />
-    <ChallengeOverlay v-if="!loading && stepRun?.challenge" :key="stepRun.id" :attempt="stepRun.challenge" :stopping="challengeBusy" @stop="stopChallenge" />
+    <ChallengeOverlay v-if="!loading && !activeSurvey && stepRun?.challenge" :key="stepRun.id" :attempt="stepRun.challenge" :stopping="challengeBusy" @stop="stopChallenge" />
+    <section v-if="activeSurvey && stepRun" class="task-survey pa-4">
+      <h1 class="text-h5 mb-2">{{ surveyPhase === 'before' ? 'Before you start' : 'Complete your task' }}</h1>
+      <p class="mb-4">{{ surveyPhase === 'before' ? 'Submit this questionnaire to begin working on the task.' : 'Submit this questionnaire to complete the task.' }}</p>
+      <SurveyRenderer :key="`${surveyPhase}:${activeSurvey.surveyId}`" ref="taskSurvey" :survey-id="activeSurvey.surveyId" :activity="{ runId: stepRun.runId, stepId: stepRun.stepId, phase: surveyPhase }" @completed="taskSurveyCompleted" />
+    </section>
     <DrawingCanvas
+      v-show="!loading && !activeSurvey && !pathLoadFailed"
       ref="canvas"
       v-model:model="graphModel"
       class="editor-canvas"
@@ -66,8 +73,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import type { GraphDataModel } from '@maxgraph/core'
 import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
 import ModelSnapshotPreview from '@/components/modeling/versions/ModelSnapshotPreview.vue'
@@ -79,8 +86,9 @@ import type { JsonObject } from '@/services/api/types/common'
 import type { CanvasWindowDefinition } from '@/model/CanvasWindow'
 import { removeTaskEdit } from '@/utils/taskEdits'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
-import paths, { type StepRunContext } from '@/services/learningPaths'
+import paths, { type PathModelContext } from '@/services/learningPaths'
 import evaluationService from '@/services/evaluation/evaluation.service'
+import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import ChallengeOverlay from '@/components/learningPaths/ChallengeOverlay.vue'
 
 interface Props {
@@ -88,6 +96,7 @@ interface Props {
 }
 const props = defineProps<Props>()
 const router = useRouter()
+const route = useRoute()
 const workspace = useModelWorkspaceStore()
 const canvas = ref<{ serializeModel: () => JsonObject; loadPersistedModel: (data: JsonObject) => void; selectConnectionByType: (languageId: string, connectionType: string) => boolean } | null>(null)
 const graphModel = ref<GraphDataModel>()
@@ -96,7 +105,30 @@ const recoveryData = ref<JsonObject | null>(null)
 const hydrating = ref(false)
 const loading = ref(false)
 const pathBusy = ref(false)
-const stepRun = ref<StepRunContext | null>(null)
+const stepRun = ref<PathModelContext | null>(null)
+const pathLoadFailed = ref(false)
+const completing = ref(route.query.complete === '1')
+const taskSurvey = ref<InstanceType<typeof SurveyRenderer> | null>(null)
+const surveyPhase = computed<'before' | 'after'>(() => (stepRun.value?.beforeSurvey && !stepRun.value.beforeSurvey.completed ? 'before' : 'after'))
+const activeSurvey = computed(() => {
+  const path = stepRun.value
+  if (!path || path.completedAt) return null
+  if (path.beforeSurvey && !path.beforeSurvey.completed) return path.beforeSurvey
+  return path.completionRequested && path.afterSurvey && !path.afterSurvey.completed ? path.afterSurvey : null
+})
+onBeforeRouteLeave(async () => {
+  if (taskSurvey.value?.saving) return false
+  return (await taskSurvey.value?.saveDraft()) !== false
+})
+const taskSurveyCompleted = async () => {
+  if (!stepRun.value || !props.modelId) return
+  try {
+    stepRun.value = (await paths.resumeStep(stepRun.value.runId, stepRun.value.stepId)).data
+    if (completing.value || stepRun.value?.completedAt) await returnToPath(true)
+  } catch {
+    notifyError('The task status could not be loaded. Please reload the page.')
+  }
+}
 const challengeBusy = ref(false)
 const stopChallenge = async () => {
   if (!stepRun.value || challengeBusy.value) return
@@ -116,10 +148,18 @@ const returnToPath = async (complete: boolean) => {
   try {
     captureCanvas()
     if (workspace.dirty || workspace.taskEditDirty) await workspace.save()
-    if (complete) await paths.complete(path.runId, path.stepId)
+    if (complete) {
+      completing.value = true
+      if (path.beforeSurvey && !path.beforeSurvey.completed) return
+      await paths.complete(path.runId, path.stepId)
+      stepRun.value = (await paths.resumeStep(path.runId, path.stepId)).data
+      if (!stepRun.value.completedAt) return
+    }
+    if (taskSurvey.value && !(await taskSurvey.value.saveDraft())) return
     await router.push(`/learning-path-runs/${path.runId}`)
   } catch {
-    notifyError('The learning path could not be opened.')
+    await refreshPathContext()
+    notifyError('The task could not be completed or the learning path opened. Review the current path settings and try again.')
   } finally {
     pathBusy.value = false
   }
@@ -141,7 +181,7 @@ const connectionGroups = computed(() =>
 )
 const syntax = computed(() => workspace.editorLanguages.flatMap((language) => language.syntax))
 const captureCanvas = () => {
-  if (!hydrating.value && canvas.value) workspace.setData({ ...canvas.value.serializeModel(), name: workspace.model?.name ?? workspace.data.name })
+  if (!hydrating.value && !loading.value && !activeSurvey.value && canvas.value) workspace.setData({ ...canvas.value.serializeModel(), name: workspace.model?.name ?? workspace.data.name })
 }
 const syncCanvas = async () => {
   hydrating.value = true
@@ -189,12 +229,28 @@ const startEvaluation = async () => {
     notifyError((error as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'The evaluation could not be started.')
   }
 }
+const refreshPathContext = async () => {
+  if (!props.modelId || loading.value || taskSurvey.value?.saving) return
+  try {
+    stepRun.value = (await paths.modelContext(props.modelId)).data
+  } catch {
+    notifyError('The learning path settings could not be refreshed.')
+  }
+}
+const pathRefreshTimer = window.setInterval(() => void refreshPathContext(), 30000)
+window.addEventListener('focus', refreshPathContext)
+onUnmounted(() => {
+  window.clearInterval(pathRefreshTimer)
+  window.removeEventListener('focus', refreshPathContext)
+})
 onMounted(async () => {
   loading.value = true
   try {
     if (props.modelId) {
       await workspace.load(props.modelId)
-      stepRun.value = (await paths.stepRunForModel(props.modelId)).data
+      stepRun.value = (await paths.modelContext(props.modelId)).data
+      if (stepRun.value && !stepRun.value.removed) stepRun.value = (await paths.resumeStep(stepRun.value.runId, stepRun.value.stepId)).data
+      if (completing.value && stepRun.value && !stepRun.value.removed) await returnToPath(true)
       await syncCanvas()
       const recoverySnapshot = await workspace.getRecoverySnapshot()
       if (recoverySnapshot) {
@@ -205,6 +261,7 @@ onMounted(async () => {
       await router.replace('/')
     }
   } catch {
+    pathLoadFailed.value = true
     notifyError('The model could not be loaded.')
   } finally {
     loading.value = false
@@ -225,6 +282,10 @@ onMounted(async () => {
   position: absolute;
   inset: 0 0 auto;
   z-index: 20;
+}
+.task-survey {
+  overflow-y: auto;
+  flex: 1;
 }
 .editor-canvas {
   flex: 1;
