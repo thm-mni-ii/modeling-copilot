@@ -2,7 +2,7 @@ import { Cell, ConnectionConstraint, ConnectionHandler, ConstraintHandler, CellS
 import type { CellStyle } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
 import type { FeedbackCanvasRulesConfig } from '@/model/Feedback'
-import { applyConnectionAdditionalLabels } from '@/utils/connectionLabelHelpers'
+import { applyConnectionAdditionalLabels, applyConnectionLabelOffset } from '@/utils/connectionLabelHelpers'
 import { getGraphValidationMode, setValidationPassActive, shouldBlockInteractiveValidation } from '@/utils/graphValidationRuntime'
 import { isTruthyFlag } from '@/utils/flagUtils'
 
@@ -315,18 +315,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
         ;(edge as any).connectionLabelOffset = effectiveConnection.labelOffset
         ;(edge as any).connectionAdditionalLabels = effectiveConnection.additionalLabels
 
-        const geometry = edge.getGeometry()
-        if (geometry) {
-          const clone = geometry.clone()
-          if (effectiveConnection.labelOffset?.x !== undefined) {
-            clone.x = effectiveConnection.labelOffset.x
-          }
-          if (effectiveConnection.labelOffset?.y !== undefined) {
-            clone.y = effectiveConnection.labelOffset.y
-          }
-          edge.setGeometry(clone)
-        }
-
+        applyConnectionLabelOffset(edge, effectiveConnection.labelOffset)
         applyConnectionAdditionalLabels(this.graph, edge, effectiveConnection)
         this.reportValidatingFeedback(edge, sourceCell, targetCell)
       }

@@ -1,6 +1,7 @@
 import { Cell, Geometry, ConnectionConstraint, Point, Rectangle } from '@maxgraph/core'
 import type { Graph } from '@maxgraph/core'
 import type { DiagramElement } from '@/model/Element'
+import { registerElementShapes } from './shapeRegistry'
 
 /**
  * Erstellt eine MaxGraph Cell aus einer DiagramElement-Definition
@@ -56,6 +57,7 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
 
   // Canvas2D: Shape-Type verwenden
   if (element.renderMode === 'canvas2d') {
+    registerElementShapes(element)
     baseStyle.shape = element.type
   }
 
