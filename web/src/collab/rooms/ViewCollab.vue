@@ -9,10 +9,9 @@
 <script setup lang="ts">
 import { onMounted, shallowRef } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
-import { collabErrorMessage, newWorkpiece } from '@/collab/connection/collabApi'
-import { loadCollabKit } from '@/collab/connection/collabKit'
-import type { CollabKitApi, ManagementOpen, Room } from '@/collab/connection/collabKitV1'
-import { UML_CLASS_DIAGRAM } from '@/collab/connection/openWorkpiece'
+import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
+import type { CollabKitApi, ManagementOpen, Room } from '@/collab/kit/collabKitV1'
+import { newWorkpiece, UML_CLASS_DIAGRAM } from '@/collab/storage/workpiece'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
 const ck = shallowRef<CollabKitApi>()

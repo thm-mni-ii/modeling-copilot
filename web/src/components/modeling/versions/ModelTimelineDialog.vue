@@ -120,11 +120,11 @@ const timelineLabel = computed(() => {
 
 const loadHistory = async () => {
   if (!workspace.model) return
-  const modelId = workspace.model.id
+  const currentModel = workspace.model
   const entries: ModelVersionInfo[] = []
   let total = 0
   do {
-    const page = (await modelService.listVersions(modelId, entries.length, 100)).data
+    const page = (await modelService.listVersions(currentModel, entries.length, 100)).data
     if (page.items.length === 0) break
     entries.push(...page.items)
     total = page.total
@@ -136,7 +136,7 @@ const getReleaseData = async (releaseId: string) => {
   const cached = releaseDataCache.get(releaseId)
   if (cached) return cached
   if (!workspace.model) throw new Error('No model is loaded.')
-  const data = (await modelService.getVersion(workspace.model.id, releaseId)).data.data
+  const data = (await modelService.getVersion(workspace.model, releaseId)).data.data
   releaseDataCache.set(releaseId, data)
   return data
 }
@@ -157,7 +157,7 @@ const updatePreview = async () => {
     if (versionId && workspace.model) {
       let version = versionCache.get(versionId)
       if (!version) {
-        version = (await modelService.getVersion(workspace.model.id, versionId)).data
+        version = (await modelService.getVersion(workspace.model, versionId)).data
         versionCache.set(versionId, version)
       }
       timelineVersion.value = version

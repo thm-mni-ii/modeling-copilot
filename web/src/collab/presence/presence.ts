@@ -1,6 +1,6 @@
 import { CellHighlight, InternalEvent, type Graph } from '@maxgraph/core'
-import { isPseudonym } from '@/collab/connection/collabKit'
-import type { Session } from '@/collab/connection/collabKitV1'
+import { isPseudonym } from '@/collab/kit/collabKit'
+import type { Session } from '@/collab/kit/collabKitV1'
 import { startCursors } from './cursors'
 
 /** One person at the workpiece, once however many tabs they have open. */
