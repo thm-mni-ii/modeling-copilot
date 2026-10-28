@@ -26,6 +26,13 @@ services:
       JWT_ALGORITHM: RS256
       JWT_JWKS_URI: http://host.docker.internal:8080/oauth2/jwks
       JWT_ISSUER: http://localhost:8083
+      # Sign-in without the Feedbacksystem: the API exchanges and renews the
+      # tokens at the identity service. The secret of the local app
+      # modeling-copilot (CONFIDENTIAL) goes into a git-ignored .env next to this
+      # file. So these tokens also carry JWT_ISSUER, the identity service needs
+      # OIDC_ISSUER=http://localhost:8083.
+      OIDC_TOKEN_URI: http://host.docker.internal:8080/oauth2/token
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       DOCS_ENABLED: "true"
       CORS_ORIGINS: http://localhost:5173
       DAGU_BASE_URL: http://dagu:8080
