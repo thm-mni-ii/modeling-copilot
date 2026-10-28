@@ -56,7 +56,7 @@ app.add_middleware(
     expose_headers=["Location"],
 )
 
-# Public token-inspection route without the /v1 authentication dependency.
+# Public token routes without the /v1 authentication dependency.
 app.include_router(auth.router)
 
 # All domain routes use the /v1 prefix and require JWT authentication.

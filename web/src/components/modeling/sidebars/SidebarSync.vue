@@ -4,9 +4,15 @@
     <div class="sidebar-sync__content">
       <div class="sync-status-row">
         <span class="sync-status-label">Connection</span>
-        <div class="sync-status" :class="isConnected ? 'sync-status--connected' : 'sync-status--disconnected'">
-          <span class="sync-status-dot" />
-          {{ isConnected ? 'connected' : 'disconnected' }}
+        <div class="sync-status-pills">
+          <div v-if="isConnected && anonymous" class="sync-status sync-status--anonymous" title="Others see a pseudonym instead of your name">
+            <v-icon icon="mdi-incognito" size="12" />
+            anonymous
+          </div>
+          <div class="sync-status" :class="isConnected ? 'sync-status--connected' : 'sync-status--disconnected'">
+            <span class="sync-status-dot" />
+            {{ isConnected ? 'connected' : 'disconnected' }}
+          </div>
         </div>
       </div>
 
@@ -46,7 +52,7 @@ const modelIo = {
 
 defineExpose({ graph, modelIo })
 
-const { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, toggleConnection, openFromRoom } = useCollabConnection()
+const { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, anonymous, toggleConnection, openFromRoom } = useCollabConnection()
 </script>
 
 <style scoped>
@@ -105,6 +111,16 @@ const { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, peo
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+.sync-status-pills {
+  display: flex;
+  gap: 6px;
+}
+
+.sync-status--anonymous {
+  background: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.75);
 }
 
 .sync-status-dot {

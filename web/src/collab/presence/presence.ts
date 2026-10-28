@@ -1,5 +1,6 @@
 import { CellHighlight, InternalEvent, type Graph } from '@maxgraph/core'
-import type { Session } from '@/collab/connection/collabKitV1'
+import { isPseudonym } from '@/collab/kit/collabKit'
+import type { Session } from '@/collab/kit/collabKitV1'
 import { startCursors } from './cursors'
 
 /** One person at the workpiece, once however many tabs they have open. */
@@ -25,8 +26,8 @@ const COLORS = ['#e53935', '#1e88e5', '#43a047', '#8e24aa', '#fb8c00', '#00897b'
 /** The same color for the same person on every screen. */
 const colorOf = (id: string) => COLORS[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % COLORS.length]
 
-/** The name collab-kit has from the token; a token without one shows the ID. */
-const nameOf = (person: { id: string; name?: string }) => person.name ?? `Person ${person.id}`
+/** The name collab-kit has from the token; a pseudonym shows as it is, a token without a name shows the ID. */
+const nameOf = (person: { id: string; name?: string }) => person.name ?? (isPseudonym(person.id) ? person.id : `Person ${person.id}`)
 
 /**
  * Announces what this tab selects and whether it may only read, frames what the others select,

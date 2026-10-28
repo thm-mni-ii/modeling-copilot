@@ -1,4 +1,5 @@
 import { Graph, InternalEvent, Point } from '@maxgraph/core'
+import { protectHtmlLabels } from './htmlLabels'
 
 export const createPreviewGraph = (container: HTMLDivElement): Graph => {
   container.innerHTML = ''
@@ -14,6 +15,7 @@ export const createPreviewGraph = (container: HTMLDivElement): Graph => {
   graph.setCellsCloneable(false)
   graph.setAllowDanglingEdges(false)
   graph.setHtmlLabels(true)
+  protectHtmlLabels(graph)
   graph.getView().updateStyle = false
   InternalEvent.disableContextMenu(container)
 

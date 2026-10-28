@@ -44,6 +44,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useBearerToken } from '@/composables/useBearerToken'
 import { isEmbedded } from '@/services/auth/fbsBridge'
+import { forgetFeedbacksystemSession } from '@/services/auth/fbsOidc'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -53,6 +54,7 @@ onMounted(() => void userStore.ensureGlobalRole())
 const logout = () => {
   if (!isEmbedded) {
     useBearerToken().clearToken()
+    forgetFeedbacksystemSession()
     userStore.reset()
   }
   router.push('/login')

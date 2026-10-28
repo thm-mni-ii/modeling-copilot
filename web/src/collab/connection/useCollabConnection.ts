@@ -2,18 +2,23 @@ import type { Graph } from '@maxgraph/core'
 import { computed, onBeforeUnmount, ref, shallowRef, watch, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
+import { cloneJson } from '@/model/ModelSnapshot'
+import type { WorkspaceLanguageReference } from '@/services/api/types/model'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import { CELLS_MAP, collabErrorMessage } from './collabApi'
-import { loadCollabKit } from './collabKit'
-import type { CollabKitApi, Room, Session, Workpiece } from './collabKitV1'
+import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
+import type { CollabKitApi, Room, Session, Workpiece } from '@/collab/kit/collabKitV1'
+import { holdSession } from '@/collab/kit/liveSession'
 import { showConflicts } from '@/collab/editing/conflicts'
 import { bindGraph } from '@/collab/editing/graphBinding'
-import type { SharedCell } from '@/collab/editing/modelCells'
-import { linkOf, openWorkpiece } from './openWorkpiece'
+import { LANGUAGES_KEY, languagesChange, type ModelUnit } from '@/collab/storage/modelUnits'
+import { CELLS_MAP, linkOf } from '@/collab/storage/workpiece'
+import { openWorkpiece } from './openWorkpiece'
 import { startPresence, type Person } from '@/collab/presence/presence'
 
 const WORKPIECE_KEY = 'collabWorkpieceId'
 const LIVE_CLASS = 'collab-live'
+/** The actions of the workspace that change the languages of the model. */
+const LANGUAGE_ACTIONS = new Set(['addLanguage', 'changeLanguageVersion', 'removeLanguage', 'moveLanguage'])
 
 // One connection for the page: the editor holds it, the sync sidebar only shows it.
 const isConnected = ref(false)
@@ -21,11 +26,13 @@ const connecting = ref(false)
 const workpieceId = ref(localStorage.getItem(WORKPIECE_KEY) ?? '')
 const logEntries = ref<string[]>([])
 const people = ref<Person[]>([])
+// Whether the own person writes anonymously at the workpiece, so others see a pseudonym.
+const anonymous = ref(false)
 const editorGraph = shallowRef<Graph>()
 let unbind: (() => void) | null = null
 let stopPresence: (() => void) | null = null
 let stopConflicts: (() => void) | null = null
-let session: Session<SharedCell> | null = null
+let session: Session<ModelUnit> | null = null
 let lastLiveStatus = ''
 let lastOnline = ''
 
@@ -48,7 +55,16 @@ const closeSession = () => {
   stopConflicts = null
   session?.close()
   session = null
+  holdSession(null)
   isConnected.value = false
+  anonymous.value = false
+}
+
+/** Writes the languages beside the cells and out of the undo of the graph; others take them when they open the model next. */
+const writeLanguages = (id: string | null, languages: WorkspaceLanguageReference[]) => {
+  if (!session || session.workpieceId !== id || !session.mayWrite) return
+  if (JSON.stringify(session.units.get(LANGUAGES_KEY)) === JSON.stringify(languages)) return
+  session.units.update(languagesChange(languages), { undoable: false })
 }
 
 const connect = async (id: string) => {
@@ -65,13 +81,15 @@ const connect = async (id: string) => {
   }
 
   let ck: CollabKitApi
+  let anonymousHere = false
   connecting.value = true
   try {
     ck = await loadCollabKit()
     const me = await ck.me.who()
     log(`collab-kit · library v1 · ${me.label ?? 'no name'} (${me.actorId})`)
     const workpiece = await ck.workpieces.get(id)
-    log(`collab-kit · workpiece "${workpiece.name}"`)
+    anonymousHere = await ck.me.anonymous({ kind: 'workpiece', id })
+    log(`collab-kit · workpiece "${workpiece.name}"${anonymousHere ? ' · anonymous' : ''}`)
   } catch (error) {
     log(`collab-kit · workpiece ${id}: ${collabErrorMessage(error)}`)
     return
@@ -87,10 +105,14 @@ const connect = async (id: string) => {
   lastLiveStatus = ''
   closeSession()
   // The session asks for token and rights itself before every connection.
-  const opened = ck.open<SharedCell>(id, { map: CELLS_MAP })
+  const opened = ck.open<ModelUnit>(id, { map: CELLS_MAP })
   session = opened
+  holdSession(opened)
+  anonymous.value = anonymousHere
   let synced = false
   opened.on('status', logLiveStatus)
+  // The library asks again on every reconnect and tells the new value only when it changed.
+  opened.on('anonymityChanged', (value) => (anonymous.value = value))
   opened.on('closed', ({ code, reason }) => {
     log(`closed by collab-kit · ${code} ${reason}`)
     // Before synced the doc never held the state of collab-kit, so the next connect starts afresh.
@@ -162,7 +184,7 @@ export const useCollabConnection = () => {
     }
   }
 
-  return { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, toggleConnection, openFromRoom }
+  return { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, anonymous, toggleConnection, openFromRoom }
 }
 
 /**
@@ -192,12 +214,14 @@ export const holdCollabConnection = (graph: Ref<Graph | undefined>) => {
 
   // A model of a room shows the shared state, whatever the Copilot kept of its own. Runs before the
   // action: the local draft goes before the editor offers it, and a restore is explained, as the
-  // shared state replaces it at once.
+  // shared state replaces it at once. Changed languages go to the workpiece after their action.
   const workspace = useModelWorkspaceStore()
-  workspace.$onAction(({ name }) => {
-    if (!linkedWorkpieceId.value) return
+  workspace.$onAction(({ name, after }) => {
+    const id = linkedWorkpieceId.value
+    if (!id) return
     if (name === 'getRecoverySnapshot') void workspace.discardRecoveryDraft()
     else if (name === 'restoreSnapshot') notifyWarning('This model is shared through a room, so the shared state comes back at once. Branch from the timeline to keep this state.')
+    else if (LANGUAGE_ACTIONS.has(name)) after(() => writeLanguages(id, cloneJson(workspace.languages)))
   })
 
   onBeforeUnmount(() => {

@@ -140,6 +140,7 @@ import type { Task, TaskVersion, TaskVersionInfo, TaskVersionKind, TaskVisibilit
 import { notifyError } from '@/composables/useNotifications'
 import evaluationService from '@/services/evaluation/evaluation.service'
 import type { EvaluationWorkflow } from '@/services/api/types/evaluation'
+import { linkOf } from '@/collab/storage/workpiece'
 
 const tasks = ref<Task[]>([])
 const currentTask = ref<Task | null>(null)
@@ -368,8 +369,9 @@ const loadCatalogs = async () => {
   languages.value = (await languageService.list(0, 100, { archived: false })).data.items
   const languageReleases = await Promise.all(languages.value.map(async (language) => ({ language, versions: (await languageService.listVersions(language.id, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
   availableLanguageOptions.value = languageReleases.flatMap(({ language, versions: entries }) => entries.map((version) => ({ title: `${language.name} · ${version.releaseName ?? 'Release'} · v${version.versionNumber}`, value: versionReferenceKey(language.id, version.id) })))
-  const models = (await modelService.list(0, 100, { archived: false })).data.items
-  const releases = await Promise.all(models.map(async (model) => ({ model, versions: (await modelService.listVersions(model.id, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
+  // A shared model keeps its releases in collab-kit, where the API cannot check or read a sample solution.
+  const models = (await modelService.list(0, 100, { archived: false })).data.items.filter((model) => !linkOf(model.preferences))
+  const releases = await Promise.all(models.map(async (model) => ({ model, versions: (await modelService.listVersions(model, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
   solutionOptions.value = releases.flatMap(({ model, versions: entries }) => entries.map((version) => ({ title: `${model.name} · ${version.releaseName ?? `v${version.versionNumber}`}`, value: versionReferenceKey(model.id, version.id) })))
 }
 

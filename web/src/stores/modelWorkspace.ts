@@ -172,10 +172,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
 
   const load = async (modelId: ApiId, versionId?: ApiId) => {
     const currentModel = (await modelService.get(modelId)).data
-    const targetVersionId = versionId ?? currentModel.latestVersionId
-    if (!targetVersionId) throw new Error('This model has no saved version yet.')
-
-    const version = (await modelService.getVersion(modelId, targetVersionId)).data
+    const version = (await modelService.getVersion(currentModel, versionId ?? currentModel.latestVersionId)).data
     void synchronizeServerTime().catch(() => undefined)
     model.value = currentModel
     taskEdit.value = cloneJson(currentModel.taskEdit)
@@ -263,10 +260,9 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   const restoreSnapshot = async (snapshotData: JsonObject, snapshotLanguages: WorkspaceLanguage[]) => {
     if (!model.value) throw new Error('No model is loaded.')
     const currentModel = await modelService.get(model.value.id)
-    if (!currentModel.data.latestVersionId) throw new Error('This model has no current version.')
-    const latest = (await modelService.getVersion(model.value.id, currentModel.data.latestVersionId)).data
+    const latest = (await modelService.getVersion(currentModel.data, currentModel.data.latestVersionId)).data
     model.value = currentModel.data
-    baseVersionId.value = currentModel.data.latestVersionId
+    baseVersionId.value = latest.id
     pendingPatches.value = []
     await applyVersion(latest, currentModel.data.name)
     dirty.value = false
@@ -290,8 +286,8 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     markDirty()
   }
 
-  const branchVersion = async (modelId: ApiId, versionId: ApiId, name: string) => {
-    const snapshot = (await modelService.getVersion(modelId, versionId)).data
+  const branchVersion = async (sourceModel: Model, versionId: ApiId, name: string) => {
+    const snapshot = (await modelService.getVersion(sourceModel, versionId)).data
     await branchSnapshot(snapshot.data, selectedLanguagesFrom(snapshot), name, snapshot.taskVersion, snapshot.taskEditSnapshot)
   }
 
@@ -393,7 +389,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
       const checkpointData: JsonObject = { ...dataCut }
       delete checkpointData.xml
       const savedVersion = (
-        await modelService.createVersion(currentModel.id, {
+        await modelService.createVersion(currentModel, {
           baseVersionId: baseVersionId.value,
           baseReleaseId: actualKind === 'checkpoint' ? baseReleaseId.value : null,
           workspaceLanguages: languagesCut,
