@@ -89,8 +89,7 @@
             </div>
             <v-chip :color="draft.helpRequests?.enabled ? 'success' : undefined" size="small" variant="tonal">{{ draft.helpRequests?.enabled ? 'Aktiv' : 'Inaktiv' }}</v-chip>
           </div>
-          <v-switch :model-value="draft.helpRequests?.enabled ?? false" label="Hilfe-Funktion aktivieren" color="primary" class="mt-5" @update:model-value="draft.helpRequests = { enabled: Boolean($event) }" />
-          <p class="text-body-2 text-medium-emphasis">Zeigt während der Aufgabenbearbeitung dauerhaft „Ich brauche Hilfe“ im Modelleditor. Beim Klick wird der aktuelle Modellstand gespeichert und mit der Hilfe-Anfrage verknüpft. Die Funktion gilt für alle Modellierungsaufgaben dieses Lernpfads.</p>
+          <HelpRequestSettings v-model="draft.helpRequests" @validation="helpIssue = $event" />
         </template>
         <template v-else-if="detailMode === 'pulse'">
           <v-btn class="mobile-back mb-3" variant="text" prepend-icon="mdi-arrow-left" @click="showDetail = false">Back to path</v-btn>
@@ -218,6 +217,7 @@ import ChallengeConfigEditor from '@/components/learningPaths/ChallengeConfigEdi
 import LearningPathAvailability from '@/components/learningPaths/LearningPathAvailability.vue'
 import LearningPathTaskPicker from '@/components/learningPaths/LearningPathTaskPicker.vue'
 import PulseSurveySettings from '@/components/learningPaths/PulseSurveySettings.vue'
+import HelpRequestSettings from '@/components/learningPaths/HelpRequestSettings.vue'
 import LearningPathSurveyPicker from '@/components/learningPaths/LearningPathSurveyPicker.vue'
 import TreasurePathBoard from '@/components/learningPaths/TreasurePathBoard.vue'
 import paths, { type PathRun, type PathStep, type PathTemplate } from '@/services/learningPaths'
@@ -280,6 +280,7 @@ const pendingVersion = ref<string | null>(null),
   loadingVersions = ref('')
 const dirty = computed(() => ready.value && saved.value !== JSON.stringify(draft.value))
 const pulseIssue = computed(() => validatePulseConfig(draft.value.pulseSurveys, draft.value.steps))
+const helpIssue = ref('')
 const issues = computed(() => {
   if (!attempted.value) return {}
   const result = validatePathSteps(draft.value.steps)
@@ -430,6 +431,11 @@ const save = async () => {
     return
   }
   const invalid = Object.keys(issues.value)[0]
+  if (draft.value.helpRequests?.enabled && helpIssue.value) {
+    error.value = helpIssue.value
+    await selectHelpSettings()
+    return
+  }
   if (invalid) {
     error.value = 'Review the highlighted task settings before saving.'
     await selectStep(invalid)

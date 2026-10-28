@@ -13,6 +13,11 @@ def require_admin(user):
         raise ApiError(403, "FORBIDDEN", "Administrator access is required.")
 
 
+def require_editable(doc):
+    if doc.get("managedBy") == "learning-path-help":
+        raise ApiError(409, "PATH_MANAGED_SURVEY", "Bearbeite diesen Hilfe-Fragebogen direkt im zugehörigen Lernpfad.")
+
+
 async def _insert_once(collection, document):
     try:
         await collection.update_one(
@@ -68,7 +73,7 @@ def public_survey(doc):
     return {
         k: v
         for k, v in to_api(doc).items()
-        if k not in ("deletedAt", "pending", "schemaVersion")
+        if k not in ("deletedAt", "pending", "schemaVersion", "pathRevision")
     }
 
 
@@ -195,6 +200,7 @@ async def save_survey(body: SaveSurvey, user, survey_id=None):
         old = None
     else:
         old = await survey_document(survey_id)
+        require_editable(old)
         if (
             body.expected_revision != old["revision"]
             or str(body.base_version_id) != old["latestVersionId"]
@@ -246,6 +252,7 @@ async def save_survey(body: SaveSurvey, user, survey_id=None):
 async def activate(survey_id, body: ActivateRelease, user):
     require_admin(user)
     doc = await survey_document(survey_id)
+    require_editable(doc)
     if body.expected_revision != doc["revision"]:
         raise conflict()
     version = await _version(doc, body.version_id)
@@ -272,6 +279,7 @@ async def activate(survey_id, body: ActivateRelease, user):
 async def delete_survey(survey_id, user):
     require_admin(user)
     doc = await survey_document(survey_id)
+    require_editable(doc)
     now = utcnow()
     await _commit(doc, {"deletedAt": now, "updatedAt": now, "updatedBy": user.id}, {})
 
@@ -280,6 +288,8 @@ async def submit(survey_id, body: SubmitResponse, user):
     if body.mode != "use":
         require_admin(user)
     doc = await survey_document(survey_id)
+    if doc.get("managedBy") == "learning-path-help" and body.mode != "preview":
+        raise ApiError(409, "PATH_MANAGED_SURVEY", "Dieser Fragebogen wird über den Hilfe-Ablauf im Lernpfad ausgefüllt.")
     version = await _version(doc, body.version_id)
     # Previously loaded releases remain valid after an activation/rollback.
     if body.mode == "use" and version["kind"] != "release":

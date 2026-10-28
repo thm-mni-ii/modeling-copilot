@@ -20,8 +20,23 @@ from modeling_api.schemas.common import Page
 from modeling_api.schemas.survey_sessions import SurveySessionInput, SurveySessionView
 from modeling_api.schemas.challenges import StartStep
 from modeling_api.services import learning_paths as service, pulse_surveys, help_requests
+from modeling_api.db.help_questionnaires import HELP_SURVEY_IDS
 
 router = APIRouter(tags=["Learning paths"])
+
+
+@router.get("/learning-path-help-blueprint")
+async def help_blueprint(user: CurrentUser):
+    service.require_admin(user)
+    from modeling_api.services.help_questionnaire import blueprint
+
+    return blueprint()
+
+
+@router.get("/learning-path-help-defaults", response_model=dict[str, UUID])
+async def help_defaults(user: CurrentUser):
+    service.require_admin(user)
+    return HELP_SURVEY_IDS
 
 
 @router.post(

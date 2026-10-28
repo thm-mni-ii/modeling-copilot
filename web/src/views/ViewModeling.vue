@@ -1,9 +1,8 @@
 <template>
-  <v-container fluid class="pa-4 modeling-view">
+  <v-container fluid class="modeling-view">
     <v-alert v-if="stepRun?.removed" type="info" variant="tonal" class="mb-3">This station was removed from the learning path. Your model is still available.</v-alert>
     <v-alert v-if="pulseEnabled && pulse.pollError.value" type="warning" variant="tonal" density="compact" class="mb-3">Impuls-Fragen konnten nicht abgefragt werden: {{ pulse.pollError.value }} Die Abfrage wird automatisch wiederholt.</v-alert>
     <v-progress-linear v-if="loading" indeterminate class="model-loading" />
-    <HelpRequestFlow v-if="currentHelp" v-model:request="currentHelp" :cell-ids="helpCellIds" :text-ranges="helpTextRanges" :snapshot-loading="helpSnapshotLoading" :snapshot-error="helpSnapshotError" @remove-text="helpTextRanges.splice($event, 1)" @retry-snapshot="loadHelpSnapshot" @close="closeHelp" />
     <ChallengeOverlay v-if="!loading && !activeSurvey && stepRun?.challenge" :key="stepRun.id" :attempt="stepRun.challenge" :stopping="challengeBusy" @stop="stopChallenge" />
     <div v-if="activeSurvey && stepRun" class="task-survey-layout">
       <section class="task-survey pa-4">
@@ -21,7 +20,8 @@
       class="editor-canvas"
       :class="{ 'help-snapshot-loading': helpMarking && (!helpSnapshot || helpSnapshotLoading) }"
       :allow-edit="!helpMarking"
-      :help-selection-mode="helpMarking && Boolean(helpSnapshot)"
+      :help-selection-mode="helpMarking"
+      :help-flow-active="Boolean(currentHelp)"
       model-management
       :model-id="workspace.model?.id ?? null"
       :open-evaluation-id="startedEvaluationId"
@@ -44,9 +44,10 @@
       @focus-task-edit="focusTaskEdit"
     >
       <template v-if="stepRun" #sidebar-top>
-        <LearningJourneyDock :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy || helpBusy" @leave="returnToPath(false)" @complete="returnToPath(true)">
+        <LearningJourneyDock v-show="!currentHelp" v-model:completion-dialog="completionDialog" :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy || helpBusy" @leave="returnToPath(false)" @complete="returnToPath(true)">
           <template #pulse><PulseSurveyPirate v-if="stepRun && pulseEnabled" :run-id="stepRun.runId" :step-id="stepRun.stepId" :visible="pulse.visible.value" :offer="pulse.offer.value" :offer-opened="pulse.offerOpened.value" :reward-coins="pulse.rewardCoins.value" :coin-balance="pulse.coinBalance.value" :state="pulse.state.value" :busy="pulse.busy.value" :error="pulse.error.value" @open="pulse.open" @dismiss="pulse.dismiss" @answered="pulse.answered" @expired="pulse.expire" /></template>
         </LearningJourneyDock>
+        <HelpRequestFlow v-if="currentHelp" v-model:request="currentHelp" :cell-ids="helpCellIds" :text-ranges="helpTextRanges" :snapshot-loading="helpSnapshotLoading" :snapshot-error="helpSnapshotError" @remove-text="helpTextRanges.splice($event, 1)" @retry-snapshot="loadHelpSnapshot" @close="closeHelp" />
       </template>
       <template v-if="helpEnabled" #canvas-top-right>
         <LearningPathHelp :busy="helpBusy" :disabled="helpActive || pathBusy || workspace.syncState === 'saving' || recoveryDialog" @request="requestHelp" />
@@ -91,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import type { GraphDataModel } from '@maxgraph/core'
 import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
@@ -120,6 +121,7 @@ interface Props {
   modelId?: string
 }
 const props = defineProps<Props>()
+const emit = defineEmits<{ 'learning-path-model': [modelId: string | null] }>()
 const router = useRouter()
 const route = useRoute()
 const workspace = useModelWorkspaceStore()
@@ -143,8 +145,12 @@ let helpSnapshotGeneration = 0
 // Keep the same saved version and request ID when retrying a failed event write.
 const pendingHelp = ref<{ requestId: string; modelVersionId: string } | null>(null)
 const stepRun = ref<PathModelContext | null>(null)
+watch(stepRun, (path) => emit('learning-path-model', path && !path.removed ? props.modelId ?? null : null), { immediate: true })
+onBeforeUnmount(() => emit('learning-path-model', null))
 const pathLoadFailed = ref(false)
-const completing = ref(route.query.complete === '1')
+const completing = ref(false)
+const completionDialog = ref(false)
+const pendingCompletion = ref(route.query.complete === '1')
 const taskSurvey = ref<InstanceType<typeof SurveyRenderer> | null>(null)
 const surveyPhase = computed<'before' | 'after'>(() => (stepRun.value?.beforeSurvey && !stepRun.value.beforeSurvey.completed ? 'before' : 'after'))
 const activeSurvey = computed(() => {
@@ -343,6 +349,14 @@ const refreshPathContext = async () => {
     notifyError('The learning path settings could not be refreshed.')
   }
 }
+watch([loading, stepRun, activeSurvey, helpActive, helpBusy, pathBusy, recoveryDialog, pathLoadFailed], () => {
+  if (!pendingCompletion.value || loading.value || !stepRun.value || stepRun.value.removed || stepRun.value.completedAt || activeSurvey.value || helpActive.value || helpBusy.value || pathBusy.value || recoveryDialog.value || pathLoadFailed.value) return
+  pendingCompletion.value = false
+  completionDialog.value = true
+  const query = { ...route.query }
+  delete query.complete
+  void router.replace({ query })
+}, { flush: 'post' })
 onMounted(async () => {
   loading.value = true
   try {
@@ -350,7 +364,6 @@ onMounted(async () => {
       await workspace.load(props.modelId)
       stepRun.value = (await paths.modelContext(props.modelId)).data
       if (stepRun.value && !stepRun.value.removed) stepRun.value = (await paths.resumeStep(stepRun.value.runId, stepRun.value.stepId)).data
-      if (completing.value && stepRun.value && !stepRun.value.removed) await returnToPath(true)
       await syncCanvas()
       const recoverySnapshot = await workspace.getRecoverySnapshot()
       if (recoverySnapshot) {
@@ -372,6 +385,7 @@ onMounted(async () => {
 <style scoped>
 .modeling-view {
   position: relative;
+  padding: 8px 12px;
   height: calc(100dvh - var(--v-layout-top, 0px) - var(--v-layout-bottom, 0px));
   display: flex;
   flex-direction: column;
@@ -393,7 +407,7 @@ onMounted(async () => {
   flex: 1;
   min-height: 0;
 }
-.help-snapshot-loading { pointer-events: none; opacity: 0.6; }
+.help-snapshot-loading :deep(.graph-wrapper) { pointer-events: none; opacity: 0.6; }
 .task-area {
   display: flex;
   align-items: flex-start;

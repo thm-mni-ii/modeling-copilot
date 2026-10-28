@@ -20,6 +20,7 @@ class Question(BaseModel):
     isRequired: bool = False
     visibleIf: str | None = Field(default=None, max_length=400)
     choices: list[Name] | None = Field(default=None, max_length=100)
+    choiceLabels: dict[str, Name] | None = None
     rows: list[Name] | None = Field(default=None, max_length=100)
     columns: list[Name] | None = Field(default=None, max_length=100)
     isAllRowRequired: bool = False
@@ -28,6 +29,8 @@ class Question(BaseModel):
 
     @model_validator(mode="after")
     def valid_question(self):
+        if self.choiceLabels is not None and (not self.choices or set(self.choiceLabels) != set(self.choices)):
+            raise ValueError("Choice labels must match the answer identifiers.")
         for values in (self.choices, self.rows, self.columns):
             if values is not None and (not values or len(set(values)) != len(values)):
                 raise ValueError("Options must be non-empty and unique.")
@@ -94,6 +97,8 @@ class Survey(ApiSchema):
     updated_at: datetime
     created_by: str | None
     updated_by: str | None
+    managed_by: str | None = None
+    template_id: UUID | None = None
 
 
 class SurveyVersionInfo(ApiSchema):

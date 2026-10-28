@@ -1,16 +1,16 @@
 <template>
-  <div aria-live="polite">
+  <div :class="{ 'survey-renderer--compact': compact }" aria-live="polite">
     <v-progress-linear v-if="loading || saving" indeterminate />
     <v-alert v-if="error" type="error" class="mb-3">{{ error }}</v-alert>
     <v-btn v-if="error && !model" @click="load">Erneut laden</v-btn>
-    <v-alert v-if="mode !== 'use'" type="info" variant="tonal" class="mb-3">
+    <v-alert v-if="mode !== 'use' && !compact" type="info" variant="tonal" class="mb-3">
       {{ mode === 'preview' ? 'Vorschau: Es werden keine Antworten gespeichert.' : 'Test: Antworten werden als Testdaten gespeichert.' }}
     </v-alert>
     <v-alert v-if="releaseChanged" type="info" variant="tonal" class="mb-3">Eine neue Version wurde veröffentlicht. Bitte fülle den aktuellen Fragebogen aus. Der bisherige Entwurf wird für diese Version nicht übernommen.</v-alert>
-    <p v-if="activity && draftStatus" class="text-caption mb-2" role="status">{{ draftStatus }}</p>
+    <p v-if="activity && draftStatus && (!compact || draftFailed)" class="text-caption mb-2" role="status">{{ draftStatus }}</p>
     <SurveyComponent v-if="model && !completed" :model="model" />
     <v-btn v-if="error && pendingAnswers && !completed" :loading="saving" @click="submit">Speichern erneut versuchen</v-btn>
-    <template v-if="completed">
+    <template v-if="completed && !compact">
       <v-alert :type="skipped ? 'info' : 'success'">{{ skipped ? 'Fragebogen übersprungen. Es wurden keine Antworten abgegeben.' : mode === 'preview' ? 'Vorschau abgeschlossen. Diese Daten würden gespeichert:' : 'Vielen Dank! Die Antworten wurden gespeichert.' }}</v-alert>
       <pre v-if="mode === 'preview'" class="preview-data mt-3">{{ JSON.stringify(completed, null, 2) }}</pre>
     </template>
@@ -24,9 +24,9 @@ import { SurveyComponent } from 'survey-vue3-ui'
 import 'survey-core/survey-core.css'
 import 'survey-core/i18n/german'
 import paths, { type SurveyPhase, type HelpSurveyPhase } from '@/services/learningPaths'
-import surveys, { surveyError, type SurveyMode, type SurveyResponse } from '@/services/surveys'
+import surveys, { surveyError, type SurveyDefinition, type SurveyMode, type SurveyResponse } from '@/services/surveys'
 
-const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; activity?: { runId: string; stepId: string; phase?: SurveyPhase; helpRequestId?: string; helpPhase?: HelpSurveyPhase } }>(), { mode: 'use' })
+const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; compact?: boolean; localDefinition?: SurveyDefinition; questionPerPage?: boolean; completeText?: string; activity?: { runId: string; stepId: string; phase?: SurveyPhase; helpRequestId?: string; helpPhase?: HelpSurveyPhase } }>(), { mode: 'use', compact: false })
 const emit = defineEmits<{ completed: [response?: SurveyResponse] }>()
 const model = shallowRef<Model | null>(null)
 const loading = ref(false),
@@ -149,17 +149,35 @@ async function load() {
     const session = activity ? (activity.helpRequestId && activity.helpPhase
       ? (await paths.openHelpSurvey(activity.runId, activity.stepId, activity.helpRequestId, activity.helpPhase)).data
       : activity.phase?.startsWith('pulse:') ? (await paths.openPulse(activity.runId, activity.phase.slice(6))).data : (await paths.openSurvey(activity.runId, activity.stepId, activity.phase)).data) : null
-    const survey = session ? session.version : (await surveys.render(props.surveyId, props.mode, props.versionId)).data
+    const survey = props.localDefinition && props.mode === 'preview' ? { id: 'local-preview', title: '', definition: props.localDefinition } : session ? session.version : (await surveys.render(props.surveyId, props.mode, props.versionId)).data
     if (current !== generation) return
     releaseChanged.value = session?.releaseChanged ?? false
     loadedVersionId = survey.id
     const pulse = activity?.phase?.startsWith('pulse:')
-    const instance = new Model({ ...survey.definition, title: pulse || activity?.helpRequestId ? '' : survey.title, ...(pulse || activity?.helpRequestId ? { completeText: activity?.helpPhase === 'action' ? 'Hilfe auswählen' : 'Weiter' } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
+    const displayedDefinition = { ...survey.definition, elements: survey.definition.elements.map(q => q.choiceLabels ? { ...q, choices: q.choices?.map(value => ({ value, text: q.choiceLabels![value] })) } : q) }
+    const instance = new Model({ ...displayedDefinition, title: pulse || activity?.helpRequestId ? '' : survey.title, ...(pulse || activity?.helpRequestId ? { completeText: activity?.helpPhase === 'action' ? 'Hilfe auswählen' : 'Weiter' } : {}), ...(props.completeText ? { completeText: props.completeText } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
+    if (props.questionPerPage || activity?.helpRequestId && activity.helpPhase === 'reflection') {
+      instance.questionsOnPageMode = 'questionPerPage'
+      instance.pageNextText = 'Weiter'
+    }
+    if (props.compact) {
+      instance.widthMode = 'responsive'
+      instance.showQuestionNumbers = 'off'
+      instance.applyTheme({
+        isPanelless: true,
+        cssVariables: {
+          '--sjs-font-size': '12px', '--sjs-base-unit': '4px', '--sjs-corner-radius': '5px',
+          '--sjs-general-backcolor': '#fffdf8', '--sjs-general-backcolor-dim': '#fffdf8',
+          '--sjs-primary-backcolor': '#81ba24', '--sjs-primary-forecolor': '#ffffff',
+          '--sjs-shadow-small': 'none', '--sjs-shadow-medium': 'none'
+        }
+      })
+    }
     if (session) {
       loadedSessionId = session.sessionId
       revision = session.revision
       draftFailed = false
-      draftKey = `learning-path-survey:${session.sessionId}:${survey.id}`
+      draftKey = `learning-path-survey:${session.sessionId}:${survey.id}${activity?.helpPhase ? `:${activity.helpPhase}` : ''}`
       if (session.status === 'submitted' || session.status === 'skipped') {
         skipped.value = session.status === 'skipped'
         completed.value = session.answers
@@ -181,6 +199,12 @@ async function load() {
       if (JSON.stringify(instance.data) !== JSON.stringify(session.answers)) queueDraft(lastAnswers)
     }
     instance.onComplete.add((sender) => {
+      if (props.localDefinition && props.mode === 'preview') {
+        const response: SurveyResponse = { id: 'preview', surveyId: props.surveyId, version: 0, versionId: 'local-preview', userId: '', answers: JSON.parse(JSON.stringify(sender.data)), isTest: true, createdAt: new Date().toISOString() }
+        completed.value = response
+        emit('completed', response)
+        return
+      }
       pendingAnswers.value = JSON.parse(JSON.stringify(sender.data))
       void submit()
     })
@@ -192,7 +216,7 @@ async function load() {
   }
 }
 // Parent renders create a new activity object; reload only if its IDs change.
-watch([() => props.surveyId, () => props.versionId, () => props.mode, () => props.activity?.runId, () => props.activity?.stepId, () => props.activity?.phase, () => props.activity?.helpRequestId, () => props.activity?.helpPhase], load, { immediate: true })
+watch([() => props.surveyId, () => props.versionId, () => props.mode, () => props.localDefinition, () => props.activity?.runId, () => props.activity?.stepId, () => props.activity?.phase, () => props.activity?.helpRequestId, () => props.activity?.helpPhase], load, { immediate: true })
 onBeforeUnmount(() => {
   clearTimeout(draftTimer)
   if (props.activity && !completed.value) appendDraft()
@@ -206,4 +230,30 @@ onBeforeUnmount(() => {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.survey-renderer--compact { min-width: 0; }
+.survey-renderer--compact :deep(.sd-root-modern) { background: transparent; min-width: 0; }
+.survey-renderer--compact :deep(.sd-container-modern),
+.survey-renderer--compact :deep(.sd-body),
+.survey-renderer--compact :deep(.sd-body--static),
+.survey-renderer--compact :deep(.sd-page) { min-width: 0 !important; max-width: 100%; padding: 0 !important; background: transparent; row-gap: 0; }
+.survey-renderer--compact :deep(.sd-body > .sv-components-column) { row-gap: 0; }
+.survey-renderer--compact :deep(.sd-page__content),
+.survey-renderer--compact :deep(.sd-question__container),
+.survey-renderer--compact :deep(.sd-question__header-and-content-container) { padding: 0 !important; row-gap: 0; column-gap: 0; }
+.survey-renderer--compact :deep(.sd-row) { margin-top: 12px; }
+.survey-renderer--compact :deep(.sd-row:first-child) { margin-top: 0; }
+.survey-renderer--compact :deep(.sd-question),
+.survey-renderer--compact :deep(.sd-question__content),
+.survey-renderer--compact :deep(.sd-element--with-frame) { min-width: 0; max-width: 100%; padding: 0; box-shadow: none; border: 0; background: transparent; }
+.survey-renderer--compact :deep(.sd-question__header) { padding: 0; margin-bottom: 6px; }
+.survey-renderer--compact :deep(.sd-question__title) { font-size: 12px; font-weight: 600; line-height: 1.45; }
+.survey-renderer--compact :deep(.sd-item__control-label) { font-size: 12px; line-height: 1.4; }
+.survey-renderer--compact :deep(.sd-item__control-label .sv-string-viewer) { overflow: visible; overflow-wrap: anywhere; }
+.survey-renderer--compact :deep(.sd-selectbase__label) { padding-block: 5px; }
+.survey-renderer--compact :deep(.sd-item) { padding: 0 !important; margin: 0; }
+.survey-renderer--compact :deep(.sd-body__navigation) { padding: 8px 0 0; }
+.survey-renderer--compact :deep(.sd-btn) { min-height: 30px; padding: 5px 12px; font-size: 12px; line-height: 1.4; box-shadow: none; }
+.survey-renderer--compact :deep(.sd-input),
+.survey-renderer--compact :deep(.sd-comment__input) { font-size: 12px; line-height: 1.4; }
+.survey-renderer--compact :deep(.sd-comment__input) { min-height: 64px; }
 </style>

@@ -120,8 +120,35 @@ class PulsePollResult(ApiSchema):
     next_poll_seconds: int = Field(default=30, ge=1, le=30)
 
 
+class HelpChoice(ApiSchema):
+    id: str = Field(pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
+    text: Name
+
+
+class HelpQuestionEdit(ApiSchema):
+    title: Name
+    choices: list[HelpChoice] = Field(min_length=2, max_length=20)
+
+    @model_validator(mode="after")
+    def unique_choices(self):
+        if len({c.id for c in self.choices}) != len(self.choices):
+            raise ValueError("Answer identifiers must be unique.")
+        if len({c.text.strip().casefold() for c in self.choices}) != len(self.choices):
+            raise ValueError("Answer labels must be unique.")
+        return self
+
+
 class HelpRequestConfig(ApiSchema):
     enabled: bool = False
+    topic_survey_id: UUID | None = None
+    reflection_survey_id: UUID | None = None
+    action_survey_id: UUID | None = None
+    topic_question: str = Field(default="problem_area", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
+    marking_answer: Name = "Aufgabenstellung/Modell"
+    action_question: str = Field(default="next_action", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
+    marking_enabled: bool = True
+    marking_required: bool = False
+    question_edits: dict[Literal["stuck_duration", "support_need", "next_action"], HelpQuestionEdit] = Field(default_factory=dict)
 
 
 class CreateHelpRequest(ApiSchema):
@@ -147,8 +174,6 @@ class HelpMarkings(ApiSchema):
 
     @model_validator(mode="after")
     def valid_markings(self):
-        if not self.cell_ids and not self.task_text_ranges:
-            raise ValueError("Mark at least one model element or text passage.")
         if len(set(self.cell_ids)) != len(self.cell_ids) or any(not i or len(i) > 256 for i in self.cell_ids):
             raise ValueError("Model element references must be unique and bounded.")
         return self
@@ -165,6 +190,9 @@ class HelpRequest(ApiSchema):
     survey_ids: dict[str, UUID] = Field(default_factory=dict)
     markings: HelpMarkings | None = None
     next_action: str | None = None
+    next_action_id: str | None = None
+    survey_session_id: UUID | None = None
+    marking_required: bool = True
 
 
 class SaveTemplate(ApiSchema):

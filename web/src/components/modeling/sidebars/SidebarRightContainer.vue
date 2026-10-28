@@ -1,12 +1,12 @@
 <template>
-  <SidebarFrame v-model:width="sidebarWidth" side="right" :collapsed="hasJourney ? false : collapsed" :min-width="hasJourney ? 280 : 105" :max-width="hasJourney ? 440 : 315">
+  <SidebarFrame v-model:width="sidebarWidth" side="right" :class="{ 'sidebar-help-active': helpFlowActive }" :show-tabs="!helpFlowActive" :collapsed="hasJourney ? false : collapsed" :min-width="hasJourney ? 280 : 105" :max-width="hasJourney ? 440 : 315">
     <template v-if="hasJourney" #top><slot name="top" /></template>
     <template #tabs>
-      <SidebarTabs :model-value="activeTab" :tabs="tabs" icons-only aria-label="Model tools" @update:model-value="selectTab" />
+      <SidebarTabs :inert="toolsDisabled || undefined" :model-value="activeTab" :tabs="tabs" icons-only aria-label="Model tools" @update:model-value="selectTab" />
     </template>
     <template #default>
-      <SidebarPanelHeader :title="activeTabLabel" />
-      <div class="sidebar-tab-content">
+      <SidebarPanelHeader v-show="!helpFlowActive" :title="activeTabLabel" />
+      <div v-show="!helpFlowActive" class="sidebar-tab-content" :inert="toolsDisabled || undefined">
         <FeedbackSidebar v-if="activeTab === 'feedback'" :feedback-shapes="feedbackShapes" :show-header="false" />
         <SidebarPersistence v-else-if="activeTab === 'persistence'" :show-header="false" />
         <SidebarSync v-else-if="activeTab === 'sync'" :show-header="false" />
@@ -37,6 +37,8 @@ type SidebarTab = 'feedback' | 'persistence' | 'sync' | 'languages' | 'task' | '
 
 const props = defineProps<{
   collapsed: boolean
+  toolsDisabled?: boolean
+  helpFlowActive?: boolean
   hasJourney?: boolean
   taskActive?: boolean
   taskEdit?: TaskEditDocument | null
@@ -87,6 +89,10 @@ watch(
 </script>
 
 <style scoped>
+.sidebar-help-active :deep(.sidebar-frame__top) {
+  max-height: 100%;
+}
+
 .sidebar-tab-content {
   flex: 1;
   min-height: 0;

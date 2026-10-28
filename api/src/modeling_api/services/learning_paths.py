@@ -150,6 +150,10 @@ async def save_template(body: SaveTemplate, user, template_id=None):
             {"_id": {"$in": removed}},
             {"$set": {"archivedAt": now, "updatedAt": now}},
         )
+    if body.help_requests.enabled:
+        from modeling_api.services.help_questionnaire import publish
+
+        await publish(template_id, body.name, 1 if is_new else body.revision + 1, body.help_requests, user.id)
     return await get_template(template_id, user)
 
 

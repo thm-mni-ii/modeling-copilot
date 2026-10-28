@@ -85,7 +85,7 @@ const editMode = ref(false)
 watch(() => props.helpSelectionMode, (active) => {
   if (active) { expanded.value = true; editMode.value = false }
 })
-const DEFAULT_HEIGHT = 220
+const DEFAULT_HEIGHT = 180
 const MIN_HEIGHT = 120
 const MAX_HEIGHT = 420
 const topbarHeight = ref(DEFAULT_HEIGHT)
@@ -160,7 +160,7 @@ watch(
   border: 1px solid rgba(var(--v-theme-primary), 0.22);
   border-radius: 6px;
   background: #fafafa;
-  margin-bottom: 6px;
+  margin-bottom: 0;
   overflow: hidden;
   flex-shrink: 0;
 }

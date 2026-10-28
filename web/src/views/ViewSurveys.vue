@@ -14,11 +14,12 @@
         ><v-chip size="small">{{ survey.latestKind === 'checkpoint' ? 'Checkpoint' : 'Release' }} {{ survey.version }}</v-chip
         ><v-chip size="small" :color="survey.activeReleaseId ? 'success' : undefined">{{ survey.activeReleaseVersion ? `Aktiv: Release ${survey.activeReleaseVersion}` : 'Nicht veröffentlicht' }}</v-chip
         ><v-spacer />
-        <v-btn :to="`/surveys/${survey.id}/edit`">Bearbeiten</v-btn>
+        <v-btn v-if="survey.managedBy === 'learning-path-help'" :to="`/learning-path-templates/${survey.templateId}/edit`">Im Lernpfad bearbeiten</v-btn>
+        <v-btn v-else :to="`/surveys/${survey.id}/edit`">Bearbeiten</v-btn>
         <v-btn @click="open(survey, 'preview')">Entwurfsvorschau</v-btn>
-        <v-btn @click="open(survey, 'test')">Entwurf testen</v-btn>
-        <v-btn v-if="survey.activeReleaseId" @click="open(survey, 'use')">Aktiven Release ausfüllen</v-btn>
-        <v-btn color="error" @click="deleting = survey">Löschen</v-btn>
+        <v-btn v-if="!survey.managedBy" @click="open(survey, 'test')">Entwurf testen</v-btn>
+        <v-btn v-if="survey.activeReleaseId && !survey.managedBy" @click="open(survey, 'use')">Aktiven Release ausfüllen</v-btn>
+        <v-btn v-if="!survey.managedBy" color="error" @click="deleting = survey">Löschen</v-btn>
       </div>
       <p class="text-caption mt-2">{{ survey.definition.elements.length }} Fragen · Geändert: {{ new Date(survey.updatedAt).toLocaleString('de-DE') }}</p>
     </v-card>

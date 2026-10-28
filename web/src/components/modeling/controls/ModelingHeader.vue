@@ -134,7 +134,7 @@ const saveName = async () => {
   align-items: center;
   gap: 8px;
   min-height: 48px;
-  padding: 8px 12px;
+  padding: 4px 12px;
   background: #ffffff;
   border: 1px solid rgba(var(--v-theme-outline), 0.14);
   border-radius: 4px;

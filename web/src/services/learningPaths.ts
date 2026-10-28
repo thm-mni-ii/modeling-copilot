@@ -36,6 +36,27 @@ export const defaultPulseSurveyConfig = (): PulseSurveyConfig => ({ enabled: fal
 export interface PulseOffer { id: string; surveyId: string }
 export type PulseState = 'idle' | 'offered' | 'open' | 'thanks' | 'expired'
 export type SurveyPhase = 'before' | 'after' | `pulse:${string}`
+export interface HelpChoice { id: string; text: string }
+export interface HelpQuestionEdit { title: string; choices: HelpChoice[] }
+export type HelpEditableQuestion = 'stuck_duration' | 'support_need' | 'next_action'
+export interface HelpBlueprint { topic: import('@/services/surveys').SurveyDefinition; questions: Record<HelpEditableQuestion, HelpQuestionEdit> }
+export interface HelpRequestConfig {
+  enabled: boolean
+  topicSurveyId: string | null
+  reflectionSurveyId: string | null
+  actionSurveyId: string | null
+  topicQuestion: string
+  markingAnswer: string
+  actionQuestion: string
+  markingEnabled: boolean
+  markingRequired: boolean
+  questionEdits?: Partial<Record<HelpEditableQuestion, HelpQuestionEdit>>
+}
+export const defaultHelpRequestConfig = (): HelpRequestConfig => ({
+  enabled: false, topicSurveyId: null, reflectionSurveyId: null, actionSurveyId: null,
+  topicQuestion: 'problem_area', markingAnswer: 'Aufgabenstellung/Modell', actionQuestion: 'next_action',
+  markingEnabled: true, markingRequired: false
+})
 export interface PathTemplate {
   id: string
   name: string
@@ -46,7 +67,7 @@ export interface PathTemplate {
   updatedAt: string | null
   steps: PathStep[]
   pulseSurveys?: PulseSurveyConfig
-  helpRequests?: { enabled: boolean }
+  helpRequests?: HelpRequestConfig
 }
 export interface StepRun extends PathStep {
   status: 'locked' | 'available' | 'in_progress' | 'completed' | 'skipped'
@@ -84,7 +105,7 @@ export interface PathModelContext {
   beforeSurvey: { surveyId: string; completed: boolean } | null
   afterSurvey: { surveyId: string; completed: boolean } | null
   challenge: ChallengeAttempt | null
-  helpRequests: { enabled: boolean }
+  helpRequests: HelpRequestConfig
 }
 export interface HelpRequest {
   id: string
@@ -97,6 +118,9 @@ export interface HelpRequest {
   surveyIds: Record<HelpSurveyPhase, string>
   markings: HelpMarkings | null
   nextAction: string | null
+  nextActionId?: string | null
+  surveySessionId?: string | null
+  markingRequired: boolean
 }
 export type HelpSurveyPhase = 'topic' | 'reflection' | 'action'
 export interface HelpTextRange { start: number; end: number; text: string }
@@ -104,6 +128,8 @@ export interface HelpMarkings { cellIds: string[]; taskTextRanges: HelpTextRange
 export interface SurveySession { version: SurveyVersion; answers: Record<string, unknown>; revision: number; sessionId: string; releaseChanged: boolean; status: string }
 const helpUrl = (runId: string, stepId: string, requestId: string) => `/v1/learning-path-runs/${runId}/steps/${stepId}/help-requests/${requestId}`
 export default {
+  helpBlueprint: () => http.get<HelpBlueprint>('/v1/learning-path-help-blueprint'),
+  helpDefaults: () => http.get<Record<HelpSurveyPhase, string>>('/v1/learning-path-help-defaults'),
   activeHelp: (runId: string, stepId: string) => http.get<HelpRequest | null>(`/v1/learning-path-runs/${runId}/steps/${stepId}/help-requests/active`),
   help: (runId: string, stepId: string, requestId: string) => http.get<HelpRequest>(helpUrl(runId, stepId, requestId)),
   cancelHelp: (runId: string, stepId: string, requestId: string) => http.post<HelpRequest>(`${helpUrl(runId, stepId, requestId)}/cancel`),

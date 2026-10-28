@@ -9,6 +9,7 @@ export interface SurveyQuestion {
   isRequired: boolean
   visibleIf?: string
   choices?: string[]
+  choiceLabels?: Record<string, string>
   rows?: string[]
   columns?: string[]
   isAllRowRequired?: boolean
@@ -19,6 +20,8 @@ export interface SurveyDefinition {
   elements: SurveyQuestion[]
 }
 export interface Survey {
+  managedBy?: string | null
+  templateId?: string | null
   id: string
   title: string
   definition: SurveyDefinition

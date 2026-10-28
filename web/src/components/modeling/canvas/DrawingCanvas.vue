@@ -1,7 +1,7 @@
-﻿<template>
-  <v-card class="pa-2" height="100%" width="100%">
+<template>
+  <v-card class="px-2 py-1" height="100%" width="100%">
     <v-card-text class="pa-1 canvas-content">
-      <ModelingHeader v-if="props.showToolbar && props.modelManagement" class="mb-2" :inert="props.helpSelectionMode || undefined">
+      <ModelingHeader v-if="props.showToolbar && props.modelManagement" class="mb-1" :inert="props.helpSelectionMode || undefined">
         <template #controls>
           <CanvasToolbar
             ref="canvasToolbar"
@@ -105,7 +105,7 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :inert="props.helpSelectionMode || undefined" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
+        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
           <template v-if="$slots['sidebar-top']" #top><slot name="sidebar-top" /></template>
         </SidebarRightContainer>
         <CollabConnector v-if="props.modelManagement" />
@@ -303,6 +303,7 @@ const props = withDefaults(
     model?: GraphDataModel
     allowEdit?: boolean
     helpSelectionMode?: boolean
+    helpFlowActive?: boolean
     helpCellIds?: string[]
     showToolbar?: boolean
     showElements?: boolean

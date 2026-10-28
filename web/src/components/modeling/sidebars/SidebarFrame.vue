@@ -91,7 +91,7 @@ const startResize = (event: MouseEvent) => {
   flex-shrink: 0;
 }
 
-.sidebar-frame__top { flex-shrink: 0; }
+.sidebar-frame__top { flex-shrink: 1; min-height: 0; max-height: calc(100% - 58px); overflow-y: auto; scrollbar-width: thin; }
 
 .sidebar-frame__body {
   display: flex;

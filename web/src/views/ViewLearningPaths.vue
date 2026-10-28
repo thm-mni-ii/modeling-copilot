@@ -234,19 +234,8 @@ const openModel = async (step: StepRun, acknowledgedChallenge: ChallengeConfig |
   }
 }
 const complete = async (step: StepRun) => {
-  if (!run.value) return
-  if (step.beforeSurveyId || step.afterSurveyId) {
-    if (step.modelId) await router.push({ path: `/modeling/${step.modelId}`, query: { complete: '1' } })
-    return
-  }
-  busy.value = step.id
-  try {
-    run.value = (await paths.complete(run.value.id, step.id)).data
-  } catch (e) {
-    error.value = message(e)
-  } finally {
-    busy.value = ''
-  }
+  if (!run.value || !step.modelId) return
+  await router.push({ path: `/modeling/${step.modelId}`, query: { complete: '1' } })
 }
 watch(
   () => route.fullPath,
