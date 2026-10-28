@@ -31,7 +31,8 @@ export const openWorkpiece = async (router: Router, room: Room, workpiece: Workp
     return
   }
   await workspace.startNew(workpiece.name, languagesOf(workpiece))
-  await workspace.save()
+  // Linked before the first save, so its version comes from the workpiece and none is stored in the Copilot.
   await workspace.updatePreferences({ ...workspace.preferences, collab: { workpieceId: workpiece._id, roomId: room._id } })
+  await workspace.save()
   if (workspace.model) await router.push(`/modeling/${workspace.model.id}`)
 }

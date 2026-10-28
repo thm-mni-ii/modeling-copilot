@@ -459,7 +459,7 @@ spec:
       containers:
         - name: collab-kit
           # Fixed version; an update means changing the tag here and in docker-compose.yaml.
-          image: ghcr.io/thm-mni-ii/collab-kit:v0.6.0
+          image: ghcr.io/thm-mni-ii/collab-kit:v0.6.1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

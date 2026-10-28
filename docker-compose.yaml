@@ -84,7 +84,7 @@ services:
     restart: unless-stopped
 
   collab-kit:
-    image: ghcr.io/thm-mni-ii/collab-kit:v0.6.0
+    image: ghcr.io/thm-mni-ii/collab-kit:v0.6.1
     ports:
       - "127.0.0.1:24202:24202"
     environment:
