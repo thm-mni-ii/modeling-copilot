@@ -19,6 +19,7 @@
             @align-top="alignTop"
             @align-middle-v="alignMiddleV"
             @align-bottom="alignBottom"
+            @format-text="formatSelectedText"
             @select-connection="onConnectionSelected"
             @update:connection-preferences="updateConnectionPreferences"
           />
@@ -51,6 +52,7 @@
           @align-top="alignTop"
           @align-middle-v="alignMiddleV"
           @align-bottom="alignBottom"
+          @format-text="formatSelectedText"
           @select-connection="onConnectionSelected"
           @update:connection-preferences="updateConnectionPreferences"
         />
@@ -150,6 +152,8 @@ import { setupUndoManager, type UndoManagerApi, type UndoManagerState } from '@/
 import { alignHorizontal, alignVertical } from '@/utils/alignCells'
 import { clearValidationWarningOverlays, getGraphValidationMode, isValidationPassActive, setGraphValidationMode } from '@/utils/graphValidationRuntime'
 import { createCellFromElement } from '@/utils/elementFactory'
+import { registerElementShapes } from '@/utils/shapeRegistry'
+import { editorHtmlToLabel, formatText, labelToEditorHtml, protectHtmlLabels, type TextFormat } from '@/utils/htmlLabels'
 import GraphSettings from './GraphSettings.vue'
 import CanvasWindowHost from './CanvasWindowHost.vue'
 import CanvasToolbar from '@/components/modeling/controls/CanvasToolbar.vue'
@@ -196,6 +200,17 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
 
   override stopEditing(cancel: boolean) {
     super.stopEditing(cancel)
+  }
+
+  // Rich Text: Formatierungen (Cmd/Strg+B, I, U) bleiben im Label erhalten
+  override getInitialValue(state: CellState, trigger: MouseEvent | null): string {
+    if (!this.graph.isHtmlLabel(state.cell)) return super.getInitialValue(state, trigger)
+    return labelToEditorHtml(this.graph.getEditingValue(state.cell, trigger) ?? '')
+  }
+
+  override getCurrentValue(state: CellState): string | null {
+    if (!this.textarea || !this.graph.isHtmlLabel(state.cell)) return super.getCurrentValue(state)
+    return editorHtmlToLabel(this.textarea)
   }
 }
 
@@ -525,6 +540,8 @@ const alignTop = () => graph.value && alignVertical(graph.value, 'top')
 const alignMiddleV = () => graph.value && alignVertical(graph.value, 'middle')
 const alignBottom = () => graph.value && alignVertical(graph.value, 'bottom')
 
+const formatSelectedText = (format: TextFormat) => props.allowEdit && graph.value && formatText(graph.value, format)
+
 const applyUndoState = (state: UndoManagerState) => {
   canUndo.value = state.canUndo
   canRedo.value = state.canRedo
@@ -660,6 +677,16 @@ const sidebarLanguages = computed<SidebarLanguage[]>(() => {
   }
   return []
 })
+
+// Canvas2D-Formen der Sprachen registrieren, damit auch geladene Modelle sie zeichnen
+watch(
+  sidebarLanguages,
+  (languages) => {
+    languages.forEach((language) => language.elements.forEach((element) => registerElementShapes(element)))
+    graph.value?.refresh()
+  },
+  { immediate: true, deep: true }
+)
 
 // Computed für Verbindungen
 const languageConnections = computed(() => props.languageConnections ?? [])
@@ -899,6 +926,7 @@ const initGraph = () => {
   graph.value.setCellsCloneable(props.allowEdit)
   graph.value.setAllowNegativeCoordinates(false)
   graph.value.setHtmlLabels(true)
+  protectHtmlLabels(graph.value)
   graph.value.border = 20
 
   undoManagerApi?.destroy()

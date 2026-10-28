@@ -43,9 +43,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
-import { Shape, AbstractCanvas2D } from '@maxgraph/core'
 import { createCellFromElement, addCellToGraph } from '@/utils/elementFactory'
-import { ShapeRegistry } from '@maxgraph/core'
+import { registerElementShapes } from '@/utils/shapeRegistry'
 import type { GraphDataModel } from '@maxgraph/core'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 import type { DiagramElement, ChildElement } from '@/model/Element'
@@ -211,105 +210,7 @@ const registerCustomShapes = (definition?: DiagramElement | ChildElement | null)
   const target = definition ?? elementDefinition.value
   if (!target) return
 
-  registerShapesRecursive(target)
-}
-
-const registerShapesRecursive = (definition: DiagramElement | ChildElement | undefined) => {
-  if (!definition) return
-
-  if ('renderMode' in definition && definition.renderMode === 'canvas2d' && 'canvas' in definition && definition.canvas) {
-    registerCustomShape(definition.type, definition.canvas)
-  }
-
-  if ('children' in definition && definition.children && definition.children.length > 0) {
-    definition.children.forEach((child) => registerShapesRecursive(child))
-  }
-}
-
-const registerCustomShape = (shapeId: string, canvasCommands: string) => {
-  class DynamicCustomShape extends Shape {
-    override paintBackground(c: AbstractCanvas2D, x: number, y: number, w: number, h: number) {
-      c.translate(x, y)
-
-      const lines = canvasCommands.trim().split('\n')
-      let pathStarted = false
-
-      for (const line of lines) {
-        const [cmd, ...args] = line.trim().split(/\s+/)
-        const nums = args.map(Number)
-
-        if (nums.some((n) => isNaN(n))) {
-          console.warn(`Invalid numbers in: ${line}`)
-          continue
-        }
-
-        switch (cmd.toUpperCase()) {
-          case 'MOVE':
-            if (pathStarted) {
-              c.stroke()
-              c.end()
-              pathStarted = false
-            }
-            c.begin()
-            c.moveTo(w * nums[0], h * nums[1])
-            pathStarted = true
-            break
-
-          case 'LINE':
-            if (nums.length === 2) {
-              c.lineTo(w * nums[0], h * nums[1])
-            } else if (nums.length === 4) {
-              if (pathStarted) {
-                c.stroke()
-                c.end()
-                pathStarted = false
-              }
-              c.begin()
-              c.moveTo(w * nums[0], h * nums[1])
-              c.lineTo(w * nums[2], h * nums[3])
-              c.stroke()
-              c.end()
-            }
-            break
-
-          case 'RECT':
-            if (nums.length === 4) {
-              if (pathStarted) {
-                c.stroke()
-                c.end()
-                pathStarted = false
-              }
-              c.begin()
-              c.rect(w * nums[0], h * nums[1], w * nums[2], h * nums[3])
-              c.fillAndStroke()
-              c.end()
-            }
-            break
-
-          case 'ELLIPSE':
-            if (nums.length === 4) {
-              if (pathStarted) {
-                c.stroke()
-                c.end()
-                pathStarted = false
-              }
-              c.begin()
-              c.ellipse(w * nums[0], h * nums[1], w * nums[2], h * nums[3])
-              c.fillAndStroke()
-              c.end()
-            }
-            break
-        }
-      }
-
-      if (pathStarted) {
-        c.stroke()
-        c.end()
-      }
-    }
-  }
-
-  ShapeRegistry.add(shapeId, DynamicCustomShape)
+  registerElementShapes(target)
 }
 
 // getCustomGeometry wurde entfernt - nicht mehr benötigt.

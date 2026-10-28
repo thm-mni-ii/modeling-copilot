@@ -37,6 +37,9 @@ export interface ElementStyle {
   // Allgemeine Shape-Feinabstimmung
   rounded?: boolean | number
   spacingLeft?: number
+  spacingRight?: number
+  spacingTop?: number
+  spacingBottom?: number
   whiteSpace?: string
   // Optional: semantische Rollen/Layer-Bindungen (z.B. fuer Feedback-Elemente)
   cellRole?: string

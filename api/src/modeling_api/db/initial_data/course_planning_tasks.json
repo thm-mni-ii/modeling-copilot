@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "a2b2abfd-d8b8-41c9-a77d-fd4343b70f61",
+      "name": "Lehrveranstaltungsplanung – ERM",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "bd77854a-7be4-40d9-bb47-93a0b3e437f2",
+      "latestReleaseId": "bd77854a-7be4-40d9-bb47-93a0b3e437f2",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "bd77854a-7be4-40d9-bb47-93a0b3e437f2",
+        "taskId": "a2b2abfd-d8b8-41c9-a77d-fd4343b70f61",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Annotierter Text",
+        "description": "Markierter Aufgabentext mit Verweisen auf Modellelemente und Verbindungen.",
+        "workspaceLanguages": [
+          {
+            "languageId": "b20cd790-923c-4c79-b308-e154cdad331b",
+            "versionId": "4dc5862b-2138-48dc-bf3a-c36dbe80dcb8",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Aufgabe: Lehrveranstaltungsplanung als ERM</h2><p>Erstelle das ER-Modell aus den markierten Begriffen. Markierte Modellelemente lassen sich direkt auf den Canvas ziehen. Dieselbe Aufgabe gibt es auch als SERM: Vergleiche danach die beiden Modelle.</p><p>Ein <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-entity\">Fachbereich</span></mark> wird über sein <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-key-attribute\">Kürzel</span></mark> identifiziert. Zu jedem Fachbereich wird außerdem der <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Name</span></mark> gespeichert.<br>Jeder <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-entity\">Dozent</span></mark> <mark data-color=\"#FFE0B2\" style=\"background-color: #FFE0B2;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-relationship\">gehört zu</span></mark> genau einem Fachbereich, ein Fachbereich hat mindestens einen Dozenten. Ein Dozent wird über seine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-key-attribute\">Personalnummer</span></mark> identifiziert, außerdem wird sein <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Name</span></mark> gespeichert.<br>Ein Dozent <mark data-color=\"#FFE0B2\" style=\"background-color: #FFE0B2;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-relationship\">hält</span></mark> beliebig viele <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-entity\">Lehrveranstaltungen</span></mark>, jede Lehrveranstaltung wird von genau einem Dozenten gehalten. Eine Lehrveranstaltung wird über ihre <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-key-attribute\">Veranstaltungsnummer</span></mark> identifiziert und hat einen <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Titel</span></mark>.</p><p>Ein <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-entity\">Studierender</span></mark> wird über die <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-key-attribute\">Matrikelnummer</span></mark> identifiziert, außerdem wird der <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Name</span></mark> gespeichert. Studierende können beliebig viele Lehrveranstaltungen belegen, eine Lehrveranstaltung kann beliebig viele Teilnehmende haben. Zu jeder <mark data-color=\"#FFE0B2\" style=\"background-color: #FFE0B2;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-relationship\">Belegung</span></mark> werden <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Semester</span></mark> und <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Note</span></mark> gespeichert.</p><h3>Verbindungen</h3><ul><li>Verbinde jedes Entity über eine <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-connection-type=\"erm-association\">Association</span></mark> mit seinen Beziehungen und trage die Kardinalität ein (1, c, m oder mc): Wie viele Objekte dieses Entity-Typs gehören zu einem Objekt auf der anderen Seite?</li><li>Verbinde jedes Attribut über einen <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-connection-type=\"erm-attribute-link\">Attribute Link</span></mark> mit seinem Entity oder seiner Beziehung. Schlüsselattribute sind unterstrichen.</li><li>Zeichne die Kanten immer vom Entity zur Beziehung und vom Attribut zu seinem Objekt.</li></ul>",
+          "autonomyMode": "validating",
+          "sampleSolutions": []
+        }
+      }
+    },
+    {
+      "id": "13904c23-8894-41cd-8bfc-f7add87d6061",
+      "name": "Lehrveranstaltungsplanung – SERM",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "3e97d0d6-5494-400a-86ea-6875f125d3d5",
+      "latestReleaseId": "3e97d0d6-5494-400a-86ea-6875f125d3d5",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "3e97d0d6-5494-400a-86ea-6875f125d3d5",
+        "taskId": "13904c23-8894-41cd-8bfc-f7add87d6061",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Annotierter Text",
+        "description": "Markierter Aufgabentext mit Verweisen auf Modellelemente und Verbindungen.",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "6f4031c2-8fd1-402c-9a33-50deb8901496",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Aufgabe: Lehrveranstaltungsplanung als SERM</h2><p>Erstelle das SERM aus den markierten Begriffen. Markierte Objekttypen lassen sich direkt auf den Canvas ziehen. Dieselbe Aufgabe gibt es auch als ERM: Vergleiche danach die beiden Modelle.</p><p>Ein <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-entity\">Fachbereich</span></mark> wird über sein <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-key-attribute\">Kürzel</span></mark> identifiziert. Zu jedem Fachbereich wird außerdem der <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Name</span></mark> gespeichert.<br>Jeder <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-er\">Dozent</span></mark> gehört zu genau einem Fachbereich, ein Fachbereich hat mindestens einen Dozenten. Ein Dozent wird über seine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-key-attribute\">Personalnummer</span></mark> identifiziert, außerdem wird sein <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Name</span></mark> gespeichert.<br>Ein Dozent hält beliebig viele <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-er\">Lehrveranstaltungen</span></mark>, jede Lehrveranstaltung wird von genau einem Dozenten gehalten. Eine Lehrveranstaltung wird über ihre <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-key-attribute\">Veranstaltungsnummer</span></mark> identifiziert und hat einen <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Titel</span></mark>.</p><p>Ein <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-entity\">Studierender</span></mark> wird über die <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-key-attribute\">Matrikelnummer</span></mark> identifiziert, außerdem wird der <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Name</span></mark> gespeichert. Studierende können beliebig viele Lehrveranstaltungen belegen, eine Lehrveranstaltung kann beliebig viele Teilnehmende haben. Zu jeder <mark data-color=\"#FFE0B2\" style=\"background-color: #FFE0B2;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-relationship\">Belegung</span></mark> werden <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Semester</span></mark> und <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Note</span></mark> gespeichert.</p><h3>Hinweise</h3><ul><li>Ordne die Objekttypen nach ihrer Existenzabhängigkeit von links nach rechts an: unabhängige E-Typen links, abhängige ER-Typen rechts davon (auch mehrere Stufen hintereinander), R-Typen ganz rechts.</li><li>Ziehe die Attribute in die Attributliste unter ihrem Objekttyp. Schlüsselattribute sind unterstrichen, geerbte Schlüssel werden nicht wiederholt.</li><li>Die Kardinalität steckt in der Kante: <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-connection-type=\"serm-0-n\">(0,*)</span></mark> für „beliebig viele“, <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-connection-type=\"serm-1-n\">(1,*)</span></mark> für „mindestens einer“. Kanten verlaufen immer von links (Quelle) nach rechts (Senke).</li></ul>",
+          "autonomyMode": "validating",
+          "sampleSolutions": []
+        }
+      }
+    }
+  ]
+}

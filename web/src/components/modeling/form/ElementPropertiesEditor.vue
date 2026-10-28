@@ -85,6 +85,15 @@
               <v-select v-model="localElement.style.verticalAlign" :items="verticalAlignOptions" label="Vertical Alignment" variant="outlined" density="compact" @update:model-value="emitUpdate" />
             </v-col>
           </v-row>
+
+          <v-row>
+            <v-col cols="6">
+              <v-text-field v-model.number="labelOffsetX" label="Label Offset X" variant="outlined" density="compact" type="number" step="1" suffix="px" hint="Positive moves the label right" persistent-hint />
+            </v-col>
+            <v-col cols="6">
+              <v-text-field v-model.number="labelOffsetY" label="Label Offset Y" variant="outlined" density="compact" type="number" step="1" suffix="px" hint="Positive moves the label up" persistent-hint />
+            </v-col>
+          </v-row>
         </v-expansion-panel-text>
       </v-expansion-panel>
 
@@ -95,6 +104,14 @@
         </v-expansion-panel-title>
         <v-expansion-panel-text>
           <v-checkbox v-model="localElement.allowLabelEdit" label="Label Editable on Canvas" density="compact" hint="Double-click opens the editor when enabled" persistent-hint @update:model-value="emitUpdate" />
+
+          <div class="text-subtitle-2 mt-4 mb-2">Font Style</div>
+          <v-btn-toggle v-model="fontStyleFlags" multiple density="compact" variant="outlined" divided>
+            <v-btn :value="FONT_STYLE.bold" icon="mdi-format-bold" title="Bold" />
+            <v-btn :value="FONT_STYLE.italic" icon="mdi-format-italic" title="Italic" />
+            <v-btn :value="FONT_STYLE.underline" icon="mdi-format-underline" title="Underline" />
+          </v-btn-toggle>
+          <div class="text-caption text-medium-emphasis mt-1">Applies to the whole label of new instances</div>
         </v-expansion-panel-text>
       </v-expansion-panel>
 
@@ -610,6 +627,44 @@ watch(
 function emitUpdate() {
   emit('update')
 }
+
+/**
+ * Label-Versatz in Pixeln, gespeichert als maxGraph-Spacing.
+ * maxGraph zentriert den Text im um das Spacing verkleinerten Bereich,
+ * er verschiebt sich also um die Hälfte des Spacings.
+ */
+type SpacingKey = 'spacingLeft' | 'spacingRight' | 'spacingTop' | 'spacingBottom'
+
+function labelOffset(positive: SpacingKey, negative: SpacingKey) {
+  return computed({
+    get: () => ((localElement.value.style[positive] ?? 0) - (localElement.value.style[negative] ?? 0)) / 2,
+    set: (value: number | string) => {
+      const offset = Number(value) || 0
+      const style = localElement.value.style
+      style[positive] = offset > 0 ? offset * 2 : undefined
+      style[negative] = offset < 0 ? -offset * 2 : undefined
+      emitUpdate()
+    }
+  })
+}
+
+const labelOffsetX = labelOffset('spacingLeft', 'spacingRight')
+// Positiv nach oben (Abstand unten), negativ nach unten (Abstand oben)
+const labelOffsetY = labelOffset('spacingBottom', 'spacingTop')
+
+/** Bits von maxGraphs `fontStyle` (Durchgestrichen = 8 bleibt unberührt). */
+const FONT_STYLE = { bold: 1, italic: 2, underline: 4 } as const
+const FONT_STYLE_BITS = FONT_STYLE.bold | FONT_STYLE.italic | FONT_STYLE.underline
+
+const fontStyleFlags = computed({
+  get: () => Object.values(FONT_STYLE).filter((flag) => ((localElement.value.style.fontStyle ?? 0) & flag) !== 0),
+  set: (flags: number[]) => {
+    const style = localElement.value.style
+    const fontStyle = ((style.fontStyle ?? 0) & ~FONT_STYLE_BITS) | flags.reduce((sum, flag) => sum | flag, 0)
+    style.fontStyle = fontStyle || undefined
+    emitUpdate()
+  }
+})
 
 function applySwimlaneDefaults() {
   const current = localElement.value

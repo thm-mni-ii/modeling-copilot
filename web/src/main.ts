@@ -17,7 +17,9 @@ import { completeFeedbacksystemRenewal, isFeedbacksystemCallback, resumeFeedback
 import '@maxgraph/core/css/common.css'
 
 import { Client } from '@maxgraph/core'
+import { registerCustomShapes } from './utils/shapeRegistry'
 Client.setImageBasePath('/images/')
+registerCustomShapes()
 
 // The hidden frame of a token renewal only hands the response back to the page.
 if (isEmbedded && isFeedbacksystemCallback()) {

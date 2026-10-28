@@ -1,23 +1,13 @@
 import { Graph, Point, Cell, FitPlugin } from '@maxgraph/core'
 import type { CellStyle } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
-import { applyConnectionAdditionalLabels } from './connectionLabelHelpers'
+import { applyConnectionAdditionalLabels, applyConnectionLabelOffset } from './connectionLabelHelpers'
 
 export type ConnectionPreviewMode = 'simple' | 'scenario' | 'routing'
 
 type EdgeStyle = CellStyle & Record<string, any>
 
 const cloneStyle = (style: EdgeStyle): EdgeStyle => ({ ...style })
-
-const applyLabelOffset = (edge: any, offset?: { x?: number; y?: number }) => {
-  if (!offset) return
-  const geometry = edge.getGeometry()
-  if (!geometry) return
-  const clone = geometry.clone()
-  if (offset.x !== undefined) clone.x = offset.x
-  if (offset.y !== undefined) clone.y = offset.y
-  edge.setGeometry(clone)
-}
 
 const applyPoints = (edge: any, points?: { x: number; y: number }[]) => {
   if (!points || points.length === 0) return
@@ -68,7 +58,7 @@ export const renderSimpleConnectionPreview = (graph: Graph, connection: DiagramC
     })
     createdEdge = edge ?? null
 
-    applyLabelOffset(edge, connection.labelOffset)
+    applyConnectionLabelOffset(edge, connection.labelOffset)
     applyPoints(edge, connection.points)
     applyConnectionAdditionalLabels(graph, edge, connection)
 
@@ -183,7 +173,7 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
       style: cloneStyle(baseStyle)
     })
 
-    applyLabelOffset(requestEdge, connection.labelOffset)
+    applyConnectionLabelOffset(requestEdge, connection.labelOffset)
     applyPoints(requestEdge, connection.points)
     applyConnectionAdditionalLabels(graph, requestEdge, connection)
 
@@ -232,7 +222,7 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
       feedbackGeometry.points = [new Point(eventBus.geometry!.x + 60, eventBus.geometry!.y - 80), new Point(client.geometry!.x - 40, client.geometry!.y + 20)]
     }
 
-    applyLabelOffset(feedbackEdge, connection.labelOffset)
+    applyConnectionLabelOffset(feedbackEdge, connection.labelOffset)
 
     graph.clearSelection()
   } finally {
@@ -423,7 +413,7 @@ export const renderRoutingConnectionPreview = (graph: Graph, connection: Diagram
       style: cloneStyle(baseStyle)
     })
 
-    applyLabelOffset(edge1, connection.labelOffset)
+    applyConnectionLabelOffset(edge1, connection.labelOffset)
     applyConnectionAdditionalLabels(graph, edge1, connection)
 
     // Edge 2: Left to Hub (will show orthogonal vs elbow differences)
