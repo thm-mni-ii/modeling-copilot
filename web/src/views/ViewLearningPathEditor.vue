@@ -33,6 +33,11 @@
             <span class="pulse-feature-copy"><strong>Impuls-Fragen</strong><span>{{ draft.pulseSurveys?.enabled ? `${draft.pulseSurveys.surveyIds.length} Fragebögen im Pool · Aktiv` : 'Inaktiv · Begleitende Fragen beim Modellieren' }}</span></span>
             <v-chip size="x-small" :color="draft.pulseSurveys?.enabled ? 'success' : undefined" variant="tonal">Konfiguration</v-chip>
           </button>
+          <button type="button" class="pulse-feature mt-2" :class="{ 'pulse-feature--selected': detailMode === 'help', 'pulse-feature--enabled': draft.helpRequests?.enabled }" :aria-pressed="detailMode === 'help'" aria-controls="path-detail-panel" :disabled="!ready" @click="selectHelpSettings">
+            <v-icon size="24" :color="draft.helpRequests?.enabled ? 'success' : undefined">mdi-lifebuoy</v-icon>
+            <span class="pulse-feature-copy"><strong>Hilfe anfordern</strong><span>{{ draft.helpRequests?.enabled ? 'Aktiv · Hilfe beim Modellieren' : 'Inaktiv · Ich brauche Hilfe' }}</span></span>
+            <v-chip size="x-small" :color="draft.helpRequests?.enabled ? 'success' : undefined" variant="tonal">Konfiguration</v-chip>
+          </button>
         </div>
         <p class="text-overline text-medium-emphasis px-4 pt-3">Activities</p>
         <v-alert v-if="orderNotice" type="info" variant="tonal" density="compact" closable class="ma-3 text-caption" @click:close="orderNotice = ''">{{ orderNotice }}</v-alert>
@@ -74,8 +79,20 @@
         </div>
       </aside>
 
-      <section id="path-detail-panel" class="step-details" :aria-label="detailMode === 'pulse' ? 'Impuls-Fragen konfigurieren' : 'Selected activity settings'">
-        <template v-if="detailMode === 'pulse'">
+      <section id="path-detail-panel" class="step-details" :aria-label="detailMode === 'help' ? 'Hilfe konfigurieren' : detailMode === 'pulse' ? 'Impuls-Fragen konfigurieren' : 'Selected activity settings'">
+        <template v-if="detailMode === 'help'">
+          <v-btn class="mobile-back mb-3" variant="text" prepend-icon="mdi-arrow-left" @click="showDetail = false">Back to path</v-btn>
+          <div class="detail-heading">
+            <div>
+              <p class="text-overline text-medium-emphasis">Lernpfad-Feature · Konfiguration</p>
+              <h2 ref="detailHeading" tabindex="-1" class="text-h5"><v-icon color="primary" class="mr-2">mdi-lifebuoy</v-icon>Hilfe anfordern</h2>
+            </div>
+            <v-chip :color="draft.helpRequests?.enabled ? 'success' : undefined" size="small" variant="tonal">{{ draft.helpRequests?.enabled ? 'Aktiv' : 'Inaktiv' }}</v-chip>
+          </div>
+          <v-switch :model-value="draft.helpRequests?.enabled ?? false" label="Hilfe-Funktion aktivieren" color="primary" class="mt-5" @update:model-value="draft.helpRequests = { enabled: Boolean($event) }" />
+          <p class="text-body-2 text-medium-emphasis">Zeigt während der Aufgabenbearbeitung dauerhaft „Ich brauche Hilfe“ im Modelleditor. Beim Klick wird der aktuelle Modellstand gespeichert und mit der Hilfe-Anfrage verknüpft. Die Funktion gilt für alle Modellierungsaufgaben dieses Lernpfads.</p>
+        </template>
+        <template v-else-if="detailMode === 'pulse'">
           <v-btn class="mobile-back mb-3" variant="text" prepend-icon="mdi-arrow-left" @click="showDetail = false">Back to path</v-btn>
           <div class="detail-heading">
             <div>
@@ -214,7 +231,7 @@ const route = useRoute(),
 const draft = ref<PathTemplate>({ id: '', name: '', description: '', published: false, archived: false, revision: 0, updatedAt: null, steps: [] })
 const tasks = ref<Task[]>([]),
   versions = ref<Record<string, TaskVersionInfo[]>>({})
-const detailMode = ref<'activity' | 'pulse'>('activity')
+const detailMode = ref<'activity' | 'pulse' | 'help'>('activity')
 const selectedId = ref<string | null>(null),
   selected = computed(() => detailMode.value === 'activity' ? draft.value.steps.find((step) => step.id === selectedId.value) ?? null : null)
 const selectedIndex = computed(() => draft.value.steps.findIndex((step) => step.id === selectedId.value))
@@ -292,6 +309,12 @@ const selectStep = async (id: string) => {
 }
 const selectPulseSettings = async () => {
   detailMode.value = 'pulse'
+  showDetail.value = true
+  await nextTick()
+  detailHeading.value?.focus({ preventScroll: true })
+}
+const selectHelpSettings = async () => {
+  detailMode.value = 'help'
   showDetail.value = true
   await nextTick()
   detailHeading.value?.focus({ preventScroll: true })

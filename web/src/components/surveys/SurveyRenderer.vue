@@ -23,10 +23,10 @@ import { Model } from 'survey-core'
 import { SurveyComponent } from 'survey-vue3-ui'
 import 'survey-core/survey-core.css'
 import 'survey-core/i18n/german'
-import paths, { type SurveyPhase } from '@/services/learningPaths'
+import paths, { type SurveyPhase, type HelpSurveyPhase } from '@/services/learningPaths'
 import surveys, { surveyError, type SurveyMode, type SurveyResponse } from '@/services/surveys'
 
-const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; activity?: { runId: string; stepId: string; phase?: SurveyPhase } }>(), { mode: 'use' })
+const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; activity?: { runId: string; stepId: string; phase?: SurveyPhase; helpRequestId?: string; helpPhase?: HelpSurveyPhase } }>(), { mode: 'use' })
 const emit = defineEmits<{ completed: [response?: SurveyResponse] }>()
 const model = shallowRef<Model | null>(null)
 const loading = ref(false),
@@ -64,7 +64,9 @@ const appendDraft = () => {
     try {
       inFlightAnswers = answers
       storeLocal(lastAnswers)
-      const result = (await paths.saveSurveyDraft(activity.runId, activity.stepId, answers, revision, loadedSessionId, activity.phase)).data
+      const result = (await (activity.helpRequestId && activity.helpPhase
+        ? paths.saveHelpSurveyDraft(activity.runId, activity.stepId, activity.helpRequestId, activity.helpPhase, answers, revision, loadedSessionId)
+        : paths.saveSurveyDraft(activity.runId, activity.stepId, answers, revision, loadedSessionId, activity.phase))).data
       revision = result.revision
       savedAnswers = serialized
       inFlightAnswers = null
@@ -114,7 +116,9 @@ async function submit() {
     let result: SurveyResponse
     if (activity) {
       if (!(await saveDraft()) || current !== generation) return
-      result = (await paths.submitSurvey(activity.runId, activity.stepId, answers, revision, loadedSessionId, activity.phase)).data
+      result = (await (activity.helpRequestId && activity.helpPhase
+        ? paths.submitHelpSurvey(activity.runId, activity.stepId, activity.helpRequestId, activity.helpPhase, answers, revision, loadedSessionId)
+        : paths.submitSurvey(activity.runId, activity.stepId, answers, revision, loadedSessionId, activity.phase))).data
       try {
         localStorage.removeItem(draftKey)
       } catch {
@@ -142,13 +146,15 @@ async function load() {
   saving.value = false
   try {
     const activity = props.activity
-    const session = activity ? (activity.phase?.startsWith('pulse:') ? (await paths.openPulse(activity.runId, activity.phase.slice(6))).data : (await paths.openSurvey(activity.runId, activity.stepId, activity.phase)).data) : null
+    const session = activity ? (activity.helpRequestId && activity.helpPhase
+      ? (await paths.openHelpSurvey(activity.runId, activity.stepId, activity.helpRequestId, activity.helpPhase)).data
+      : activity.phase?.startsWith('pulse:') ? (await paths.openPulse(activity.runId, activity.phase.slice(6))).data : (await paths.openSurvey(activity.runId, activity.stepId, activity.phase)).data) : null
     const survey = session ? session.version : (await surveys.render(props.surveyId, props.mode, props.versionId)).data
     if (current !== generation) return
     releaseChanged.value = session?.releaseChanged ?? false
     loadedVersionId = survey.id
     const pulse = activity?.phase?.startsWith('pulse:')
-    const instance = new Model({ ...survey.definition, title: pulse ? '' : survey.title, ...(pulse ? { completeText: 'Absenden' } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
+    const instance = new Model({ ...survey.definition, title: pulse || activity?.helpRequestId ? '' : survey.title, ...(pulse || activity?.helpRequestId ? { completeText: activity?.helpPhase === 'action' ? 'Hilfe auswählen' : 'Weiter' } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
     if (session) {
       loadedSessionId = session.sessionId
       revision = session.revision
@@ -186,7 +192,7 @@ async function load() {
   }
 }
 // Parent renders create a new activity object; reload only if its IDs change.
-watch([() => props.surveyId, () => props.versionId, () => props.mode, () => props.activity?.runId, () => props.activity?.stepId, () => props.activity?.phase], load, { immediate: true })
+watch([() => props.surveyId, () => props.versionId, () => props.mode, () => props.activity?.runId, () => props.activity?.stepId, () => props.activity?.phase, () => props.activity?.helpRequestId, () => props.activity?.helpPhase], load, { immediate: true })
 onBeforeUnmount(() => {
   clearTimeout(draftTimer)
   if (props.activity && !completed.value) appendDraft()

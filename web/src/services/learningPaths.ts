@@ -46,6 +46,7 @@ export interface PathTemplate {
   updatedAt: string | null
   steps: PathStep[]
   pulseSurveys?: PulseSurveyConfig
+  helpRequests?: { enabled: boolean }
 }
 export interface StepRun extends PathStep {
   status: 'locked' | 'available' | 'in_progress' | 'completed' | 'skipped'
@@ -83,8 +84,34 @@ export interface PathModelContext {
   beforeSurvey: { surveyId: string; completed: boolean } | null
   afterSurvey: { surveyId: string; completed: boolean } | null
   challenge: ChallengeAttempt | null
+  helpRequests: { enabled: boolean }
 }
+export interface HelpRequest {
+  id: string
+  runId: string
+  stepId: string
+  modelId: string
+  modelVersionId: string
+  createdAt: string
+  stage: 'topic' | 'marking' | 'reflection' | 'action' | 'completed' | 'cancelled'
+  surveyIds: Record<HelpSurveyPhase, string>
+  markings: HelpMarkings | null
+  nextAction: string | null
+}
+export type HelpSurveyPhase = 'topic' | 'reflection' | 'action'
+export interface HelpTextRange { start: number; end: number; text: string }
+export interface HelpMarkings { cellIds: string[]; taskTextRanges: HelpTextRange[] }
+export interface SurveySession { version: SurveyVersion; answers: Record<string, unknown>; revision: number; sessionId: string; releaseChanged: boolean; status: string }
+const helpUrl = (runId: string, stepId: string, requestId: string) => `/v1/learning-path-runs/${runId}/steps/${stepId}/help-requests/${requestId}`
 export default {
+  activeHelp: (runId: string, stepId: string) => http.get<HelpRequest | null>(`/v1/learning-path-runs/${runId}/steps/${stepId}/help-requests/active`),
+  help: (runId: string, stepId: string, requestId: string) => http.get<HelpRequest>(helpUrl(runId, stepId, requestId)),
+  cancelHelp: (runId: string, stepId: string, requestId: string) => http.post<HelpRequest>(`${helpUrl(runId, stepId, requestId)}/cancel`),
+  saveHelpMarkings: (runId: string, stepId: string, requestId: string, markings: HelpMarkings) => http.put<HelpRequest>(`${helpUrl(runId, stepId, requestId)}/markings`, markings),
+  openHelpSurvey: (runId: string, stepId: string, requestId: string, phase: HelpSurveyPhase) => http.post<SurveySession>(`${helpUrl(runId, stepId, requestId)}/surveys/${phase}/open`),
+  saveHelpSurveyDraft: (runId: string, stepId: string, requestId: string, phase: HelpSurveyPhase, answers: Record<string, unknown>, revision: number, sessionId: string) => http.put<{ revision: number }>(`${helpUrl(runId, stepId, requestId)}/surveys/${phase}/draft`, { answers, revision, sessionId }),
+  submitHelpSurvey: (runId: string, stepId: string, requestId: string, phase: HelpSurveyPhase, answers: Record<string, unknown>, revision: number, sessionId: string) => http.post<SurveyResponse>(`${helpUrl(runId, stepId, requestId)}/surveys/${phase}/submit`, { answers, revision, sessionId }),
+  requestHelp: (runId: string, stepId: string, requestId: string, modelVersionId: string) => http.post<HelpRequest>(`/v1/learning-path-runs/${runId}/steps/${stepId}/help-requests`, { requestId, modelVersionId }),
   pollPulse: (runId: string, stepId: string, sessionKey: string, activeSecondsDelta: number) => http.post<{ offer: PulseOffer | null; nextPollSeconds: number }>(`/v1/learning-path-runs/${runId}/steps/${stepId}/pulse/poll`, { sessionKey, activeSecondsDelta }),
   openPulse: (runId: string, offerId: string) => http.post<{ version: SurveyVersion; answers: Record<string, unknown>; revision: number; sessionId: string; releaseChanged: boolean; status: string }>(`/v1/learning-path-runs/${runId}/pulse/${offerId}/open`),
   dismissPulse: (runId: string, offerId: string) => http.post(`/v1/learning-path-runs/${runId}/pulse/${offerId}/dismiss`),
@@ -99,8 +126,8 @@ export default {
   templates: (skip = 0) => http.get<ApiPage<PathTemplate>>('/v1/learning-path-templates', { params: { skip, limit: 100 } }),
   template: (id: string) => http.get<PathTemplate>(`/v1/learning-path-templates/${id}`),
   save: (template: PathTemplate) => {
-    const { name, description, published, archived, revision, steps, pulseSurveys } = template
-    const body = { name, description, published, archived, revision, steps, pulseSurveys }
+    const { name, description, published, archived, revision, steps, pulseSurveys, helpRequests } = template
+    const body = { name, description, published, archived, revision, steps, pulseSurveys, helpRequests }
     return template.id ? http.put<PathTemplate>(`/v1/learning-path-templates/${template.id}`, body) : http.post<PathTemplate>('/v1/learning-path-templates', body)
   },
   start: (id: string) => http.post<PathRun>(`/v1/learning-path-templates/${id}/runs`),

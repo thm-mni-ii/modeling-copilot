@@ -1,0 +1,60 @@
+{
+  "topic": {
+    "title": "Hilfe: Dein Problem",
+    "definition": {
+      "elements": [
+        {
+          "type": "radiogroup", "name": "problem_area",
+          "title": "Worauf bezieht sich dein Problem?", "isRequired": true,
+          "choices": ["Aufgabenstellung/Modell", "Bedienung des Tools", "Anderes"]
+        },
+        {
+          "type": "comment", "name": "other_problem",
+          "title": "Beschreibe kurz, worauf sich dein Problem bezieht.", "isRequired": true,
+          "visibleIf": "{problem_area} = 'Anderes'"
+        }
+      ]
+    }
+  },
+  "reflection": {
+    "title": "Hilfe: Was brauchst du gerade?",
+    "definition": {
+      "elements": [
+        {
+          "type": "radiogroup", "name": "stuck_duration",
+          "title": "Wie lange kommst du an dieser Stelle gefühlt schon nicht weiter?", "isRequired": true,
+          "choices": ["1–2 min", "3–5 min", "5–10 min", "10–15 min", "15–30 min", "30–60 min", "Über 60 min"]
+        },
+        {
+          "type": "radiogroup", "name": "support_need",
+          "title": "Was würde dir gerade am meisten helfen?", "isRequired": true,
+          "choices": [
+            "Eine Erklärung, damit ich es verstehe",
+            "Ein Hinweis auf den nächsten Schritt",
+            "Ein Beispiel",
+            "Eine Prüfung/Bestätigung meiner bisherigen Lösung",
+            "Eine konkrete Lösung bzw. Antwort",
+            "Ich weiß selbst nicht genau, was ich brauche"
+          ]
+        }
+      ]
+    }
+  },
+  "action": {
+    "title": "Hilfe: Dein nächster Schritt",
+    "definition": {
+      "elements": [
+        {
+          "type": "radiogroup", "name": "next_action",
+          "title": "Welche Hilfe möchtest du jetzt nutzen?", "isRequired": true,
+          "choices": [
+            "Ich schaue in den Vorlesungsfolien nach",
+            "Ich frage eine Lehrkraft",
+            "Ich frage eine Kollegin / einen Kollegen oder eine Kommilitonin / einen Kommilitonen",
+            "Ich hole mir selbst andere Hilfe"
+          ]
+        }
+      ]
+    }
+  }
+}

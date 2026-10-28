@@ -567,6 +567,7 @@ async def get_model_context(model_id, user):
             if assigned
             else None
         )
+    context["helpRequests"] = template.get("helpRequests", {"enabled": False})
     return PathModelContext.model_validate(context)
 
 

@@ -120,6 +120,53 @@ class PulsePollResult(ApiSchema):
     next_poll_seconds: int = Field(default=30, ge=1, le=30)
 
 
+class HelpRequestConfig(ApiSchema):
+    enabled: bool = False
+
+
+class CreateHelpRequest(ApiSchema):
+    request_id: UUID
+    model_version_id: UUID
+
+
+class HelpTextRange(ApiSchema):
+    start: int = Field(ge=0, le=1000000)
+    end: int = Field(ge=1, le=1000000)
+    text: str = Field(min_length=1, max_length=20000)
+
+    @model_validator(mode="after")
+    def ordered_range(self):
+        if self.end <= self.start or not self.text.strip():
+            raise ValueError("Select a non-empty text range.")
+        return self
+
+
+class HelpMarkings(ApiSchema):
+    cell_ids: list[str] = Field(default_factory=list, max_length=200)
+    task_text_ranges: list[HelpTextRange] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def valid_markings(self):
+        if not self.cell_ids and not self.task_text_ranges:
+            raise ValueError("Mark at least one model element or text passage.")
+        if len(set(self.cell_ids)) != len(self.cell_ids) or any(not i or len(i) > 256 for i in self.cell_ids):
+            raise ValueError("Model element references must be unique and bounded.")
+        return self
+
+
+class HelpRequest(ApiSchema):
+    id: UUID
+    run_id: UUID
+    step_id: UUID
+    model_id: UUID
+    model_version_id: UUID
+    created_at: datetime
+    stage: Literal["topic", "marking", "reflection", "action", "completed", "cancelled"] = "completed"
+    survey_ids: dict[str, UUID] = Field(default_factory=dict)
+    markings: HelpMarkings | None = None
+    next_action: str | None = None
+
+
 class SaveTemplate(ApiSchema):
     name: Name
     description: str = Field(default="", max_length=5000)
@@ -128,6 +175,7 @@ class SaveTemplate(ApiSchema):
     steps: list[LearningPathStep] = Field(default_factory=list, max_length=200)
     revision: int = Field(default=0, ge=0)
     pulse_surveys: PulseSurveyConfig = Field(default_factory=PulseSurveyConfig)
+    help_requests: HelpRequestConfig = Field(default_factory=HelpRequestConfig)
 
     @model_validator(mode="after")
     def valid_graph(self):
@@ -243,3 +291,4 @@ class PathModelContext(ApiSchema):
     completion_requested: bool = False
     before_survey: TaskSurveyProgress | None = None
     after_survey: TaskSurveyProgress | None = None
+    help_requests: HelpRequestConfig = Field(default_factory=HelpRequestConfig)

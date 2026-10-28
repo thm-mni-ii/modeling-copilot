@@ -3,6 +3,7 @@
     <v-alert v-if="stepRun?.removed" type="info" variant="tonal" class="mb-3">This station was removed from the learning path. Your model is still available.</v-alert>
     <v-alert v-if="pulseEnabled && pulse.pollError.value" type="warning" variant="tonal" density="compact" class="mb-3">Impuls-Fragen konnten nicht abgefragt werden: {{ pulse.pollError.value }} Die Abfrage wird automatisch wiederholt.</v-alert>
     <v-progress-linear v-if="loading" indeterminate class="model-loading" />
+    <HelpRequestFlow v-if="currentHelp" v-model:request="currentHelp" :cell-ids="helpCellIds" :text-ranges="helpTextRanges" :snapshot-loading="helpSnapshotLoading" :snapshot-error="helpSnapshotError" @remove-text="helpTextRanges.splice($event, 1)" @retry-snapshot="loadHelpSnapshot" @close="closeHelp" />
     <ChallengeOverlay v-if="!loading && !activeSurvey && stepRun?.challenge" :key="stepRun.id" :attempt="stepRun.challenge" :stopping="challengeBusy" @stop="stopChallenge" />
     <div v-if="activeSurvey && stepRun" class="task-survey-layout">
       <section class="task-survey pa-4">
@@ -16,7 +17,11 @@
       v-show="!loading && !activeSurvey && !pathLoadFailed"
       ref="canvas"
       v-model:model="graphModel"
+      v-model:help-cell-ids="helpCellIds"
       class="editor-canvas"
+      :class="{ 'help-snapshot-loading': helpMarking && (!helpSnapshot || helpSnapshotLoading) }"
+      :allow-edit="!helpMarking"
+      :help-selection-mode="helpMarking && Boolean(helpSnapshot)"
       model-management
       :model-id="workspace.model?.id ?? null"
       :open-evaluation-id="startedEvaluationId"
@@ -39,9 +44,12 @@
       @focus-task-edit="focusTaskEdit"
     >
       <template v-if="stepRun" #sidebar-top>
-        <LearningJourneyDock :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy" @leave="returnToPath(false)" @complete="returnToPath(true)">
+        <LearningJourneyDock :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy || helpBusy" @leave="returnToPath(false)" @complete="returnToPath(true)">
           <template #pulse><PulseSurveyPirate v-if="stepRun && pulseEnabled" :run-id="stepRun.runId" :step-id="stepRun.stepId" :visible="pulse.visible.value" :offer="pulse.offer.value" :offer-opened="pulse.offerOpened.value" :reward-coins="pulse.rewardCoins.value" :coin-balance="pulse.coinBalance.value" :state="pulse.state.value" :busy="pulse.busy.value" :error="pulse.error.value" @open="pulse.open" @dismiss="pulse.dismiss" @answered="pulse.answered" @expired="pulse.expire" /></template>
         </LearningJourneyDock>
+      </template>
+      <template v-if="helpEnabled" #canvas-top-right>
+        <LearningPathHelp :busy="helpBusy" :disabled="helpActive || pathBusy || workspace.syncState === 'saving' || recoveryDialog" @request="requestHelp" />
       </template>
       <template #canvas-top>
         <div v-if="workspace.diagramTask" class="task-area">
@@ -53,6 +61,10 @@
             :element-options="taskElementOptions"
             :connection-options="taskConnectionOptions"
             :evaluation-workflows="workspace.taskVersion?.data.evaluationWorkflows ?? []"
+            :help-selection-mode="helpMarking"
+            :help-task-document="helpSnapshot?.taskEditSnapshot?.document ?? null"
+            :help-text-ranges="helpTextRanges"
+            @mark-help-text="markHelpText"
             @pop-out="taskWindowOpen = true"
             @start-evaluation="startEvaluation"
             @select-connection="selectTaskConnection"
@@ -92,12 +104,16 @@ import type { JsonObject } from '@/services/api/types/common'
 import type { CanvasWindowDefinition } from '@/model/CanvasWindow'
 import { removeTaskEdit } from '@/utils/taskEdits'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
-import paths, { type PathModelContext } from '@/services/learningPaths'
+import paths, { type PathModelContext, type HelpRequest, type HelpTextRange } from '@/services/learningPaths'
+import modelService from '@/services/model/model.service'
+import type { ModelVersion } from '@/services/api/types/model'
 import evaluationService from '@/services/evaluation/evaluation.service'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import ChallengeOverlay from '@/components/learningPaths/ChallengeOverlay.vue'
 import LearningJourneyDock from '@/components/learningPaths/LearningJourneyDock.vue'
 import PulseSurveyPirate from '@/components/learningPaths/PulseSurveyPirate.vue'
+import LearningPathHelp from '@/components/learningPaths/LearningPathHelp.vue'
+import HelpRequestFlow from '@/components/learningPaths/HelpRequestFlow.vue'
 import { usePulseSurvey } from '@/composables/usePulseSurvey'
 
 interface Props {
@@ -114,6 +130,18 @@ const recoveryData = ref<JsonObject | null>(null)
 const hydrating = ref(false)
 const loading = ref(false)
 const pathBusy = ref(false)
+const helpBusy = ref(false)
+const currentHelp = ref<HelpRequest | null>(null)
+const helpActive = computed(() => Boolean(currentHelp.value && !['completed', 'cancelled'].includes(currentHelp.value.stage)))
+const helpMarking = computed(() => currentHelp.value?.stage === 'marking')
+const helpCellIds = ref<string[]>([])
+const helpTextRanges = ref<HelpTextRange[]>([])
+const helpSnapshot = ref<ModelVersion | null>(null)
+const helpSnapshotLoading = ref(false)
+const helpSnapshotError = ref('')
+let helpSnapshotGeneration = 0
+// Keep the same saved version and request ID when retrying a failed event write.
+const pendingHelp = ref<{ requestId: string; modelVersionId: string } | null>(null)
 const stepRun = ref<PathModelContext | null>(null)
 const pathLoadFailed = ref(false)
 const completing = ref(route.query.complete === '1')
@@ -125,12 +153,14 @@ const activeSurvey = computed(() => {
   if (path.beforeSurvey && !path.beforeSurvey.completed) return path.beforeSurvey
   return path.completionRequested && path.afterSurvey && !path.afterSurvey.completed ? path.afterSurvey : null
 })
-const pulseEnabled = computed(() => Boolean(stepRun.value && !stepRun.value.removed && !stepRun.value.completedAt && !stepRun.value.completionRequested && !activeSurvey.value && !loading.value && !pathLoadFailed.value && !recoveryDialog.value))
+const pulseEnabled = computed(() => Boolean(!currentHelp.value && stepRun.value && !stepRun.value.removed && !stepRun.value.completedAt && !stepRun.value.completionRequested && !activeSurvey.value && !loading.value && !pathLoadFailed.value && !recoveryDialog.value))
+const helpEnabled = computed(() => Boolean(stepRun.value?.helpRequests?.enabled && !stepRun.value.removed && !stepRun.value.completedAt && !stepRun.value.completionRequested && !activeSurvey.value && !loading.value && !pathLoadFailed.value))
 const pulse = usePulseSurvey(computed(() => stepRun.value?.runId), computed(() => stepRun.value?.stepId), pulseEnabled)
 watch(pulse.coinBalance, (coins) => {
   if (stepRun.value && coins !== null) stepRun.value.coins = coins
 })
 onBeforeRouteLeave(async () => {
+  if (helpBusy.value || helpActive.value) return false
   if (taskSurvey.value?.saving) return false
   return (await taskSurvey.value?.saveDraft()) !== false
 })
@@ -157,7 +187,7 @@ const stopChallenge = async () => {
 }
 const returnToPath = async (complete: boolean) => {
   const path = stepRun.value
-  if (!path) return
+  if (!path || helpActive.value) return
   pathBusy.value = true
   try {
     captureCanvas()
@@ -195,8 +225,68 @@ const connectionGroups = computed(() =>
 )
 const syntax = computed(() => workspace.editorLanguages.flatMap((language) => language.syntax))
 const captureCanvas = () => {
-  if (!hydrating.value && !loading.value && !activeSurvey.value && canvas.value) workspace.setData({ ...canvas.value.serializeModel(), name: workspace.model?.name ?? workspace.data.name })
+  if (!helpMarking.value && !helpSnapshot.value && !hydrating.value && !loading.value && !activeSurvey.value && canvas.value) workspace.setData({ ...canvas.value.serializeModel(), name: workspace.model?.name ?? workspace.data.name })
 }
+const requestHelp = async () => {
+  const path = stepRun.value
+  if (!path || currentHelp.value || !helpEnabled.value || helpBusy.value || pathBusy.value || recoveryDialog.value || workspace.syncState === 'saving') return
+  helpBusy.value = true
+  try {
+    if (!pendingHelp.value) {
+      captureCanvas()
+      const version = await workspace.save('checkpoint')
+      pendingHelp.value = { requestId: version.id, modelVersionId: version.id }
+    }
+    currentHelp.value = (await paths.requestHelp(path.runId, path.stepId, pendingHelp.value.requestId, pendingHelp.value.modelVersionId)).data
+    pendingHelp.value = null
+  } catch {
+    notifyError('Die Hilfe-Anfrage konnte nicht gespeichert werden. Bitte versuche es erneut.')
+    await refreshPathContext()
+  } finally {
+    helpBusy.value = false
+  }
+}
+const markHelpText = (range: HelpTextRange) => {
+  if (helpMarking.value && helpSnapshot.value && !helpTextRanges.value.some((item) => item.start === range.start && item.end === range.end)) helpTextRanges.value.push(range)
+}
+const closeHelp = () => {
+  currentHelp.value = null
+}
+const loadActiveHelp = async () => {
+  const path = stepRun.value
+  if (!path || path.removed || path.completedAt) return
+  try { currentHelp.value = (await paths.activeHelp(path.runId, path.stepId)).data }
+  catch { notifyError('Ein offener Hilfe-Ablauf konnte nicht geladen werden. Bitte lade die Seite erneut.') }
+}
+const loadHelpSnapshot = async () => {
+  const request = currentHelp.value
+  if (!request || request.stage !== 'marking') return
+  const generation = ++helpSnapshotGeneration
+  helpSnapshotLoading.value = true
+  helpSnapshotError.value = ''
+  try {
+    const version = (await modelService.getVersion(request.modelId, request.modelVersionId)).data
+    if (generation !== helpSnapshotGeneration || !helpMarking.value) return
+    helpSnapshot.value = version
+    hydrating.value = true
+    await nextTick()
+    canvas.value?.loadPersistedModel(version.data)
+    await nextTick()
+  } catch { helpSnapshotError.value = 'Der gespeicherte Modellstand konnte nicht geladen werden.' }
+  finally {
+    if (generation === helpSnapshotGeneration) { helpSnapshotLoading.value = false; hydrating.value = false }
+  }
+}
+watch(() => currentHelp.value?.id, () => { helpCellIds.value = []; helpTextRanges.value = [] })
+watch(() => currentHelp.value?.stage, async (stage) => {
+  if (stage === 'marking') { taskWindowOpen.value = false; await loadHelpSnapshot() }
+  else {
+    helpSnapshotGeneration++
+    helpSnapshotLoading.value = false
+    if (helpSnapshot.value) { helpSnapshot.value = null; await syncCanvas() }
+    if (stage === 'cancelled') currentHelp.value = null
+  }
+})
 const syncCanvas = async () => {
   hydrating.value = true
   try {
@@ -210,10 +300,12 @@ const syncCanvas = async () => {
 const restoreDraft = async () => {
   if (await workspace.restoreRecoveryDraft()) await syncCanvas()
   recoveryDialog.value = false
+  await loadActiveHelp()
 }
 const discardDraft = async () => {
   await workspace.discardRecoveryDraft()
   recoveryDialog.value = false
+  await loadActiveHelp()
 }
 const onWindowRemoved = (id: string) => {
   if (id === 'task-description') taskWindowOpen.value = false
@@ -264,7 +356,7 @@ onMounted(async () => {
       if (recoverySnapshot) {
         recoveryData.value = recoverySnapshot
         recoveryDialog.value = true
-      }
+      } else await loadActiveHelp()
     } else if (workspace.languages.length === 0) {
       await router.replace('/')
     }
@@ -301,6 +393,7 @@ onMounted(async () => {
   flex: 1;
   min-height: 0;
 }
+.help-snapshot-loading { pointer-events: none; opacity: 0.6; }
 .task-area {
   display: flex;
   align-items: flex-start;

@@ -12,6 +12,7 @@ from modeling_api.db.store import utcnow
 from modeling_api.schemas.learning_paths import SaveTemplate
 from modeling_api.services.learning_path_store import step_document, template_meta
 from modeling_api.schemas.surveys import Definition
+from modeling_api.db.help_questionnaires import HELP_SURVEY_IDS
 
 # An empty owner marks global, read-only seed data.
 SYSTEM_OWNER_ID = ""
@@ -86,6 +87,14 @@ async def _seed_learning_path(path_id, body, created_at):
 async def seed_initial_data() -> None:
     """Store fixed seed data for a new Modeling Copilot database."""
     created_at = utcnow()
+    for phase, questionnaire in _load_initial_data("help_questionnaires.json").items():
+        survey_id = HELP_SURVEY_IDS[phase]
+        await _seed_survey(
+            survey_id, str(uuid5(UUID(survey_id), "release:1")),
+            questionnaire["title"],
+            Definition.model_validate(questionnaire["definition"]).model_dump(exclude_none=True),
+            created_at,
+        )
     language_data = _uml_class_diagram()
 
     await db.languages.update_one(

@@ -12,13 +12,63 @@ from modeling_api.schemas.learning_paths import (
     PathModelContext,
     PulsePoll,
     PulsePollResult,
+    CreateHelpRequest,
+    HelpRequest,
+    HelpMarkings,
 )
 from modeling_api.schemas.common import Page
 from modeling_api.schemas.survey_sessions import SurveySessionInput, SurveySessionView
 from modeling_api.schemas.challenges import StartStep
-from modeling_api.services import learning_paths as service, pulse_surveys
+from modeling_api.services import learning_paths as service, pulse_surveys, help_requests
 
 router = APIRouter(tags=["Learning paths"])
+
+
+@router.post(
+    "/learning-path-runs/{run_id}/steps/{step_id}/help-requests",
+    response_model=HelpRequest,
+    status_code=201,
+)
+async def request_help(run_id: UUID, step_id: UUID, body: CreateHelpRequest, user: CurrentUser):
+    return await help_requests.create(run_id, step_id, body, user)
+
+
+@router.get("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/active", response_model=HelpRequest | None)
+async def active_help(run_id: UUID, step_id: UUID, user: CurrentUser):
+    return await help_requests.active(run_id, step_id, user)
+
+
+@router.get("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}", response_model=HelpRequest)
+async def get_help(run_id: UUID, step_id: UUID, request_id: UUID, user: CurrentUser):
+    return await help_requests.get(run_id, step_id, request_id, user)
+
+
+@router.post("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}/cancel", response_model=HelpRequest)
+async def cancel_help(run_id: UUID, step_id: UUID, request_id: UUID, user: CurrentUser):
+    return await help_requests.cancel(run_id, step_id, request_id, user)
+
+
+@router.put("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}/markings", response_model=HelpRequest)
+async def help_markings(run_id: UUID, step_id: UUID, request_id: UUID, body: HelpMarkings, user: CurrentUser):
+    return await help_requests.save_markings(run_id, step_id, request_id, body, user)
+
+
+HelpSurveyPhase = Literal["topic", "reflection", "action"]
+
+
+@router.post("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}/surveys/{phase}/open", response_model=SurveySessionView)
+async def open_help_survey(run_id: UUID, step_id: UUID, request_id: UUID, phase: HelpSurveyPhase, user: CurrentUser):
+    return await help_requests.open_survey(run_id, step_id, request_id, phase, user)
+
+
+@router.put("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}/surveys/{phase}/draft")
+async def draft_help_survey(run_id: UUID, step_id: UUID, request_id: UUID, phase: HelpSurveyPhase, body: SurveySessionInput, user: CurrentUser):
+    return await help_requests.save_survey(run_id, step_id, request_id, phase, body, user, "draft")
+
+
+@router.post("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}/surveys/{phase}/submit")
+async def submit_help_survey(run_id: UUID, step_id: UUID, request_id: UUID, phase: HelpSurveyPhase, body: SurveySessionInput, user: CurrentUser):
+    return await help_requests.save_survey(run_id, step_id, request_id, phase, body, user, "submit")
 
 
 @router.get(

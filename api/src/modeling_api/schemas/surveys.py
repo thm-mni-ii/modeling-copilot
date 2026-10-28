@@ -1,6 +1,7 @@
 """The editor's supported subset uses SurveyJS property names directly."""
 
 import json
+import re
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -17,6 +18,7 @@ class Question(BaseModel):
     name: str = Field(pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
     title: Name
     isRequired: bool = False
+    visibleIf: str | None = Field(default=None, max_length=400)
     choices: list[Name] | None = Field(default=None, max_length=100)
     rows: list[Name] | None = Field(default=None, max_length=100)
     columns: list[Name] | None = Field(default=None, max_length=100)
@@ -46,7 +48,22 @@ class Definition(BaseModel):
     def unique_names(self):
         if len({q.name for q in self.elements}) != len(self.elements):
             raise ValueError("Question names must be unique.")
+        earlier = {}
+        for question in self.elements:
+            if question.visibleIf:
+                name, choice = visibility_condition(question.visibleIf)
+                source = earlier.get(name)
+                if not source or source.type != "radiogroup" or choice not in source.choices:
+                    raise ValueError("Visibility must compare an earlier single-choice question to one of its choices.")
+            earlier[question.name] = question
         return self
+
+
+def visibility_condition(expression):
+    match = re.fullmatch(r"\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} = '([^']+)'", expression)
+    if not match:
+        raise ValueError("Unsupported question visibility condition.")
+    return match.groups()
 
 
 class SaveSurvey(ApiSchema):

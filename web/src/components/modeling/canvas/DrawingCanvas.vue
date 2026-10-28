@@ -1,7 +1,7 @@
 ﻿<template>
   <v-card class="pa-2" height="100%" width="100%">
     <v-card-text class="pa-1 canvas-content">
-      <ModelingHeader v-if="props.showToolbar && props.modelManagement" class="mb-2">
+      <ModelingHeader v-if="props.showToolbar && props.modelManagement" class="mb-2" :inert="props.helpSelectionMode || undefined">
         <template #controls>
           <CanvasToolbar
             ref="canvasToolbar"
@@ -34,7 +34,7 @@
       </ModelingHeader>
 
       <!-- Erweiterte Toolbar für Einbettungen ohne Modellverwaltung -->
-      <div v-else-if="props.showToolbar" class="toolbar-actions mb-2">
+      <div v-else-if="props.showToolbar" class="toolbar-actions mb-2" :inert="props.helpSelectionMode || undefined">
         <CanvasToolbar
           ref="canvasToolbar"
           v-model:layer-view="activeLayerView"
@@ -58,19 +58,27 @@
       </div>
 
       <!-- Canvas Area: Sidebar + Graph -->
-      <div class="canvas-area">
+      <div class="canvas-area" :class="{ 'canvas-area--help-selection': props.helpSelectionMode }">
         <!-- Elements Sidebar -->
-        <SidebarContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && (props.modelManagement || sidebarLanguages.length > 0)" :languages="sidebarLanguages" :model-management="props.modelManagement" />
+        <SidebarContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && (props.modelManagement || sidebarLanguages.length > 0)" :inert="props.helpSelectionMode || undefined" :languages="sidebarLanguages" :model-management="props.modelManagement" />
 
         <!-- Graph Container -->
         <div ref="graphWrapper" class="graph-wrapper">
           <div v-if="$slots['canvas-top']" class="canvas-top">
             <slot name="canvas-top" />
           </div>
-          <div ref="graphContainer" class="graph-container" tabindex="0" @pointerdown="focusGraphContainer">
+          <div class="graph-viewport">
             <!-- Separater Grid Container -->
             <div class="grid-container">
               <canvas ref="canvasGrid" class="grid-canvas"></canvas>
+            </div>
+
+            <!-- Only maxGraph owns this node's children. Fixed UI stays outside
+                 its temporary panning preview containers. -->
+            <div ref="graphContainer" class="graph-container" tabindex="0" @pointerdown="focusGraphContainer"></div>
+
+            <div v-if="$slots['canvas-top-right']" class="canvas-top-right" @pointerdown.stop @click.stop @wheel.stop>
+              <slot name="canvas-top-right" />
             </div>
 
             <GraphControls @zoom-in="zoomIn" @zoom-out="zoomOut" @fit-to-window="fitToWindow" @toggle-grid="toggleGrid" @force-grid-repaint="forceGridRepaint" />
@@ -78,28 +86,6 @@
             <!-- Graph Settings Component -->
             <GraphSettings @update:grid-size="updateGridSize" @update:tolerance="updateTolerance" @update:snap-to-grid="updateSnapToGrid" @update:use-grid-for-panning="updateUseGridForPanning" />
 
-            <div class="shortcut-help-anchor" :class="{ 'hidden-during-pan': isPanning }">
-              <v-tooltip location="left" transition="scale-transition">
-                <template #activator="{ props: activatorProps }">
-                  <v-btn v-bind="activatorProps" icon size="small" color="primary" variant="flat" class="shortcut-help-btn" aria-label="Show keyboard shortcuts">
-                    <v-icon size="18">mdi-information-outline</v-icon>
-                  </v-btn>
-                </template>
-
-                <div class="shortcut-tooltip-content">
-                  <div><strong>Keyboard shortcuts</strong></div>
-                  <div>Ctrl+A: Select all</div>
-                  <div>Ctrl+C: Copy</div>
-                  <div>Ctrl+V: Paste</div>
-                  <div>Ctrl+D: Duplicate</div>
-                  <div>Ctrl+Z: Undo</div>
-                  <div>Ctrl+Y: Redo</div>
-                  <div>Del: Delete</div>
-                  <div>Esc: Clear selection</div>
-                  <div>Mouse wheel on canvas: Zoom in/out</div>
-                </div>
-              </v-tooltip>
-            </div>
           </div>
 
           <CanvasWindowHost ref="canvasWindowHost" :graph-container="graphContainer ?? null" :windows="props.canvasWindows" @window-removed="onWindowRemoved">
@@ -119,7 +105,7 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
+        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :inert="props.helpSelectionMode || undefined" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
           <template v-if="$slots['sidebar-top']" #top><slot name="sidebar-top" /></template>
         </SidebarRightContainer>
         <CollabConnector v-if="props.modelManagement" />
@@ -133,7 +119,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorHandler, SelectionCellsHandler, SelectionHandler, CellState, EdgeStyle, GraphDataModel, PanningHandler, ImageBox, Client, KeyHandler, TooltipHandler, FitPlugin, Clipboard, ConnectionConstraint } from '@maxgraph/core'
-import type { GraphPluginConstructor } from '@maxgraph/core'
+import { CellHighlight, eventUtils, type MouseListenerSet, type GraphPluginConstructor } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { TaskEditSyncState } from '@/utils/taskEdits'
@@ -144,6 +130,7 @@ import { useGridSettings } from '@/composables/useGridSettings'
 import { useCanvasOverlays } from '@/composables/useCanvasOverlays'
 import { notifyError } from '@/composables/useNotifications'
 import { setupDynamicGrid } from '@/utils/setupDynamicGrid'
+import { StablePanningHandler } from '@/utils/StablePanningHandler'
 import { createDefaultShapes, buildShapesFromElements, ensureGraphDropHandlers } from '@/utils/setupToolbar'
 import { setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
 import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview } from '@/utils/connectionPreview'
@@ -315,6 +302,8 @@ const props = withDefaults(
   defineProps<{
     model?: GraphDataModel
     allowEdit?: boolean
+    helpSelectionMode?: boolean
+    helpCellIds?: string[]
     showToolbar?: boolean
     showElements?: boolean
     showModelSidebar?: boolean
@@ -342,6 +331,8 @@ const props = withDefaults(
   }>(),
   {
     allowEdit: true,
+    helpSelectionMode: false,
+    helpCellIds: () => [],
     showToolbar: true,
     showElements: true,
     showModelSidebar: true,
@@ -376,6 +367,7 @@ const emit = defineEmits<{
   'window-removed': [id: string]
   'removeTaskEdit': [id: string]
   'updateTaskEditDocument': [document: JsonObject]
+  'update:helpCellIds': [ids: string[]]
   'focusTaskEdit': [id: string]
 }>()
 
@@ -395,6 +387,7 @@ const canRedo = ref(false)
 const graphWrapper = ref<HTMLElement | null>(null)
 const graphContainer = ref<HTMLElement>()
 const canvasGrid = ref<HTMLCanvasElement>()
+let cleanupGrid: (() => void) | undefined
 const canvasWindowHost = ref<CanvasWindowHostApi | null>(null)
 const canvasToolbar = ref<CanvasToolbarApi | null>(null)
 // shallowRef verhindert, dass Vue die Graph-Instanz in einen reactive()-Proxy einwickelt.
@@ -409,8 +402,42 @@ const modelLayerCell = shallowRef<Cell>()
 const feedbackLayerCell = shallowRef<Cell>()
 const keyHandler = shallowRef<KeyHandler>()
 const customConnectionHandler = shallowRef<CustomConnectionHandler>()
+const helpHighlights: CellHighlight[] = []
+const refreshHelpHighlights = () => {
+  helpHighlights.splice(0).forEach((highlight) => highlight.destroy())
+  const current = graph.value
+  if (!current || !props.helpSelectionMode) return
+  for (const id of props.helpCellIds) {
+    const cell = current.getDataModel().getCell(id)
+    const state = cell ? current.view.getState(cell) : null
+    if (!state) continue
+    const highlight = new CellHighlight(current, '#b27b20', 3)
+    highlight.highlight(state)
+    if (highlight.shape?.node) highlight.shape.node.style.pointerEvents = 'none'
+    helpHighlights.push(highlight)
+  }
+}
+const helpMouseListener: MouseListenerSet = {
+  mouseDown(_sender, me) {
+    if (!props.helpSelectionMode || !eventUtils.isLeftMouseButton(me.getEvent())) return
+    const cell = me.getCell()
+    const id = cell?.getId()
+    if (cell && id && (cell.isVertex() || cell.isEdge())) {
+      const ids = props.helpCellIds.includes(id) ? props.helpCellIds.filter((value) => value !== id) : [...props.helpCellIds, id]
+      emit('update:helpCellIds', ids)
+    }
+    me.consume()
+  },
+  mouseMove() {}, mouseUp() {}
+}
+watch([() => props.helpSelectionMode, () => props.allowEdit], () => {
+  graph.value?.setEnabled(props.allowEdit && !props.helpSelectionMode)
+  if (props.helpSelectionMode) graph.value?.clearSelection()
+  refreshHelpHighlights()
+})
+watch(() => props.helpCellIds, refreshHelpHighlights, { deep: true })
 let pendingPersistedModel: Record<string, unknown> | null = null
-const plugins = ref<GraphPluginConstructor[]>([MyCustomCellEditorHandler, TooltipHandler, CustomConnectionHandler as unknown as GraphPluginConstructor, PanningHandler, SelectionCellsHandler, SelectionHandler, RubberBandHandler, FitPlugin])
+const plugins = ref<GraphPluginConstructor[]>([MyCustomCellEditorHandler, TooltipHandler, CustomConnectionHandler as unknown as GraphPluginConstructor, StablePanningHandler, SelectionCellsHandler, SelectionHandler, RubberBandHandler, FitPlugin])
 const toolbarShapes = ref(
   createDefaultShapes({
     rectangle: img_rectangle,
@@ -746,6 +773,11 @@ onUnmounted(() => {
   canUndo.value = false
   canRedo.value = false
   cleanupCanvasOverlays()
+  cleanupGrid?.()
+  cleanupGrid = undefined
+  helpHighlights.splice(0).forEach((highlight) => highlight.destroy())
+  graph.value?.destroy()
+  graph.value = undefined
 })
 
 // Watch für previewConnection (nur für Preview-Modus)
@@ -891,7 +923,8 @@ const initGraph = () => {
   }
 
   // Enable editing
-  graph.value.setEnabled(props.allowEdit)
+  graph.value.setEnabled(props.allowEdit && !props.helpSelectionMode)
+  graph.value.addMouseListener(helpMouseListener)
   graph.value.setConnectable(true)
   graph.value.setConnectableEdges(true)
   graph.value.setCellsEditable(props.allowEdit)
@@ -922,12 +955,6 @@ const initGraph = () => {
 
     panningHandler.addListener(InternalEvent.PAN_END, () => {
       isPanning.value = false
-
-      // Graph nach Panning aktualisieren und validieren
-      if (graph.value) {
-        graph.value.refresh()
-        graph.value.view.validate()
-      }
     })
   }
 
@@ -1043,20 +1070,8 @@ const initGraph = () => {
   parent.value = modelLayerCell.value ?? graph.value.getDefaultParent()
 
   // Setup dynamisches Grid
-  setupDynamicGrid(graph, canvasGrid, graphContainer, gridSize, snapToGrid)
-
-  // Forciere das Raster sofort nach der Graph-Initialisierung
-  nextTick(() => {
-    setTimeout(() => {
-      if (graph.value && snapToGrid.value) {
-        graph.value.view.validateBackground()
-        // Zusätzlicher direkter Repaint-Aufruf
-        if ((graph.value as any).repaintGrid) {
-          ;(graph.value as any).repaintGrid()
-        }
-      }
-    }, 100)
-  })
+  cleanupGrid?.()
+  cleanupGrid = setupDynamicGrid(graph, canvasGrid, graphContainer, gridSize, snapToGrid)
 
   applyValidationRulesToGraph()
 
@@ -1274,16 +1289,27 @@ defineExpose({
   overflow: hidden;
 }
 
-.graph-container {
+.graph-viewport {
   position: relative;
   width: 100%;
-  height: auto;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   border: 1px solid #ddd;
   border-radius: 4px;
-  background-color: transparent;
   overflow: hidden;
+  isolation: isolate;
+}
+
+.canvas-area--help-selection .graph-viewport { outline: 2px solid #c79b4b; outline-offset: -2px; }
+.canvas-area--help-selection .graph-container { cursor: crosshair; }
+
+.graph-container {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  background: transparent;
 }
 
 .graph-wrapper {
@@ -1316,30 +1342,12 @@ defineExpose({
   z-index: 5;
 }
 
-.shortcut-help-anchor {
+.canvas-top-right {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 8;
-}
-
-.shortcut-help-btn {
-  min-width: 30px !important;
-  width: 30px;
-  height: 30px;
-}
-
-.hidden-during-pan {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-}
-
-.shortcut-tooltip-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
+  top: 0;
+  right: 5px;
+  z-index: 10;
+  max-width: calc(100% - 20px);
 }
 
 .canvas-window-default-content {
@@ -1365,7 +1373,7 @@ defineExpose({
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
   overflow: hidden;
 }
@@ -1376,7 +1384,7 @@ defineExpose({
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: -1;
+  display: block;
   pointer-events: none;
   opacity: 1;
   background: transparent;
@@ -1395,10 +1403,4 @@ defineExpose({
   flex-wrap: wrap;
 }
 
-/* Responsives Design für kleinere Bildschirme */
-@media (max-width: 768px) {
-  .graph-container {
-    height: calc(100vh - 250px);
-  }
-}
 </style>

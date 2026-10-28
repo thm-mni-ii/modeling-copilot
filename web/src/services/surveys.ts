@@ -7,6 +7,7 @@ export interface SurveyQuestion {
   name: string
   title: string
   isRequired: boolean
+  visibleIf?: string
   choices?: string[]
   rows?: string[]
   columns?: string[]

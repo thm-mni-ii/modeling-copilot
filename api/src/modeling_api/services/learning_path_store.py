@@ -69,6 +69,7 @@ def template_meta(body, step_ids):
             ),
             "stepIds": [str(i) for i in step_ids],
             "pulseSurveys": body.pulse_surveys,
+            "helpRequests": body.help_requests,
         }
     ).model_dump(mode="json", by_alias=True)
 
@@ -102,6 +103,7 @@ def template_view(doc):
         "archived": doc["status"] == "archived",
         "revision": doc["revision"],
         "pulseSurveys": doc.get("pulseSurveys", {"enabled": False}),
+        "helpRequests": doc.get("helpRequests", {"enabled": False}),
         "updatedAt": doc["updatedAt"],
         "ownerId": doc["createdBy"],
         "createdAt": doc["createdAt"],

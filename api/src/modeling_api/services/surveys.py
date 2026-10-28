@@ -5,7 +5,7 @@ from pymongo.errors import DuplicateKeyError
 from modeling_api.core.errors import ApiError, conflict, not_found
 from modeling_api.db.client import db
 from modeling_api.db.store import list_page, new_id, to_api, utcnow
-from modeling_api.schemas.surveys import ActivateRelease, SaveSurvey, SubmitResponse
+from modeling_api.schemas.surveys import ActivateRelease, SaveSurvey, SubmitResponse, visibility_condition
 
 
 def require_admin(user):
@@ -299,6 +299,10 @@ def validate_answers(definition, answers):
     if answers.keys() - questions.keys():
         raise ApiError(422, "INVALID_ANSWERS", "Unknown question in answers.")
     for name, q in questions.items():
+        if q.get("visibleIf"):
+            source, expected = visibility_condition(q["visibleIf"])
+            if answers.get(source) != expected:
+                continue
         value = answers.get(name)
         empty = value is None or value == "" or value == [] or value == {}
         invalid = False

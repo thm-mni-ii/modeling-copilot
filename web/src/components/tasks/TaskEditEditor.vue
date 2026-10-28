@@ -1,5 +1,9 @@
 <template>
   <div class="task-edit-editor">
+    <div v-if="editor && mode === 'help'" class="task-edit-toolbar help-text-toolbar">
+      <span class="text-caption">Wähle die Textstelle aus, die dir Schwierigkeiten bereitet.</span>
+      <v-btn size="small" color="warning" variant="tonal" prepend-icon="mdi-marker" :disabled="!hasSelection" @mousedown.prevent @click="markHelpText">Textstelle markieren</v-btn>
+    </div>
     <div v-if="editor && mode === 'edit'" class="task-edit-toolbar">
       <v-btn-group size="x-small" density="compact" variant="outlined">
         <v-btn :disabled="!editor.can().undo()" title="Undo Edit" @click="editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
@@ -46,6 +50,8 @@ import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue
 import { Editor as CoreEditor, Extension } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { Plugin } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import type { HelpTextRange } from '@/services/learningPaths'
 import type { JsonObject } from '@/services/api/types/common'
 import { cloneTaskDocument, taskDocumentsEqual } from '@/utils/taskEdits'
 import TaskColorPicker from './TaskColorPicker.vue'
@@ -61,16 +67,18 @@ const props = withDefaults(
   defineProps<{
     baseHtml: string
     modelValue: JsonObject | null
-    mode?: 'read' | 'edit'
+    mode?: 'read' | 'edit' | 'help'
+    helpTextRanges?: HelpTextRange[]
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
   }>(),
-  { mode: 'read', elementOptions: () => [], connectionOptions: () => [] }
+  { mode: 'read', elementOptions: () => [], connectionOptions: () => [], helpTextRanges: () => [] }
 )
 
 const emit = defineEmits<{
   'update:modelValue': [document: JsonObject]
   'select-connection': [reference: { languageId: string; connectionType: string }]
+  'mark-help-text': [range: HelpTextRange]
 }>()
 
 const baseExtensions = [
@@ -106,6 +114,17 @@ const EditShortcutGuard = Extension.create({
   })
 })
 
+const HelpSelection = Extension.create({
+  name: 'helpTextSelection',
+  addProseMirrorPlugins: () => [new Plugin({
+    props: {
+      decorations: (state) => props.mode === 'help' ? DecorationSet.create(state.doc,
+        props.helpTextRanges.filter((range) => range.start >= 0 && range.end <= state.doc.content.size)
+          .map((range) => Decoration.inline(range.start, range.end, { class: 'help-text-mark' }))) : null
+    }
+  })]
+})
+
 let lastDocument = JSON.stringify(props.modelValue ?? baseDocument)
 const insertionDialog = ref(false)
 const insertionText = ref('')
@@ -114,7 +133,7 @@ const selectionTick = ref(0)
 const editor = useEditor({
   content: props.modelValue ?? props.baseHtml,
   editable: props.mode === 'edit',
-  extensions: [...baseExtensions, OriginalGuard, EditShortcutGuard],
+  extensions: [...baseExtensions, OriginalGuard, EditShortcutGuard, HelpSelection],
   onUpdate: ({ editor: current }) => {
     const document = current.getJSON() as JsonObject
     const serialized = JSON.stringify(document)
@@ -132,6 +151,16 @@ const hasSelection = computed(() => {
   selectionTick.value
   return Boolean(editor.value && editor.value.state.selection.from !== editor.value.state.selection.to)
 })
+const markHelpText = () => {
+  const current = editor.value
+  if (!current || props.mode !== 'help' || !hasSelection.value) return
+  const { from, to } = current.state.selection
+  const text = current.state.doc.textBetween(from, to, '\n')
+  if (text.trim()) emit('mark-help-text', { start: from, end: to, text })
+}
+watch(() => props.helpTextRanges, () => {
+  editor.value?.view.dispatch(editor.value.state.tr.setMeta('helpSelection', true))
+}, { deep: true })
 
 const newId = () =>
   globalThis.crypto?.randomUUID?.() ??
@@ -190,7 +219,7 @@ watch(
 )
 
 const onTaskReferenceClick = (event: MouseEvent) => {
-  if (props.mode === 'edit') return
+  if (props.mode !== 'read') return
   const reference = readTaskConnectionReference(event.target)
   if (reference) emit('select-connection', reference)
 }
@@ -202,6 +231,7 @@ const hideReferencePreview = () => {
   referencePreview.value = null
 }
 const onTaskReferenceMouseOver = (event: MouseEvent) => {
+  if (props.mode === 'help') return
   const target = event.target as Element | null
   const elementMark = target?.closest('[data-task-element-language-id][data-task-element-type]')
   const connectionMark = target?.closest('[data-task-connection-language-id][data-task-connection-type]')
@@ -222,7 +252,7 @@ const onTaskReferenceMouseOver = (event: MouseEvent) => {
 }
 
 const onDragStart = (event: DragEvent) => {
-  if (props.mode === 'edit') return event.preventDefault()
+  if (props.mode !== 'read') return event.preventDefault()
   writeTaskElementDragData(event)
 }
 
@@ -230,6 +260,8 @@ onBeforeUnmount(() => editor.value?.destroy())
 </script>
 
 <style scoped>
+.help-text-toolbar { background: #fff4d8; border-bottom: 1px solid #dbb970; }
+:deep(.help-text-mark) { background: #ffe08a; box-shadow: 0 1px 0 #b68026; border-radius: 2px; }
 .task-edit-editor {
   display: flex;
   flex-direction: column;

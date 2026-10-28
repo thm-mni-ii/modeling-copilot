@@ -7,7 +7,7 @@ from pydantic import Field
 
 from modeling_api.schemas.common import ApiSchema, Name
 from modeling_api.schemas.challenges import ChallengeConfig
-from modeling_api.schemas.learning_paths import UnlockRule, PulseSurveyConfig
+from modeling_api.schemas.learning_paths import UnlockRule, PulseSurveyConfig, HelpRequestConfig
 
 
 class SurveyReference(ApiSchema):
@@ -53,6 +53,7 @@ class LearningPathTemplateContent(ApiSchema):
     status: Literal["draft", "published", "archived"]
     step_ids: list[str]
     pulse_surveys: PulseSurveyConfig = Field(default_factory=PulseSurveyConfig)
+    help_requests: HelpRequestConfig = Field(default_factory=HelpRequestConfig)
 
 
 class LearningPathStepState(ApiSchema):
