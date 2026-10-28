@@ -10,6 +10,7 @@
         <SidebarPersistence v-else-if="activeTab === 'persistence'" :show-header="false" />
         <SidebarSync v-else-if="activeTab === 'sync'" :show-header="false" />
         <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" @restore-document="emit('update-task-edit-document', $event)" />
+        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="modelId ?? null" :open-evaluation-id="openEvaluationId ?? null" />
         <SidebarLibrary v-else />
       </div>
     </template>
@@ -29,14 +30,17 @@ import SidebarSync from './SidebarSync.vue'
 import SidebarTabs, { type SidebarTabItem } from './SidebarTabs.vue'
 import FeedbackSidebar from './FeedbackSidebar.vue'
 import TaskEditsSidebar from './TaskEditsSidebar.vue'
+import EvaluationSidebar from './EvaluationSidebar.vue'
 
-type SidebarTab = 'feedback' | 'persistence' | 'sync' | 'languages' | 'task'
+type SidebarTab = 'feedback' | 'persistence' | 'sync' | 'languages' | 'task' | 'evaluations'
 
 const props = defineProps<{
   collapsed: boolean
   taskActive?: boolean
   taskEdit?: TaskEditDocument | null
   taskEditSyncState?: TaskEditSyncState
+  modelId?: string | null
+  openEvaluationId?: string | null
   feedbackShapes?: Array<{
     name: string
     label: string
@@ -56,7 +60,7 @@ const baseTabs: SidebarTabItem[] = [
   { value: 'sync', icon: 'mdi-sync', label: 'Sync' },
   { value: 'languages', icon: 'mdi-bookshelf', label: 'Languages' }
 ]
-const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, ...baseTabs] : baseTabs))
+const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, { value: 'evaluations', icon: 'mdi-chart-timeline-variant', label: 'Auswertungen' }, ...baseTabs] : baseTabs))
 
 const DEFAULT_WIDTH = 210
 const sidebarWidth = ref(DEFAULT_WIDTH)
@@ -70,6 +74,10 @@ watch(
   (taskActive) => {
     if (!taskActive && activeTab.value === 'task') activeTab.value = 'languages'
   }
+)
+watch(
+  () => props.openEvaluationId,
+  (id) => { if (id) activeTab.value = 'evaluations' }
 )
 </script>
 

@@ -153,11 +153,17 @@ spec:
             # Kubernetes expands the two previously declared variables here.
             - name: MONGODB_URI
               value: mongodb://$(DB_USER):$(DB_PASSWORD)@mongo:27017/?authSource=admin
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: modeling-copilot-api-secrets
-                  key: JWT_SECRET
+            # Tokens of the feedback system: RS256 against the key set it publishes,
+            # no shared secret.
+            - name: JWT_ALGORITHM
+              value: RS256
+            - name: JWT_JWKS_URI
+              value: https://feedback.mni.thm.de/oauth2/jwks
+            - name: JWT_ISSUER
+              value: https://feedback.mni.thm.de
+            # Client id the tokens are issued to; blank means not checked.
+            - name: JWT_AUDIENCE
+              value: ''
           envFrom:
             - configMapRef:
                 name: modeling-copilot-config
@@ -281,3 +287,267 @@ spec:
                 name: web
                 port:
                   number: 80
+
+---
+# Collab-Kit, the published image with its own database. The secret collab-kit-secrets
+# holds DB_USER, DB_PASSWORD and MONGO_KEYFILE.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: collab-kit-config
+  namespace: modeling-copilot
+data:
+  MONGODB_DB: collab_kit
+  # Origin of the Modeling Copilot, e.g. https://<host>; blank allows every origin.
+  ALLOWED_ORIGINS: ''
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ck-mongo
+  namespace: modeling-copilot
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: modeling-copilot
+    app.kubernetes.io/component: ck-mongo
+  ports:
+    - name: mongodb
+      port: 27017
+      targetPort: mongodb
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ck-mongo
+  namespace: modeling-copilot
+spec:
+  serviceName: ck-mongo
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: modeling-copilot
+      app.kubernetes.io/component: ck-mongo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: modeling-copilot
+        app.kubernetes.io/component: ck-mongo
+    spec:
+      initContainers:
+        # A replica set with a password needs a key file that only mongod may read.
+        # A secret volume cannot set the owner, so the key is copied with owner and mode.
+        - name: keyfile
+          image: mongo:4.4.29
+          command: ["install", "-m", "400", "-o", "999", "-g", "999", "/secret/keyfile", "/keyfile/"]
+          volumeMounts:
+            - name: secret
+              mountPath: /secret
+              readOnly: true
+            - name: keyfile
+              mountPath: /keyfile
+      containers:
+        - name: mongo
+          # Same version as mongo above, the nodes do not expose AVX.
+          image: mongo:4.4.29
+          imagePullPolicy: IfNotPresent
+          # Collab-Kit needs transactions, and those need a replica set.
+          args: ["--replSet", "rs0", "--bind_ip_all", "--keyFile", "/keyfile/keyfile"]
+          ports:
+            - name: mongodb
+              containerPort: 27017
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: collab-kit-secrets
+                  key: DB_USER
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: collab-kit-secrets
+                  key: DB_PASSWORD
+          readinessProbe:
+            # Initiates the replica set on first start and reports ready once it is primary.
+            exec:
+              command:
+                - sh
+                - -c
+                - >-
+                  mongo --quiet --authenticationDatabase admin
+                  -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD"
+                  --eval "rs.status().ok || rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] });
+                  db.isMaster().ismaster" | grep -q true
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: mongodb
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: ck-mongo-data
+              mountPath: /data/db
+            - name: keyfile
+              mountPath: /keyfile
+              readOnly: true
+      volumes:
+        - name: secret
+          secret:
+            secretName: collab-kit-secrets
+            items:
+              - key: MONGO_KEYFILE
+                path: keyfile
+        - name: keyfile
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: ck-mongo-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 5Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: collab-kit
+  namespace: modeling-copilot
+spec:
+  selector:
+    app.kubernetes.io/name: modeling-copilot
+    app.kubernetes.io/component: collab-kit
+  ports:
+    - name: http
+      port: 24202
+      targetPort: http
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collab-kit
+  namespace: modeling-copilot
+spec:
+  replicas: 1
+  # Open workpieces live in the memory of one process, so two pods must never run at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: modeling-copilot
+      app.kubernetes.io/component: collab-kit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: modeling-copilot
+        app.kubernetes.io/component: collab-kit
+    spec:
+      containers:
+        - name: collab-kit
+          # Fixed version; an update means changing the tag here and in docker-compose.yaml.
+          image: ghcr.io/thm-mni-ii/collab-kit:v0.6.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 24202
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: collab-kit-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: collab-kit-secrets
+                  key: DB_PASSWORD
+            # The replica set knows itself as localhost, so the driver must not follow it.
+            - name: MONGODB_URI
+              value: mongodb://$(DB_USER):$(DB_PASSWORD)@ck-mongo:27017/?authSource=admin&replicaSet=rs0&directConnection=true
+            # Same Feedbacksystem tokens as the api.
+            - name: JWT_ALGORITHM
+              value: RS256
+            - name: JWT_JWKS_URI
+              value: https://feedback.mni.thm.de/oauth2/jwks
+            - name: JWT_ISSUER
+              value: https://feedback.mni.thm.de
+            - name: JWT_AUDIENCE
+              value: ''
+            - name: ACTOR_CLAIM
+              value: id
+            - name: TOP_CLAIM
+              value: globalRole
+            - name: TOP_VALUES
+              value: ADMIN,MODERATOR
+          envFrom:
+            - configMapRef:
+                name: collab-kit-config
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-collab-kit
+  namespace: modeling-copilot
+spec:
+  stripPrefix:
+    prefixes:
+      - /collab-kit
+
+---
+# HTTP and WebSocket share the path: /collab-kit/ws/<workpiece> reaches the service as /ws/<workpiece>.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: collab-kit
+  namespace: modeling-copilot
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: modeling-copilot-strip-collab-kit@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /collab-kit
+            pathType: Prefix
+            backend:
+              service:
+                name: collab-kit
+                port:
+                  number: 24202

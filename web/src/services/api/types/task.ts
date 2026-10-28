@@ -30,6 +30,7 @@ export interface TaskData {
   contentHtml: string
   autonomyMode: AutonomyMode
   sampleSolutions: ModelVersionReference[]
+  evaluationWorkflows: string[]
 }
 
 export interface TaskVersionInfo extends ApiVersionInfo {

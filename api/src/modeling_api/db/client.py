@@ -48,3 +48,7 @@ async def create_indexes() -> None:
     await db.model_versions.create_index(
         [("modelId", ASCENDING), ("baseReleaseId", ASCENDING), ("createdAt", ASCENDING)]
     )
+    await db.evaluations.create_index(
+        [("ownerId", ASCENDING), ("taskId", ASCENDING), ("createdAt", DESCENDING)]
+    )
+    await db.evaluations.create_index([("dagName", ASCENDING), ("dagRunId", ASCENDING)], unique=True)

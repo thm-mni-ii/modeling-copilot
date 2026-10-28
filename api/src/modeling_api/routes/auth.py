@@ -17,7 +17,9 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
     ),
     response_description="Whether the supplied token is valid.",
 )
-async def validate_token(
+# Sync on purpose: FastAPI runs it in a worker thread, so fetching the issuer's
+# keys on a cache miss does not block the event loop.
+def validate_token(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
 ) -> bool:
     if credentials is None:

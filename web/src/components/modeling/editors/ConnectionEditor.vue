@@ -20,13 +20,14 @@
       <!-- Canvas Vorschau (rechts, wie im ElementEditor) -->
       <v-col cols="4" class="pl-2 preview-column">
         <v-card class="preview-card">
-          <v-card-title class="py-2">
+          <v-card-title class="py-2 d-flex align-center">
+            <v-btn icon="mdi-dock-left" size="small" variant="text" :title="previewSidebarVisible ? 'Hide element palette' : 'Show element palette'" :aria-label="previewSidebarVisible ? 'Hide element palette' : 'Show element palette'" :aria-expanded="previewSidebarVisible" @click="previewSidebarVisible = !previewSidebarVisible" />
             <span class="text-h6">Preview</span>
           </v-card-title>
           <v-divider />
           <v-card-text>
             <div class="preview-canvas">
-              <DrawingCanvas ref="drawingCanvasRef" :show-elements="false" :model="canvasModel" :preview-connection="selectedConnection" :preview-mode="previewMode" :language-connections="connections" :language-elements="elements" :language-syntax="languageSyntaxForCanvas" />
+              <DrawingCanvas ref="drawingCanvasRef" :show-elements="previewSidebarVisible" :model="canvasModel" :preview-connection="selectedConnection" :preview-mode="previewMode" :language-connections="connections" :language-elements="elements" :language-syntax="languageSyntaxForCanvas" />
             </div>
             <v-alert v-if="!selectedConnection" type="info" variant="tonal" class="mt-3"> Select a Connection to see a preview </v-alert>
           </v-card-text>
@@ -54,6 +55,7 @@ const store = useDiagramLanguages()
 const selectedConnectionIndex = ref<number>(-1)
 const canvasModel = ref<GraphDataModel>()
 const drawingCanvasRef = ref()
+const previewSidebarVisible = ref(false)
 const previewMode = ref<ConnectionPreviewMode>('simple')
 
 // Computed - Verbindungen aus Store

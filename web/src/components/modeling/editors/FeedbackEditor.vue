@@ -66,7 +66,8 @@
       <!-- Vorschau -->
       <v-col cols="4" class="pl-2 preview-column">
         <v-card class="preview-card">
-          <v-card-title class="py-2">
+          <v-card-title class="py-2 d-flex align-center">
+            <v-btn icon="mdi-dock-left" size="small" variant="text" :title="previewSidebarVisible ? 'Hide element palette' : 'Show element palette'" :aria-label="previewSidebarVisible ? 'Hide element palette' : 'Show element palette'" :aria-expanded="previewSidebarVisible" @click="previewSidebarVisible = !previewSidebarVisible" />
             <span class="text-h6">Feedback Preview</span>
             <v-spacer />
             <v-btn-toggle v-model="previewState" density="compact" mandatory color="primary">
@@ -83,8 +84,7 @@
             <div class="preview-canvas">
               <DrawingCanvas
                 ref="drawingCanvasRef"
-                :show-elements="false"
-                :show-model-sidebar="false"
+                :show-elements="previewSidebarVisible"
                 :show-feedback-sidebar="false"
                 :language-elements="languageElementsForCanvas"
                 :language-connections="languageConnectionsForCanvas"
@@ -122,6 +122,7 @@ import { cloneFeedbackCanvasConfig, cloneFeedbackTargetOverlays, createDefaultFe
 const store = useDiagramLanguages()
 
 const drawingCanvasRef = ref()
+const previewSidebarVisible = ref(false)
 const selectedTargetIndex = ref<number>(-1)
 const selectedConfig = ref<FeedbackTargetOverlays | null>(null)
 const selectedCanvasConfig = ref<FeedbackCanvasConfig | null>(null)

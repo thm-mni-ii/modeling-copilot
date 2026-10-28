@@ -96,6 +96,11 @@ class TaskData(ApiSchema):
         max_length=32,
         description="Released model versions exposed as sample solutions.",
     )
+    evaluation_workflows: list[str] = Field(
+        default_factory=list,
+        max_length=32,
+        description="Dagu workflow names enabled by an administrator for this task version.",
+    )
 
 
 class TaskVersionInfo(VersionInfo):

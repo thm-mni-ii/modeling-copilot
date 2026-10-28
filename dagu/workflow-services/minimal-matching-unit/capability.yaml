@@ -1,0 +1,7 @@
+id: minimal-matching-unit
+version: 0.1.1
+type: workflow
+image: modeling-copilot/minimal-matching-unit:0.1.1
+inputSchema: schemas/input.schema.json
+outputSchema: schemas/output.schema.json
+description: Eigenständiges Skeleton für minimale Matching-Einheiten mit Dummy-Ausgabe.

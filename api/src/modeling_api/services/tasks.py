@@ -10,6 +10,7 @@ from modeling_api.db.client import db
 from modeling_api.db.store import Document, insert, list_page, save_version, to_api, utcnow
 from modeling_api.schemas.tasks import CreateTask, CreateTaskVersion, UpdateTask
 from modeling_api.services.languages import check_language_refs
+from modeling_api.services import dagu
 
 
 class _TaskReferenceMarkParser(HTMLParser):
@@ -277,6 +278,18 @@ async def _validate_sample_solutions(body: CreateTaskVersion, user: User) -> Non
             )
 
 
+async def _validate_evaluation_workflows(body: CreateTaskVersion) -> None:
+    names = body.data.evaluation_workflows
+    if len(names) != len(set(names)):
+        raise ApiError(422, "DUPLICATE_EVALUATION_WORKFLOW", "A workflow can be selected only once.")
+    if not names:
+        return
+    available = {workflow["name"] for workflow in await dagu.list_workflows()}
+    unknown = set(names) - available
+    if unknown:
+        raise ApiError(422, "UNKNOWN_EVALUATION_WORKFLOW", "A selected workflow is no longer available in Dagu.")
+
+
 async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> Document:
     _require_admin(user)
     await get_task(task_id, user)
@@ -305,6 +318,7 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
                 )
     await _validate_task_references(body)
     await _validate_sample_solutions(body, user)
+    await _validate_evaluation_workflows(body)
     fields = body.model_dump(mode="json", by_alias=True, exclude={"base_version_id"})
     result = await save_version(
         db.task,

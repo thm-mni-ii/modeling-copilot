@@ -1,0 +1,7 @@
+id: one-to-one-graph-matching
+version: 0.1.1
+type: workflow
+image: modeling-copilot/one-to-one-graph-matching:0.1.1
+inputSchema: schemas/input.schema.json
+outputSchema: schemas/output.schema.json
+description: Eigenständiges Skeleton für ein 1:1-Graph-Matching mit Dummy-Ausgabe.

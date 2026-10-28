@@ -151,8 +151,9 @@ const searchModels = () => {
   searchTimer = setTimeout(() => void loadModels({ page: 1, itemsPerPage: itemsPerPage.value, sortBy: sortBy.value }), 250)
 }
 const loadVersions = async (modelId: string) => {
-  if (versions.value[modelId]) return
-  versions.value[modelId] = (await modelService.listVersions(modelId, 0, 100)).data.items
+  const model = models.value.find((item) => item.id === modelId)
+  if (versions.value[modelId] || !model) return
+  versions.value[modelId] = (await modelService.listVersions(model, 0, 100)).data.items
   expandedTabs.value[modelId] = 'versions'
 }
 const expandedId = (entry: unknown) => {
@@ -251,7 +252,7 @@ const openPreview = async (model: Model, entry: ModelVersionInfo) => {
 const loadPreview = async () => {
   const entry = previewEntries.value[previewIndex.value]
   if (!entry || !previewModel.value) return
-  const version = (await modelService.getVersion(previewModel.value.id, entry.id)).data
+  const version = (await modelService.getVersion(previewModel.value, entry.id)).data
   previewData.value = version.data
   previewTaskEdit.value = version.taskEditSnapshot
   previewTaskHtml.value = version.taskVersion ? (await taskService.getVersion(version.taskVersion.taskId, version.taskVersion.versionId)).data.data.contentHtml : ''
@@ -262,7 +263,7 @@ const movePreview = async (change: number) => {
 }
 const branch = async (model: Model, entry: ModelVersionInfo) => {
   try {
-    await workspace.branchVersion(model.id, entry.id, `${model.name} – ${snapshotLabel(entry)}`)
+    await workspace.branchVersion(model, entry.id, `${model.name} – ${snapshotLabel(entry)}`)
     await workspace.save()
     await router.push(`/modeling/${workspace.model!.id}`)
   } catch {

@@ -203,33 +203,96 @@
             </v-col>
           </v-row>
 
+          <v-row dense>
+            <v-col cols="6">
+              <v-select v-model="localElement.style.direction" :items="swimlaneDirections" label="Direction" variant="outlined" density="compact" hint="Orientation of the title/content region" persistent-hint clearable @update:model-value="emitUpdate" />
+            </v-col>
+            <v-col cols="6">
+              <v-switch v-model="localElement.style.swimlaneLine" label="Title Separator Line" color="primary" density="compact" hint="Show the line between title and content region" persistent-hint @update:model-value="emitUpdate" />
+            </v-col>
+          </v-row>
+
+          <v-row dense>
+            <v-col cols="6">
+              <ColorPickerField v-model="localElement.style.swimlaneFillColor" label="Content Fill Color" hint="Fill color of the content region (separate from the title fill color)" @update:model-value="emitUpdate" />
+            </v-col>
+            <v-col cols="6">
+              <ColorPickerField v-model="localElement.style.separatorColor" label="Separator Color" hint="Color of the lane separator lines" @update:model-value="emitUpdate" />
+            </v-col>
+          </v-row>
+
           <v-divider class="my-4" />
 
           <div class="text-subtitle-2 mb-3">Auto-layout Options</div>
 
           <v-row dense>
-            <v-col cols="6">
-              <v-switch v-model="localElement.style.autoFitWidth" label="Full Width" color="primary" density="compact" hint="Stretch child Elements to the full container width" persistent-hint @update:model-value="emitUpdate" />
+            <v-col :cols="isCustomLayout ? 6 : 12">
+              <v-select
+                :model-value="localElement.style.layoutPreset ?? 'list'"
+                :items="layoutPresets"
+                item-title="title"
+                item-value="value"
+                label="Preset"
+                variant="outlined"
+                density="compact"
+                hint="Free: no automatic arrangement (e.g. Activity pool/lane). List: ordered, auto-stacked (e.g. UML attributes). Custom: configure every option yourself."
+                persistent-hint
+                @update:model-value="setLayoutPreset"
+              />
             </v-col>
-            <v-col cols="6">
-              <v-switch v-model="localElement.style.autoStackY" label="Stack Vertically" color="primary" density="compact" hint="Arrange child Elements vertically" persistent-hint @update:model-value="emitUpdate" />
+            <v-col v-if="isCustomLayout" cols="6">
+              <v-select :model-value="localElement.style.containerLayout ?? 'list'" :items="containerLayoutModes" item-title="title" item-value="value" label="Container Mode" variant="outlined" density="compact" @update:model-value="setContainerLayout" />
             </v-col>
           </v-row>
 
-          <v-row dense class="mt-2">
-            <v-col cols="6">
-              <v-switch v-model="localElement.style.autoResize" label="Automatic Size" color="primary" density="compact" hint="Resize the swimlane to fit its content" persistent-hint @update:model-value="emitUpdate" />
-            </v-col>
-          </v-row>
+          <template v-if="(localElement.style.containerLayout ?? 'list') === 'list'">
+            <v-row dense>
+              <v-col cols="6">
+                <v-select v-model="localElement.style.listDirection" :disabled="!isCustomLayout" :items="listDirections" item-title="title" item-value="value" label="Stack Direction" variant="outlined" density="compact" hint="Axis along which child Elements are stacked" persistent-hint @update:model-value="emitUpdate" />
+              </v-col>
+              <v-col cols="6">
+                <v-switch v-model="localElement.style.listStretchCrossAxis" :disabled="!isCustomLayout" label="Stretch Cross Axis" color="primary" density="compact" hint="Stretch child Elements across the container (e.g. full width)" persistent-hint @update:model-value="emitUpdate" />
+              </v-col>
+            </v-row>
 
-          <v-row v-if="localElement.style.autoStackY || localElement.style.autoFitWidth" dense class="mt-2">
-            <v-col v-if="localElement.style.autoStackY" cols="6">
-              <v-text-field v-model.number="localElement.style.childSpacing" label="Vertical Spacing" type="number" density="compact" variant="outlined" suffix="px" hint="Spacing between Elements (Y)" persistent-hint @input="emitUpdate" />
-            </v-col>
-            <v-col cols="6">
-              <v-text-field v-model.number="localElement.style.childSpacingX" label="Horizontal Spacing" type="number" density="compact" variant="outlined" suffix="px" hint="Left/right spacing (X)" persistent-hint @input="emitUpdate" />
-            </v-col>
-          </v-row>
+            <v-row dense class="mt-2">
+              <v-col cols="6">
+                <v-switch v-model="localElement.style.resizeMainAxis" :disabled="!isCustomLayout" label="Resize Stack Axis" color="primary" density="compact" hint="Shrink/grow the container along the stack direction to fit its content" persistent-hint @update:model-value="emitUpdate" />
+              </v-col>
+              <v-col cols="6">
+                <v-switch v-model="localElement.style.resizeCrossAxis" :disabled="!isCustomLayout || localElement.style.listStretchCrossAxis" label="Resize Cross Axis" color="primary" density="compact" hint="Only relevant when Stretch Cross Axis is off" persistent-hint @update:model-value="emitUpdate" />
+              </v-col>
+            </v-row>
+
+            <v-row dense class="mt-2">
+              <v-col cols="6">
+                <v-text-field v-model.number="localElement.style.listItemSpacing" :disabled="!isCustomLayout" label="Item Spacing" type="number" density="compact" variant="outlined" suffix="px" hint="Spacing between Elements along the stack direction" persistent-hint @input="emitUpdate" />
+              </v-col>
+              <v-col cols="6">
+                <v-text-field v-model.number="localElement.style.listCrossPadding" :disabled="!isCustomLayout" label="Cross Padding" type="number" density="compact" variant="outlined" suffix="px" hint="Padding across the stack direction" persistent-hint @input="emitUpdate" />
+              </v-col>
+            </v-row>
+
+            <v-row dense class="mt-2">
+              <v-col cols="6">
+                <v-text-field v-model.number="localElement.style.minWidth" :disabled="!isCustomLayout" label="Min Width" type="number" density="compact" variant="outlined" suffix="px" hint="Lower bound for the container width" persistent-hint @input="emitUpdate" />
+              </v-col>
+              <v-col cols="6">
+                <v-text-field v-model.number="localElement.style.minHeight" :disabled="!isCustomLayout" label="Min Height" type="number" density="compact" variant="outlined" suffix="px" hint="Lower bound for the container height" persistent-hint @input="emitUpdate" />
+              </v-col>
+            </v-row>
+          </template>
+
+          <template v-else>
+            <v-row dense>
+              <v-col cols="6">
+                <v-select v-model="localElement.style.resizeToContent" :disabled="!isCustomLayout" :items="resizeToContentOptions" item-title="title" item-value="value" label="Resize To Content" variant="outlined" density="compact" hint="'Grow': container only grows to fit content, never shrinks automatically" persistent-hint @update:model-value="emitUpdate" />
+              </v-col>
+              <v-col cols="6">
+                <v-text-field v-model.number="localElement.style.contentPadding" :disabled="!isCustomLayout" label="Content Padding" type="number" density="compact" variant="outlined" suffix="px" hint="Minimum distance of Elements to the border used for growth" persistent-hint @input="emitUpdate" />
+              </v-col>
+            </v-row>
+          </template>
         </v-expansion-panel-text>
       </v-expansion-panel>
 
@@ -335,6 +398,89 @@ const predefinedShapes = [
 
 const alignOptions = ['left', 'center', 'right']
 const verticalAlignOptions = ['top', 'middle', 'bottom']
+const swimlaneDirections = [
+  { title: 'East (default)', value: 'east' },
+  { title: 'West', value: 'west' },
+  { title: 'North', value: 'north' },
+  { title: 'South', value: 'south' }
+]
+const layoutPresets = [
+  { title: 'Free (no automatic arrangement)', value: 'free' },
+  { title: 'List (ordered, auto-stacked)', value: 'list' },
+  { title: 'Custom', value: 'custom' }
+]
+const containerLayoutModes = [
+  { title: 'Free', value: 'free' },
+  { title: 'List', value: 'list' }
+]
+const listDirections = [
+  { title: 'Vertical', value: 'vertical' },
+  { title: 'Horizontal', value: 'horizontal' }
+]
+const resizeToContentOptions = [
+  { title: 'None (manual size only)', value: 'none' },
+  { title: 'Grow (never shrinks automatically)', value: 'grow' }
+]
+
+// Merkt sich die zuletzt manuell (im Custom-Modus) gesetzten Layout-Werte pro Element,
+// damit sie beim Zurückwechseln auf "Custom" wiederhergestellt werden können.
+const customLayoutStash = new WeakMap<ElementStyle, Partial<ElementStyle>>()
+
+const isCustomLayout = computed(() => (localElement.value.style.layoutPreset ?? 'list') === 'custom')
+
+const LAYOUT_KEYS = ['containerLayout', 'listDirection', 'listItemSpacing', 'listCrossPadding', 'listStretchCrossAxis', 'resizeMainAxis', 'resizeCrossAxis', 'minWidth', 'minHeight', 'resizeToContent', 'contentPadding'] as const
+
+function applyListDefaults(style: ElementStyle) {
+  if (style.listDirection === undefined) style.listDirection = 'vertical'
+  if (style.listItemSpacing === undefined) style.listItemSpacing = 10
+  if (style.listCrossPadding === undefined) style.listCrossPadding = 10
+  if (style.listStretchCrossAxis === undefined) style.listStretchCrossAxis = true
+  if (style.resizeMainAxis === undefined) style.resizeMainAxis = true
+  if (style.resizeCrossAxis === undefined) style.resizeCrossAxis = false
+}
+
+function applyFreeDefaults(style: ElementStyle) {
+  if (style.resizeToContent === undefined) style.resizeToContent = 'grow'
+  if (style.contentPadding === undefined) style.contentPadding = 20
+}
+
+function setLayoutPreset(preset: 'free' | 'list' | 'custom') {
+  const style = localElement.value.style as ElementStyle
+  const previousPreset = style.layoutPreset ?? 'list'
+
+  // Aktuelle Werte sichern, solange wir Custom verlassen
+  if (previousPreset === 'custom' && preset !== 'custom') {
+    const stash: Partial<ElementStyle> = {}
+    LAYOUT_KEYS.forEach((key) => {
+      ;(stash as any)[key] = style[key]
+    })
+    customLayoutStash.set(style, stash)
+  }
+
+  if (preset === 'free') {
+    style.containerLayout = 'free'
+    applyFreeDefaults(style)
+  } else if (preset === 'list') {
+    style.containerLayout = 'list'
+    applyListDefaults(style)
+  } else if (preset === 'custom') {
+    const stash = customLayoutStash.get(style)
+    if (stash) Object.assign(style, stash)
+    else if (!style.containerLayout) style.containerLayout = 'list'
+  }
+
+  style.layoutPreset = preset
+  emitUpdate()
+}
+
+function setContainerLayout(mode: 'free' | 'list') {
+  const style = localElement.value.style as ElementStyle
+  style.containerLayout = mode
+  if (mode === 'list') applyListDefaults(style)
+  else applyFreeDefaults(style)
+  emitUpdate()
+}
+
 const showAutoAnchorGenerator = ref(false)
 const autoAnchorCount = ref(8)
 const autoAnchorStartAngle = ref(0)
@@ -425,11 +571,10 @@ watch(
     if (newVal.renderMode === 'swimlane') {
       if (style.startSize === undefined) style.startSize = 30
       if (style.horizontal === undefined) style.horizontal = false
-      if (style.childSpacing === undefined) style.childSpacing = 10
-      if (style.childSpacingX === undefined) style.childSpacingX = 10
-      if (style.autoFitWidth === undefined) style.autoFitWidth = true
-      if (style.autoStackY === undefined) style.autoStackY = true
-      if (style.autoResize === undefined) style.autoResize = true
+      if (style.swimlaneLine === undefined) style.swimlaneLine = true
+      if (style.layoutPreset === undefined) style.layoutPreset = 'list'
+      if (style.containerLayout === undefined) style.containerLayout = 'list'
+      applyListDefaults(style)
     }
 
     if (!Array.isArray(newVal.children)) {
@@ -475,11 +620,10 @@ function applySwimlaneDefaults() {
   const style = current.style as ElementStyle & Partial<ElementStyle>
   if (style.startSize === undefined) style.startSize = 30
   if (style.horizontal === undefined) style.horizontal = false
-  if (style.childSpacing === undefined) style.childSpacing = 10
-  if (style.childSpacingX === undefined) style.childSpacingX = 10
-  if (style.autoFitWidth === undefined) style.autoFitWidth = true
-  if (style.autoStackY === undefined) style.autoStackY = true
-  if (style.autoResize === undefined) style.autoResize = true
+  if (style.swimlaneLine === undefined) style.swimlaneLine = true
+  if (style.layoutPreset === undefined) style.layoutPreset = 'list'
+  if (style.containerLayout === undefined) style.containerLayout = 'list'
+  applyListDefaults(style)
 }
 
 function onTypeChange() {

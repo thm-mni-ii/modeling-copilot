@@ -13,12 +13,25 @@ export interface ElementStyle {
   startSize?: number
   horizontal?: boolean
   labelBackgroundColor?: string
-  childSpacing?: number // Vertikaler Abstand zwischen Children (Y-Achse)
-  childSpacingX?: number // Horizontaler Abstand (X-Achse / links)
+  swimlaneLine?: boolean // Trennlinie zwischen Titel- und Inhaltsbereich
+  swimlaneFillColor?: string // Füllfarbe des Inhaltsbereichs (separat von fillColor der Titelleiste)
+  separatorColor?: string // Farbe der Trennlinien zwischen Lanes
+  direction?: 'north' | 'south' | 'east' | 'west' // Ausrichtung von Titel/Inhalt
   // Auto-Layout Optionen für Container/Swimlanes
-  autoFitWidth?: boolean // Children automatisch auf volle Container-Breite strecken
-  autoStackY?: boolean // Children automatisch vertikal stapeln (Y-Position)
-  autoResize?: boolean // Swimlane automatisch an Inhalt anpassen
+  layoutPreset?: 'free' | 'list' | 'custom' // UI-Vorauswahl: 'free'/'list' setzen die Optionen unten fest, 'custom' macht sie editierbar
+  containerLayout?: 'free' | 'list' // Grundverhalten: 'free' = freie Positionierung (z.B. Aktivitätsdiagramm-Pool/Lane), 'list' = geordnete, automatisch gestapelte Liste (z.B. UML-Attribute)
+  // Optionen für containerLayout === 'list'
+  listDirection?: 'vertical' | 'horizontal' // Stapelrichtung der Children
+  listItemSpacing?: number // Abstand zwischen Elementen in Stapelrichtung
+  listCrossPadding?: number // Innenabstand quer zur Stapelrichtung
+  listStretchCrossAxis?: boolean // Elemente quer zur Stapelrichtung auf Container-Maß strecken
+  resizeMainAxis?: boolean // Container in Stapelrichtung automatisch an Inhalt anpassen
+  resizeCrossAxis?: boolean // Container quer zur Stapelrichtung anpassen (nur wirksam wenn listStretchCrossAxis = false)
+  minWidth?: number // Untere Größengrenze (z.B. damit der Titel nicht abgeschnitten wird)
+  minHeight?: number
+  // Optionen für containerLayout === 'free'
+  resizeToContent?: 'none' | 'grow' // 'grow': Container wächst bei Bedarf, schrumpft aber nie automatisch
+  contentPadding?: number // Mindestabstand der Elemente zum Rand für die Wachstumsberechnung
   // Collapse/Folding
   foldable?: boolean // Ob Element zusammenklappbar ist
   // Allgemeine Shape-Feinabstimmung

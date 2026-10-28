@@ -20,15 +20,31 @@ services:
       - "127.0.0.1:8000:8000"
     environment:
       MONGODB_URI: mongodb://admin:admin@mongo:27017/?authSource=admin
-      JWT_SECRET: 8Dsupersecurekeydf0 #Feedbacksystem Dev Secret
+      # Tokens of the local Feedbacksystem 2.0: RS256 against the key set its
+      # identity service publishes on host port 8080. The issuer is the web
+      # shell on port 8083, through which the tokens are requested.
+      JWT_ALGORITHM: RS256
+      JWT_JWKS_URI: http://host.docker.internal:8080/oauth2/jwks
+      JWT_ISSUER: http://localhost:8083
       DOCS_ENABLED: "true"
       CORS_ORIGINS: http://localhost:5173
-    depends_on: [mongo]
+      DAGU_BASE_URL: http://dagu:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      mongo:
+        condition: service_started
     restart: unless-stopped
     networks: [default, database]
 
   dagu:
     image: ghcr.io/dagucloud/dagu:2.16.6
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        tr -d '\r' < /etc/kube/init.sh | /bin/sh
+        exec /usr/local/bin/tini -g -- /entrypoint.sh dagu start-all
     ports:
       - "127.0.0.1:8525:8080"
     environment:
@@ -39,22 +55,95 @@ services:
       DAGU_DATA_DIR: /var/lib/dagu/data
       DAGU_LOG_DIR: /var/lib/dagu/logs
       DAGU_BASE_CONFIG: /var/lib/dagu/base.yaml
-      DAGU_AUTH_MODE: builtin
-      DAGU_AUTH_TOKEN_SECRET: dev-only-dagu-token-secret-change-in-prod
-      DAGU_AUTH_BUILTIN_INITIAL_ADMIN_USERNAME: admin
-      DAGU_AUTH_BUILTIN_INITIAL_ADMIN_PASSWORD: dev-only-admin-pw
+      DAGU_AUTH_MODE: none
       KUBECONFIG: /etc/kube/config
     volumes:
       - dagu-data:/var/lib/dagu
       - ./dagu/workflows:/var/lib/dagu/dags
       - ./dagu/infra/base.yaml:/var/lib/dagu/base.yaml
       - ~/.kube/config:/etc/kube/source-config:ro
-      - ./dagu/infra/dev/10-use-host-kube-api.sh:/etc/custom-init.d/10-use-host-kube-api.sh:ro
+      - ./dagu/infra/dev/10-use-host-kube-api.sh:/etc/kube/init.sh:ro
     restart: unless-stopped
+
+  ck-mongo:
+    image: mongo:8.0
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      # Initiates the replica set on first start and reports healthy once it is primary.
+      test: >
+        mongosh --quiet --eval "
+          try { rs.status().ok }
+          catch { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }
+        "
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    volumes:
+      - ck-mongo-data:/data/db
+    restart: unless-stopped
+
+  collab-kit:
+    image: ghcr.io/thm-mni-ii/collab-kit:v0.6.1
+    ports:
+      - "127.0.0.1:24202:24202"
+    environment:
+      MONGODB_URI: mongodb://ck-mongo:27017/?replicaSet=rs0&directConnection=true
+      MONGODB_DB: collab_kit
+      # Same Feedbacksystem 2.0 tokens as the api.
+      JWT_ALGORITHM: RS256
+      JWT_JWKS_URI: http://host.docker.internal:8080/oauth2/jwks
+      JWT_ISSUER: http://localhost:8083
+      ACTOR_CLAIM: id
+      TOP_CLAIM: globalRole
+      TOP_VALUES: ADMIN,MODERATOR
+      ALLOWED_ORIGINS: http://localhost:8085
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      ck-mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  workflow-synonym-matching:
+    image: modeling-copilot/synonym-matching:0.1.1
+    build:
+      context: ./dagu/workflow-services/synonym-matching
+      dockerfile: Dockerfile
+    profiles: [workflow-services]
+
+  workflow-graph-parser:
+    image: modeling-copilot/graph-parser:0.1.1
+    build:
+      context: ./dagu/workflow-services/graph-parser
+      dockerfile: Dockerfile
+    profiles: [workflow-services]
+
+  workflow-one-to-one-matching:
+    image: modeling-copilot/one-to-one-graph-matching:0.1.1
+    build:
+      context: ./dagu/workflow-services/one-to-one-graph-matching
+      dockerfile: Dockerfile
+    profiles: [workflow-services]
+
+  workflow-minimal-matching-unit:
+    image: modeling-copilot/minimal-matching-unit:0.1.1
+    build:
+      context: ./dagu/workflow-services/minimal-matching-unit
+      dockerfile: Dockerfile
+    profiles: [workflow-services]
+
+  workflow-feedback-generation:
+    image: modeling-copilot/feedback-generation:0.1.1
+    build:
+      context: ./dagu/workflow-services/feedback-generation
+      dockerfile: Dockerfile
+    profiles: [workflow-services]
 
 volumes:
   mongo-data:
   dagu-data:
+  ck-mongo-data:
 
 networks:
   database:

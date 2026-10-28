@@ -33,8 +33,6 @@ Die Kubeconfig wird nur im Container angepasst: `127.0.0.1` beziehungsweise
 weiterhin `localhost`.
 
 - UI: http://localhost:8525
-- Benutzer: `admin`
-- Passwort: `dev-only-admin-pw`
 
 Die Zugangsdaten sind reine Entwicklungswerte aus `docker-compose.yaml`.
 Builtin-Authentifizierung ist aktiviert. Der initiale Admin wird nur beim ersten

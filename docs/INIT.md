@@ -18,8 +18,8 @@ VS Code interpreter auswählen über **Strg+Shift+P** → **Python: Select Inter
 ## Starten
 
 ```powershell | sh
-# 1. Datenbank starten (Container, läuft im Hintergrund)
-docker compose up -d mongo
+# 1. Datenbank und Collab-Kit starten (Container, laufen im Hintergrund)
+docker compose up -d mongo collab-kit
 
 # 2. venv für dieses Terminal aktivieren
 # Windows
@@ -37,7 +37,7 @@ Danach im Browser öffnen: <http://localhost:8000/docs> (Swagger UI, interaktive
 ## Häufige Kommandos
 
 ```sh
-docker compose up -d mongo      # Datenbank starten
+docker compose up -d mongo collab-kit   # Datenbank und Collab-Kit starten
 docker compose logs -f mongo    # Datenbank-Logs
 docker compose down             # alles stoppen
 uvicorn modeling_api.main:app --app-dir src --reload   # API mit Auto-Reload

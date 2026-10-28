@@ -1,0 +1,1 @@
+{"$schema":"http://json-schema.org/draft-07/schema#","title":"synonym-matching output","type":"object","required":["status","capability","summary","result"],"properties":{"status":{"const":"ok"},"capability":{"const":"synonym-matching"},"step":{"type":"string"},"summary":{"type":"string"},"result":{"type":"object","properties":{"matches":{"type":"array"}}}}}

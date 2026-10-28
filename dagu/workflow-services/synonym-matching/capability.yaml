@@ -1,0 +1,7 @@
+id: synonym-matching
+version: 0.1.1
+type: workflow
+image: modeling-copilot/synonym-matching:0.1.1
+inputSchema: schemas/input.schema.json
+outputSchema: schemas/output.schema.json
+description: Eigenständiges Skeleton für spätere Begriffs- und Synonymzuordnung mit Dummy-Daten.

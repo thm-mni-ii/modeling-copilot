@@ -1,0 +1,1 @@
+{"$schema":"http://json-schema.org/draft-07/schema#","title":"graph-parser input","type":"object","properties":{"step":{"type":"string"},"input":{"type":"object","description":"Future model snapshot."},"demoDelaySeconds":{"type":"number","minimum":0,"maximum":30}},"additionalProperties":true}

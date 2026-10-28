@@ -20,11 +20,10 @@
         "startSize": 28,
         "horizontal": true,
         "labelBackgroundColor": "#ffffff",
-        "childSpacing": 0,
-        "childSpacingX": 0,
-        "autoFitWidth": false,
-        "autoStackY": true,
-        "autoResize": false
+        "layoutPreset": "custom",
+        "containerLayout": "list",
+        "listItemSpacing": 0,
+        "listCrossPadding": 0
       },
       "anchorPoints": [
         { "x": 0, "y": 0.5 },
@@ -75,11 +74,10 @@
         "startSize": 38,
         "horizontal": true,
         "labelBackgroundColor": "#ffffff",
-        "childSpacing": 0,
-        "childSpacingX": 0,
-        "autoFitWidth": false,
-        "autoStackY": true,
-        "autoResize": false
+        "layoutPreset": "custom",
+        "containerLayout": "list",
+        "listItemSpacing": 0,
+        "listCrossPadding": 0
       },
       "anchorPoints": [
         { "x": 0, "y": 0.5 },
@@ -130,11 +128,10 @@
         "startSize": 38,
         "horizontal": true,
         "labelBackgroundColor": "#ffffff",
-        "childSpacing": 0,
-        "childSpacingX": 0,
-        "autoFitWidth": false,
-        "autoStackY": true,
-        "autoResize": false
+        "layoutPreset": "custom",
+        "containerLayout": "list",
+        "listItemSpacing": 0,
+        "listCrossPadding": 0
       },
       "anchorPoints": [
         { "x": 0, "y": 0.5 },
@@ -185,11 +182,10 @@
         "startSize": 38,
         "horizontal": true,
         "labelBackgroundColor": "#ffffff",
-        "childSpacing": 0,
-        "childSpacingX": 0,
-        "autoFitWidth": false,
-        "autoStackY": true,
-        "autoResize": false
+        "layoutPreset": "custom",
+        "containerLayout": "list",
+        "listItemSpacing": 0,
+        "listCrossPadding": 0
       },
       "anchorPoints": [
         { "x": 0, "y": 0.5 },
@@ -240,11 +236,10 @@
         "startSize": 40,
         "horizontal": true,
         "labelBackgroundColor": "transparent",
-        "childSpacing": 15,
-        "childSpacingX": 15,
-        "autoFitWidth": true,
-        "autoStackY": false,
-        "autoResize": true
+        "layoutPreset": "custom",
+        "containerLayout": "list",
+        "listItemSpacing": 0,
+        "listCrossPadding": 0
       },
       "anchorPoints": [],
       "children": [],

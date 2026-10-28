@@ -1,0 +1,89 @@
+description: Graphbasierte Auswertung eines studentischen Modells gegen Musterlösungen.
+labels:
+  purpose: evaluation
+  domain: generic
+  visibility: frontend
+  version: v1
+params:
+  schema:
+    type: object
+    required: [task, submission_model, reference_solutions]
+    properties:
+      task:
+        type: string
+        description: JSON-kodierter versionierter Aufgaben-Snapshot.
+      submission_model:
+        type: string
+        description: JSON-kodierter vollständiger Snapshot der studentischen Abgabe.
+      reference_solutions:
+        type: string
+        description: JSON-kodiertes Array der Referenzen auf die Musterlösungen.
+  # Dagu-Laufzeitparameter sind skalare Werte. Das Backend serialisiert die
+  # strukturierten Werte als JSON und überschreibt diese neutralen Defaults.
+  values:
+    task: '{}'
+    submission_model: '{}'
+    reference_solutions: '[]'
+steps:
+  - name: parse_reference
+    description: Wandelt Musterlösungen in einen Graphen um.
+    action: k8s.run
+    with:
+      image: modeling-copilot/graph-parser:0.1.1
+      image_pull_policy: IfNotPresent
+      env:
+        - name: TEMPLATE_INPUT
+          value: '{"step":"parse_reference","demoDelaySeconds":4,"input":{"source":"reference_solutions"}}'
+
+  - name: parse_submission
+    description: Wandelt das studentische Modell in einen Graphen um.
+    action: k8s.run
+    with:
+      image: modeling-copilot/graph-parser:0.1.1
+      image_pull_policy: IfNotPresent
+      env:
+        - name: TEMPLATE_INPUT
+          value: '{"step":"parse_submission","demoDelaySeconds":4,"input":{"source":"submission_model"}}'
+
+  - name: synonym_matching
+    description: Ermittelt mögliche Begriffszuordnungen.
+    action: k8s.run
+    with:
+      image: modeling-copilot/synonym-matching:0.1.1
+      image_pull_policy: IfNotPresent
+      env:
+        - name: TEMPLATE_INPUT
+          value: '{"step":"synonym_matching","demoDelaySeconds":4,"input":{"source":"task"}}'
+
+  - name: one_to_one_matching
+    description: Vergleicht Modellgraphen 1:1.
+    depends: [parse_reference, parse_submission, synonym_matching]
+    action: k8s.run
+    with:
+      image: modeling-copilot/one-to-one-graph-matching:0.1.1
+      image_pull_policy: IfNotPresent
+      env:
+        - name: TEMPLATE_INPUT
+          value: '{"step":"one_to_one_matching","demoDelaySeconds":4,"input":{"source":"parsed_graphs"}}'
+
+  - name: minimal_matching_unit
+    description: Ermittelt minimale passende Graph-Einheiten.
+    depends: [parse_reference, parse_submission, synonym_matching]
+    action: k8s.run
+    with:
+      image: modeling-copilot/minimal-matching-unit:0.1.1
+      image_pull_policy: IfNotPresent
+      env:
+        - name: TEMPLATE_INPUT
+          value: '{"step":"minimal_matching_unit","demoDelaySeconds":4,"input":{"source":"parsed_graphs"}}'
+
+  - name: feedback_aggregation
+    description: Fasst die Auswertung zu einem Feedback zusammen.
+    depends: [one_to_one_matching, minimal_matching_unit]
+    action: k8s.run
+    with:
+      image: modeling-copilot/feedback-generation:0.1.1
+      image_pull_policy: IfNotPresent
+      env:
+        - name: TEMPLATE_INPUT
+          value: '{"step":"feedback_aggregation","demoDelaySeconds":4,"input":{"source":"matching_results"}}'

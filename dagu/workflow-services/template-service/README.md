@@ -1,12 +1,17 @@
 # template-service
 
-Template for future short-lived Dagu workflow-service containers. Contains no
-business logic - it only demonstrates the expected container contract:
+Template for future short-lived Dagu workflow-service containers. It contains
+no evaluation business logic; capability images set `WORKFLOW_CAPABILITY` and
+receive deterministic dummy data so the workflow can be played through:
 
 - input as JSON (via `TEMPLATE_INPUT` env var, or stdin if unset)
 - output as JSON on stdout
 - logs on stderr
 - exit code `0` on success, non-zero on failure
+
+`TEMPLATE_INPUT` may include `step`, `input`, and `demoDelaySeconds`. Output
+always contains `status`, `summary`, and `result`; it stays compatible with the
+original `echo` field used by the template test.
 
 ## Build
 

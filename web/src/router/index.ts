@@ -1,10 +1,12 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useBearerToken } from '@/composables/useBearerToken'
 import authService from '@/services/auth/auth.service'
+import { isEmbedded, requestFbsToken, startFbsBridge, fbsAuthenticated, fbsConnectionError, fbsTargetPath, fbsConnecting } from '@/services/auth/fbsBridge'
 import { useUserStore } from '@/stores/userStore'
+import { isFeedbacksystemCallback, completeFeedbacksystemSignIn } from '@/services/auth/fbsOidc'
 
 const router = createRouter({
-  history: createWebHashHistory(),
+  history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/login',
@@ -38,6 +40,11 @@ const router = createRouter({
       component: () => import('../views/ViewTaskEditor.vue')
     },
     {
+      path: '/collab',
+      name: 'Collab',
+      component: () => import('@/collab/rooms/ViewCollab.vue')
+    },
+    {
       path: '/404',
       name: 'View404Page',
       component: () => import('../views/View404Page.vue')
@@ -49,36 +56,60 @@ const router = createRouter({
   ]
 })
 
-const nonAdminPages = ['Login', 'Home', 'Modeling', 'View404Page']
+const nonAdminPages = ['Login', 'Home', 'Modeling', 'View404Page', 'Collab']
 
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to) => {
+  if (!isEmbedded && isFeedbacksystemCallback()) {
+    const target = await completeFeedbacksystemSignIn()
+    useUserStore().reset()
+    return target
+  }
   const publicPages = ['/login']
   const authRequired = !publicPages.includes(to.path)
   const { bearerToken, clearToken } = useBearerToken()
-  const loggedIn = bearerToken.value
-
   const adminRequired = !nonAdminPages.includes(to.name as string)
   const userStore = useUserStore()
 
-  const loginValid = await authService.validateToken().then((response) => {
-    if (response.data === true) {
-      return true
-    } else {
+  if (isEmbedded) {
+    fbsTargetPath.value = to.path === '/login' ? '/' : to.fullPath
+    if (!(await startFbsBridge())) {
+      fbsAuthenticated.value = false
       clearToken()
       userStore.reset()
       return false
     }
-  })
-
-  // trying to access a restricted page + not logged in
-  // redirect to login page
-  if ((authRequired && !loggedIn) || (authRequired && !loginValid)) {
-    next('/login')
-  } else if (adminRequired && (await userStore.ensureGlobalRole()) !== 'ADMIN') {
-    next('/404')
-  } else {
-    next()
+    fbsConnecting.value = true
   }
+
+  let loginValid = false
+  try {
+    if (bearerToken.value) {
+      loginValid = (await authService.validateToken()).data === true
+      if (!loginValid && isEmbedded && (await requestFbsToken())) {
+        loginValid = (await authService.validateToken()).data === true
+      }
+    }
+    if (isEmbedded && !loginValid) {
+      fbsConnectionError.value = 'The sign-in token received from the Feedbacksystem was rejected. Please sign in to the Feedbacksystem again and retry.'
+    }
+  } catch {
+    if (isEmbedded) fbsConnectionError.value = 'Your sign-in could not be verified. Please check the connection to the Modeling Copilot API and try again.'
+  } finally {
+    if (isEmbedded) {
+      fbsConnecting.value = false
+      fbsAuthenticated.value = loginValid
+    }
+  }
+
+  if (!loginValid) {
+    clearToken()
+    userStore.reset()
+    if (isEmbedded) return false
+    if (authRequired) return { path: '/login', query: { returnTo: to.fullPath } }
+  }
+  if (isEmbedded && to.path === '/login') return '/'
+  if (adminRequired && (await userStore.ensureGlobalRole()) !== 'ADMIN') return '/404'
+  return true
 })
 
 export default router

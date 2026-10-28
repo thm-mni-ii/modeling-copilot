@@ -37,12 +37,16 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
   if (element.renderMode === 'swimlane') {
     if (baseStyle.startSize === undefined) baseStyle.startSize = 22
     if (baseStyle.horizontal === undefined) baseStyle.horizontal = false
+    if (baseStyle.swimlaneLine === undefined) baseStyle.swimlaneLine = true
+    if (baseStyle.layoutPreset === undefined) baseStyle.layoutPreset = 'list'
     if (baseStyle.labelBackgroundColor === undefined) baseStyle.labelBackgroundColor = 'transparent'
-    if (baseStyle.childSpacing === undefined) baseStyle.childSpacing = 10
-    if (baseStyle.childSpacingX === undefined) baseStyle.childSpacingX = 10
-    if (baseStyle.autoFitWidth === undefined) baseStyle.autoFitWidth = true
-    if (baseStyle.autoStackY === undefined) baseStyle.autoStackY = true
-    if (baseStyle.autoResize === undefined) baseStyle.autoResize = true
+    if (baseStyle.containerLayout === undefined) baseStyle.containerLayout = 'list'
+    if (baseStyle.listDirection === undefined) baseStyle.listDirection = 'vertical'
+    if (baseStyle.listItemSpacing === undefined) baseStyle.listItemSpacing = 10
+    if (baseStyle.listCrossPadding === undefined) baseStyle.listCrossPadding = 10
+    if (baseStyle.listStretchCrossAxis === undefined) baseStyle.listStretchCrossAxis = true
+    if (baseStyle.resizeMainAxis === undefined) baseStyle.resizeMainAxis = true
+    if (baseStyle.resizeCrossAxis === undefined) baseStyle.resizeCrossAxis = false
   }
 
   // Collapse/Folding aktivieren
