@@ -3,7 +3,7 @@ import { useBearerToken } from '@/composables/useBearerToken'
 import authService from '@/services/auth/auth.service'
 import { isEmbedded, requestFbsToken, startFbsBridge, fbsAuthenticated, fbsConnectionError, fbsTargetPath, fbsConnecting } from '@/services/auth/fbsBridge'
 import { useUserStore } from '@/stores/userStore'
-import { isFeedbacksystemCallback, completeFeedbacksystemSignIn } from '@/services/auth/fbsOidc'
+import { isFeedbacksystemCallback, completeFeedbacksystemSignIn, renewFeedbacksystemToken } from '@/services/auth/fbsOidc'
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -85,7 +85,7 @@ router.beforeEach(async (to) => {
   try {
     if (bearerToken.value) {
       loginValid = (await authService.validateToken()).data === true
-      if (!loginValid && isEmbedded && (await requestFbsToken())) {
+      if (!loginValid && (await (isEmbedded ? requestFbsToken() : renewFeedbacksystemToken()))) {
         loginValid = (await authService.validateToken()).data === true
       }
     }

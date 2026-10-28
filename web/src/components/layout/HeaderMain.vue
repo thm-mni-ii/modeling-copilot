@@ -51,7 +51,7 @@ onMounted(() => void userStore.ensureGlobalRole())
 const logout = () => {
   if (!isEmbedded) {
     useBearerToken().clearToken()
-    void forgetFeedbacksystemSession()
+    forgetFeedbacksystemSession()
     userStore.reset()
   }
   router.push('/login')

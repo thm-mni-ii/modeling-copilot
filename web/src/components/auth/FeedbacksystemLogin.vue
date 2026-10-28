@@ -40,7 +40,7 @@
                 <dt>Mode</dt>
                 <dd>IFRAME or EXTERNAL</dd>
                 <dt>OIDC</dt>
-                <dd>Enabled · PUBLIC client · no secret</dd>
+                <dd>Enabled · CONFIDENTIAL client · secret as OIDC_CLIENT_SECRET of the API</dd>
                 <dt>Redirect URI</dt>
                 <dd>{{ fbsRedirectUri }}</dd>
                 <dt>Scopes</dt>

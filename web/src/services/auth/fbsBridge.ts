@@ -36,7 +36,7 @@ const post = (type: string, payload: object = {}) => {
 }
 
 // Taken from the token itself, the expiresIn of the host is not always right.
-const expiresAt = (token: string) => {
+export const expiresAt = (token: string) => {
   try {
     const { exp } = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
     return typeof exp === 'number' ? exp * 1000 : null
