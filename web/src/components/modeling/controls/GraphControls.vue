@@ -4,6 +4,23 @@
       <v-btn-group size="small" density="compact" variant="outlined">
         <v-btn :icon="snapToGrid ? 'mdi-grid' : 'mdi-grid-off'" :color="snapToGrid ? 'primary' : 'grey'" title="Toggle grid" @click="handleToggleGrid" />
         <v-btn icon="mdi-refresh" title="Reload grid" @click="handleForceGridRepaint" />
+        <v-tooltip location="top" transition="scale-transition">
+          <template #activator="{ props: activatorProps }">
+            <v-btn v-bind="activatorProps" icon="mdi-information-outline" aria-label="Show keyboard shortcuts" />
+          </template>
+          <div class="shortcut-tooltip-content">
+            <div><strong>Keyboard shortcuts</strong></div>
+            <div>Ctrl+A: Select all</div>
+            <div>Ctrl+C: Copy</div>
+            <div>Ctrl+V: Paste</div>
+            <div>Ctrl+D: Duplicate</div>
+            <div>Ctrl+Z: Undo</div>
+            <div>Ctrl+Y: Redo</div>
+            <div>Del: Delete</div>
+            <div>Esc: Clear selection</div>
+            <div>Mouse wheel on canvas: Zoom in/out</div>
+          </div>
+        </v-tooltip>
       </v-btn-group>
     </div>
     <div class="control-row">
@@ -68,6 +85,13 @@ const handleForceGridRepaint = () => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.shortcut-tooltip-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
 }
 
 .floating-button-group .v-btn-group {

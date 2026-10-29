@@ -9,7 +9,7 @@
           <v-icon size="16" class="task-topbar__chevron" :class="{ 'task-topbar__chevron--open': expanded }">mdi-chevron-down</v-icon>
         </button>
 
-        <div class="task-topbar__header-actions">
+        <div v-if="!helpSelectionMode" class="task-topbar__header-actions">
           <v-chip v-if="windowOpen" size="x-small" color="primary" variant="tonal" class="task-topbar__window-chip">
             <v-icon start size="12">mdi-open-in-new</v-icon>
             Open in window
@@ -31,7 +31,7 @@
             <v-icon size="16" color="primary">mdi-open-in-new</v-icon>
             The task text is open in a window. Close the window to display it here.
           </div>
-          <TaskEditEditor v-else :base-html="contentHtml" :model-value="taskEdit?.document ?? null" :mode="editMode ? 'edit' : 'read'" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="editorStyle" @select-connection="emit('select-connection', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
+          <TaskEditEditor v-else :base-html="contentHtml" :model-value="helpSelectionMode ? helpTaskDocument ?? null : taskEdit?.document ?? null" :mode="helpSelectionMode ? 'help' : editMode ? 'edit' : 'read'" :help-text-ranges="helpTextRanges" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="editorStyle" @mark-help-text="emit('mark-help-text', $event)" @select-connection="emit('select-connection', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
 
           <div class="task-topbar__resize-handle" title="Adjust height" @mousedown.prevent="startResize">
             <v-icon size="12">mdi-drag-horizontal</v-icon>
@@ -49,6 +49,7 @@ import type { TaskConnectionOption, TaskElementOption } from '@/components/tasks
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { DiagramTask } from '@/model/Task'
+import type { HelpTextRange } from '@/services/learningPaths'
 
 const props = withDefaults(
   defineProps<{
@@ -59,11 +60,15 @@ const props = withDefaults(
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
     evaluationWorkflows?: string[]
+    helpSelectionMode?: boolean
+    helpTaskDocument?: JsonObject | null
+    helpTextRanges?: HelpTextRange[]
   }>(),
   {
     elementOptions: () => [],
     connectionOptions: () => [],
-    evaluationWorkflows: () => []
+    evaluationWorkflows: () => [],
+    helpTextRanges: () => []
   }
 )
 
@@ -72,11 +77,15 @@ const emit = defineEmits<{
   'update:taskEditDocument': [document: JsonObject]
   'select-connection': [reference: { languageId: string; connectionType: string }]
   'start-evaluation': []
+  'mark-help-text': [range: HelpTextRange]
 }>()
 
 const expanded = ref(true)
 const editMode = ref(false)
-const DEFAULT_HEIGHT = 220
+watch(() => props.helpSelectionMode, (active) => {
+  if (active) { expanded.value = true; editMode.value = false }
+})
+const DEFAULT_HEIGHT = 180
 const MIN_HEIGHT = 120
 const MAX_HEIGHT = 420
 const topbarHeight = ref(DEFAULT_HEIGHT)
@@ -151,7 +160,7 @@ watch(
   border: 1px solid rgba(var(--v-theme-primary), 0.22);
   border-radius: 6px;
   background: #fafafa;
-  margin-bottom: 6px;
+  margin-bottom: 0;
   overflow: hidden;
   flex-shrink: 0;
 }

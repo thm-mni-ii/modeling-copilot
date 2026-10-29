@@ -24,7 +24,8 @@ def _client() -> dict[str, str]:
 async def _request_tokens(form: dict[str, str]) -> Tokens:
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.post(settings.oidc_token_uri, data={**form, **_client()})
+            headers = {"Host": settings.oidc_token_host} if settings.oidc_token_host else {}
+            response = await client.post(settings.oidc_token_uri, data={**form, **_client()}, headers=headers)
     except httpx.HTTPError as error:
         raise ApiError(503, "FBS_UNAVAILABLE", "The Feedbacksystem is currently unavailable.") from error
     # 400 is an invalid or expired code or refresh token, so the sign-in has ended.
