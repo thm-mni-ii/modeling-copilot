@@ -8,7 +8,7 @@
       "ownerId": "",
       "latestVersionId": "bd77854a-7be4-40d9-bb47-93a0b3e437f2",
       "latestReleaseId": "bd77854a-7be4-40d9-bb47-93a0b3e437f2",
-      "visibility": "published",
+      "visibility": "private",
       "archivedAt": null,
       "version": {
         "id": "bd77854a-7be4-40d9-bb47-93a0b3e437f2",
@@ -39,7 +39,7 @@
       "ownerId": "",
       "latestVersionId": "3e97d0d6-5494-400a-86ea-6875f125d3d5",
       "latestReleaseId": "3e97d0d6-5494-400a-86ea-6875f125d3d5",
-      "visibility": "published",
+      "visibility": "private",
       "archivedAt": null,
       "version": {
         "id": "3e97d0d6-5494-400a-86ea-6875f125d3d5",

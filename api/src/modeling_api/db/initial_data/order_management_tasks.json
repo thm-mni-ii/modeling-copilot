@@ -8,7 +8,7 @@
       "ownerId": "",
       "latestVersionId": "94dd0962-e316-43ec-b1b7-6ff29efc804a",
       "latestReleaseId": "94dd0962-e316-43ec-b1b7-6ff29efc804a",
-      "visibility": "published",
+      "visibility": "private",
       "archivedAt": null,
       "version": {
         "id": "94dd0962-e316-43ec-b1b7-6ff29efc804a",
@@ -44,7 +44,7 @@
       "ownerId": "",
       "latestVersionId": "428fb4fb-68c8-43c5-8c10-3b6698be39d2",
       "latestReleaseId": "428fb4fb-68c8-43c5-8c10-3b6698be39d2",
-      "visibility": "published",
+      "visibility": "private",
       "archivedAt": null,
       "version": {
         "id": "428fb4fb-68c8-43c5-8c10-3b6698be39d2",
@@ -80,7 +80,7 @@
       "ownerId": "",
       "latestVersionId": "16d93359-5e67-45c4-a9d4-7d75cda6d129",
       "latestReleaseId": "16d93359-5e67-45c4-a9d4-7d75cda6d129",
-      "visibility": "published",
+      "visibility": "private",
       "archivedAt": null,
       "version": {
         "id": "16d93359-5e67-45c4-a9d4-7d75cda6d129",

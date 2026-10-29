@@ -17,18 +17,31 @@ class Question(BaseModel):
     type: Literal["comment", "radiogroup", "checkbox", "rating", "matrix"]
     name: str = Field(pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
     title: Name
+    description: str | None = Field(default=None, max_length=2000)
+    page: str | None = Field(default=None, pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
     isRequired: bool = False
     visibleIf: str | None = Field(default=None, max_length=400)
+    visibleWhen: Literal["help_requested", "pulse_answered"] | None = None
     choices: list[Name] | None = Field(default=None, max_length=100)
+    exclusiveChoices: list[Name] | None = Field(default=None, max_length=100)
     choiceLabels: dict[str, Name] | None = None
     rows: list[Name] | None = Field(default=None, max_length=100)
     columns: list[Name] | None = Field(default=None, max_length=100)
     isAllRowRequired: bool = False
     rateMin: int = Field(default=1, ge=0, le=100)
     rateMax: int = Field(default=5, ge=1, le=100)
+    minRateDescription: Name | None = None
+    maxRateDescription: Name | None = None
 
     @model_validator(mode="after")
     def valid_question(self):
+        if self.exclusiveChoices is not None and (
+            self.type != "checkbox"
+            or not self.choices
+            or not set(self.exclusiveChoices) <= set(self.choices)
+            or len(set(self.exclusiveChoices)) != len(self.exclusiveChoices)
+        ):
+            raise ValueError("Exclusive choices must be unique checkbox answer options.")
         if self.choiceLabels is not None and (not self.choices or set(self.choiceLabels) != set(self.choices)):
             raise ValueError("Choice labels must match the answer identifiers.")
         for values in (self.choices, self.rows, self.columns):
@@ -43,12 +56,32 @@ class Question(BaseModel):
         return self
 
 
+class SurveyPage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
+    title: Name
+    description: str | None = Field(default=None, max_length=2000)
+
+
 class Definition(BaseModel):
     model_config = ConfigDict(extra="forbid")
     elements: list[Question] = Field(min_length=1, max_length=100)
+    introduction: str | None = Field(default=None, max_length=5000)
+    pages: list[SurveyPage] = Field(default_factory=list, max_length=20)
+    showQuestionNumbers: Literal["on", "off"] = "on"
 
     @model_validator(mode="after")
     def unique_names(self):
+        if all(question.visibleWhen or question.visibleIf for question in self.elements):
+            raise ValueError("A questionnaire requires at least one unconditional question.")
+        page_names = {page.name for page in self.pages}
+        if len(page_names) != len(self.pages):
+            raise ValueError("Page names must be unique.")
+        if any(
+            (question.page not in page_names if self.pages else question.page is not None)
+            for question in self.elements
+        ):
+            raise ValueError("Each question must belong to an existing page when pages are configured.")
         if len({q.name for q in self.elements}) != len(self.elements):
             raise ValueError("Question names must be unique.")
         earlier = {}
@@ -56,14 +89,16 @@ class Definition(BaseModel):
             if question.visibleIf:
                 name, choice = visibility_condition(question.visibleIf)
                 source = earlier.get(name)
-                if not source or source.type != "radiogroup" or choice not in source.choices:
-                    raise ValueError("Visibility must compare an earlier single-choice question to one of its choices.")
+                if not source or source.type not in ("radiogroup", "checkbox") or choice not in source.choices:
+                    raise ValueError("Visibility must reference an earlier choice question and one of its options.")
+                if (source.type == "checkbox") != question.visibleIf.partition("} ")[2].startswith("contains "):
+                    raise ValueError("Checkbox conditions require contains; single-choice conditions require = or !=.")
             earlier[question.name] = question
         return self
 
 
 def visibility_condition(expression):
-    match = re.fullmatch(r"\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} = '([^']+)'", expression)
+    match = re.fullmatch(r"\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} (?:=|!=|contains) '([^']+)'", expression)
     if not match:
         raise ValueError("Unsupported question visibility condition.")
     return match.groups()

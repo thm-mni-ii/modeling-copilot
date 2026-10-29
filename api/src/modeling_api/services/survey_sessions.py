@@ -8,6 +8,38 @@ from modeling_api.core.errors import conflict, not_found
 from modeling_api.db.client import db
 from modeling_api.db.store import new_id, utcnow
 from modeling_api.schemas.survey_sessions import SurveySessionFields
+from modeling_api.schemas.surveys import visibility_condition
+
+
+def version_for_session(version, session):
+    """Apply trusted usage conditions without changing an immutable release."""
+    flags = session.get("contextFlags", {})
+    elements = []
+    visible_names = set()
+    for question in version["definition"]["elements"]:
+        if question.get("visibleWhen") and not flags.get(question["visibleWhen"], False):
+            continue
+        if question.get("visibleIf"):
+            source, _choice = visibility_condition(question["visibleIf"])
+            if source not in visible_names:
+                continue
+        elements.append(question)
+        visible_names.add(question["name"])
+    return {**version, "definition": {**version["definition"], "elements": elements}}
+
+
+async def usage_context(run_id, user):
+    """Capture actual usage in this learner's run, not self-reported answers."""
+    from modeling_api.services.pulse_surveys import reconcile
+
+    await reconcile(run_id)
+    help_request = await db.learning_path_help_requests.find_one(
+        {"runId": str(run_id), "ownerId": user.id}, {"_id": 1}
+    )
+    pulse_answer = await db.learning_path_pulse_events.find_one(
+        {"runId": str(run_id), "event": "answered"}, {"_id": 1}
+    )
+    return {"help_requested": help_request is not None, "pulse_answered": pulse_answer is not None}
 
 
 async def release(release_id):
@@ -42,7 +74,7 @@ async def open_path_session(run_id, step_id, survey_id, phase, required, user):
     previous_release = session["releaseId"] if session else None
     current_release = None
     if session is None:
-        version = await surveys.render(survey_id, user, "use")
+        version = await surveys.render(survey_id, user, "use", embedded=True)
         current_release = version
         fields = SurveySessionFields(
             userId=user.id,
@@ -70,7 +102,7 @@ async def open_path_session(run_id, step_id, survey_id, phase, required, user):
         )
         session = await db.survey_sessions.find_one({"_id": session_id})
     if session["status"] == "draft":
-        version = current_release or await surveys.render(survey_id, user, "use")
+        version = current_release or await surveys.render(survey_id, user, "use", embedded=True)
         if version["id"] != session["releaseId"]:
             await db.survey_sessions.update_one(
                 {"_id": session_id, "status": "draft", "revision": session["revision"]},
@@ -80,6 +112,15 @@ async def open_path_session(run_id, step_id, survey_id, phase, required, user):
                 },
             )
     session = await db.survey_sessions.find_one({"_id": session_id})
+    if phase == "after" and session["status"] == "draft" and not session.get("contextFlags"):
+        flags = await usage_context(run_id, user)
+        await db.survey_sessions.update_one(
+            {"_id": session_id, "userId": user.id, "$or": [
+                {"contextFlags": {"$exists": False}}, {"contextFlags": {}},
+            ]},
+            {"$set": {"contextFlags": flags}},
+        )
+        session = await db.survey_sessions.find_one({"_id": session_id, "userId": user.id})
     return session, bool(previous_release and previous_release != session["releaseId"])
 
 
@@ -101,7 +142,7 @@ async def save(session, body, action, required):
     else:
         if action == "submit":
             version = await release(session["releaseId"])
-            surveys.validate_answers(version["definition"], body.answers)
+            surveys.validate_answers(version_for_session(version, session)["definition"], body.answers)
             fields.update(status="submitted", completedAt=utcnow())
         fields["answers"] = body.answers
     result = await db.survey_sessions.update_one(

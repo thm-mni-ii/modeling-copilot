@@ -12,6 +12,7 @@ from uuid import UUID, uuid5
 from pymongo.errors import DuplicateKeyError
 
 from modeling_api.core.errors import not_found
+from modeling_api.services.learning_path_access import template_visibility
 from modeling_api.db.client import db
 from modeling_api.schemas.learning_path_documents import (
     LearningPathTemplateContent,
@@ -62,11 +63,7 @@ def template_meta(body, step_ids):
         {
             "title": body.name,
             "description": body.description,
-            "status": (
-                "archived"
-                if body.archived
-                else "published" if body.published else "draft"
-            ),
+            "status": body.visibility,
             "stepIds": [str(i) for i in step_ids],
             "pulseSurveys": body.pulse_surveys,
             "helpRequests": body.help_requests,
@@ -99,8 +96,9 @@ def template_view(doc):
         "id": doc["_id"],
         "name": doc["title"],
         "description": doc["description"],
-        "published": doc["status"] == "published",
-        "archived": doc["status"] == "archived",
+        "visibility": template_visibility(doc),
+        "published": template_visibility(doc) == "published",
+        "archived": template_visibility(doc) == "unlisted",
         "revision": doc["revision"],
         "pulseSurveys": doc.get("pulseSurveys", {"enabled": False}),
         "helpRequests": doc.get("helpRequests", {"enabled": False}),

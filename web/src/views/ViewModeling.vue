@@ -418,7 +418,7 @@ onMounted(async () => {
         recoveryDialog.value = true
       } else await loadActiveHelp()
     } else if (workspace.languages.length === 0) {
-      await router.replace('/')
+      await router.replace({ name: 'Models' })
     }
   } catch {
     pathLoadFailed.value = true

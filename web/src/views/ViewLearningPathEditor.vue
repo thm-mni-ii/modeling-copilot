@@ -7,7 +7,7 @@
         <v-text-field v-model="draft.name" class="path-name" label="Path title" placeholder="Give your path a name" variant="plain" hide-details :error="attempted && !draft.name.trim()" maxlength="256" />
       </div>
       <div class="header-actions">
-        <v-chip size="small" :color="draft.archived ? undefined : draft.published ? 'success' : undefined" variant="tonal">{{ draft.archived ? 'Archived' : draft.published ? 'Published' : 'Draft' }}</v-chip>
+        <v-chip size="small" :color="draft.visibility === 'published' ? 'success' : undefined" variant="tonal">{{ pathVisibilityLabel(draft.visibility) }}</v-chip>
         <span class="save-state" role="status">{{ dirty ? 'Unsaved changes' : draft.id ? 'All changes saved' : 'Not saved yet' }}</span>
         <v-btn variant="text" prepend-icon="mdi-cog-outline" :disabled="!ready" @click="settingsDialog = true">Path settings</v-btn>
         <v-btn variant="tonal" prepend-icon="mdi-eye-outline" :disabled="!draft.steps.length" @click="previewDialog = true">Preview path</v-btn>
@@ -16,7 +16,7 @@
     </header>
     <v-progress-linear v-if="loading" indeterminate class="mb-4" />
     <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}<v-btn v-if="!ready && !loading" variant="text" size="small" @click="load">Retry</v-btn></v-alert>
-    <p v-if="draft.published" class="published-note mb-4"><v-icon size="16" class="mr-1">mdi-information-outline</v-icon> Saved changes apply to all runs, including paths already in progress.</p>
+    <p v-if="draft.visibility !== 'hidden'" class="published-note mb-4"><v-icon size="16" class="mr-1">mdi-information-outline</v-icon> Saved changes apply to all runs, including paths already in progress.</p>
 
     <div class="editor-grid" :class="{ 'editor-grid--detail': showDetail }">
       <aside class="path-sidebar" aria-label="Path activities and features">
@@ -158,10 +158,9 @@
     <v-dialog v-model="settingsDialog" max-width="600"
       ><v-card title="Path settings"
         ><v-card-text
-          ><v-textarea v-model="draft.description" label="Description" rows="3" variant="outlined" maxlength="5000" /><v-switch v-model="draft.published" label="Published" color="primary" hide-details />
-          <p class="text-caption text-medium-emphasis mb-3">Published paths are available to learners. At least one activity is required.</p>
-          <v-switch v-model="draft.archived" label="Archived" hide-details />
-          <p class="text-caption text-medium-emphasis">Archived paths cannot start new runs. Changes are saved with the template.</p></v-card-text
+          ><v-textarea v-model="draft.description" label="Description" rows="3" variant="outlined" maxlength="5000" />
+          <v-select v-model="draft.visibility" :items="pathVisibilityOptions" label="Visibility" variant="outlined" :hint="pathVisibilityOptions.find((option) => option.value === draft.visibility)?.description" persistent-hint />
+          <p class="text-caption text-medium-emphasis mt-3">Changes take effect when you save the template. Hiding a path preserves progress and answers.</p></v-card-text
         ><v-card-actions><v-spacer /><v-btn @click="settingsDialog = false">Done</v-btn></v-card-actions></v-card
       ></v-dialog
     >
@@ -220,7 +219,7 @@ import PulseSurveySettings from '@/components/learningPaths/PulseSurveySettings.
 import HelpRequestSettings from '@/components/learningPaths/HelpRequestSettings.vue'
 import LearningPathSurveyPicker from '@/components/learningPaths/LearningPathSurveyPicker.vue'
 import TreasurePathBoard from '@/components/learningPaths/TreasurePathBoard.vue'
-import paths, { type PathRun, type PathStep, type PathTemplate } from '@/services/learningPaths'
+import paths, { pathVisibilityOptions, pathVisibilityLabel, type PathRun, type PathStep, type PathTemplate } from '@/services/learningPaths'
 import surveys, { type Survey } from '@/services/surveys'
 import taskService from '@/services/task/task.service'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
@@ -228,7 +227,7 @@ import { availabilitySummary, conditionSummary, validatePathSteps, validatePulse
 
 const route = useRoute(),
   router = useRouter()
-const draft = ref<PathTemplate>({ id: '', name: '', description: '', published: false, archived: false, revision: 0, updatedAt: null, steps: [] })
+const draft = ref<PathTemplate>({ id: '', name: '', description: '', visibility: 'hidden', published: false, archived: false, revision: 0, updatedAt: null, steps: [] })
 const tasks = ref<Task[]>([]),
   versions = ref<Record<string, TaskVersionInfo[]>>({})
 const detailMode = ref<'activity' | 'pulse' | 'help'>('activity')
@@ -284,7 +283,7 @@ const helpIssue = ref('')
 const issues = computed(() => {
   if (!attempted.value) return {}
   const result = validatePathSteps(draft.value.steps)
-  if (draft.value.published && !loadingTasks.value) {
+  if (draft.value.visibility === 'published' && !loadingTasks.value) {
     for (const step of draft.value.steps) {
       if (step.type !== 'survey' && tasks.value.find((task) => task.id === step.taskVersion?.taskId)?.visibility !== 'published') {
         ;(result[step.id] ??= []).push('Publish the source task and make sure it is not archived before publishing this path.')
@@ -419,7 +418,7 @@ const save = async () => {
     error.value = 'Give your learning path a title.'
     return
   }
-  if (draft.value.published && !draft.value.steps.length) {
+  if (draft.value.visibility === 'published' && !draft.value.steps.length) {
     error.value = 'Add at least one activity before publishing.'
     settingsDialog.value = true
     return

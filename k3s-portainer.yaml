@@ -164,8 +164,9 @@ spec:
             # Client id the tokens are issued to; blank means not checked.
             - name: JWT_AUDIENCE
               value: ''
-            # Sign-in without the feedback system: the API exchanges and renews the
-            # tokens there with the secret of the app (client type CONFIDENTIAL).
+            # Sign-in without the feedback system: the API exchanges the tokens there.
+            # Only a CONFIDENTIAL app gets a secret here and renews with it; for a
+            # PUBLIC app leave it unset, the web app then renews in a hidden frame.
             - name: OIDC_TOKEN_URI
               value: https://feedback.mni.thm.de/oauth2/token
             - name: OIDC_CLIENT_ID

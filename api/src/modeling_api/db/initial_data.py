@@ -1,6 +1,10 @@
 """Idempotent seed data for a new Modeling Copilot database.
 
 Fixed identifiers keep references stable and prevent duplicate seed records.
+The initial modeling-language releases and the entry learning path are public
+by default. Example tasks and paths require explicit publication by an admin.
+Questionnaires have active releases for embedded use; their catalog remains
+admin-only.
 """
 
 import json
@@ -19,6 +23,7 @@ from modeling_api.db.help_questionnaires import HELP_SURVEY_IDS
 SYSTEM_OWNER_ID = ""
 
 ORDER_MANAGEMENT_LEARNING_PATH_ID = "5eff2fa9-17c4-4bd5-b44e-fc98bc05f325"
+ENTRY_LEARNING_PATH_ID = str(uuid5(UUID(ORDER_MANAGEMENT_LEARNING_PATH_ID), "entry-learning-path"))
 
 UML_CLASS_DIAGRAM_ID = "a7fb2523-f7a0-4d23-b476-72882454b9e8"
 UML_CLASS_DIAGRAM_VERSION_ID = "51cd9919-36b9-42d9-861d-8c619a2ac6d5"
@@ -157,6 +162,179 @@ async def seed_initial_data() -> None:
         await _seed_example(name, created_at)
 
     await _seed_example_learning_paths(_tasks("order_management"), created_at)
+    await _seed_entry_learning_path(created_at)
+
+
+async def _seed_questionnaire_release(survey_id, questionnaire, created_at, *, release_number=2):
+    """Upgrade the original seed as a new immutable release, preserving admin edits."""
+    previous_ids = {str(uuid5(UUID(survey_id), f"release:{number}")) for number in range(1, release_number)}
+    version_id = str(uuid5(UUID(survey_id), f"release:{release_number}"))
+    current = await db.surveys.find_one({"_id": survey_id})
+    if current and (
+        current.get("deletedAt") or "pending" in current
+        or current["latestVersionId"] not in previous_ids
+        or current.get("activeReleaseId") != current["latestVersionId"]
+        or current["version"] >= release_number
+    ):
+        return
+    definition = Definition.model_validate(questionnaire["definition"]).model_dump(exclude_none=True)
+    await _seed_survey(
+        survey_id, version_id, questionnaire["title"], definition, created_at,
+        version_number=release_number,
+    )
+    if current:
+        await db.surveys.update_one(
+            {"_id": survey_id, "revision": current["revision"], "latestVersionId": current["latestVersionId"],
+             "activeReleaseId": current["latestVersionId"], "pending": {"$exists": False}},
+            {"$set": {
+                "title": questionnaire["title"], "definition": definition,
+                "version": release_number, "latestVersionId": version_id, "latestKind": "release",
+                "activeReleaseId": version_id, "activeReleaseVersion": release_number,
+                "updatedAt": created_at, "updatedBy": SYSTEM_OWNER_ID,
+            }, "$inc": {"revision": 1}},
+        )
+
+
+async def _seed_entry_learning_path(created_at):
+    """Publish the entry course configuration; never create learner runs."""
+    namespace = UUID(ENTRY_LEARNING_PATH_ID)
+    questionnaire = _load_initial_data("entry_questionnaire.json")
+    survey_id = str(uuid5(namespace, "entry-questionnaire"))
+    await _seed_questionnaire_release(survey_id, questionnaire, created_at, release_number=4)
+    completion = _load_initial_data("task_completion_questionnaire.json")
+    completion_id = str(uuid5(namespace, "task-completion-questionnaire"))
+    await _seed_questionnaire_release(completion_id, completion, created_at, release_number=5)
+    task = next(task for task in _tasks("order_processing") if task["name"] == "Bestellabwicklung – ERM")
+    task_step_id = str(uuid5(namespace, "station:2"))
+    serm_task = next(task for task in _tasks("order_processing") if task["name"] == "Bestellabwicklung – SERM")
+    serm_step_id = str(uuid5(namespace, "station:serm"))
+    attitudes = _load_initial_data("help_attitudes_questionnaire.json")
+    attitudes_id = str(uuid5(namespace, "help-attitudes-questionnaire"))
+    attitudes_step_id = str(uuid5(namespace, "station:3"))
+    await _seed_survey(
+        attitudes_id, str(uuid5(UUID(attitudes_id), "release:1")),
+        attitudes["title"],
+        Definition.model_validate(attitudes["definition"]).model_dump(exclude_none=True),
+        created_at,
+    )
+    pulse_ids = []
+    for name, title, high in (
+        ("understanding", "Wie gut verstehst du gerade, was du bei dieser Aufgabe tun sollst?", "sehr gut"),
+        ("support_need", "Wie stark brauchst du gerade Unterstützung, um diese Aufgabe zu bearbeiten?", "sehr stark"),
+    ):
+        pulse_id = str(uuid5(namespace, f"pulse:{name}"))
+        pulse_ids.append(pulse_id)
+        await _seed_survey(
+            pulse_id, str(uuid5(UUID(pulse_id), "release:1")),
+            "Impuls: Aufgabenverständnis" if name == "understanding" else "Impuls: Unterstützungsbedarf",
+            _pulse_definition(name, title, high), created_at,
+        )
+    body = SaveTemplate(
+        name="Grafische Datenmodellierung",
+        description="Dein Einstieg in die grafische Datenmodellierung. Beginne mit dem Fragebogen zu deinen bisherigen Erfahrungen und Einschätzungen und bearbeite anschließend die Bestellabwicklung als ERM und SERM.",
+        visibility="published",
+        pulseSurveys={
+            "enabled": True, "surveyIds": pulse_ids, "minGapSeconds": 600,
+            "maxGapSeconds": 1800, "maxPerSession": 3,
+            "minActiveSeconds": 120,
+        },
+        helpRequests={"enabled": True},
+        steps=[
+            {
+                "id": str(uuid5(namespace, "station:1")),
+                "type": "survey",
+                "title": "Einstieg: Erfahrungen und Einschätzungen",
+                "surveyId": survey_id,
+                "required": True,
+                "unlock": {"mode": "sequence", "conditions": []},
+            },
+            {
+                "id": task_step_id,
+                "type": "task",
+                "title": task["name"],
+                "taskVersion": {"taskId": task["id"], "versionId": task["version"]["id"]},
+                "afterSurveyId": completion_id,
+                "unlock": {"mode": "sequence", "conditions": []},
+            },
+            {
+                "id": serm_step_id,
+                "type": "task",
+                "title": serm_task["name"],
+                "taskVersion": {"taskId": serm_task["id"], "versionId": serm_task["version"]["id"]},
+                "afterSurveyId": completion_id,
+                "unlock": {"mode": "sequence", "conditions": []},
+            },
+            {
+                "id": attitudes_step_id,
+                "type": "survey",
+                "title": "Hilfe bei Datenmodellierungsaufgaben",
+                "surveyId": attitudes_id,
+                "required": True,
+                "unlock": {"mode": "sequence", "conditions": []},
+            },
+        ],
+    )
+    await _seed_learning_path(
+        ENTRY_LEARNING_PATH_ID, body, created_at,
+    )
+    # Upgrade the original one-station seed exactly once. Later admin choices
+    # (visibility, feature toggles and station edits) survive future restarts.
+    while True:
+        current = await db.learning_path_templates.find_one({"_id": ENTRY_LEARNING_PATH_ID})
+        if current.get("entrySeedRevision", 0) >= 2:
+            break
+        # The published course needs a readable source task, including for
+        # workspace loading. Other example tasks retain their private defaults.
+        await db.task.update_one({"_id": task["id"]}, {"$set": {"visibility": "published"}})
+        step_ids = [step_id for step_id in current["stepIds"] if step_id != task_step_id]
+        step_ids.insert(min(1, len(step_ids)), task_step_id)
+        meta = template_meta(body, step_ids)
+        result = await db.learning_path_templates.update_one(
+            {"_id": ENTRY_LEARNING_PATH_ID, "revision": current["revision"]},
+            {"$set": {
+                "stepIds": step_ids, "pulseSurveys": meta["pulseSurveys"],
+                "helpRequests": meta["helpRequests"], "entrySeedRevision": 2,
+                "updatedAt": created_at,
+            }, "$inc": {"revision": 1}},
+        )
+        if result.matched_count:
+            break
+
+    # Append the independent questionnaire after the first task, without
+    # reapplying revision 2's feature toggles or overwriting admin stations.
+    while True:
+        current = await db.learning_path_templates.find_one({"_id": ENTRY_LEARNING_PATH_ID})
+        if current.get("entrySeedRevision", 0) >= 3:
+            break
+        step_ids = [step_id for step_id in current["stepIds"] if step_id != attitudes_step_id]
+        position = step_ids.index(task_step_id) + 1
+        step_ids.insert(position, attitudes_step_id)
+        result = await db.learning_path_templates.update_one(
+            {"_id": ENTRY_LEARNING_PATH_ID, "revision": current["revision"]},
+            {"$set": {"stepIds": step_ids, "entrySeedRevision": 3, "updatedAt": created_at},
+             "$inc": {"revision": 1}},
+        )
+        if result.matched_count:
+            break
+
+
+    # Preserve the existing questionnaire station ID (and its responses),
+    # moving it after SERM rather than replacing it with the new task.
+    while True:
+        current = await db.learning_path_templates.find_one({"_id": ENTRY_LEARNING_PATH_ID})
+        if current.get("entrySeedRevision", 0) >= 4:
+            break
+        await db.task.update_one({"_id": serm_task["id"]}, {"$set": {"visibility": "published"}})
+        step_ids = [step_id for step_id in current["stepIds"] if step_id not in (serm_step_id, attitudes_step_id)]
+        position = step_ids.index(task_step_id) + 1
+        step_ids[position:position] = [serm_step_id, attitudes_step_id]
+        result = await db.learning_path_templates.update_one(
+            {"_id": ENTRY_LEARNING_PATH_ID, "revision": current["revision"]},
+            {"$set": {"stepIds": step_ids, "entrySeedRevision": 4, "updatedAt": created_at},
+             "$inc": {"revision": 1}},
+        )
+        if result.matched_count:
+            break
 
 
 async def _seed_example(name: str, created_at: datetime) -> None:
@@ -297,7 +475,7 @@ async def _seed_example_learning_paths(tasks, created_at):
         SaveTemplate(
             name="Order Management",
             description="Six practice stations: three Order Management tasks with one challenge each, followed by the same tasks for review. Complete each station to unlock the next.",
-            published=True,
+            published=False,
             archived=False,
             steps=steps,
         ),
@@ -379,18 +557,18 @@ async def seed_survey_learning_path(tasks, created_at):
         SaveTemplate(
             name="Example: Modeling with questionnaires",
             description="Demonstration data, not validated research instruments. Standalone questionnaires and two modeling tasks with required questionnaires before and after each task.",
-            published=True,
+            published=False,
             steps=steps,
         ),
         created_at,
     )
 
 
-async def _seed_survey(survey_id, version_id, title, definition, created_at):
+async def _seed_survey(survey_id, version_id, title, definition, created_at, *, version_number=1):
     version = {
         "_id": version_id,
         "surveyId": survey_id,
-        "version": 1,
+        "version": version_number,
         "title": title,
         "definition": definition,
         "kind": "release",
@@ -408,11 +586,11 @@ async def _seed_survey(survey_id, version_id, title, definition, created_at):
             "$setOnInsert": {
                 "title": title,
                 "definition": definition,
-                "version": 1,
+                "version": version_number,
                 "latestVersionId": version_id,
                 "latestKind": "release",
                 "activeReleaseId": version_id,
-                "activeReleaseVersion": 1,
+                "activeReleaseVersion": version_number,
                 "revision": 1,
                 "schemaVersion": 2,
                 "deletedAt": None,
@@ -458,7 +636,7 @@ async def seed_pulse_learning_path(tasks, created_at):
         SaveTemplate(
             name="Example: Modeling with random pulse questions",
             description="Demonstration tasks with optional random pulse questionnaires during active modeling.",
-            published=True,
+            published=False,
             steps=[
                 {
                     "id": str(uuid5(path_id, f"task:{index}")), "title": task["name"],

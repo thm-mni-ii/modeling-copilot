@@ -1,4 +1,4 @@
-"""Authenticated renderer endpoints and administrator-only management."""
+"""Admin-only catalog and standalone renderer; learners use owned path sessions."""
 
 from uuid import UUID
 from typing import Literal
