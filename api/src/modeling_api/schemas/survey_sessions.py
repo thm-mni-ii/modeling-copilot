@@ -40,5 +40,6 @@ class SurveySessionFields(ApiSchema):
     revision: int = 0
     answers: JsonObject = Field(default_factory=dict)
     is_test: bool = False
+    context_flags: dict[Literal["help_requested", "pulse_answered"], bool] = Field(default_factory=dict)
     created_at: datetime
     completed_at: datetime | None = None

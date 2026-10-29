@@ -24,7 +24,7 @@
       <p class="text-caption mt-2">{{ survey.definition.elements.length }} Fragen · Geändert: {{ new Date(survey.updatedAt).toLocaleString('de-DE') }}</p>
     </v-card>
     <v-alert v-if="!loading && !items.length" type="info">Noch keine Fragebögen vorhanden.</v-alert>
-    <v-dialog :model-value="!!selected" max-width="960" scrollable @update:model-value="!$event && (selected = null)">
+    <v-dialog :model-value="!!selected" max-width="1280" scrollable @update:model-value="!$event && (selected = null)">
       <v-card v-if="selected">
         <v-card-title>{{ mode === 'preview' ? 'Entwurfsvorschau' : mode === 'test' ? 'Entwurf testen' : `Aktiver Release ${selected.activeReleaseVersion}` }}</v-card-title>
         <v-card-text><SurveyRenderer :survey-id="selected.id" :mode="mode" /></v-card-text>

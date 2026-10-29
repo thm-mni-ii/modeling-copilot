@@ -50,7 +50,7 @@ StepDefinition = Annotated[
 class LearningPathTemplateContent(ApiSchema):
     title: Name
     description: str
-    status: Literal["draft", "published", "archived"]
+    status: Literal["draft", "published", "archived", "unlisted", "hidden"]
     step_ids: list[str]
     pulse_surveys: PulseSurveyConfig = Field(default_factory=PulseSurveyConfig)
     help_requests: HelpRequestConfig = Field(default_factory=HelpRequestConfig)

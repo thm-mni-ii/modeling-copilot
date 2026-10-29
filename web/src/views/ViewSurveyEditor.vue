@@ -20,6 +20,26 @@
       <v-progress-linear v-if="loading" indeterminate class="mb-4" />
       <v-alert v-if="error" type="error" variant="tonal" class="mb-4">{{ error }}<v-btn v-if="loadFailed" variant="text" size="small" @click="load">Erneut laden</v-btn></v-alert>
       <p class="version-note mb-4"><v-icon size="16" class="mr-1">mdi-information-outline</v-icon> Speichern legt einen vollständigen Checkpoint an. Erst „Release“ veröffentlicht ihn. Bestehende Antworten behalten ihre Version.</p>
+      <v-expansion-panels class="mb-5" variant="accordion">
+        <v-expansion-panel title="Einleitung und Seiten">
+          <v-expansion-panel-text>
+            <v-textarea v-model="introduction" label="Hinweis vor dem Fragebogen" maxlength="5000" rows="3" variant="outlined" />
+            <v-switch v-model="showQuestionNumbers" true-value="on" false-value="off" label="Fragen automatisch nummerieren" color="primary" hide-details class="mb-4" />
+            <v-card v-for="(page, index) in pages" :key="page.name" variant="outlined" class="pa-4 mb-3">
+              <div class="d-flex align-center ga-2 mb-3">
+                <strong>Seite {{ index + 1 }}</strong><v-spacer />
+                <v-btn icon="mdi-arrow-up" variant="text" size="small" :disabled="index === 0" aria-label="Seite nach oben" @click="movePage(index, -1)" />
+                <v-btn icon="mdi-arrow-down" variant="text" size="small" :disabled="index === pages.length - 1" aria-label="Seite nach unten" @click="movePage(index, 1)" />
+                <v-btn icon="mdi-delete-outline" variant="text" size="small" aria-label="Seite entfernen und Fragen auf die erste verbleibende Seite verschieben" @click="removePage(page.name)" />
+              </div>
+              <v-text-field v-model="page.title" label="Seitentitel" maxlength="256" :rules="[titleRule]" variant="outlined" />
+              <v-textarea v-model="page.description" label="Einleitung der Seite (optional)" maxlength="2000" rows="2" variant="outlined" hide-details />
+            </v-card>
+            <v-btn prepend-icon="mdi-plus" variant="tonal" :disabled="pages.length >= 20" @click="addPage">Seite hinzufügen</v-btn>
+            <p class="text-caption text-medium-emphasis mt-3">Die Seitenzuordnung stellst du an der jeweiligen Frage ein. Leere Seiten werden beim Ausfüllen ausgelassen.</p>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
       <div class="editor-grid" :class="{ 'editor-grid--detail': showDetail }">
         <aside class="survey-sidebar" aria-label="Fragen im Fragebogen">
           <div class="sidebar-header">
@@ -74,7 +94,7 @@
                 <li v-for="issue in issues[selected.name]" :key="issue">{{ issue }}</li>
               </ul></v-alert
             >
-            <SurveyQuestionEditor :key="selected.name" :model-value="selected" @update:model-value="questions[selectedIndex] = $event" />
+            <SurveyQuestionEditor :key="selected.name" :model-value="selected" :pages="pages" :earlier-questions="questions.slice(0, selectedIndex)" @update:model-value="questions[selectedIndex] = $event" />
           </template>
           <div v-else class="detail-empty">
             <v-icon size="52" color="primary">mdi-form-select</v-icon>
@@ -91,7 +111,7 @@
         <v-card-actions><v-btn @click="removeId = null">Abbrechen</v-btn><v-spacer /><v-btn color="error" @click="confirmRemove">Entfernen</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="previewDialog" max-width="960" scrollable>
+    <v-dialog v-model="previewDialog" max-width="1280" scrollable>
       <v-card>
         <v-card-title class="d-flex align-center">Vorschau: {{ previewTitle }}<v-spacer /><v-btn icon="mdi-close" variant="text" aria-label="Vorschau schließen" @click="previewDialog = false" /></v-card-title>
         <v-card-text><SurveyRenderer v-if="previewDialog" :survey-id="id" :version-id="previewVersionId" mode="preview" /></v-card-text>
@@ -112,7 +132,7 @@ import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import SurveyVersionHistory from '@/components/surveys/SurveyVersionHistory.vue'
 import SurveyReleaseDialog from '@/components/surveys/SurveyReleaseDialog.vue'
 import SurveyLeaveDialog from '@/components/surveys/SurveyLeaveDialog.vue'
-import surveys, { surveyError, type SurveyQuestion, type Survey, type SurveyVersionInfo } from '@/services/surveys'
+import surveys, { surveyError, type SurveyQuestion, type SurveyPage, type Survey, type SurveyVersionInfo } from '@/services/surveys'
 import { questionIssues, questionTypeLabel, titleRule } from '@/utils/surveyEditor'
 
 const route = useRoute(),
@@ -121,6 +141,9 @@ const id = ref(''),
   title = ref(''),
   version = ref<number | null>(null),
   questions = ref<SurveyQuestion[]>([])
+const introduction = ref('')
+const pages = ref<SurveyPage[]>([])
+const showQuestionNumbers = ref<'on' | 'off'>('on')
 const loading = ref(true),
   saving = ref(false),
   loadFailed = ref(false),
@@ -151,7 +174,7 @@ const selectedIndex = computed(() => questions.value.findIndex((question) => que
 const selected = computed(() => questions.value[selectedIndex.value] ?? null)
 const issues = computed<Record<string, string[]>>(() => (attempted.value ? Object.fromEntries(questions.value.map((question) => [question.name, questionIssues(question)])) : {}))
 let generation = 0
-const snapshot = () => JSON.stringify([title.value, questions.value])
+const snapshot = () => JSON.stringify([title.value, questions.value, introduction.value, pages.value, showQuestionNumbers.value])
 async function selectQuestion(name: string) {
   selectedId.value = name
   showDetail.value = true
@@ -160,9 +183,27 @@ async function selectQuestion(name: string) {
 }
 function add() {
   if (!canAdd.value) return
-  const question: SurveyQuestion = { type: 'comment', name: `q_${crypto.randomUUID().replace(/-/g, '')}`, title: '', isRequired: false }
+  const question: SurveyQuestion = { type: 'comment', name: `q_${crypto.randomUUID().replace(/-/g, '')}`, title: '', isRequired: false, ...(pages.value.length ? { page: pages.value[0].name } : {}) }
   questions.value.push(question)
   void selectQuestion(question.name)
+}
+function addPage() {
+  if (!ready.value || busy.value || pages.value.length >= 20) return
+  const page = { name: `page_${crypto.randomUUID().replace(/-/g, '')}`, title: 'Neue Seite' }
+  if (!pages.value.length) questions.value = questions.value.map(question => ({ ...question, page: page.name }))
+  pages.value.push(page)
+}
+function removePage(name: string) {
+  if (!ready.value || busy.value) return
+  pages.value = pages.value.filter(page => page.name !== name)
+  questions.value = questions.value.map(question => question.page === name ? { ...question, page: pages.value[0]?.name } : question)
+}
+function movePage(index: number, direction: number) {
+  if (!ready.value || busy.value) return
+  const target = index + direction
+  if (target < 0 || target >= pages.value.length) return
+  const [page] = pages.value.splice(index, 1)
+  pages.value.splice(target, 0, page)
 }
 function move(index: number, direction: number) {
   const target = index + direction
@@ -193,6 +234,9 @@ async function load() {
     title.value = survey?.title ?? ''
     version.value = survey?.version ?? null
     questions.value = survey?.definition.elements ?? []
+    introduction.value = survey?.definition.introduction ?? ''
+    pages.value = survey?.definition.pages ?? []
+    showQuestionNumbers.value = survey?.definition.showQuestionNumbers ?? 'on'
     selectedId.value = questions.value[0]?.name ?? null
     baseline.value = snapshot()
   } catch (e) {
@@ -209,6 +253,10 @@ async function save(): Promise<boolean> {
   attempted.value = true
   error.value = ''
   const invalid = questions.value.find((question) => issues.value[question.name]?.length)
+  if (pages.value.some(page => titleRule(page.title) !== true)) {
+    error.value = 'Bitte gib jeder Seite einen Titel mit maximal 256 Zeichen.'
+    return false
+  }
   if (titleRule(title.value) !== true || !questions.value.length || invalid) {
     error.value = titleRule(title.value) !== true ? String(titleRule(title.value)) : !questions.value.length ? 'Füge mindestens eine Frage hinzu.' : 'Bitte korrigiere die markierten Fragen.'
     if (invalid) await selectQuestion(invalid.name)
@@ -217,7 +265,7 @@ async function save(): Promise<boolean> {
   saving.value = true
   const savedSnapshot = snapshot()
   try {
-    const survey = (await surveys.save(id.value, title.value, { elements: questions.value }, state.value?.latestVersionId ?? null, state.value?.revision ?? null)).data
+    const survey = (await surveys.save(id.value, title.value, { elements: questions.value, introduction: introduction.value, pages: pages.value, showQuestionNumbers: showQuestionNumbers.value }, state.value?.latestVersionId ?? null, state.value?.revision ?? null)).data
     state.value = survey
     id.value = survey.id
     version.value = survey.version

@@ -6,18 +6,32 @@ export interface SurveyQuestion {
   type: 'comment' | 'radiogroup' | 'checkbox' | 'rating' | 'matrix'
   name: string
   title: string
+  description?: string
+  page?: string
   isRequired: boolean
   visibleIf?: string
+  visibleWhen?: 'help_requested' | 'pulse_answered'
   choices?: string[]
+  exclusiveChoices?: string[]
   choiceLabels?: Record<string, string>
   rows?: string[]
   columns?: string[]
   isAllRowRequired?: boolean
   rateMin?: number
   rateMax?: number
+  minRateDescription?: string
+  maxRateDescription?: string
+}
+export interface SurveyPage {
+  name: string
+  title: string
+  description?: string
 }
 export interface SurveyDefinition {
   elements: SurveyQuestion[]
+  introduction?: string
+  pages?: SurveyPage[]
+  showQuestionNumbers?: 'on' | 'off'
 }
 export interface Survey {
   managedBy?: string | null

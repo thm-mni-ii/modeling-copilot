@@ -57,10 +57,18 @@ export const defaultHelpRequestConfig = (): HelpRequestConfig => ({
   topicQuestion: 'problem_area', markingAnswer: 'Aufgabenstellung/Modell', actionQuestion: 'next_action',
   markingEnabled: true, markingRequired: false
 })
+export type PathVisibility = 'published' | 'unlisted' | 'hidden'
+export const pathVisibilityOptions = [
+  { title: 'Published', value: 'published', description: 'Visible in the catalog. Learners can start and continue this path.' },
+  { title: 'Unlisted', value: 'unlisted', description: 'Hidden from the catalog. Learners who already started can still see and continue their path.' },
+  { title: 'Hidden', value: 'hidden', description: 'Hidden from all learners, including existing runs. Only admins can access this path.' }
+]
+export const pathVisibilityLabel = (visibility: PathVisibility) => pathVisibilityOptions.find((option) => option.value === visibility)?.title ?? 'Hidden'
 export interface PathTemplate {
   id: string
   name: string
   description: string
+  visibility: PathVisibility
   published: boolean
   archived: boolean
   revision: number
@@ -152,8 +160,8 @@ export default {
   templates: (skip = 0) => http.get<ApiPage<PathTemplate>>('/v1/learning-path-templates', { params: { skip, limit: 100 } }),
   template: (id: string) => http.get<PathTemplate>(`/v1/learning-path-templates/${id}`),
   save: (template: PathTemplate) => {
-    const { name, description, published, archived, revision, steps, pulseSurveys, helpRequests } = template
-    const body = { name, description, published, archived, revision, steps, pulseSurveys, helpRequests }
+    const { name, description, visibility, revision, steps, pulseSurveys, helpRequests } = template
+    const body = { name, description, visibility, revision, steps, pulseSurveys, helpRequests }
     return template.id ? http.put<PathTemplate>(`/v1/learning-path-templates/${template.id}`, body) : http.post<PathTemplate>('/v1/learning-path-templates', body)
   },
   start: (id: string) => http.post<PathRun>(`/v1/learning-path-templates/${id}/runs`),

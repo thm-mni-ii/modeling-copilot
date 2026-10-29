@@ -1,5 +1,5 @@
 <template>
-  <v-container max-width="1100" class="py-8">
+  <v-container max-width="1440" class="py-8">
     <v-btn v-if="run" variant="text" prepend-icon="mdi-arrow-left" to="/learning-path-runs" class="mb-3">My learning paths</v-btn>
     <div class="d-flex align-start flex-wrap ga-3 mb-5">
       <div class="path-heading">
@@ -54,8 +54,8 @@
       <v-card v-for="item in visibleTemplates" :key="item.id" variant="outlined" class="path-card mb-3 pa-5"
         ><div class="d-flex align-center flex-wrap ga-3">
           <h3 class="text-h6">{{ item.name }}</h3>
-          <v-chip v-if="admin" size="small">{{ item.archived ? 'Archived' : item.published ? 'Published' : 'Draft' }}</v-chip>
-          <v-spacer /><v-btn v-if="admin" :to="`/learning-path-templates/${item.id}/edit`">Edit</v-btn><v-btn v-if="item.published && !item.archived" color="primary" :disabled="!!busy" :loading="busy === item.id" @click="start(item.id)">{{ admin ? 'Start run' : 'Start learning path' }}</v-btn>
+          <v-chip v-if="admin" size="small">{{ pathVisibilityLabel(item.visibility) }}</v-chip>
+          <v-spacer /><v-btn v-if="admin" :to="`/learning-path-templates/${item.id}/edit`">Edit</v-btn><v-btn v-if="item.visibility === 'published'" color="primary" :disabled="!!busy" :loading="busy === item.id" @click="start(item.id)">{{ admin ? 'Start run' : 'Start learning path' }}</v-btn>
         </div>
         <p class="my-2">{{ item.description }}</p>
         <span class="text-caption text-medium-emphasis"><v-icon size="16" class="mr-1">mdi-format-list-checks</v-icon>{{ item.steps.length }} activities</span></v-card
@@ -93,7 +93,7 @@ import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import TreasurePathBoard from '@/components/learningPaths/TreasurePathBoard.vue'
 import ChallengeDetails from '@/components/learningPaths/ChallengeDetails.vue'
 import type { ChallengeConfig } from '@/services/challenges'
-import paths, { type PathRun, type PathTemplate, type StepRun } from '@/services/learningPaths'
+import paths, { pathVisibilityLabel, type PathRun, type PathTemplate, type StepRun } from '@/services/learningPaths'
 const route = useRoute(),
   router = useRouter()
 const admin = computed(() => route.name === 'LearningPathTemplates')
@@ -177,12 +177,20 @@ const load = async () => {
           if (skip >= page.total || !page.items.length) break
         }
       if (current === generation) {
-        templates.value = admin.value ? allTemplates : allTemplates.filter((t) => t.published && !t.archived)
+        templates.value = admin.value ? allTemplates : allTemplates.filter((t) => t.visibility === 'published')
         runs.value = allRuns
       }
     }
   } catch (e) {
-    if (current === generation) error.value = message(e)
+    if (current === generation) {
+      const status = (e as { response?: { status?: number } }).response?.status
+      if (status === 403 || status === 404) {
+        run.value = null
+        surveyStep.value = null
+        challengeStep.value = null
+      }
+      error.value = status === 404 ? 'This learning path is no longer available.' : message(e)
+    }
   } finally {
     if (current === generation) loading.value = false
   }

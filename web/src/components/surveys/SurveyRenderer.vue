@@ -1,5 +1,5 @@
 <template>
-  <div :class="{ 'survey-renderer--compact': compact }" aria-live="polite">
+  <div class="survey-renderer" :class="{ 'survey-renderer--compact': compact }" aria-live="polite">
     <v-progress-linear v-if="loading || saving" indeterminate />
     <v-alert v-if="error" type="error" class="mb-3">{{ error }}</v-alert>
     <v-btn v-if="error && !model" @click="load">Erneut laden</v-btn>
@@ -8,6 +8,7 @@
     </v-alert>
     <v-alert v-if="releaseChanged" type="info" variant="tonal" class="mb-3">Eine neue Version wurde veröffentlicht. Bitte fülle den aktuellen Fragebogen aus. Der bisherige Entwurf wird für diese Version nicht übernommen.</v-alert>
     <p v-if="activity && draftStatus && (!compact || draftFailed)" class="text-caption mb-2" role="status">{{ draftStatus }}</p>
+    <p v-if="model && !completed && introduction" class="survey-introduction mb-5"><em>{{ introduction }}</em></p>
     <SurveyComponent v-if="model && !completed" :model="model" />
     <v-btn v-if="error && pendingAnswers && !completed" :loading="saving" @click="submit">Speichern erneut versuchen</v-btn>
     <template v-if="completed && !compact">
@@ -34,6 +35,7 @@ const loading = ref(false),
   error = ref('')
 const completed = ref<SurveyResponse | Record<string, unknown> | null>(null)
 const skipped = ref(false)
+const introduction = ref('')
 const draftStatus = ref('')
 const releaseChanged = ref(false)
 let loadedSessionId = ''
@@ -138,6 +140,7 @@ async function load() {
   const current = ++generation
   model.value?.dispose()
   model.value = null
+  introduction.value = ''
   completed.value = null
   skipped.value = false
   pendingAnswers.value = null
@@ -154,8 +157,22 @@ async function load() {
     releaseChanged.value = session?.releaseChanged ?? false
     loadedVersionId = survey.id
     const pulse = activity?.phase?.startsWith('pulse:')
-    const displayedDefinition = { ...survey.definition, elements: survey.definition.elements.map(q => q.choiceLabels ? { ...q, choices: q.choices?.map(value => ({ value, text: q.choiceLabels![value] })) } : q) }
-    const instance = new Model({ ...displayedDefinition, title: pulse || activity?.helpRequestId ? '' : survey.title, ...(pulse || activity?.helpRequestId ? { completeText: activity?.helpPhase === 'action' ? 'Hilfe auswählen' : 'Weiter' } : {}), ...(props.completeText ? { completeText: props.completeText } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
+    introduction.value = survey.definition.introduction ?? ''
+    const displayQuestion = (q: SurveyDefinition['elements'][number]) => {
+      const question = { ...q }
+      delete question.page
+      delete question.exclusiveChoices
+      delete question.visibleWhen
+      const notEqual = question.visibleIf?.match(/^\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} != /)
+      if (notEqual) question.visibleIf = `(${question.visibleIf}) and {${notEqual[1]}} notempty`
+      return { ...question, ...(q.type === 'rating' ? { displayMode: 'buttons', rateDescriptionLocation: 'bottom' } : {}), ...(q.choices ? { choices: q.choices.map(value => ({ value, text: q.choiceLabels?.[value] ?? value, isExclusive: q.exclusiveChoices?.includes(value) ?? false })) } : {}) }
+    }
+    const { elements, pages, ...settings } = survey.definition
+    delete settings.introduction
+    const displayedDefinition = pages?.length
+      ? { ...settings, pages: pages.filter(page => elements.some(q => q.page === page.name)).map(page => ({ ...page, elements: elements.filter(q => q.page === page.name).map(displayQuestion) })), showProgressBar: 'top', progressBarType: 'pages' }
+      : { ...settings, elements: elements.map(displayQuestion) }
+    const instance = new Model({ ...displayedDefinition, widthMode: 'responsive', title: pulse || activity?.helpRequestId ? '' : survey.title, ...(pulse || activity?.helpRequestId ? { completeText: activity?.helpPhase === 'action' ? 'Hilfe auswählen' : 'Weiter' } : {}), ...(props.completeText ? { completeText: props.completeText } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
     if (props.questionPerPage || activity?.helpRequestId && activity.helpPhase === 'reflection') {
       instance.questionsOnPageMode = 'questionPerPage'
       instance.pageNextText = 'Weiter'
@@ -226,6 +243,15 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.survey-renderer { width: 100%; min-width: 0; }
+:deep(.sd-rating fieldset) { flex-wrap: wrap; }
+.survey-introduction {
+  line-height: 1.6;
+  white-space: pre-line;
+}
+:deep(.sd-page__description) {
+  white-space: pre-line;
+}
 .preview-data {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

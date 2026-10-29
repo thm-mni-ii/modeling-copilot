@@ -13,6 +13,7 @@ from modeling_api.schemas.challenges import ChallengeConfig, StartStep
 from modeling_api.schemas.models import CreateModel, CreateModelVersion
 from modeling_api.schemas.learning_path_documents import LearningPathRunFields
 from modeling_api.services import models, tasks, surveys, survey_sessions
+from modeling_api.services.learning_path_access import require_template_access, require_run_access, template_visibility
 from modeling_api.services.learning_path_store import (
     step_document,
     template_meta,
@@ -50,20 +51,26 @@ async def list_templates(user, skip=0, limit=100):
 
 async def get_template(template_id, user, existing_run=False):
     doc = await template_document(template_id)
-    if not user.is_admin and not existing_run and doc["status"] != "published":
-        raise not_found()
+    if not user.is_admin and not existing_run and template_visibility(doc) == "unlisted":
+        existing_run = await db.learning_path_runs.find_one(
+            {"templateId": str(template_id), "learnerId": user.id}, {"_id": 1}
+        ) is not None
+    require_template_access(doc, user, existing_run=existing_run)
     return template_view(doc)
 
 
 async def save_template(body: SaveTemplate, user, template_id=None):
     require_admin(user)
     is_new = template_id is None
+    # Hidden/unlisted paths remain editable with unpublished questionnaires.
+    # Only publishing a usable path requires all referenced surveys to be active.
+    survey_mode = "use" if body.published and not body.archived else "preview"
     for survey_id in body.pulse_surveys.survey_ids:
-        await surveys.render(survey_id, user, "use")
+        await surveys.render(survey_id, user, survey_mode)
     for step in body.steps:
         for survey_id in (step.survey_id, step.before_survey_id, step.after_survey_id):
             if survey_id:
-                await surveys.render(survey_id, user, "use")
+                await surveys.render(survey_id, user, survey_mode)
         if step.type == "survey":
             continue
         await tasks.ensure_release_reference(
@@ -185,6 +192,7 @@ async def owned_run(run_id, user):
     )
     if not run:
         raise not_found()
+    await require_run_access(run, user)
     return await attach_states(run)
 
 
@@ -409,7 +417,13 @@ async def get_run(run_id, user):
 
 
 async def list_runs(user, skip=0, limit=100):
-    page = await list_page(db.learning_path_runs, {"learnerId": user.id}, skip, limit)
+    filters = {"learnerId": user.id}
+    if not user.is_admin:
+        visible_ids = await db.learning_path_templates.distinct(
+            "_id", {"status": {"$in": ["published", "unlisted", "archived"]}}
+        )
+        filters["templateId"] = {"$in": visible_ids}
+    page = await list_page(db.learning_path_runs, filters, skip, limit)
     page["items"] = [await get_run(run["id"], user) for run in page["items"]]
     return page
 
@@ -647,7 +661,9 @@ async def open_survey(run_id, step_id, user, phase=None):
     await link_survey_session(run_id, step_id, session["_id"], phase)
     if phase and session["status"] == "submitted":
         await resume_step(run_id, step_id, user)
-    version = await survey_sessions.release(session["releaseId"])
+    version = survey_sessions.version_for_session(
+        await survey_sessions.release(session["releaseId"]), session
+    )
     return {
         "version": {
             "id": version["_id"],
