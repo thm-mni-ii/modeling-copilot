@@ -481,7 +481,7 @@ onUnmounted(() => {
   scroll-margin-top: 88px;
   position: absolute;
   left: 50%;
-  width: min(650px, calc(100% - 24px));
+  width: min(1200px, calc(100% - 32px));
   max-height: 690px;
   overflow: auto;
   background: #fffdf5;

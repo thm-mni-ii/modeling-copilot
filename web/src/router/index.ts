@@ -19,6 +19,11 @@ const router = createRouter({
       component: () => import('../views/ViewHome.vue')
     },
     {
+      path: '/models',
+      name: 'Models',
+      component: () => import('../views/ViewModels.vue')
+    },
+    {
       path: '/modeling/:modelId?',
       name: 'Modeling',
       component: () => import('../views/ViewModeling.vue'),
@@ -81,7 +86,8 @@ const router = createRouter({
   ]
 })
 
-const nonAdminPages = ['LearningPathRuns', 'Login', 'Home', 'Modeling', 'View404Page', 'Collab']
+// Everything outside this list requires ADMIN, including direct URL navigation.
+const nonAdminPages = ['LearningPathRuns', 'Login', 'Home', 'Models', 'Modeling', 'View404Page']
 
 router.beforeEach(async (to) => {
   if (!isEmbedded && isFeedbacksystemCallback()) {

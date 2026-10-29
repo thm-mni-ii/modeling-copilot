@@ -28,11 +28,7 @@ def session_id(offer):
 @asynccontextmanager
 async def run_lock(run_id, user):
     # Serialize across steps and tabs so session/task limits and reactions agree.
-    owned = await db.learning_path_runs.find_one(
-        {"_id": str(run_id), "learnerId": user.id}, {"_id": 1}
-    )
-    if not owned:
-        raise not_found()
+    await paths.owned_run(run_id, user)
     now, token = utcnow(), new_id()
     result = await db.learning_path_runs.update_one(
         {
@@ -206,7 +202,9 @@ async def open_offer(run_id, offer_id, user):
         session, changed = await survey_sessions.open_path_session(
             run_id, offer["stepId"], offer["surveyId"], f"pulse:{offer_id}", True, user
         )
-        version = await survey_sessions.release(session["releaseId"])
+        version = survey_sessions.version_for_session(
+            await survey_sessions.release(session["releaseId"]), session
+        )
         return {
             "version": {
                 "id": version["_id"],

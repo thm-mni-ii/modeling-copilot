@@ -1,0 +1,141 @@
+{
+  "title": "Einstiegsfragebogen: Erfahrungen und Einschätzungen",
+  "definition": {
+    "introduction": "Die folgenden Fragen beziehen sich auf deine bisherigen Erfahrungen und Einschätzungen. Es gibt keine richtigen oder falschen Antworten. Deine Angaben beeinflussen weder deine Bewertung noch deinen Zugang zu Lernmaterialien.",
+    "showQuestionNumbers": "off",
+    "pages": [
+      { "name": "experience", "title": "Vorerfahrung" },
+      {
+        "name": "confidence",
+        "title": "Selbsteinschätzung",
+        "description": "Wie sicher bist du, dass du die folgenden Tätigkeiten selbstständig bewältigen kannst?\nSkala: 1 = überhaupt nicht sicher bis 5 = vollkommen sicher"
+      },
+      {
+        "name": "current_confidence",
+        "title": "Aktuelle Selbsteinschätzung",
+        "description": "Wie sicher bist du, dass du die folgenden Tätigkeiten bei einer Datenmodellierungsaufgabe selbst ausführen kannst? Es geht um deine aktuelle Einschätzung.\nSkala: 1 = überhaupt nicht sicher bis 5 = vollkommen sicher"
+      },
+      {
+        "name": "difficulties",
+        "title": "Grundsätzlicher Umgang mit Schwierigkeiten",
+        "description": "Wie sehr treffen die folgenden Aussagen auf dich zu?\nSkala: 1 = trifft überhaupt nicht zu bis 5 = trifft vollständig zu"
+      },
+      { "name": "support", "title": "Bisherige Nutzung von Unterstützung" },
+      { "name": "ai", "title": "Nutzung generativer KI" },
+      { "name": "motivation", "title": "Lernmotivation" }
+    ],
+    "elements": [
+      {
+        "type": "radiogroup", "name": "P_course", "page": "experience", "isRequired": true,
+        "title": "Hast du vor diesem Kurs bereits eine Lehrveranstaltung mit grafischer Datenmodellierung besucht?",
+        "choices": ["Nein", "Ja", "Unsicher"]
+      },
+      {
+        "type": "radiogroup", "name": "P1", "page": "experience", "isRequired": true,
+        "title": "Wie häufig hast du bisher selbst grafische Datenmodelle erstellt?",
+        "choices": ["Noch nie", "1–2 Mal", "3–5 Mal", "Mehr als 5 Mal"]
+      },
+      {
+        "type": "checkbox", "name": "P2", "page": "experience", "isRequired": true,
+        "title": "Mit welchen Modellierungsnotationen hast du bereits gearbeitet?",
+        "description": "Mehrfachauswahl",
+        "choices": ["Entity-Relationship-Modelle (ER)", "UML-Klassendiagramme", "Andere grafische Modellierungsnotationen", "Noch keine"],
+        "exclusiveChoices": ["Noch keine"]
+      },
+      {
+        "type": "rating", "name": "P3", "page": "confidence", "isRequired": true,
+        "title": "Aus einer textuellen Aufgabenstellung die relevanten Entitäten und Beziehungen ableiten.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "überhaupt nicht sicher", "maxRateDescription": "vollkommen sicher"
+      },
+      {
+        "type": "rating", "name": "P4", "page": "confidence", "isRequired": true,
+        "title": "Beziehungen und Kardinalitäten in einem Datenmodell korrekt darstellen.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "überhaupt nicht sicher", "maxRateDescription": "vollkommen sicher"
+      },
+      {
+        "type": "rating", "name": "P5", "page": "confidence", "isRequired": true,
+        "title": "Fehler in einem selbst erstellten Datenmodell erkennen und korrigieren.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "überhaupt nicht sicher", "maxRateDescription": "vollkommen sicher"
+      },
+      {
+        "type": "rating", "name": "P_confidence_entities", "page": "current_confidence", "isRequired": true,
+        "title": "Ich kann aus einer textlichen Beschreibung geeignete Entitätstypen und Attribute ableiten.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "überhaupt nicht sicher", "maxRateDescription": "vollkommen sicher"
+      },
+      {
+        "type": "rating", "name": "P_confidence_relationships", "page": "current_confidence", "isRequired": true,
+        "title": "Ich kann Beziehungen zwischen Entitätstypen und passende Kardinalitäten festlegen.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "überhaupt nicht sicher", "maxRateDescription": "vollkommen sicher"
+      },
+      {
+        "type": "rating", "name": "P_confidence_reasons", "page": "current_confidence", "isRequired": true,
+        "title": "Ich kann meine Modellierungsentscheidungen anhand der Aufgabenbeschreibung begründen.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "überhaupt nicht sicher", "maxRateDescription": "vollkommen sicher"
+      },
+      {
+        "type": "rating", "name": "P_confidence_revision", "page": "current_confidence", "isRequired": true,
+        "title": "Ich kann ein Datenmodell selbstständig so überarbeiten, dass es die Anforderungen der Aufgabe besser abbildet.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "überhaupt nicht sicher", "maxRateDescription": "vollkommen sicher"
+      },
+      {
+        "type": "rating", "name": "P6", "page": "difficulties", "isRequired": true,
+        "title": "Wenn ich bei einer Lernaufgabe nicht weiterkomme, versuche ich zunächst, die Ursache meines Problems selbst herauszufinden.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "trifft überhaupt nicht zu", "maxRateDescription": "trifft vollständig zu"
+      },
+      {
+        "type": "rating", "name": "P7", "page": "difficulties", "isRequired": true,
+        "title": "Wenn ich trotz eigener Versuche nicht weiterkomme, suche ich gezielt nach einem Hinweis, der mir beim Weiterarbeiten hilft.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "trifft überhaupt nicht zu", "maxRateDescription": "trifft vollständig zu"
+      },
+      {
+        "type": "rating", "name": "P8", "page": "difficulties", "isRequired": true,
+        "title": "Bei schwierigen Aufgaben würde ich mir eher eine vollständige Lösung als einen einzelnen Hinweis wünschen.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "trifft überhaupt nicht zu", "maxRateDescription": "trifft vollständig zu"
+      },
+      {
+        "type": "rating", "name": "P9", "page": "difficulties", "isRequired": true,
+        "title": "Ich vermeide es, andere um Hilfe zu bitten, selbst wenn Unterstützung hilfreich wäre.",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "trifft überhaupt nicht zu", "maxRateDescription": "trifft vollständig zu"
+      },
+      {
+        "type": "matrix", "name": "P10", "page": "support", "isRequired": true, "isAllRowRequired": true,
+        "title": "Wie häufig hast du bei bisherigen Studien- oder Modellierungsaufgaben folgende Unterstützung genutzt?",
+        "rows": ["Lehrmaterialien und bereitgestellte Beispiele", "Kommilitoninnen und Kommilitonen", "Lehrende oder Tutorinnen und Tutoren", "Internetrecherche, Foren oder Tutorials", "Generative KI, beispielsweise ChatGPT"],
+        "columns": ["Nie", "Selten", "Manchmal", "Häufig", "Sehr häufig", "Bisher keine vergleichbaren Aufgaben bearbeitet"]
+      },
+      {
+        "type": "radiogroup", "name": "P11", "page": "support", "isRequired": true,
+        "title": "Wenn du bei einer schwierigen Modellierungsaufgabe Unterstützung benötigst, welche Quelle würdest du voraussichtlich zuerst nutzen?",
+        "choices": ["Zunächst ohne zusätzliche Hilfe weiterarbeiten", "Lehrmaterialien oder Beispiele", "Automatisches Feedback der Lernplattform", "Kommilitoninnen oder Kommilitonen", "Lehrende oder Tutorinnen und Tutoren", "Internetrecherche", "Generative KI", "Weiß ich noch nicht"]
+      },
+      {
+        "type": "radiogroup", "name": "P_ai_frequency", "page": "ai", "isRequired": true,
+        "title": "Wie häufig hast du in den letzten vier Wochen generative KI, zum Beispiel einen KI-Chat, für dein Studium genutzt?",
+        "choices": ["Nie", "1–2 Mal", "3–5 Mal", "6–10 Mal", "Über 10 Mal"]
+      },
+      {
+        "type": "checkbox", "name": "P_ai_purpose", "page": "ai", "isRequired": true,
+        "title": "Wofür hast du generative KI dabei genutzt?", "description": "Mehrfachauswahl",
+        "visibleIf": "{P_ai_frequency} != 'Nie'",
+        "choices": ["Inhalte erklären lassen", "Hinweise zum Vorgehen", "Beispiele", "Eigene Lösung prüfen", "Fertige Antworten/Lösungen erstellen", "Texte formulieren/überarbeiten", "Anderes"]
+      },
+      {
+        "type": "rating", "name": "P12", "page": "motivation", "isRequired": true,
+        "title": "Wie interessiert bist du daran, deine Fähigkeiten in der grafischen Datenmodellierung zu verbessern?",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "überhaupt nicht interessiert", "maxRateDescription": "sehr interessiert"
+      }
+    ]
+  }
+}

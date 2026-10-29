@@ -24,6 +24,7 @@ from modeling_api.schemas.models import (
     UpdateModel,
 )
 from modeling_api.services.languages import check_language_refs
+from modeling_api.services.learning_path_access import require_model_access
 from modeling_api.services.xml_patches import apply_patches, validate_model_xml
 from modeling_api.services.task_edits import validate_task_edit_document
 
@@ -115,6 +116,7 @@ async def get_model(model_id: UUID, user: User) -> Document:
     result = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
     if result is None:
         raise not_found()
+    await require_model_access(model_id, user)
     api_model = to_api(result)
     api_model.pop("taskEditBaseSignature", None)
     return api_model

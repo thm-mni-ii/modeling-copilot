@@ -200,6 +200,7 @@ class SaveTemplate(ApiSchema):
     description: str = Field(default="", max_length=5000)
     published: bool = False
     archived: bool = False
+    visibility: Literal["published", "unlisted", "hidden"] | None = None
     steps: list[LearningPathStep] = Field(default_factory=list, max_length=200)
     revision: int = Field(default=0, ge=0)
     pulse_surveys: PulseSurveyConfig = Field(default_factory=PulseSurveyConfig)
@@ -207,6 +208,11 @@ class SaveTemplate(ApiSchema):
 
     @model_validator(mode="after")
     def valid_graph(self):
+        # Older clients may continue sending the two legacy flags.
+        if self.visibility is None:
+            self.visibility = "unlisted" if self.archived else "published" if self.published else "hidden"
+        self.published = self.visibility == "published"
+        self.archived = self.visibility == "unlisted"
         ids = {step.id for step in self.steps}
         if len(ids) != len(self.steps):
             raise ValueError("Step IDs must be unique.")

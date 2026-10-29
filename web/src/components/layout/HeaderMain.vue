@@ -1,46 +1,43 @@
-<template>
-  <v-app-bar :elevation="1">
-    <v-app-bar-title>
-      <router-link to="/">
-        <IconFBS class="icon" />
-      </router-link>
+﻿<template>
+  <v-app-bar :elevation="1" class="main-header">
+    <v-app-bar-title class="brand-title">
+      <RouterLink :to="{ name: 'Home' }" class="brand-link" aria-label="Modeling Copilot home">
+        <IconFBS class="brand-icon" aria-hidden="true" />
+      </RouterLink>
     </v-app-bar-title>
 
     <template #append>
-      <v-btn to="/" active-class="active" prepend-icon="mdi-folder-outline">
-        <span> Models </span>
-        <v-tooltip activator="parent" location="bottom"> My models </v-tooltip>
-      </v-btn>
-      <v-btn to="/diagramLanguages" active-class="active" prepend-icon="mdi-view-list">
-        <span> Languages </span>
-        <v-tooltip activator="parent" location="bottom"> Diagram Language Overview </v-tooltip>
-      </v-btn>
-      <v-btn to="/diagramLanguageEditor" active-class="active" prepend-icon="mdi-application-edit">
-        <span> Editor </span>
-        <v-tooltip activator="parent" location="bottom"> Diagram Language Editor </v-tooltip>
-      </v-btn>
-      <v-btn v-if="isAdmin" to="/tasks" active-class="active" prepend-icon="mdi-clipboard-text-outline">
-        <span> Tasks </span>
-        <v-tooltip activator="parent" location="bottom"> Create and manage tasks </v-tooltip>
-      </v-btn>
-      <v-btn to="/learning-path-runs" prepend-icon="mdi-map-marker-path">Learning paths</v-btn>
-      <v-btn v-if="isAdmin" to="/learning-path-templates" prepend-icon="mdi-map-plus">Path templates</v-btn>
-      <CollabNavButton />
-      <v-btn v-if="isAdmin" to="/surveys" prepend-icon="mdi-form-select">Fragebögen</v-btn>
-      <v-btn prepend-icon="mdi-logout" @click="logout">
-        <span> Logout </span>
-        <v-tooltip activator="parent" location="bottom"> Logout </v-tooltip>
-      </v-btn>
+      <nav aria-label="Main navigation" class="d-flex align-center ga-1 mr-2">
+        <v-btn :to="{ name: 'Home' }" exact variant="text" icon="mdi-home-outline" aria-label="Home">
+          <v-icon icon="mdi-home-outline" />
+          <v-tooltip activator="parent" location="bottom">Home</v-tooltip>
+        </v-btn>
+        <v-menu location="bottom end" max-height="min(600px, 80vh)">
+          <template #activator="{ props }">
+            <v-btn v-bind="props" variant="tonal" prepend-icon="mdi-view-grid-outline" append-icon="mdi-chevron-down">Navigation</v-btn>
+          </template>
+          <v-list nav aria-label="Functions" class="navigation-menu">
+            <v-list-subheader>Workspace</v-list-subheader>
+            <v-list-item v-for="item in navigation.workspaceItems" :key="item.route" :to="{ name: item.route }" :prepend-icon="item.icon" :title="item.title" color="primary-dark" />
+            <template v-if="navigation.isAdmin">
+              <v-divider class="my-2" />
+              <v-list-subheader>Administration</v-list-subheader>
+              <v-list-item v-for="item in navigation.adminItems" :key="item.route" :to="{ name: item.route }" :prepend-icon="item.icon" :title="item.title" color="primary-dark" />
+            </template>
+            <v-divider class="my-2" />
+            <v-list-item prepend-icon="mdi-logout" title="Logout" @click="logout" />
+          </v-list>
+        </v-menu>
+      </nav>
     </template>
   </v-app-bar>
 </template>
 
 <script setup lang="ts">
-import IconFBS from '@/components/icons/IconFBS.vue'
-import CollabNavButton from '@/collab/rooms/CollabNavButton.vue'
-
-import { computed, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import IconFBS from '@/components/icons/IconFBS.vue'
+import { useNavigationStore } from '@/stores/navigation'
 import { useUserStore } from '@/stores/userStore'
 import { useBearerToken } from '@/composables/useBearerToken'
 import { isEmbedded } from '@/services/auth/fbsBridge'
@@ -48,7 +45,7 @@ import { forgetFeedbacksystemSession } from '@/services/auth/fbsOidc'
 
 const router = useRouter()
 const userStore = useUserStore()
-const isAdmin = computed(() => userStore.globalRole === 'ADMIN')
+const navigation = useNavigationStore()
 onMounted(() => void userStore.ensureGlobalRole())
 
 const logout = () => {
@@ -61,11 +58,32 @@ const logout = () => {
 }
 </script>
 
-<style scoped lang="scss">
-.icon {
+<style scoped>
+.brand-title {
+  min-width: 0;
+}
+
+.brand-link {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.brand-link:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary-dark));
+  outline-offset: 4px;
+}
+
+.brand-icon {
   display: block;
-  height: 36px;
   width: 250px;
-  margin-right: 20px;
+  max-width: 100%;
+  height: auto;
+  max-height: 36px;
+}
+
+.navigation-menu {
+  min-width: 260px;
 }
 </style>

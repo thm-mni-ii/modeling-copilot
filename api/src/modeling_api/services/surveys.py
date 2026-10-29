@@ -152,8 +152,8 @@ async def responses(survey_id, user, skip, limit):
     return page
 
 
-async def render(survey_id, user, mode, version_id=None):
-    if mode != "use":
+async def render(survey_id, user, mode, version_id=None, *, embedded=False):
+    if mode != "use" or not embedded:
         require_admin(user)
     doc = await survey_document(survey_id)
     if mode == "use":
@@ -285,8 +285,8 @@ async def delete_survey(survey_id, user):
 
 
 async def submit(survey_id, body: SubmitResponse, user):
-    if body.mode != "use":
-        require_admin(user)
+    # Learners submit through owned path sessions, never the standalone endpoint.
+    require_admin(user)
     doc = await survey_document(survey_id)
     if doc.get("managedBy") == "learning-path-help" and body.mode != "preview":
         raise ApiError(409, "PATH_MANAGED_SURVEY", "Dieser Fragebogen wird über den Hilfe-Ablauf im Lernpfad ausgefüllt.")
@@ -311,7 +311,11 @@ def validate_answers(definition, answers):
     for name, q in questions.items():
         if q.get("visibleIf"):
             source, expected = visibility_condition(q["visibleIf"])
-            if answers.get(source) != expected:
+            selected = answers.get(source)
+            matches = expected in selected if q["visibleIf"].partition("} ")[2].startswith("contains ") and isinstance(selected, list) else selected == expected
+            if q["visibleIf"].partition("} ")[2].startswith("!= "):
+                matches = selected is not None and selected != "" and selected != expected
+            if not matches:
                 continue
         value = answers.get(name)
         empty = value is None or value == "" or value == [] or value == {}
@@ -337,6 +341,8 @@ def validate_answers(definition, answers):
                 )
                 if not invalid:
                     invalid = len(set(value)) != len(value)
+                if not invalid and len(value) > 1:
+                    invalid = any(v in (q.get("exclusiveChoices") or []) for v in value)
             elif kind == "rating":
                 invalid = (
                     type(value) is not int or not q["rateMin"] <= value <= q["rateMax"]
