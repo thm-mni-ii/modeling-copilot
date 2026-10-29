@@ -1,0 +1,1086 @@
+{
+  "version": 1,
+  "provenance": "Hand-authored synthetic smoke benchmark, not independently human-validated; no real student submissions. Group names stand for disjoint concept families.",
+  "tasks": [
+    {
+      "id": "commerce",
+      "group": "commerce",
+      "families": [
+        "commerce"
+      ],
+      "split": "train",
+      "category": "translation",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Lieferant",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Bestellung",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Customer",
+          "language": "en"
+        },
+        {
+          "id": "s1",
+          "label": "Supplier",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "Order",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "colours",
+      "group": "colours",
+      "families": [
+        "colours"
+      ],
+      "split": "train",
+      "category": "hard_negative",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Blau",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Lila",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Grün",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "blue",
+          "language": "en"
+        },
+        {
+          "id": "s1",
+          "label": "purple",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "green",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "shipping",
+      "group": "shipping",
+      "families": [
+        "shipping"
+      ],
+      "split": "train",
+      "category": "typo",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Lieferung",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Paket",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Adresse",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Liefrung",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Pkaet",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Adrese",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "staff",
+      "group": "staff",
+      "families": [
+        "staff"
+      ],
+      "split": "train",
+      "category": "inflection",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Mitarbeiter",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Abteilung",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Team",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Mitarbeitern",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Abteilungen",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Teams",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "education",
+      "group": "education",
+      "families": [
+        "education"
+      ],
+      "split": "train",
+      "category": "synonym",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Lehrer",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Schüler",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Unterricht",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Lehrkraft",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Lernender",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Lehrveranstaltung",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "possible"
+        ]
+      ]
+    },
+    {
+      "id": "identity",
+      "group": "identity",
+      "families": [
+        "identity"
+      ],
+      "split": "train",
+      "category": "abbreviation",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Identifikationsnummer",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Telefonnummer",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Postleitzahl",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "ID",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Tel.",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "PLZ",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "payments",
+      "group": "payments",
+      "families": [
+        "payments"
+      ],
+      "split": "train",
+      "category": "negation",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "bezahlt",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "unbezahlt",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "storniert",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "nicht bezahlt",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "bezahlt",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Storno",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "actions",
+      "group": "actions",
+      "families": [
+        "actions"
+      ],
+      "split": "train",
+      "category": "identifier",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "createAccount",
+          "language": "en"
+        },
+        {
+          "id": "r1",
+          "label": "deleteAccount",
+          "language": "en"
+        },
+        {
+          "id": "r2",
+          "label": "lockAccount",
+          "language": "en"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "create_account",
+          "language": "en"
+        },
+        {
+          "id": "s1",
+          "label": "delete_account",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "lock_account",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "storage",
+      "group": "storage",
+      "families": [
+        "storage"
+      ],
+      "split": "train",
+      "category": "hard_negative",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Datei",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Ordner",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Laufwerk",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "file",
+          "language": "en"
+        },
+        {
+          "id": "s1",
+          "label": "directory",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "drive",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "timing",
+      "group": "timing",
+      "families": [
+        "timing"
+      ],
+      "split": "train",
+      "category": "normalization",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Startzeit",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Endzeit",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Dauer",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": " STARTZEIT ",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Endzeit",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Dauer",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "library",
+      "group": "library",
+      "families": [
+        "library"
+      ],
+      "split": "validation",
+      "category": "translation",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Buch",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Autor",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Verlag",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "book",
+          "language": "en"
+        },
+        {
+          "id": "s1",
+          "label": "author",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "publisher",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "travel",
+      "group": "travel",
+      "families": [
+        "travel"
+      ],
+      "split": "validation",
+      "category": "typo",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Fahrzeug",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Fahrer",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Straße",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Fahrzueg",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Faher",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Strase",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "health",
+      "group": "health",
+      "families": [
+        "health"
+      ],
+      "split": "validation",
+      "category": "hard_negative",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Arzt",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Patient",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Klinik",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "doctor",
+          "language": "en"
+        },
+        {
+          "id": "s1",
+          "label": "patient",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "hospital",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "stock",
+      "group": "stock",
+      "families": [
+        "stock"
+      ],
+      "split": "validation",
+      "category": "no_match",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Lager",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Bestand",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Inventur",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Lagerhaus",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Bestände",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Regal",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "possible",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "finance",
+      "group": "finance",
+      "families": [
+        "finance"
+      ],
+      "split": "test",
+      "category": "translation",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Rechnung",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Gutschrift",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Zahlung",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "invoice",
+          "language": "en"
+        },
+        {
+          "id": "s1",
+          "label": "credit note",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "payment",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "booking",
+      "group": "booking",
+      "families": [
+        "booking"
+      ],
+      "split": "test",
+      "category": "typo",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Reservierung",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Zimmer",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Gast",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Reservirung",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Zimemr",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Gats",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "workflow",
+      "group": "workflow",
+      "families": [
+        "workflow"
+      ],
+      "split": "test",
+      "category": "hard_negative",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Antrag genehmigt",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Antrag abgelehnt",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Antrag offen",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "application rejected",
+          "language": "en"
+        },
+        {
+          "id": "s1",
+          "label": "application approved",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "application pending",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "documents",
+      "group": "documents",
+      "families": [
+        "documents"
+      ],
+      "split": "test",
+      "category": "no_match",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Dokument",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Version",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Freigabe",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Schriftstück",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Revision",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Archiv",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "possible",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ]
+      ]
+    }
+  ]
+}

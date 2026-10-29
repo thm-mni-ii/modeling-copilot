@@ -1,0 +1,424 @@
+{
+  "version": 1,
+  "thresholds": [
+    0.0,
+    0.05,
+    0.1,
+    0.15,
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.6,
+    0.65,
+    0.7,
+    0.75,
+    0.8,
+    0.85,
+    0.9,
+    0.95,
+    1.0
+  ],
+  "learned": [
+    "logistic_regression",
+    "random_forest"
+  ],
+  "combiners": [
+    {
+      "name": "mean",
+      "kind": "mean"
+    },
+    {
+      "name": "max",
+      "kind": "max"
+    },
+    {
+      "name": "weighted_strings",
+      "kind": "weighted_mean",
+      "methods": [
+        "damerau_levenshtein",
+        "jaro_winkler",
+        "char_trigram"
+      ],
+      "weights": {
+        "damerau_levenshtein": 0.4,
+        "jaro_winkler": 0.3,
+        "char_trigram": 0.3
+      }
+    },
+    {
+      "name": "hybrid_multilingual_25",
+      "kind": "weighted_mean",
+      "methods": [
+        "damerau_levenshtein",
+        "multilingual"
+      ],
+      "weights": {
+        "damerau_levenshtein": 0.75,
+        "multilingual": 0.25
+      }
+    },
+    {
+      "name": "hybrid_multilingual_50",
+      "kind": "weighted_mean",
+      "methods": [
+        "damerau_levenshtein",
+        "multilingual"
+      ],
+      "weights": {
+        "damerau_levenshtein": 0.5,
+        "multilingual": 0.5
+      }
+    },
+    {
+      "name": "hybrid_multilingual_75",
+      "kind": "weighted_mean",
+      "methods": [
+        "damerau_levenshtein",
+        "multilingual"
+      ],
+      "weights": {
+        "damerau_levenshtein": 0.25,
+        "multilingual": 0.75
+      }
+    },
+    {
+      "name": "hybrid_translated_embedding_25",
+      "kind": "weighted_mean",
+      "methods": [
+        "damerau_levenshtein",
+        "translated_embedding"
+      ],
+      "weights": {
+        "damerau_levenshtein": 0.75,
+        "translated_embedding": 0.25
+      }
+    },
+    {
+      "name": "hybrid_translated_embedding_50",
+      "kind": "weighted_mean",
+      "methods": [
+        "damerau_levenshtein",
+        "translated_embedding"
+      ],
+      "weights": {
+        "damerau_levenshtein": 0.5,
+        "translated_embedding": 0.5
+      }
+    },
+    {
+      "name": "hybrid_translated_embedding_75",
+      "kind": "weighted_mean",
+      "methods": [
+        "damerau_levenshtein",
+        "translated_embedding"
+      ],
+      "weights": {
+        "damerau_levenshtein": 0.25,
+        "translated_embedding": 0.75
+      }
+    },
+    {
+      "name": "string_mean_plus_multilingual_25",
+      "kind": "weighted_mean",
+      "methods": [
+        "levenshtein",
+        "damerau_levenshtein",
+        "jaro_winkler",
+        "char_bigram",
+        "char_trigram",
+        "multilingual"
+      ],
+      "weights": {
+        "levenshtein": 0.15,
+        "damerau_levenshtein": 0.15,
+        "jaro_winkler": 0.15,
+        "char_bigram": 0.15,
+        "char_trigram": 0.15,
+        "multilingual": 0.25
+      }
+    },
+    {
+      "name": "string_mean_plus_multilingual_50",
+      "kind": "weighted_mean",
+      "methods": [
+        "levenshtein",
+        "damerau_levenshtein",
+        "jaro_winkler",
+        "char_bigram",
+        "char_trigram",
+        "multilingual"
+      ],
+      "weights": {
+        "levenshtein": 0.1,
+        "damerau_levenshtein": 0.1,
+        "jaro_winkler": 0.1,
+        "char_bigram": 0.1,
+        "char_trigram": 0.1,
+        "multilingual": 0.5
+      }
+    },
+    {
+      "name": "string_mean_plus_multilingual_75",
+      "kind": "weighted_mean",
+      "methods": [
+        "levenshtein",
+        "damerau_levenshtein",
+        "jaro_winkler",
+        "char_bigram",
+        "char_trigram",
+        "multilingual"
+      ],
+      "weights": {
+        "levenshtein": 0.05,
+        "damerau_levenshtein": 0.05,
+        "jaro_winkler": 0.05,
+        "char_bigram": 0.05,
+        "char_trigram": 0.05,
+        "multilingual": 0.75
+      }
+    },
+    {
+      "name": "string_mean_plus_translated_embedding_25",
+      "kind": "weighted_mean",
+      "methods": [
+        "levenshtein",
+        "damerau_levenshtein",
+        "jaro_winkler",
+        "char_bigram",
+        "char_trigram",
+        "translated_embedding"
+      ],
+      "weights": {
+        "levenshtein": 0.15,
+        "damerau_levenshtein": 0.15,
+        "jaro_winkler": 0.15,
+        "char_bigram": 0.15,
+        "char_trigram": 0.15,
+        "translated_embedding": 0.25
+      }
+    },
+    {
+      "name": "string_mean_plus_translated_embedding_50",
+      "kind": "weighted_mean",
+      "methods": [
+        "levenshtein",
+        "damerau_levenshtein",
+        "jaro_winkler",
+        "char_bigram",
+        "char_trigram",
+        "translated_embedding"
+      ],
+      "weights": {
+        "levenshtein": 0.1,
+        "damerau_levenshtein": 0.1,
+        "jaro_winkler": 0.1,
+        "char_bigram": 0.1,
+        "char_trigram": 0.1,
+        "translated_embedding": 0.5
+      }
+    },
+    {
+      "name": "string_mean_plus_translated_embedding_75",
+      "kind": "weighted_mean",
+      "methods": [
+        "levenshtein",
+        "damerau_levenshtein",
+        "jaro_winkler",
+        "char_bigram",
+        "char_trigram",
+        "translated_embedding"
+      ],
+      "weights": {
+        "levenshtein": 0.05,
+        "damerau_levenshtein": 0.05,
+        "jaro_winkler": 0.05,
+        "char_bigram": 0.05,
+        "char_trigram": 0.05,
+        "translated_embedding": 0.75
+      }
+    }
+  ],
+  "variants": [
+    {
+      "name": "raw",
+      "config": {
+        "methods": [
+          "levenshtein",
+          "damerau_levenshtein",
+          "jaro_winkler",
+          "char_bigram",
+          "char_trigram",
+          "multilingual",
+          "translated_embedding"
+        ],
+        "preprocessing": {
+          "normalize": false
+        },
+        "embedding_preprocessing": {
+          "normalize": false
+        },
+        "seed": 42
+      }
+    },
+    {
+      "name": "minimal",
+      "config": {
+        "methods": [
+          "levenshtein",
+          "damerau_levenshtein",
+          "jaro_winkler",
+          "char_bigram",
+          "char_trigram",
+          "multilingual",
+          "translated_embedding"
+        ],
+        "preprocessing": {
+          "normalize": true
+        },
+        "embedding_preprocessing": {
+          "normalize": true
+        },
+        "seed": 42
+      }
+    },
+    {
+      "name": "string_lower",
+      "config": {
+        "methods": [
+          "levenshtein",
+          "damerau_levenshtein",
+          "jaro_winkler",
+          "char_bigram",
+          "char_trigram",
+          "multilingual",
+          "translated_embedding"
+        ],
+        "preprocessing": {
+          "normalize": true,
+          "lowercase": true
+        },
+        "embedding_preprocessing": {
+          "normalize": true
+        },
+        "seed": 42
+      }
+    },
+    {
+      "name": "embedding_lower",
+      "config": {
+        "methods": [
+          "levenshtein",
+          "damerau_levenshtein",
+          "jaro_winkler",
+          "char_bigram",
+          "char_trigram",
+          "multilingual",
+          "translated_embedding"
+        ],
+        "preprocessing": {
+          "normalize": true
+        },
+        "embedding_preprocessing": {
+          "normalize": true,
+          "lowercase": true
+        },
+        "seed": 42
+      }
+    },
+    {
+      "name": "string_lemma",
+      "config": {
+        "methods": [
+          "levenshtein",
+          "damerau_levenshtein",
+          "jaro_winkler",
+          "char_bigram",
+          "char_trigram",
+          "multilingual",
+          "translated_embedding"
+        ],
+        "preprocessing": {
+          "normalize": true,
+          "lemmatize": true
+        },
+        "embedding_preprocessing": {
+          "normalize": true
+        },
+        "seed": 42
+      }
+    },
+    {
+      "name": "embedding_lemma",
+      "config": {
+        "methods": [
+          "levenshtein",
+          "damerau_levenshtein",
+          "jaro_winkler",
+          "char_bigram",
+          "char_trigram",
+          "multilingual",
+          "translated_embedding"
+        ],
+        "preprocessing": {
+          "normalize": true
+        },
+        "embedding_preprocessing": {
+          "normalize": true,
+          "lemmatize": true
+        },
+        "seed": 42
+      }
+    },
+    {
+      "name": "string_lemma_lower",
+      "config": {
+        "methods": [
+          "levenshtein",
+          "damerau_levenshtein",
+          "jaro_winkler",
+          "char_bigram",
+          "char_trigram",
+          "multilingual",
+          "translated_embedding"
+        ],
+        "preprocessing": {
+          "normalize": true,
+          "lemmatize": true,
+          "lowercase": true
+        },
+        "embedding_preprocessing": {
+          "normalize": true
+        },
+        "seed": 42
+      }
+    },
+    {
+      "name": "embedding_lemma_lower",
+      "config": {
+        "methods": [
+          "levenshtein",
+          "damerau_levenshtein",
+          "jaro_winkler",
+          "char_bigram",
+          "char_trigram",
+          "multilingual",
+          "translated_embedding"
+        ],
+        "preprocessing": {
+          "normalize": true
+        },
+        "embedding_preprocessing": {
+          "normalize": true,
+          "lemmatize": true,
+          "lowercase": true
+        },
+        "seed": 42
+      }
+    }
+  ]
+}
