@@ -40,7 +40,7 @@
                 <dt>Mode</dt>
                 <dd>IFRAME or EXTERNAL</dd>
                 <dt>OIDC</dt>
-                <dd>Enabled · CONFIDENTIAL client · secret as OIDC_CLIENT_SECRET of the API</dd>
+                <dd>Enabled · PUBLIC with PKCE (API secret empty), or CONFIDENTIAL with OIDC_CLIENT_SECRET set in the API for automatic session renewal</dd>
                 <dt>Redirect URI</dt>
                 <dd>{{ fbsRedirectUri }}</dd>
                 <dt>Scopes</dt>
