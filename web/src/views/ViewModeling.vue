@@ -45,7 +45,24 @@
     >
       <template v-if="stepRun" #sidebar-top>
         <LearningJourneyDock v-show="!currentHelp" v-model:completion-dialog="completionDialog" :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy || helpBusy" @leave="returnToPath(false)" @complete="returnToPath(true)">
-          <template #pulse><PulseSurveyPirate v-if="stepRun && pulseEnabled" :run-id="stepRun.runId" :step-id="stepRun.stepId" :visible="pulse.visible.value" :offer="pulse.offer.value" :offer-opened="pulse.offerOpened.value" :reward-coins="pulse.rewardCoins.value" :coin-balance="pulse.coinBalance.value" :state="pulse.state.value" :busy="pulse.busy.value" :error="pulse.error.value" @open="pulse.open" @dismiss="pulse.dismiss" @answered="pulse.answered" @expired="pulse.expire" /></template>
+          <template #pulse
+            ><PulseSurveyPirate
+              v-if="stepRun && pulseEnabled"
+              :run-id="stepRun.runId"
+              :step-id="stepRun.stepId"
+              :visible="pulse.visible.value"
+              :offer="pulse.offer.value"
+              :offer-opened="pulse.offerOpened.value"
+              :reward-coins="pulse.rewardCoins.value"
+              :coin-balance="pulse.coinBalance.value"
+              :state="pulse.state.value"
+              :busy="pulse.busy.value"
+              :error="pulse.error.value"
+              @open="pulse.open"
+              @dismiss="pulse.dismiss"
+              @answered="pulse.answered"
+              @expired="pulse.expire"
+          /></template>
         </LearningJourneyDock>
         <HelpRequestFlow v-if="currentHelp" v-model:request="currentHelp" :cell-ids="helpCellIds" :text-ranges="helpTextRanges" :snapshot-loading="helpSnapshotLoading" :snapshot-error="helpSnapshotError" @remove-text="helpTextRanges.splice($event, 1)" @retry-snapshot="loadHelpSnapshot" @close="closeHelp" />
       </template>
@@ -161,7 +178,11 @@ const activeSurvey = computed(() => {
 })
 const pulseEnabled = computed(() => Boolean(!currentHelp.value && stepRun.value && !stepRun.value.removed && !stepRun.value.completedAt && !stepRun.value.completionRequested && !activeSurvey.value && !loading.value && !pathLoadFailed.value && !recoveryDialog.value))
 const helpEnabled = computed(() => Boolean(stepRun.value?.helpRequests?.enabled && !stepRun.value.removed && !stepRun.value.completedAt && !stepRun.value.completionRequested && !activeSurvey.value && !loading.value && !pathLoadFailed.value))
-const pulse = usePulseSurvey(computed(() => stepRun.value?.runId), computed(() => stepRun.value?.stepId), pulseEnabled)
+const pulse = usePulseSurvey(
+  computed(() => stepRun.value?.runId),
+  computed(() => stepRun.value?.stepId),
+  pulseEnabled
+)
 watch(pulse.coinBalance, (coins) => {
   if (stepRun.value && coins !== null) stepRun.value.coins = coins
 })
@@ -261,8 +282,11 @@ const closeHelp = () => {
 const loadActiveHelp = async () => {
   const path = stepRun.value
   if (!path || path.removed || path.completedAt) return
-  try { currentHelp.value = (await paths.activeHelp(path.runId, path.stepId)).data }
-  catch { notifyError('Ein offener Hilfe-Ablauf konnte nicht geladen werden. Bitte lade die Seite erneut.') }
+  try {
+    currentHelp.value = (await paths.activeHelp(path.runId, path.stepId)).data
+  } catch {
+    notifyError('Ein offener Hilfe-Ablauf konnte nicht geladen werden. Bitte lade die Seite erneut.')
+  }
 }
 const loadHelpSnapshot = async () => {
   const request = currentHelp.value
@@ -271,28 +295,47 @@ const loadHelpSnapshot = async () => {
   helpSnapshotLoading.value = true
   helpSnapshotError.value = ''
   try {
-    const version = (await modelService.getVersion(request.modelId, request.modelVersionId)).data
+    const model = workspace.model?.id === request.modelId ? workspace.model : (await modelService.get(request.modelId)).data
+    const version = (await modelService.getVersion(model, request.modelVersionId)).data
     if (generation !== helpSnapshotGeneration || !helpMarking.value) return
     helpSnapshot.value = version
     hydrating.value = true
     await nextTick()
     canvas.value?.loadPersistedModel(version.data)
     await nextTick()
-  } catch { helpSnapshotError.value = 'Der gespeicherte Modellstand konnte nicht geladen werden.' }
-  finally {
-    if (generation === helpSnapshotGeneration) { helpSnapshotLoading.value = false; hydrating.value = false }
+  } catch {
+    helpSnapshotError.value = 'Der gespeicherte Modellstand konnte nicht geladen werden.'
+  } finally {
+    if (generation === helpSnapshotGeneration) {
+      helpSnapshotLoading.value = false
+      hydrating.value = false
+    }
   }
 }
-watch(() => currentHelp.value?.id, () => { helpCellIds.value = []; helpTextRanges.value = [] })
-watch(() => currentHelp.value?.stage, async (stage) => {
-  if (stage === 'marking') { taskWindowOpen.value = false; await loadHelpSnapshot() }
-  else {
-    helpSnapshotGeneration++
-    helpSnapshotLoading.value = false
-    if (helpSnapshot.value) { helpSnapshot.value = null; await syncCanvas() }
-    if (stage === 'cancelled') currentHelp.value = null
+watch(
+  () => currentHelp.value?.id,
+  () => {
+    helpCellIds.value = []
+    helpTextRanges.value = []
   }
-})
+)
+watch(
+  () => currentHelp.value?.stage,
+  async (stage) => {
+    if (stage === 'marking') {
+      taskWindowOpen.value = false
+      await loadHelpSnapshot()
+    } else {
+      helpSnapshotGeneration++
+      helpSnapshotLoading.value = false
+      if (helpSnapshot.value) {
+        helpSnapshot.value = null
+        await syncCanvas()
+      }
+      if (stage === 'cancelled') currentHelp.value = null
+    }
+  }
+)
 const syncCanvas = async () => {
   hydrating.value = true
   try {
@@ -349,14 +392,18 @@ const refreshPathContext = async () => {
     notifyError('The learning path settings could not be refreshed.')
   }
 }
-watch([loading, stepRun, activeSurvey, helpActive, helpBusy, pathBusy, recoveryDialog, pathLoadFailed], () => {
-  if (!pendingCompletion.value || loading.value || !stepRun.value || stepRun.value.removed || stepRun.value.completedAt || activeSurvey.value || helpActive.value || helpBusy.value || pathBusy.value || recoveryDialog.value || pathLoadFailed.value) return
-  pendingCompletion.value = false
-  completionDialog.value = true
-  const query = { ...route.query }
-  delete query.complete
-  void router.replace({ query })
-}, { flush: 'post' })
+watch(
+  [loading, stepRun, activeSurvey, helpActive, helpBusy, pathBusy, recoveryDialog, pathLoadFailed],
+  () => {
+    if (!pendingCompletion.value || loading.value || !stepRun.value || stepRun.value.removed || stepRun.value.completedAt || activeSurvey.value || helpActive.value || helpBusy.value || pathBusy.value || recoveryDialog.value || pathLoadFailed.value) return
+    pendingCompletion.value = false
+    completionDialog.value = true
+    const query = { ...route.query }
+    delete query.complete
+    void router.replace({ query })
+  },
+  { flush: 'post' }
+)
 onMounted(async () => {
   loading.value = true
   try {
@@ -396,8 +443,16 @@ onMounted(async () => {
   inset: 0 0 auto;
   z-index: 20;
 }
-.task-survey-layout { display: flex; flex: 1; min-height: 0; gap: 12px; }
-.task-survey-journey { width: 280px; flex-shrink: 0; }
+.task-survey-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+}
+.task-survey-journey {
+  width: 280px;
+  flex-shrink: 0;
+}
 .task-survey {
   min-width: 0;
   overflow-y: auto;
@@ -407,7 +462,10 @@ onMounted(async () => {
   flex: 1;
   min-height: 0;
 }
-.help-snapshot-loading :deep(.graph-wrapper) { pointer-events: none; opacity: 0.6; }
+.help-snapshot-loading :deep(.graph-wrapper) {
+  pointer-events: none;
+  opacity: 0.6;
+}
 .task-area {
   display: flex;
   align-items: flex-start;
