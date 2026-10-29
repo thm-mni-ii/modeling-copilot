@@ -1,1 +1,86 @@
-{"$schema":"http://json-schema.org/draft-07/schema#","title":"synonym-matching input","type":"object","properties":{"step":{"type":"string"},"input":{"type":"object"},"demoDelaySeconds":{"type":"number","minimum":0,"maximum":30}},"additionalProperties":true}
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "synonym-matching input v0.2",
+  "type": "object",
+  "required": [
+    "input"
+  ],
+  "properties": {
+    "step": {
+      "type": "string"
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "referenceModel",
+        "studentModel"
+      ],
+      "properties": {
+        "referenceModel": {
+          "$ref": "#/definitions/model"
+        },
+        "studentModel": {
+          "$ref": "#/definitions/model"
+        },
+        "threshold": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "config": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "element": {
+      "type": "object",
+      "required": [
+        "id",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "integer"
+            }
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "model": {
+      "type": "object",
+      "required": [
+        "elements"
+      ],
+      "properties": {
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/element"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

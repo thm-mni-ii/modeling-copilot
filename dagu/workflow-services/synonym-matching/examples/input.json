@@ -1,0 +1,56 @@
+{
+  "step": "synonym_matching",
+  "input": {
+    "referenceModel": {
+      "elements": [
+        {
+          "id": "r1",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Lieferant",
+          "language": "de"
+        }
+      ]
+    },
+    "studentModel": {
+      "elements": [
+        {
+          "id": "s1",
+          "label": "Customer",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "Kund",
+          "language": "de"
+        },
+        {
+          "id": "s3",
+          "label": "Supplier",
+          "language": "en"
+        }
+      ]
+    },
+    "threshold": 0.5,
+    "config": {
+      "methods": [
+        "levenshtein",
+        "damerau_levenshtein",
+        "jaro_winkler",
+        "char_bigram",
+        "char_trigram"
+      ],
+      "preprocessing": {
+        "normalize": true,
+        "lowercase": true
+      },
+      "combiner": {
+        "kind": "mean"
+      },
+      "seed": 42
+    }
+  }
+}
