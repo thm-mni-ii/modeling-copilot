@@ -12,7 +12,7 @@ import { registerPlugins } from './plugins'
 import vuetify from './plugins/vuetify'
 
 import { isEmbedded } from './services/auth/fbsBridge'
-import { resumeFeedbacksystemSession } from './services/auth/fbsOidc'
+import { handOverFeedbacksystemRenewal, isFeedbacksystemCallback, resumeFeedbacksystemSession } from './services/auth/fbsOidc'
 
 import '@maxgraph/core/css/common.css'
 
@@ -21,13 +21,18 @@ import { registerCustomShapes } from './utils/shapeRegistry'
 Client.setImageBasePath('/images/')
 registerCustomShapes()
 
-if (!isEmbedded) resumeFeedbacksystemSession()
+// The hidden frame of a token renewal only hands the response back to the page.
+if (isEmbedded && isFeedbacksystemCallback()) {
+  handOverFeedbacksystemRenewal()
+} else {
+  if (!isEmbedded) resumeFeedbacksystemSession()
 
-const pinia = createPinia()
-const app = createApp(App)
-registerPlugins()
+  const pinia = createPinia()
+  const app = createApp(App)
+  registerPlugins()
 
-app.use(router)
-app.use(vuetify)
-app.use(pinia)
-app.mount('#app')
+  app.use(router)
+  app.use(vuetify)
+  app.use(pinia)
+  app.mount('#app')
+}
