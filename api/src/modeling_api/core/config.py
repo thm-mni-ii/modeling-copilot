@@ -44,7 +44,9 @@ class Settings(BaseSettings):
     # Anmeldung ohne FBS: Den Code tauscht und das Token erneuert die API beim
     # Identity-Service des FBS, so fragt der Browser dort nichts an und das Secret
     # der App bleibt hier. Ohne Secret (PUBLIC) gibt das FBS kein Refresh-Token.
-    oidc_token_uri: str = "http://localhost:8080/oauth2/token"
+    # Use the same shell origin as VITE_FBS_HOST_ORIGIN to preserve the issuer.
+    oidc_token_uri: str = "http://localhost:8083/oauth2/token"
+    oidc_token_host: str = ""  # Public Host header when Docker uses an internal address
     oidc_client_id: str = "modeling-copilot"  # Provider-ID der App im FBS
     oidc_client_secret: str = ""  # Secret der App (CONFIDENTIAL)
 
