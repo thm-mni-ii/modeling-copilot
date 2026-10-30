@@ -135,7 +135,7 @@ import { setupDynamicGrid } from '@/utils/setupDynamicGrid'
 import { StablePanningHandler } from '@/utils/StablePanningHandler'
 import { createDefaultShapes, buildShapesFromElements, ensureGraphDropHandlers } from '@/utils/setupToolbar'
 import { isContainerSectionTarget, setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
-import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, updateConnectionPreview } from '@/utils/connectionPreview'
+import { clearConnectionPreview, isPreviewEdge, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, updateConnectionPreview } from '@/utils/connectionPreview'
 import { AnchorConstraintHandler, CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
 import { setupUndoManager, type UndoManagerApi, type UndoManagerState } from '@/utils/setupUndoManager'
 import { alignHorizontal, alignVertical } from '@/utils/alignCells'
@@ -249,7 +249,8 @@ class MyCustomGraph extends Graph {
   }
 
   override isCellEditable = (cell: Cell) => {
-    const allow = (cell as any).allowLabelEdit
+    // Kanten: "Label Editable on Canvas" der Verbindung, Elemente und Zusatzlabels: ihr eigenes allowLabelEdit
+    const allow = cell.isEdge() ? this.getConnectionOf(cell)?.allowLabelEdit : (cell as any).allowLabelEdit
 
     if (allow === false) {
       return false
@@ -279,8 +280,8 @@ class MyCustomGraph extends Graph {
 
   getConnectionOf = (edge: Cell) => languageConnections.value.find((c) => c.type === (edge as any).connectionId)
 
-  // Ohne "Allow Loose Ends" bleibt eine Kante an beiden Enden verbunden
-  allowsLooseEnds = (edge: Cell) => this.getConnectionOf(edge)?.allowLooseEnds !== false
+  // Ohne "Allow Loose Ends" bleibt eine Kante an beiden Enden verbunden; die Vorschau im Editor bleibt frei verformbar
+  allowsLooseEnds = (edge: Cell) => isPreviewEdge(edge) || this.getConnectionOf(edge)?.allowLooseEnds !== false
 
   // Verschieben der ganzen Kante löst ihre Enden nur, wenn lose Enden erlaubt sind
   override disconnectGraph = (cells: Cell[]) => {

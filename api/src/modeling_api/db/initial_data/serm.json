@@ -299,6 +299,7 @@
       "connectionType": "0-1",
       "connectable": false,
       "allowLooseEnds": false,
+      "allowLabelEdit": false,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -316,29 +317,10 @@
         "fontSize": 10,
         "edgeStyle": "sideToSideEdgeStyle",
         "curved": true,
-        "rounded": true
+        "rounded": true,
+        "noLabel": true
       },
-      "additionalLabels": [
-        {
-          "type": "role",
-          "text": "",
-          "geometry": {
-            "x": 0,
-            "y": 0,
-            "relative": true,
-            "offsetX": 0,
-            "offsetY": -14,
-            "width": 60,
-            "height": 20
-          },
-          "style": {
-            "fontSize": 11,
-            "fontColor": "#000000"
-          },
-          "connectable": false,
-          "allowLabelEdit": true
-        }
-      ]
+      "additionalLabels": []
     },
     {
       "type": "serm-0-n",
@@ -347,6 +329,7 @@
       "connectionType": "0-n",
       "connectable": false,
       "allowLooseEnds": false,
+      "allowLabelEdit": false,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -364,29 +347,10 @@
         "fontSize": 10,
         "edgeStyle": "sideToSideEdgeStyle",
         "curved": true,
-        "rounded": true
+        "rounded": true,
+        "noLabel": true
       },
-      "additionalLabels": [
-        {
-          "type": "role",
-          "text": "",
-          "geometry": {
-            "x": 0,
-            "y": 0,
-            "relative": true,
-            "offsetX": 0,
-            "offsetY": -14,
-            "width": 60,
-            "height": 20
-          },
-          "style": {
-            "fontSize": 11,
-            "fontColor": "#000000"
-          },
-          "connectable": false,
-          "allowLabelEdit": true
-        }
-      ]
+      "additionalLabels": []
     },
     {
       "type": "serm-1-1",
@@ -395,6 +359,7 @@
       "connectionType": "1-1",
       "connectable": false,
       "allowLooseEnds": false,
+      "allowLabelEdit": false,
       "style": {
         "shape": "doubleLine",
         "strokeColor": "#000000",
@@ -413,29 +378,10 @@
         "startSize": 2,
         "edgeStyle": "sideToSideEdgeStyle",
         "curved": true,
-        "rounded": true
+        "rounded": true,
+        "noLabel": true
       },
-      "additionalLabels": [
-        {
-          "type": "role",
-          "text": "",
-          "geometry": {
-            "x": 0,
-            "y": 0,
-            "relative": true,
-            "offsetX": 0,
-            "offsetY": -14,
-            "width": 60,
-            "height": 20
-          },
-          "style": {
-            "fontSize": 11,
-            "fontColor": "#000000"
-          },
-          "connectable": false,
-          "allowLabelEdit": true
-        }
-      ]
+      "additionalLabels": []
     },
     {
       "type": "serm-1-n",
@@ -444,6 +390,7 @@
       "connectionType": "1-n",
       "connectable": false,
       "allowLooseEnds": false,
+      "allowLabelEdit": false,
       "style": {
         "shape": "doubleLine",
         "strokeColor": "#000000",
@@ -464,29 +411,10 @@
         "endSize": 8,
         "edgeStyle": "sideToSideEdgeStyle",
         "curved": true,
-        "rounded": true
+        "rounded": true,
+        "noLabel": true
       },
-      "additionalLabels": [
-        {
-          "type": "role",
-          "text": "",
-          "geometry": {
-            "x": 0,
-            "y": 0,
-            "relative": true,
-            "offsetX": 0,
-            "offsetY": -14,
-            "width": 60,
-            "height": 20
-          },
-          "style": {
-            "fontSize": 11,
-            "fontColor": "#000000"
-          },
-          "connectable": false,
-          "allowLabelEdit": true
-        }
-      ]
+      "additionalLabels": []
     }
   ],
   "syntax": [

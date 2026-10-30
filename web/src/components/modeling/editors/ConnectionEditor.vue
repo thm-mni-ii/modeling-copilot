@@ -30,6 +30,7 @@
               <DrawingCanvas ref="drawingCanvasRef" :show-elements="previewSidebarVisible" :model="canvasModel" :preview-connection="selectedConnection" :preview-mode="previewMode" :language-connections="connections" :language-elements="elements" :language-syntax="languageSyntaxForCanvas" />
             </div>
             <v-alert v-if="!selectedConnection" type="info" variant="tonal" class="mt-3"> Select a Connection to see a preview </v-alert>
+            <v-alert v-else-if="selectedConnection.allowLooseEnds === false" type="info" variant="tonal" density="comfortable" class="mt-3 flex-0-0"> Loose ends are allowed in the preview. On the canvas, this connection always stays connected. </v-alert>
           </v-card-text>
         </v-card>
       </v-col>

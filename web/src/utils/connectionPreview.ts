@@ -19,6 +19,9 @@ type PreviewCell = Cell & {
   previewSummary?: boolean
 }
 
+/** Kante der Verbindungsvorschau im Editor (dort darf man sie frei verformen). */
+export const isPreviewEdge = (cell: Cell): boolean => Boolean((cell as PreviewCell).previewStyle)
+
 const markPreviewEdge = (edge: Cell, connection: DiagramConnection, previewStyle: PreviewStyle = cloneStyle, previewLabel = false): void => {
   ;(edge as any).connectionId = connection.type
   ;(edge as PreviewCell).previewStyle = previewStyle

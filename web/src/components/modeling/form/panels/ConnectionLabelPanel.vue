@@ -5,6 +5,10 @@
       <v-switch v-model="localStyle.noLabel" color="primary" density="compact" class="mb-4" label="Hide Label" hint="Completely suppresses the label display." persistent-hint @update:model-value="emit('update')" />
     </FieldWithIndicator>
 
+    <FieldWithIndicator>
+      <v-switch v-model="allowLabelEditValue" color="primary" density="compact" class="mb-4" label="Label Editable on Canvas" hint="Double-click on the Connection opens the label editor when enabled." persistent-hint @update:model-value="emit('update')" />
+    </FieldWithIndicator>
+
     <template v-if="!noLabel">
       <!-- 2. Label Text -->
       <FieldWithIndicator>
@@ -138,6 +142,14 @@ const localStyle = computed(() => props.connection.style as Record<string, any>)
 const { setOptionalString } = useStyleHelpers(localStyle, emit)
 
 const noLabel = computed(() => localStyle.value.noLabel === true)
+
+const allowLabelEditValue = computed({
+  get: () => props.connection.allowLabelEdit ?? true,
+  set: (value: boolean) => {
+    // eslint-disable-next-line vue/no-mutating-props
+    props.connection.allowLabelEdit = value
+  }
+})
 
 // Label Text
 const labelTextValue = computed({
