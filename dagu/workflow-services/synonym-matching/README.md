@@ -1,116 +1,24 @@
-# Synonym Matching — lokaler Forschungsprototyp
+# Synonym Matching
 
-Vorbereitung für [Issue #19](https://github.com/thm-mni-ii/modeling-copilot/issues/19).
-Die Engine vergleicht **Referenzzeilen × studentische Spalten** und erhält IDs und
-Originaltexte. Sie liefert Ähnlichkeiten und Kandidaten, keine fachlich bestätigte
-Zuordnung, Bewertung oder erzwungene Eins-zu-eins-Zuordnung.
+Zwei Listen von Modelllabels hinein, eine Synonymmatrix mit IDs, Labels,
+Einzelscores und Combined Score heraus. Keine HTTP-API oder Datenbank;
+die Anbindung übernimmt der aufrufende Dienst.
 
-## Aktueller Prüfstand
+## Start
 
-Die Basistests und beide echten Modellpfade wurden lokal erfolgreich ausgeführt.
-Nach dem Umbau werden zusätzlich Funktionskomposition, Pipeline-Reihenfolge und
-das Hinzufügen einer eigenen Methode geprüft. Docker-Builds und eine vollständige
-wissenschaftliche Benchmark-Auswertung sind noch offen. Die Requirements pinnen
-direkte Abhängigkeiten; das Paketmanifest eines Experiments erfasst auch transitive
-Abhängigkeiten für die Wiederholung.
+Mit aktivierter lokaler Python-3.12-Umgebung:
 
-Es gibt noch keine gemessenen Qualitäts- oder Laufzeitergebnisse. Die synthetischen
-Annotationen sind technische Testdaten, keine unabhängig geprüfte Ground Truth.
-Die Workflow-Anbindung, reale Modellexporte und Deployment übernimmt ein Kollege.
-
-## Lokal starten (Python 3.12)
-
-Alle folgenden Befehle aus diesem Verzeichnis ausführen:
-
-```sh
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python src/main.py --input examples/input.json
-python -m pytest -m 'not integration'
+```bash
+pip install -r requirements.txt
+python src/main.py --input examples/order-management-input.json
 ```
 
-Alternativ JSON über stdin oder die bestehende Umgebungsvariable `TEMPLATE_INPUT`.
-`--input` hat Vorrang vor `TEMPLATE_INPUT`, diese hat Vorrang vor stdin. Erfolg:
-Exit 0 und genau eine JSON-Zeile auf stdout. Fehler: Exit 1, Diagnose auf stderr,
-kein erfolgreiches Teilergebnis. Modell-Downloads dürfen zusätzliche Diagnoseausgaben
-auf stderr erzeugen.
-
-Die Python-Schnittstelle ist unabhängig von Dagu, MongoDB und FastAPI:
-
-```python
-from synonym_matching import MatchingEngine  # PYTHONPATH=src
-
-engine = MatchingEngine({
-    "methods": ["levenshtein", "damerau_levenshtein", "jaro_winkler", "char_trigram"],
-    "preprocessing": {"normalize": True, "lowercase": True},
-    "combiner": {"kind": "mean"},
-    "seed": 42,
-})
-result = engine.match(
-    [{"id": "r1", "label": "Kunde", "language": "de"}],
-    [{"id": "s1", "label": "Kund", "language": "de"}],
-    threshold=0.5,
-)
-```
-
-Der Python-Kern akzeptiert auch Stringlisten; deren IDs sind `reference:0` bzw.
-`student:0` usw. Der JSON-Vertrag verlangt explizite IDs. Eine wiederverwendete
-Engine hält Modelle und Caches im Speicher.
-
-## Funktionen kombinieren und erweitern
-
-- `preprocessing.py`: `normalize`, `lowercase`, `lemmatize`, `split_identifiers`.
-- `methods.py`: eine Funktion pro Similarity-Verfahren, jeweils zwei Listen → Matrix.
-- `combiners.py`: `mean`, `maximum`, `weighted_mean`.
-- `engine.py`: orchestriert diese Funktionen und ergänzt IDs, Metadaten und Kandidaten.
-
-Ein ausführbares Beispiel ohne Engine: `PYTHONPATH=src python examples/functions.py`.
-Eigene Preprocessing-Funktionen haben die Signatur `(text, language=None)` und
-können direkt an `apply_pipeline(text, [normalize, eigene_funktion])` übergeben
-werden. Die Reihenfolge ist frei wählbar; eine leere Liste bedeutet keine Schritte.
-
-Für JSON-Konfigurationen werden dieselben Schritte über Namen ausgewählt:
-
-```json
-{"preprocessing": ["normalize", "lowercase"],
- "methods": ["levenshtein", "jaro_winkler"],
- "combiner": {"kind": "mean"}}
-```
-
-Die bisherigen Boolean-Konfigurationen funktionieren weiterhin in der bisherigen
-Reihenfolge. Python-Funktionen direkt in `apply_pipeline` verwenden; persistierte
-Experimentkonfigurationen enthalten Namen, keine Python-Funktionsobjekte.
-
-Eine eigene Methode benötigt keine Änderung an der Engine:
-
-```python
-from synonym_matching.methods import METHODS
-
-def verfahren_xy(left, right):
-    # Berechne eine NumPy-Matrix mit Shape (len(left), len(right)).
-    ...
-
-METHODS["verfahren_xy"] = verfahren_xy
-# Danach in config.methods den Namen "verfahren_xy" wählen.
-```
-
-Eigene Textschritte analog in `preprocessing.STEPS` registrieren. Registrierungen
-müssen im aufrufenden Prozess vor dem Aufbau der Engine stattfinden; für CLI-Läufe
-werden neue Funktionen im jeweiligen Modul definiert und dort eingetragen.
-
-Nur Modellzustand und Caches bleiben in kleinen Hilfsklassen. Bei Embeddings
-stellt die Engine das Backend bereit und bereitet Übersetzungen batchweise vor.
-Die Funktionen `multilingual_embedding` und `translated_embedding` erhalten dieses
-Backend explizit. So werden Modelle und identische Labels nicht je Paar neu geladen
-oder berechnet. Direkte Kombinatorfunktionen aggregieren die übergebenen Werte;
-der Engine-Adapter `combine` übernimmt vorher die dokumentierte Cosinus-Begrenzung.
+Alternativ liest die CLI JSON aus `TEMPLATE_INPUT` oder stdin. Die Ausgabe ist
+ein JSON-Objekt mit `synonymMatrix`. Fehler: stderr und Exitcode 1.
+Die Dockerdatei ist noch der Skeleton-Stand und installiert keine Abhängigkeiten;
+Containeranbindung ist eine separate Aufgabe.
 
 ## Eingabe und Ausgabe
-
-Siehe [vollständiges Beispiel](examples/input.json),
-[Input-Schema](schemas/input.schema.json) und [Output-Schema](schemas/output.schema.json).
-Der Service validiert das Input-Schema und danach die fachlichen Konfigurationsbedingungen.
 
 ```json
 {
@@ -118,176 +26,295 @@ Der Service validiert das Input-Schema und danach die fachlichen Konfigurationsb
   "input": {
     "referenceModel": {"elements": [{"id": "r1", "label": "Kunde", "language": "de"}]},
     "studentModel": {"elements": [{"id": "s1", "label": "Kund", "language": "de"}]},
-    "threshold": 0.5,
-    "config": {"methods": ["levenshtein"]}
+    "config": {"methods": ["levenshtein"], "combiner": {"kind": "mean"}}
   }
 }
 ```
 
-`result` enthält:
+```json
+{
+  "synonymMatrix": [{
+    "referenceElement": {"id": "r1", "label": "Kunde", "language": "de"},
+    "matches": [{
+      "submissionElement": {"id": "s1", "label": "Kund", "language": "de"},
+      "scores": {"levenshtein": 0.8},
+      "combinedScore": 0.8
+    }]
+  }]
+}
+```
 
-- `referenceElements`, `studentElements`, `shape`: Achsen in Eingabereihenfolge.
-- `scores`: vollständige Einzelmatrizen, auch unterhalb des Thresholds.
-- `combinedScores`: vollständige kombinierte Matrix.
-- `synonymMatrix`: pro Referenz Kandidaten mit `submissionElement`, `scores`,
-  `combinedScore`, `rank`, `mutualBest`; dazu `top1Top2Margin` pro Referenz.
-- `processedLabels`: tatsächliche Eingabetexte pro Methode, einschließlich der
-  übersetzten/weiterverarbeiteten Texte beim Übersetzungspfad.
-- `config`, `threshold`, `metadata`: Parameter, Modellrevisionen, Laufzeiten,
-  Cache-Zähler und Score-Policy.
+Ohne `input.threshold` bleiben alle nichtleeren Kandidaten enthalten. Ein Threshold
+filtert nach `combinedScore >= threshold`. Kandidaten sind absteigend sortiert;
+Gleichstände behalten die Eingabereihenfolge. Keine erzwungene 1:1-Zuordnung.
+Erst zur Ausgabe werden Scores auf vier Nachkommastellen gerundet. Berechnung,
+Sortierung und Threshold behalten volle Genauigkeit. Roh-Cosinus liegt in [-1,1];
+vor Kombination werden Scores auf [0,1] begrenzt.
 
-Threshold bedeutet `combinedScore >= threshold`, `null` bedeutet ungefiltert.
-Es gilt keine globale Eins-zu-eins-Beschränkung. Der Rang wird vor dem Filter
-bestimmt. Gleichstände behalten die ursprüngliche Spaltenreihenfolge;
-`mutualBest` kann bei Gleichstand für mehrere Paare gelten. Eine fehlende zweite
-Option hat Margin `null`, nicht eine erfundene hohe Sicherheit.
+Leere Mengen sind erlaubt. Leere Labels ergeben intern Score 0 und keine Kandidaten.
+Doppelte Labels mit verschiedenen IDs bleiben getrennt; doppelte IDs innerhalb
+einer Seite sind ungültig. Original-IDs und Labels bleiben erhalten.
+Die CLI verarbeitet bereits extrahierte Labels, kein Graph-XML.
 
-Leere Listen sind gültig, `shape` bleibt maßgeblich (JSON `[]` kann 0×N nicht allein
-abbilden). Leere/Whitespace-Labels erhalten Score 0 und sind auch bei Threshold 0
-keine Kandidaten. Wiederholte Labels mit verschiedenen IDs bleiben getrennt;
-doppelte IDs innerhalb einer Seite sind Fehler. String- und Integer-IDs bleiben
-typgetreu erhalten und sind unterschiedliche IDs. IDs verschiedener Seiten dürfen
-gleich sein. Es findet keine automatische XML-/HTML-Interpretation statt.
+## Verfahren und Aufbau
 
-## Verfahren und Scores
+- `main.py`: JSON einlesen und Synonymmatrix ausgeben.
+- `engine.py`: Preprocessing, Score-Berechnung und Kombination koordinieren.
+- `methods.py`: Levenshtein, Damerau-Levenshtein, Jaro-Winkler, Zeichen-n-Gramme,
+  Token-Jaccard, Token Sort Ratio, Wortreihenfolge, Exact Match, übersetzte Strings
+  und beide Embedding-Pfade.
+- `variants.py`: 15 feste Variantenfunktionen: String-/Token-Ensembles,
+  Embedding-Kombinationen, String/Embedding-Hybride, gewichtete Fusion, Maximum,
+  geometrisches Mittel, Exact-Match-Regel und Kandidatenheuristik.
+- `combiners.py`: Mean, Max und Weighted Mean.
+- `preprocessing.py`, `translation.py`, `cache.py`: Textvorbereitung und
+  Wiederverwendung von Embeddings/Übersetzungen pro eindeutigem Label im RAM.
+- `config.py`: Konfiguration prüfen.
+- `evaluation.py`: kleine Auswertung erwarteter Zuordnungen, kein Training.
 
-| Name | Verfahren |
-| --- | --- |
-| `levenshtein` | RapidFuzz normalisierte Levenshtein-Similarity |
-| `damerau_levenshtein` | Echtes Damerau-Levenshtein, nicht OSA |
-| `jaro_winkler` | RapidFuzz Jaro-Winkler-Similarity |
-| `char_bigram`, `char_trigram` | Jaccard auf Zeichen-n-Gramm-Mengen; kurze nichtleere Texte ergeben ein einzelnes Gramm |
-| `multilingual` | Sentence-Embedding direkt, Cosinus |
-| `translated_embedding` | Deutsch → Englisch, dann englisches Sentence-Embedding, Cosinus |
+Die Kandidatenheuristik (`context_aware`) wertet Konkurrenz innerhalb der Matrix
+aus, keine Graphstruktur oder Wortbedeutung im Aufgabenkontext.
 
-String-Scores liegen in [0,1], rohe Cosinus-Scores in [-1,1]. Kombinatoren verwenden
-`clip(score, 0, 1)`; Rohscores werden nicht verändert. Scores sind keine
-kalibrierten Wahrscheinlichkeiten, auch die Lernmodelle werden nicht als solche
-beworben. Mean, Max und Weighted Mean garantieren keine Verbesserung.
+```python
+from synonym_matching import MatchingEngine
+from synonym_matching.variants import REQUIRES
 
-`combiner.kind`: `mean`, `max`, `weighted_mean`. Optional wählt
-`combiner.methods` eine geordnete Teilmenge der berechneten Methoden. Gewichte
-müssen genau diese Namen abdecken, endlich und nichtnegativ sein und eine positive
-Summe haben; die Summe wird normalisiert.
+name = "string_ensemble"
+engine = MatchingEngine({
+    "methods": list(REQUIRES[name]),
+    "preprocessing": ["normalize", "lowercase"],
+    "combiner": {"kind": "variant", "name": name},
+})
+result = engine.match(["Kunde"], ["Kund", "Lieferant"])
+```
+
+Intern stellt die Engine vollständige Score-Matrizen für die Wiederverwendung
+zwischen Varianten bereit; die CLI gibt nur `synonymMatrix` aus.
+`examples/functions.py` zeigt direkt kombinierbare Funktionen.
+
+## Preprocessing und Modelle
+
+Geordnete Schritte: `normalize`, `split_identifiers`, `lowercase`, `lemmatize`,
+`stem`, `remove_stopwords`; `[]` deaktiviert Preprocessing. String-Preprocessing
+und `embedding_preprocessing` sind separat konfigurierbar. Engine-Standard ist
+nur Normalisierung. Stopword Removal kann Negation entfernen.
+
+- Multilingual: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`.
+- Monolingual: `sentence-transformers/all-MiniLM-L6-v2` nach
+  `Helsinki-NLP/opus-mt-de-en` (DE→EN; Englisch bleibt unverändert).
+- Modelle sind über `config.embedding` austauschbar. Der erste Aufruf kann
+  Modellgewichte herunterladen. Übersetzung verlangt explizite `de`/`en`-Angaben;
+  Spanisch ist nur im direkten multilingualen Pfad unterstützt.
+- Lemmatisierung benötigt `de_core_news_sm`/`en_core_web_sm`. Stemming braucht
+  NLTK, aber keinen zusätzlichen Korpusdownload.
+
+## Testfälle vergleichen
+
+`examples/order-management-input.json`: neun Labels der Repository-Musterlösung
+und synthetisch veränderte Schülerlabels mit ursprünglichen IDs.
+`examples/model-cases.json`: alle 28 Kategorien; Kategorie 28 hat fünf Unterfälle,
+ursprünglich 32 Szenarien mit vollständigen Paarannotationen; erweitert sind es 38.
+
+```bash
+PYTHONPATH=src python examples/check_model_cases.py --output results/vergleich.json
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python examples/check_model_cases.py --models --output results/vergleich-modelle.json
+```
+
+Nur zwei Dateien entstehen:
+
+- JSON: ungefilterte Synonymmatrizen je Einzelmethode und verfügbarer Variante.
+- Markdown: TP/FP/FN, Precision/Recall/F1, Graph-Top-1 und Ergebnis je Testfall.
+
+`--models` aktiviert beide Embedding-Pfade und Kombinationen. Basisscores werden
+pro Fall einmal berechnet und wiederverwendet. Offline-Variablen verlangen bereits
+lokal vorhandene Modelle. `--threshold 0.5` betrifft nur die Auswertung; Matrizen
+bleiben vollständig. Es gibt keine Threshold-Optimierung.
+`--preprocessing normalize lowercase` wählt Schritte; `--preprocessing` allein
+verwendet Rohtexte. Embeddings bleiben dabei minimal normalisiert.
+
+Nicht unterstützte Sprachen und Fehler stehen am Eintrag (`synonymMatrix: null`).
+Technische Fehler ergeben Exitcode 1, fachliche Fehlzuordnungen sind Ergebnisse.
+Bestehende Ausgabedateien werden nicht überschrieben. Die Auswertung verwendet
+ungerundete Scores.
+
+Annotationen sind synthetische Erwartungen, keine unabhängige Qualitätsbestätigung.
+„Auftrag erteilen“ wird hier als Bestellvorgang aufgefasst; das ist kontextabhängig.
+„Bank/Bank“ mit verschiedenen Bedeutungen bleibt eine Grenze des Labelvergleichs.
+Top-1 bei Einzelpaaren ist trivial, der Graphfall wird separat ausgewiesen.
+Spanische Fälle nicht mit dem auf DE/EN beschränkten Übersetzungspfad gleichsetzen.
+Leere Mengen zählen nicht als Qualitätserfolge. Reale, geprüfte Abgaben fehlen noch.
+
+`python examples/build_model_cases.py` erzeugt die Beispiele aus dem unveränderten
+Repository-Graphen neu. Kein zusätzlicher Schülergraph wird gespeichert.
+
+## Tests
+
+```bash
+python -m pytest -q
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 RUN_MODEL_TESTS=1 python -m pytest -m integration -v
+```
+
+Tests sichern Schnittstelle, IDs, Matrizen, Sonderfälle, Caching und Auswertung ab;
+sie behaupten keine perfekte semantische Trefferquote.
+
+## Zurückgestellt
+
+Stacking (Logistic Regression, Random Forest), ElasticNet, SVR, neuronales Stacking,
+Wortvektor-, Syntax- und TF-IDF-Verfahren sind mögliche Erweiterungen,
+aber nicht im aktiven Service. TF-IDF braucht einen festgelegten Korpus; lernende
+Kombinationen benötigen ausreichende gelabelte Daten und saubere Trainings-/
+Validierungs-/Testtrennung, gegebenenfalls Out-of-Fold-Features.
+
+Benchmark-Suites, separater Split-Datensatz, CSV-Berichte und Umgebungs-/Quellcode-
+protokolle sind entfernt. Alte lokale Ergebnisse bleiben erhalten; neue Läufe
+erzeugen nur Matrizen und die kleine Übersicht.
+
+## WordNet und OpenThesaurus
+
+Einmalig die lokalen Daten vorbereiten (NLTK steht in `requirements.txt`):
+
+```bash
+python examples/download_lexicons.py
+```
+
+Die Daten liegen unter `.cache/lexicons/` und werden nicht in Git aufgenommen.
+Beim Matching gibt es keine Lexikon-Downloads oder API-Aufrufe.
+
+- **`wordnet`**: Deutsche Labels werden über den vorhandenen DE→EN-Übersetzer
+  übersetzt, englische unverändert verwendet. Score 1 bei einem gemeinsamen
+  englischen Synset, sonst 0. NLTK berücksichtigt dabei Wortformen. Ganze Phrasen
+  werden als WordNet-Eintrag gesucht, nicht durch einzelne Worttreffer ersetzt.
+- **`openthesaurus`**: Direkte Abfrage deutscher Labels. Score 1 bei einer gemeinsamen
+  Synonymgruppe, sonst 0. Keine Übersetzung, keine transitive Vereinigung von Gruppen.
+  Bekannte abschließende Registerangaben wie `(ugs.)` werden im Export entfernt;
+  sonstige Klammerausdrücke bleiben erhalten. Keine automatische Flexionsanalyse.
+- Beide normalisieren Leerraum/Unicode und Kleinschreibung für die Suche.
+  Ein Score 0 heißt „kein gemeinsamer Eintrag“, nicht „sicher kein Synonym“.
+  Gleiche unbekannte Labels bekommen ebenfalls 0. Ohne Bedeutungskontext können
+  mehrdeutige Wörter fälschlich passen. OpenThesaurus enthält auch Assoziationen.
+
+Auswahl in `input.config`:
 
 ```json
-{"kind": "weighted_mean", "methods": ["damerau_levenshtein", "multilingual"],
- "weights": {"damerau_levenshtein": 0.25, "multilingual": 0.75}}
+{"methods": ["wordnet", "levenshtein"], "combiner": {"kind": "mean"}}
 ```
 
-## Preprocessing und Ablationen
+Für OpenThesaurus `"methods": ["openthesaurus"]` verwenden. Sprache pro Label
+angeben: WordNet unterstützt hier DE/EN, OpenThesaurus nur DE. Original-IDs und
+Labels bleiben in der Ausgabe erhalten. Eigene lokale Pfade sind optional über
+`config.lexicons.wordnet` (NLTK-Datenverzeichnis) und
+`config.lexicons.openthesaurus` (Textdatei) einstellbar.
 
-`preprocessing` steuert Strings, `embedding_preprocessing` separat Embeddings.
-Standard ist nur NFC-Unicode-Normalisierung und Zusammenfassen von Whitespace.
-Optionen: `normalize`, `lowercase`, `lemmatize`, `split_identifiers` (je Boolean).
-Keine standardmäßige Entfernung von Negation, Satzzeichen oder Umlauten.
+Mit den vorhandenen Testfällen vergleichen:
 
-Reihenfolge: Normalisierung → optional camelCase/underscore trennen → optional
-Lemmatisierung → optional Lowercasing. Lemmatisierung benötigt explizit `de`/`en`
-und die entsprechenden spaCy-Pakete. Sie arbeitet vor Lowercasing, um z.B. deutsche
-Substantivhinweise zu erhalten. Fehlerhafte Sprachen werden nicht still geraten.
-
-Beim übersetzten Embedding folgt danach Übersetzung → `target_preprocessing`
-auf Englisch → Encoder. Der multilinguale Encoder erhält keine Übersetzung.
-Das englische MiniLM verwendet intern einen uncased Tokenizer; eine explizite
-Lowercasing-Ablation muss dort nicht dieselbe Wirkung haben wie bei Strings.
-
-## Optionale Modelle
-
-```sh
-python -m pip install -r requirements.txt
-python -m spacy download de_core_news_sm
-python -m spacy download en_core_web_sm
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python examples/check_model_cases.py --models --lexicons --output results/lexika.json
+RUN_LEXICON_TESTS=1 python -m pytest tests/test_lexicons.py -q
 ```
 
-Die tatsächlich installierten spaCy-Modellversionen werden durch den Runner im
-Paketmanifest gespeichert. Für eine Wiederholung genau diese Versionen verwenden.
+`--lexicons` fügt beide Einzelverfahren hinzu, auch ohne `--models` (WordNet braucht
+für deutsche Labels trotzdem das Übersetzungsmodell). Nicht unterstützte Sprach-
+kombinationen werden ausdrücklich als nicht ausgeführt markiert. Deshalb umfasst
+OpenThesaurus weniger Fälle; die Gesamtmetriken sind nicht direkt vergleichbar.
+Das originale englische Graphbeispiel wird nicht künstlich als deutsches umetikettiert.
 
-| Pfad | Standardmodell | Auswahlgrund / Einschränkung |
-| --- | --- | --- |
-| Multilingual | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | 384 Dimensionen, ca. 0,1B Parameter, 50 Sprachen; kein Übersetzungsschritt |
-| Englisch | `sentence-transformers/all-MiniLM-L6-v2` | 384 Dimensionen, sechs Schichten; kompakter Encoder |
-| DE → EN | `Helsinki-NLP/opus-mt-de-en` | Sprachpaarspezifische lokale Übersetzung; ca. 298 MB PyTorch-Gewichte, zusätzlicher Rechenaufwand |
+Quellen: [WordNet über NLTK](https://www.nltk.org/howto/wordnet.html),
+[WordNet-Lizenz](https://wordnet.princeton.edu/license-and-commercial-use),
+[OpenThesaurus-Download](https://www.openthesaurus.de/about/download/api).
+OpenThesaurus bietet CC BY-SA 4.0 oder LGPL; die Original-Lizenzdatei bleibt beim
+Download erhalten. Der verwendete Textdump enthält sein Erstellungsdatum im Kopf.
 
-Die Modellkarten nennen Apache-2.0. Qualitäts- und Laufzeitvorteile für eure Labels
-sind erst zu messen. Quellen:
-[Multilingual](https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2),
-[Englisch](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2),
-[Übersetzung](https://huggingface.co/Helsinki-NLP/opus-mt-de-en).
+## Lesereihenfolge für die Codekontrolle
 
-Konfiguration pro Embedding-Methode unter `embedding`:
-`model`, `revision`, `batch_size`; beim Übersetzungspfad zusätzlich
-`translation_model`, `translation_revision`, `target_preprocessing`.
-Standardrevision ist `main`, die geladene Commit-ID wird protokolliert. Für
-wiederholbare Forschungsruns diese IDs explizit setzen. CPU ist bewusst fest
-vorgegeben. Zu lange Labels werden abgelehnt statt unbemerkt abgeschnitten.
+1. `src/main.py`: Wo kommen die zwei Listen her, was wird ausgegeben?
+2. `src/synonym_matching/engine.py`: Gesamtablauf in `MatchingEngine.match()`.
+3. `preprocessing.py`, `methods.py`, `lexicons.py`: Wie entsteht ein Einzelscore?
+4. `combiners.py`, `variants.py`: Wie werden Einzelscores kombiniert?
+5. `examples/check_model_cases.py`, `evaluation.py`: Wie werden Fälle verglichen?
+6. `config.py`, `cache.py`, `translation.py`: Einstellungen und Wiederverwendung.
 
-DE-Texte werden einmal je eindeutigem Text übersetzt, EN-Texte durchgereicht.
-Andere/fehlende Sprachen sind für diesen Pfad ein Fehler. Modelle laden erst bei
-Bedarf. Die Engine hält berechnete Übersetzungen und Embeddings im Arbeitsspeicher.
-Identische verarbeitete Texte teilen Features, IDs bleiben getrennt. Eine neue
-Engine beginnt mit leerem Featurecache. Der separate Downloadcache der
-Hugging-Face-Bibliothek bleibt unverändert; Gewichte werden nicht jedes Mal erneut
-heruntergeladen.
+Kommentare und Docstrings erklären Zweck, Eingaben und wichtige Sonderfälle.
+NumPy bleibt für Score-Matrizen erhalten; die Zeilen sind Referenzlabels und die
+Spalten Schülerlabels. Modellbibliotheken werden bewusst erst bei Bedarf importiert
+und geladen, damit reine Stringvergleiche ohne Modellgewichte laufen können.
 
-```sh
-RUN_MODEL_TESTS=1 python -m pytest -m integration
+## Erweiterte Experimente (Service-API unverändert)
+
+Bestandsprüfung: Drei Varianten waren Aliase für Einzelmethoden; die bisherige
+50:50-Fusion war ebenfalls doppelt. Im Vergleichskatalog sind diese entfernt,
+die vorhandenen Funktionen bleiben für Aufrufer verfügbar. Es gibt keine
+nachträgliche Deduplizierung anhand zufällig gleicher Testergebnisse.
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python examples/check_model_cases.py --extended --models --lexicons --output results/erweitert.json
 ```
 
-Diese Tests prüfen tatsächliche Ausführung und Wiederverwendung, keine behauptete
-semantische Trefferquote. Sie laden Modelle und benötigen Netz oder gefüllten
-Hugging-Face-Cache. Für Modellgewichte optional `HF_HOME` auf einen lokalen,
-nicht versionierten Cache setzen.
+Der erweiterte Lauf erzeugt wieder nur JSON und Markdown. Anders als die normale
+Matrixansicht enthält dieses JSON auch ungerundete Rohscores, Auswahlmasken,
+Metriken, Dataset, Pipelineparameter, Seed, Modellrevisionen, Ressourcen-/Codehashes
+und Paketversionen. Bestehende Ergebnisse werden nicht überschrieben. Die CLI des
+Services (`src/main.py`) und ihr Ein-/Ausgabeschema bleiben unverändert.
 
-## Experimente
+**Preprocessing:** Rohtexte, Normalisierung, Lowercase, Lemmatisierung, Stemming,
+Identifier-Trennung und Kompositazerlegung werden separat verglichen. Nur die
+String-/Token-Pfade ändern sich. Embeddings, Übersetzung und Lexika verwenden feste
+minimale Normalisierung und werden nicht für identische Einstellungen wiederholt.
+Eine Stemming-Ausgabe wird insbesondere nicht in das Übersetzungsmodell geschickt.
 
-```sh
-PYTHONPATH=src python -m synonym_matching.evaluation \
-  --data experiments/data/synthetic.json \
-  --suite experiments/configs/baselines.json \
-  --output results/baseline-001
+Lemmatisierung benötigt die lokalen spaCy-Modelle `de_core_news_sm==3.8.0` und
+`en_core_web_sm==3.8.0`. Die Komposita-Ablation verwendet vorhandene deutsche
+OpenThesaurus-Einträge als Wortliste, sucht zwei bekannte Bestandteile und erlaubt
+Fugenelemente. Sie ist bewusst eine einfache Heuristik: keine handgeschriebene
+Liste der Testantworten, keine vollständige morphologische Analyse. Falsche
+Zerlegungen sind möglich. Englisch bleibt dabei unverändert. Identifier-Trennung
+ist ein eigener Vergleich und wird nicht als deutsche Kompositazerlegung verkauft.
 
-PYTHONPATH=src python -m synonym_matching.evaluation \
-  --data experiments/data/synthetic.json \
-  --suite experiments/configs/full.json \
-  --output results/full-001
-```
+**Gewichte und Hybride:** String-Ensemble : multilinguales Embedding mit 25:75,
+50:50 und 75:25. WordNet bzw. OpenThesaurus jeweils mit String-Ensemble oder
+multilingualem Embedding (50:50); zusätzlich Mean(WordNet, OpenThesaurus).
+Lexikonwert 0 heißt fehlende Evidenz, kann im Mittelwert aber einen guten anderen
+Score herabsetzen. Genau diese Wirkung ist Teil des Vergleichs.
 
-Ausgabeordner müssen neu sein. Fehler einzelner Varianten werden gespeichert;
-der gesamte Befehl liefert dann Exit 1. Ein fehlendes Modell wird nicht durch
-String-Scores ersetzt. Details zu Daten, Leakage und Metriken:
-[Experimentprotokoll](experiments/README.md).
+**Score-Vergleichbarkeit:** Alle Kombinationsscores liegen in [0,1]. Cosinus wird
+wie bisher aus [-1,1] auf [0,1] begrenzt, nicht linear verschoben. Das macht die
+Scores numerisch kombinierbar, aber nicht zu kalibrierten Wahrscheinlichkeiten.
+Die Auswertung speichert Min/Max/Mittel, Null-/Einsanteil und negative Rohscores.
+Keine Min-Max-Skalierung pro Testmatrix. Der Threshold bleibt vorab fest bei 0,5;
+keine Aussage, dass er für alle Verfahren optimal wäre.
 
-Logistic Regression und Random Forest werden direkt im Experiment-Runner trainiert
-und ausgewertet. Gespeichert werden Parameter, Scores und Metriken, kein eigenes
-Modellformat. Zur Wiederholung wird mit derselben Konfiguration und demselben
-Datensplit erneut trainiert.
+**Zuordnung:** Jede Score-Matrix wird unverändert mit Threshold, Mutual Best und
+Hungarian verglichen. Mutual Best lässt alle Gleichstände zu, also ggf. mehr als
+eine Zuordnung. Hungarian maximiert die Summe zugelassener Scores mit Dummy-Spalten
+für Nichtzuordnung. Kanten unterhalb des Thresholds werden vor der Optimierung
+gesperrt; Scores von 0 liefern keine Zuordnung. SciPy verwendet dafür einen
+Jonker-Volgenant-Solver für dasselbe lineare Zuordnungsproblem, keine eigene
+Implementierung des historischen Hungarian-Algorithmus.
 
-## Hinweise für die Anbindung
+IDs verschiedener Seiten dürfen gleich sein. Leere Mengen, rechteckige Matrizen,
+fehlende Entsprechungen und doppelte Labels bleiben erlaubt. Bei gleichwertigen
+Lösungen hängt die 1:1-Auswahl von Reihenfolge/Solver ab; beides wird festgehalten.
+Unsere Annotationen erlauben mehrere korrekte Kandidaten: Ein Recall-Abfall durch
+1:1 bedeutet deshalb nicht automatisch eine fachlich falsche Zuordnung.
 
-Die Anbindung übernimmt der Kollege. Einstieg:
-`MatchingEngine(config).match(reference, student, threshold=None)`; alternativ der
-CLI-Adapter `src/main.py`. Die Listen unter `referenceModel.elements` und
-`studentModel.elements` kommen vom Aufrufer/Parser. Der Service liest kein XML und
-löst keine Datenbankreferenzen auf.
+**Auswertung:** Precision, Recall, F1, Top-1 und Laufzeit. Top-1 bewertet die
+Score-Rangliste bei mehreren Kandidaten und ändert sich nicht durch die spätere
+Zuordnung. Die Übersicht verwendet gemeinsame Fallmengen, damit fehlende
+Sprachunterstützung keine Variante bevorzugt. Ein zusätzlicher Kernvergleich ohne
+OpenThesaurus erhält die DE/EN-Fälle einschließlich Übersetzungen und Graphbeispiel.
+Alle Ergebnisse und Abdeckungsgrenzen je Fall bleiben im JSON.
 
-Gegenüber dem ursprünglichen Skeleton:
+Featurezeiten werden zwischen Kombinationen geteilt. Die Summe dieser Zeiten ist
+keine isolierte End-to-End-Messung; Erstladen und RAM-Cacheeffekte sind enthalten.
+Kombinations- und Zuordnungszeit werden separat gemessen. Laufzeiten sind nicht
+bitgenau reproduzierbar und hardwareabhängig.
 
-- `input.source`, ein alleiniger `step` und `demoDelaySeconds` sind keine gültigen
-  Matching-Eingaben mehr.
-- `result.matches` mit Dummy-Paaren wird durch vollständige Matrizen und
-  `result.synonymMatrix` ersetzt.
-- Der äußere Envelope `status`, `capability`, `step`, `summary`, `result` bleibt.
-- stdout enthält eine JSON-Zeile; Logs/Fehler gehen auf stderr.
+Sechs zusätzliche schwierige Kontrastmengen prüfen Negation, aktiv/inaktiv,
+vertauschte Rollen, Statusunterschiede, Oberbegriffe und ähnliche Komposita. Damit
+sind es 34 Kategorien / 38 Szenarien. Alle Erwartungen bleiben synthetisch und
+bedürfen fachlicher Validierung; Ergebnisse sind vorläufig und kein Testset für
+nachträgliches Tuning.
 
-Dockerfile und Image-Version bleiben auf dem ursprünglichen Skeleton-Stand.
-**Der bisherige Container ist damit noch nicht für den neuen Python-Code vorbereitet:**
-Er installiert keine Abhängigkeiten und kopiert keine Schemas. Der Kollege muss
-Installation, Schema-Dateien, Modellbereitstellung und tatsächliche Workflow-Eingaben
-bei der Anbindung gemeinsam ergänzen. Bis dahin lokal mit der `.venv` ausführen.
-Die Capability-Description beschreibt bereits die neue Funktionalität.
-
-Für den späteren Betrieb außerdem RAM-/CPU-Bedarf und Loggrößen mit realistischen
-Modellen messen. Die bisherigen Dagu-Defaults sind kein geprüfter ML-Ressourcenplan.
-Mehrere Kandidaten und gleiche Labels mit unterschiedlichen IDs sind absichtlich
-zulässig; die strukturelle Graphzuordnung liegt außerhalb dieser Engine.
+**Optionales Stacking:** Logistic Regression ist weiterhin zurückgestellt, weil
+kein unabhängiger, gruppierter Trainings-/Validierungs-/Testdatensatz vorliegt.
+Die Varianten derselben Aufgabe würden bei einem zufälligen Paarsplit leaken.
+Es wird kein Modell auf den hier ausgewerteten Testantworten trainiert.
