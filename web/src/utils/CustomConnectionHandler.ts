@@ -313,7 +313,6 @@ export class CustomConnectionHandler extends ConnectionHandler {
         ;(edge as any).connectionType = effectiveConnection.connectionType ?? connectionId
         ;(edge as any).connectionStyle = connectionStyle
         ;(edge as any).connectionLabelOffset = effectiveConnection.labelOffset
-        ;(edge as any).connectionAdditionalLabels = effectiveConnection.additionalLabels
 
         applyConnectionLabelOffset(edge, effectiveConnection.labelOffset)
         applyConnectionAdditionalLabels(this.graph, edge, effectiveConnection)
