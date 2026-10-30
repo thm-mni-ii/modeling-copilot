@@ -22,9 +22,9 @@ def test_real_output_contract():
     assert len(result.stdout.splitlines()) == 1
     output = json.loads(result.stdout)
     jsonschema.validate(output, json.loads((ROOT / 'schemas/output.schema.json').read_text()))
-    assert output['result']['shape'] == [2, 3]
-    assert output['result']['referenceElements'][0]['id'] == 'r1'
-    assert output['result']['synonymMatrix'][0]['matches'][0]['submissionElement']['id'] == 's2'
+    assert set(output) == {'synonymMatrix'}
+    assert output['synonymMatrix'][0]['referenceElement']['id'] == 'r1'
+    assert output['synonymMatrix'][0]['matches'][0]['submissionElement']['id'] == 's2'
 
 
 def test_environment_precedes_stdin():

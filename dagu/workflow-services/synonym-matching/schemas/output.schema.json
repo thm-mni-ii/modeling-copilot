@@ -1,45 +1,21 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "synonym-matching output v0.2",
+  "title": "Synonym matrix output",
   "type": "object",
   "required": [
-    "status",
-    "capability",
-    "step",
-    "summary",
-    "result"
+    "synonymMatrix"
   ],
   "properties": {
-    "status": {
-      "const": "ok"
-    },
-    "capability": {
-      "const": "synonym-matching"
-    },
-    "step": {
-      "type": "string"
-    },
-    "summary": {
-      "type": "string"
-    },
-    "result": {
-      "type": "object",
-      "required": [
-        "referenceElements",
-        "studentElements",
-        "shape",
-        "scores",
-        "combinedScores",
-        "synonymMatrix",
-        "processedLabels",
-        "config",
-        "threshold",
-        "metadata"
-      ],
-      "properties": {
-        "referenceElements": {
-          "type": "array",
-          "items": {
+    "synonymMatrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "referenceElement",
+          "matches"
+        ],
+        "properties": {
+          "referenceElement": {
             "type": "object",
             "required": [
               "id",
@@ -66,199 +42,62 @@
               }
             },
             "additionalProperties": true
-          }
-        },
-        "studentElements": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "id",
-              "label"
-            ],
-            "properties": {
-              "id": {
-                "oneOf": [
-                  {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  {
-                    "type": "integer"
-                  }
-                ]
-              },
-              "label": {
-                "type": "string"
-              },
-              "language": {
-                "type": "string",
-                "minLength": 1
-              }
-            },
-            "additionalProperties": true
-          }
-        },
-        "shape": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "minimum": 0
           },
-          "minItems": 2,
-          "maxItems": 2
-        },
-        "scores": {
-          "type": "object",
-          "additionalProperties": {
+          "matches": {
             "type": "array",
             "items": {
-              "type": "array",
-              "items": {
-                "type": "number",
-                "minimum": -1,
-                "maximum": 1
-              }
-            }
-          }
-        },
-        "combinedScores": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "number",
-              "minimum": -1,
-              "maximum": 1
-            }
-          }
-        },
-        "synonymMatrix": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "referenceElement",
-              "matches",
-              "top1Top2Margin"
-            ],
-            "properties": {
-              "referenceElement": {
-                "type": "object",
-                "required": [
-                  "id",
-                  "label"
-                ],
-                "properties": {
-                  "id": {
-                    "oneOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      {
-                        "type": "integer"
-                      }
-                    ]
-                  },
-                  "label": {
-                    "type": "string"
-                  },
-                  "language": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "additionalProperties": true
-              },
-              "matches": {
-                "type": "array",
-                "items": {
+              "type": "object",
+              "required": [
+                "submissionElement",
+                "scores",
+                "combinedScore"
+              ],
+              "properties": {
+                "submissionElement": {
                   "type": "object",
                   "required": [
-                    "submissionElement",
-                    "scores",
-                    "combinedScore",
-                    "rank",
-                    "mutualBest"
+                    "id",
+                    "label"
                   ],
                   "properties": {
-                    "submissionElement": {
-                      "type": "object",
-                      "required": [
-                        "id",
-                        "label"
-                      ],
-                      "properties": {
-                        "id": {
-                          "oneOf": [
-                            {
-                              "type": "string",
-                              "minLength": 1
-                            },
-                            {
-                              "type": "integer"
-                            }
-                          ]
-                        },
-                        "label": {
-                          "type": "string"
-                        },
-                        "language": {
+                    "id": {
+                      "oneOf": [
+                        {
                           "type": "string",
                           "minLength": 1
+                        },
+                        {
+                          "type": "integer"
                         }
-                      },
-                      "additionalProperties": true
+                      ]
                     },
-                    "scores": {
-                      "type": "object",
-                      "additionalProperties": {
-                        "type": "number",
-                        "minimum": -1,
-                        "maximum": 1
-                      }
+                    "label": {
+                      "type": "string"
                     },
-                    "combinedScore": {
-                      "type": "number",
-                      "minimum": 0,
-                      "maximum": 1
-                    },
-                    "rank": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "mutualBest": {
-                      "type": "boolean"
+                    "language": {
+                      "type": "string",
+                      "minLength": 1
                     }
                   },
-                  "additionalProperties": false
+                  "additionalProperties": true
+                },
+                "scores": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "number",
+                    "minimum": -1,
+                    "maximum": 1
+                  }
+                },
+                "combinedScore": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
                 }
               },
-              "top1Top2Margin": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "minimum": 0
-              }
+              "additionalProperties": false
             }
           }
-        },
-        "processedLabels": {
-          "type": "object"
-        },
-        "config": {
-          "type": "object"
-        },
-        "threshold": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "metadata": {
-          "type": "object"
         }
       }
     }
