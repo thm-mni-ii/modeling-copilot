@@ -134,7 +134,7 @@ import { notifyError } from '@/composables/useNotifications'
 import { setupDynamicGrid } from '@/utils/setupDynamicGrid'
 import { StablePanningHandler } from '@/utils/StablePanningHandler'
 import { createDefaultShapes, buildShapesFromElements, ensureGraphDropHandlers } from '@/utils/setupToolbar'
-import { setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
+import { isContainerSectionTarget, setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
 import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview } from '@/utils/connectionPreview'
 import { CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
 import { setupUndoManager, type UndoManagerApi, type UndoManagerState } from '@/utils/setupUndoManager'
@@ -160,6 +160,7 @@ import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connecti
 import type { DiagramSyntax } from '@/model/Syntax'
 import type { CanvasWindowDefinition, CanvasWindowPatch } from '@/model/CanvasWindow'
 import { buildValidationRulesFromSyntax, DiagramValidator } from '@/utils/multiplicity'
+import { buildContainmentFromSyntax, canContain, type ContainmentMap } from '@/utils/containment'
 import type { AutonomyMode } from '@/model/Autonomy'
 import type { DiagramFeedbackConfig, FeedbackCanvasOverlayEntry } from '@/model/Feedback'
 import { createDefaultFeedbackCanvasConfig } from '@/utils/feedbackConfig'
@@ -202,6 +203,9 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
     return editorHtmlToLabel(this.textarea)
   }
 }
+
+// Containment-Regeln der Syntax, gelesen von MyCustomGraph.isValidDropTarget
+let containment: ContainmentMap = new Map()
 
 class MyCustomGraph extends Graph {
   constructor(container: HTMLElement, model?: GraphDataModel, plugins?: GraphPluginConstructor[]) {
@@ -254,6 +258,14 @@ class MyCustomGraph extends Graph {
       return true
     }
     return super.isCellEditable(cell)
+  }
+
+  /**
+   * Nur Container nehmen Elemente auf, und nur die Typen, die die Containment-Regel erlaubt.
+   * MaxGraph akzeptiert sonst jede Zelle mit Kindern, z.B. einen SERM-E-Typ wegen seiner Attributliste.
+   */
+  override isValidDropTarget = (cell: Cell, cells?: Cell[]): boolean => {
+    return !!cell && !cell.isEdge() && (this.isSwimlane(cell) || isContainerSectionTarget(cell)) && canContain(containment, cell, cells ?? [])
   }
 
   override convertValueToString = (cell: Cell) => {
@@ -510,6 +522,7 @@ const applyValidationRulesToGraph = () => {
 }
 
 const rebuildValidationRules = (rules?: DiagramSyntax[]) => {
+  containment = buildContainmentFromSyntax(rules)
   const validationRules = buildValidationRulesFromSyntax(rules ?? [])
   diagramValidator.addRules(validationRules)
   applyValidationRulesToGraph()

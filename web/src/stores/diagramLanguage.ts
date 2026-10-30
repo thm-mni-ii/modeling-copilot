@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { DiagramConnection, DiagramElement, DiagramLanguage, DiagramSyntax } from '@/model/DiagramLanguage'
 import type { FeedbackCanvasConfig, FeedbackTargetOverlays, FeedbackTargetType } from '@/model/Feedback'
-import type { MultiplicityRelation, MultiplicityRelationState, MultiplicityRule } from '@/model/Syntax'
+import type { ContainmentRule, MultiplicityRelation, MultiplicityRelationState, MultiplicityRule } from '@/model/Syntax'
 import languageService from '@/services/language/language.service'
 import type { ApiId } from '@/services/api/types/common'
 import type { Language, LanguageVersion, LanguageVersionKind, LanguageVersionInfo } from '@/services/api/types/language'
@@ -189,6 +189,17 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
     if (definition.value) definition.value.syntax = definition.value.syntax.filter((rule) => rule.ruleType !== 'multiplicity')
   }
 
+  /** Setzt die erlaubten Typen eines Containers; eine leere Liste hebt die Einschränkung auf. */
+  const setContainmentChildTypes = (containerType: string, childTypes: string[]) => {
+    if (!definition.value) return
+    const rule = definition.value.syntax.find((entry): entry is ContainmentRule => entry.ruleType === 'containment')
+    const relations = (rule?.config.relations ?? []).filter((relation) => relation.containerType !== containerType)
+    if (childTypes.length > 0) relations.push({ containerType, childTypes })
+
+    if (relations.length > 0) addSyntaxToLanguage({ ruleType: 'containment', config: { relations } })
+    else definition.value.syntax = definition.value.syntax.filter((entry) => entry.ruleType !== 'containment')
+  }
+
   const getMultiplicityRuleForLanguage = () => {
     if (!definition.value) return undefined
     const existing = definition.value.syntax.find((rule): rule is MultiplicityRule => rule.ruleType === 'multiplicity')
@@ -248,6 +259,7 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
     updateSyntaxInLanguage,
     removeSyntaxFromLanguage,
     getMultiplicityRuleForLanguage,
-    setMultiplicityRelationState
+    setMultiplicityRelationState,
+    setContainmentChildTypes
   }
 })

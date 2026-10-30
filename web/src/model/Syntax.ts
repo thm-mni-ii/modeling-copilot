@@ -28,4 +28,17 @@ export interface MultiplicityRule {
   config: MultiplicityConfig
 }
 
-export type DiagramSyntax = MultiplicityRule
+/** Ein Container nimmt nur die genannten Elementtypen auf; Container ohne Eintrag nehmen alles auf. */
+export interface ContainmentRelation {
+  containerType: string
+  childTypes: string[]
+}
+
+export interface ContainmentRule {
+  ruleType: 'containment'
+  config: {
+    relations: ContainmentRelation[]
+  }
+}
+
+export type DiagramSyntax = MultiplicityRule | ContainmentRule

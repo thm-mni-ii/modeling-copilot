@@ -6,6 +6,7 @@
         <div class="scroll-column">
           <BasicEditorForm type="syntax" :selected-item="selectedRule">
             <SyntaxEditorForm v-if="selectedRule" :selected-rule="selectedRule" @update="updateAll" />
+            <ContainmentForm v-if="selectedRule" class="mt-8" />
           </BasicEditorForm>
         </div>
       </v-col>
@@ -43,7 +44,8 @@ import type { AutonomyMode } from '@/model/Autonomy'
 import BasicEditorForm from '../form/BasicEditorForm.vue'
 import type { GraphDataModel } from '@maxgraph/core'
 import SyntaxEditorForm from '../form/SyntaxEditorForm.vue'
-import type { DiagramSyntax } from '@/model/DiagramLanguage'
+import ContainmentForm from '../form/ContainmentForm.vue'
+import type { MultiplicityRule } from '@/model/Syntax'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 
 // Props
@@ -59,7 +61,7 @@ const autonomyMode = ref<AutonomyMode>('free')
 
 // Computed
 const syntaxRules = computed(() => store.definition?.syntax || [])
-const selectedRule = computed<DiagramSyntax | undefined>(() => syntaxRules.value.find((rule) => rule.ruleType === 'multiplicity'))
+const selectedRule = computed(() => syntaxRules.value.find((rule): rule is MultiplicityRule => rule.ruleType === 'multiplicity'))
 const languageElementsForCanvas = computed(() => store.definition?.elements ?? [])
 const languageConnectionsForCanvas = computed(() => store.definition?.connections ?? [])
 
