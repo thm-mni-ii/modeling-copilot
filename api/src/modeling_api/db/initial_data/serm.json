@@ -286,35 +286,6 @@
       "movable": true,
       "allowLabelEdit": true,
       "predefinedShape": "label"
-    },
-    {
-      "type": "serm-key-attribute",
-      "defaultLabel": "Key Attribute",
-      "renderMode": "predefined",
-      "x": 50,
-      "y": 50,
-      "width": 100,
-      "height": 20,
-      "style": {
-        "strokeColor": "transparent",
-        "fillColor": "transparent",
-        "strokeWidth": 0,
-        "fontSize": 11,
-        "fontColor": "#000000",
-        "fontFamily": "Arial",
-        "align": "left",
-        "verticalAlign": "middle",
-        "spacingLeft": 4,
-        "spacingTop": 4,
-        "fontStyle": 4
-      },
-      "anchorPoints": [],
-      "children": [],
-      "connectable": false,
-      "resizable": true,
-      "movable": true,
-      "allowLabelEdit": true,
-      "predefinedShape": "label"
     }
   ],
   "connections": [
@@ -615,6 +586,19 @@
           }
         ]
       }
+    },
+    {
+      "ruleType": "containment",
+      "config": {
+        "relations": [
+          {
+            "containerType": "serm-attribute-list",
+            "childTypes": [
+              "serm-attribute"
+            ]
+          }
+        ]
+      }
     }
   ],
   "feedback": {
@@ -761,53 +745,6 @@
         }
       },
       "serm-attribute": {
-        "correct": {
-          "image": {
-            "src": "/images/checkmark.gif",
-            "width": 26,
-            "height": 26
-          },
-          "tooltip": "Correct",
-          "align": "left",
-          "verticalAlign": "top",
-          "offset": {
-            "x": 0,
-            "y": 0
-          },
-          "cursor": "pointer"
-        },
-        "incorrect": {
-          "image": {
-            "src": "/images/error.gif",
-            "width": 26,
-            "height": 26
-          },
-          "tooltip": "Incorrect",
-          "align": "right",
-          "verticalAlign": "top",
-          "offset": {
-            "x": 0,
-            "y": 0
-          },
-          "cursor": "pointer"
-        },
-        "hint": {
-          "image": {
-            "src": "/images/warning.gif",
-            "width": 28,
-            "height": 28
-          },
-          "tooltip": "Hint",
-          "align": "right",
-          "verticalAlign": "bottom",
-          "offset": {
-            "x": 0,
-            "y": 0
-          },
-          "cursor": "pointer"
-        }
-      },
-      "serm-key-attribute": {
         "correct": {
           "image": {
             "src": "/images/checkmark.gif",
