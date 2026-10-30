@@ -273,8 +273,18 @@ class MyCustomGraph extends Graph {
    * setConnectableEdges(true) gilt sonst für alle Kanten jeder Sprache.
    */
   override isValidSource = (cell: Cell | null): boolean => {
-    if (cell?.isEdge() && languageConnections.value.find((c) => c.type === (cell as any).connectionId)?.connectable === false) return false
+    if (cell?.isEdge() && this.getConnectionOf(cell)?.connectable === false) return false
     return super.isValidSource(cell)
+  }
+
+  getConnectionOf = (edge: Cell) => languageConnections.value.find((c) => c.type === (edge as any).connectionId)
+
+  // Ohne "Allow Loose Ends" bleibt eine Kante an beiden Enden verbunden
+  allowsLooseEnds = (edge: Cell) => this.getConnectionOf(edge)?.allowLooseEnds !== false
+
+  // Verschieben der ganzen Kante löst ihre Enden nur, wenn lose Enden erlaubt sind
+  override disconnectGraph = (cells: Cell[]) => {
+    super.disconnectGraph(cells.filter((cell) => !cell.isEdge() || this.allowsLooseEnds(cell)))
   }
 
   /**
@@ -286,6 +296,9 @@ class MyCustomGraph extends Graph {
     handler.constraintHandler.onDestroy()
     handler.constraintHandler = new AnchorConstraintHandler(this)
     handler.outline = false
+    // Ein Ende ins Leere ziehen springt ohne "Allow Loose Ends" zurück
+    const changeTerminalPoint = handler.changeTerminalPoint.bind(handler)
+    handler.changeTerminalPoint = (edge, point, isSource, clone) => (this.allowsLooseEnds(edge) ? changeTerminalPoint(edge, point, isSource, clone) : edge)
     return handler
   }
 

@@ -25,6 +25,7 @@ export interface DiagramConnection {
   connectionType?: string // Semantischer Typ (z.B. "inheritance", "association")
   style: CellStyle
   connectable?: boolean
+  allowLooseEnds?: boolean // Ob ein Ende unverbunden bleiben darf (Standard: true)
   // Position des Haupt-Labels: x relativ entlang der Kante (-1 Start, 0 Mitte, 1 Ende), y in Pixeln, positiv nach oben
   labelOffset?: {
     x?: number

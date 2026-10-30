@@ -298,6 +298,7 @@
       "defaultLabel": "",
       "connectionType": "0-1",
       "connectable": false,
+      "allowLooseEnds": false,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -345,6 +346,7 @@
       "defaultLabel": "",
       "connectionType": "0-n",
       "connectable": false,
+      "allowLooseEnds": false,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -392,6 +394,7 @@
       "defaultLabel": "",
       "connectionType": "1-1",
       "connectable": false,
+      "allowLooseEnds": false,
       "style": {
         "shape": "doubleLine",
         "strokeColor": "#000000",
@@ -440,6 +443,7 @@
       "defaultLabel": "",
       "connectionType": "1-n",
       "connectable": false,
+      "allowLooseEnds": false,
       "style": {
         "shape": "doubleLine",
         "strokeColor": "#000000",

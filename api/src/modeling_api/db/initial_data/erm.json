@@ -615,6 +615,7 @@
       "defaultLabel": "",
       "connectionType": "association",
       "connectable": false,
+      "allowLooseEnds": false,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -689,6 +690,7 @@
       "defaultLabel": "",
       "connectionType": "attribute",
       "connectable": false,
+      "allowLooseEnds": false,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -713,6 +715,7 @@
       "defaultLabel": "",
       "connectionType": "generalization",
       "connectable": false,
+      "allowLooseEnds": false,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",

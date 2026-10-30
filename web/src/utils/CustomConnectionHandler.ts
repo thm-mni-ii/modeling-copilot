@@ -328,6 +328,11 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return null as unknown as Cell
     }
 
+    // Ohne "Allow Loose Ends" entsteht keine Kante mit offenem Ende, in jedem Modus
+    if (effectiveConnection?.allowLooseEnds === false && (!sourceCell || !targetCell)) {
+      return null as unknown as Cell
+    }
+
     if (effectiveConnection) {
       const connectionId = effectiveConnection.type
       const edgeLabel = effectiveConnection.defaultLabel ?? ''
