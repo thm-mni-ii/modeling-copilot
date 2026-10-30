@@ -1,0 +1,1405 @@
+{
+  "version": 1,
+  "provenance": {
+    "source": "api/src/modeling_api/db/initial_data/order_management_sample_solution.json",
+    "source_sha256": "753ece602d0ffde07b717fabe0bd643b3ad44cdb89c33277d3a2559a16291fc0",
+    "synthetic": true
+  },
+  "purpose": "Fixed-threshold diagnostic cases, not training or an independent quality benchmark.",
+  "cases": [
+    {
+      "id": "case-01",
+      "case_number": 1,
+      "title": "Identisch",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-02",
+      "case_number": 2,
+      "title": "Groß-/Kleinschreibung",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "kunde",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-03",
+      "case_number": 3,
+      "title": "Tippfehler",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Bestellung",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Bestelung",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-04",
+      "case_number": 4,
+      "title": "Zeichenvertauschung",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Knude",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-05",
+      "case_number": 5,
+      "title": "Flexion",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Bestellung",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Bestellungen",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-06",
+      "case_number": 6,
+      "title": "Abkürzung",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Bestellnummer",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Best.-Nr.",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-07",
+      "case_number": 7,
+      "title": "Kompositum",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kundendaten",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Daten des Kunden",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-08",
+      "case_number": 8,
+      "title": "Wortreihenfolge und Nominalisierung",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde registrieren",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Registrierung Kunde",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-09",
+      "case_number": 9,
+      "title": "Synonym",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Abnehmer",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-10",
+      "case_number": 10,
+      "title": "Übersetzung",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Customer",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-11",
+      "case_number": 11,
+      "title": "Spanisch",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Rechnung",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Factura",
+          "language": "es"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-12",
+      "case_number": 12,
+      "title": "Paraphrase",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Bestellung aufgeben",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Auftrag erteilen",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation. Hier als gleichwertiger Bestellvorgang angenommen; domänenabhängig.",
+      "contexts": {}
+    },
+    {
+      "id": "case-13",
+      "case_number": 13,
+      "title": "Fachterminologie",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Entität",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Entity",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-14",
+      "case_number": 14,
+      "title": "Ausdrucksform",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Zahlung durchführen",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "bezahlen",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-15",
+      "case_number": 15,
+      "title": "Verwandte Rollen",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Lieferant",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-16",
+      "case_number": 16,
+      "title": "Antonym",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "aktiv",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "inaktiv",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-17",
+      "case_number": 17,
+      "title": "Ober-/Unterbegriff",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Fahrzeug",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Auto",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-18",
+      "case_number": 18,
+      "title": "Ähnliche Schreibweise",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Bestellung",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Bestätigung",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-19",
+      "case_number": 19,
+      "title": "Gleiche Domäne",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Rechnung",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Zahlung",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ],
+      "note": "Synthetische fachliche Erwartung; keine unabhängig validierte Annotation.",
+      "contexts": {}
+    },
+    {
+      "id": "case-20",
+      "case_number": 20,
+      "title": "Mehrdeutigkeit",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Bank",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Bank",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ],
+      "note": "Referenz: Geldinstitut; Schülerlabel: Sitzmöbel. Ohne Kontext nicht unterscheidbar.",
+      "contexts": {
+        "r0": "Geldinstitut",
+        "s0": "Sitzmöbel"
+      }
+    },
+    {
+      "id": "case-21",
+      "case_number": 21,
+      "title": "Graph: eindeutige 1:1-Zuordnung",
+      "reference": [
+        {
+          "id": "3",
+          "label": "Customer",
+          "language": "en"
+        },
+        {
+          "id": "4",
+          "label": "customerNumber",
+          "language": "en"
+        },
+        {
+          "id": "5",
+          "label": "Orders",
+          "language": "en"
+        },
+        {
+          "id": "6",
+          "label": "orderNumber",
+          "language": "en"
+        },
+        {
+          "id": "7",
+          "label": "Order Item",
+          "language": "en"
+        },
+        {
+          "id": "8",
+          "label": "quantity",
+          "language": "en"
+        },
+        {
+          "id": "9",
+          "label": "Product",
+          "language": "en"
+        },
+        {
+          "id": "10",
+          "label": "productNumber",
+          "language": "en"
+        },
+        {
+          "id": "11",
+          "label": "Sellable",
+          "language": "en"
+        }
+      ],
+      "student": [
+        {
+          "id": "3",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "4",
+          "label": "Kundennummer",
+          "language": "de"
+        },
+        {
+          "id": "5",
+          "label": "Bestelungen",
+          "language": "de"
+        },
+        {
+          "id": "6",
+          "label": "Best.-Nr.",
+          "language": "de"
+        },
+        {
+          "id": "7",
+          "label": "Bestellposition",
+          "language": "de"
+        },
+        {
+          "id": "8",
+          "label": "Menge",
+          "language": "de"
+        },
+        {
+          "id": "9",
+          "label": "Artikel",
+          "language": "de"
+        },
+        {
+          "id": "10",
+          "label": "Produktnummer",
+          "language": "de"
+        },
+        {
+          "id": "11",
+          "label": "Verkaufbar",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "Original-IDs bleiben pro Modell erhalten; Schülerlabels synthetisch verändert.",
+      "contexts": {}
+    },
+    {
+      "id": "case-22",
+      "case_number": 22,
+      "title": "Mehrsprachig und umgeordnet",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Rechnung",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Produkt",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Product",
+          "language": "en"
+        },
+        {
+          "id": "s1",
+          "label": "Factura",
+          "language": "es"
+        },
+        {
+          "id": "s2",
+          "label": "Customer",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ]
+      ],
+      "note": "",
+      "contexts": {}
+    },
+    {
+      "id": "case-23",
+      "case_number": 23,
+      "title": "Konkurrierende Kandidaten",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Bestellung",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Lieferant",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Customer",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "Kund",
+          "language": "de"
+        },
+        {
+          "id": "s3",
+          "label": "Bestätigung",
+          "language": "de"
+        },
+        {
+          "id": "s4",
+          "label": "Bestelung",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "correct",
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "",
+      "contexts": {}
+    },
+    {
+      "id": "case-24",
+      "case_number": 24,
+      "title": "Fehlende Entsprechung",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Rechnung",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Lieferant",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Zahlung",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect"
+        ]
+      ],
+      "note": "",
+      "contexts": {}
+    },
+    {
+      "id": "case-25",
+      "case_number": 25,
+      "title": "Unterschiedliche Mengengrößen",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Produkt",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Lieferant",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Artikel",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "s3",
+          "label": "Zahlung",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect",
+          "incorrect"
+        ]
+      ],
+      "note": "",
+      "contexts": {}
+    },
+    {
+      "id": "case-26",
+      "case_number": 26,
+      "title": "Doppelte Labels mit unterschiedlichen IDs",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Lieferant",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "correct",
+          "correct",
+          "incorrect"
+        ]
+      ],
+      "note": "Alle gleichbedeutenden Labels sind gültig; keine willkürliche 1:1-ID-Zuordnung.",
+      "contexts": {}
+    },
+    {
+      "id": "case-27",
+      "case_number": 27,
+      "title": "Fachlich falsche Konkurrenten",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Rechnung",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Fahrzeug",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Zahlung",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Auto",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Invoice",
+          "language": "en"
+        },
+        {
+          "id": "s3",
+          "label": "Vehicle",
+          "language": "en"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "",
+      "contexts": {}
+    },
+    {
+      "id": "case-28-both-empty",
+      "case_number": 28,
+      "title": "Randfall: both-empty",
+      "reference": [],
+      "student": [],
+      "annotations": [],
+      "note": "",
+      "contexts": {}
+    },
+    {
+      "id": "case-28-reference-empty",
+      "case_number": 28,
+      "title": "Randfall: reference-empty",
+      "reference": [],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "annotations": [],
+      "note": "",
+      "contexts": {}
+    },
+    {
+      "id": "case-28-student-empty",
+      "case_number": 28,
+      "title": "Randfall: student-empty",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "student": [],
+      "annotations": [
+        []
+      ],
+      "note": "",
+      "contexts": {}
+    },
+    {
+      "id": "case-28-empty-labels",
+      "case_number": 28,
+      "title": "Randfall: empty-labels",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "  ",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Kunde",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "",
+      "contexts": {}
+    },
+    {
+      "id": "case-28-special-characters",
+      "case_number": 28,
+      "title": "Randfall: special-characters",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Änderung",
+          "language": "de"
+        },
+        {
+          "id": "r1",
+          "label": "Preis (€)",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Kunde & Co.",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Änderung",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Preis (€)",
+          "language": "de"
+        },
+        {
+          "id": "s2",
+          "label": "Kunde & Co.",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "",
+      "contexts": {}
+    },
+    {
+      "id": "case-29",
+      "case_number": 29,
+      "title": "Negation",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Zahlung erhalten",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Zahlung nicht erhalten",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Zahlung erhalten",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "",
+      "contexts": {},
+      "hard_negative": true
+    },
+    {
+      "id": "case-30",
+      "case_number": 30,
+      "title": "Antonym als Konkurrent",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "aktiv",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "inaktiv",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "aktiv",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "",
+      "contexts": {},
+      "hard_negative": true
+    },
+    {
+      "id": "case-31",
+      "case_number": 31,
+      "title": "Vertauschte Rollen",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Kunde bezahlt Lieferant",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Lieferant bezahlt Kunde",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Kunde bezahlt Lieferant",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "",
+      "contexts": {},
+      "hard_negative": true
+    },
+    {
+      "id": "case-32",
+      "case_number": 32,
+      "title": "Statusunterschied",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Bestellung bestätigt",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Bestellung storniert",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Bestellung bestätigt",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "",
+      "contexts": {},
+      "hard_negative": true
+    },
+    {
+      "id": "case-33",
+      "case_number": 33,
+      "title": "Fachlicher Oberbegriff",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Fahrzeug",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Auto",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Fahrzeug",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "",
+      "contexts": {},
+      "hard_negative": true
+    },
+    {
+      "id": "case-34",
+      "case_number": 34,
+      "title": "Kompositum mit anderer Rolle",
+      "reference": [
+        {
+          "id": "r0",
+          "label": "Rechnungsadresse",
+          "language": "de"
+        }
+      ],
+      "student": [
+        {
+          "id": "s0",
+          "label": "Lieferadresse",
+          "language": "de"
+        },
+        {
+          "id": "s1",
+          "label": "Rechnungsadresse",
+          "language": "de"
+        }
+      ],
+      "annotations": [
+        [
+          "incorrect",
+          "correct"
+        ]
+      ],
+      "note": "",
+      "contexts": {},
+      "hard_negative": true
+    }
+  ]
+}
