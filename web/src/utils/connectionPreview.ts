@@ -9,6 +9,23 @@ type EdgeStyle = CellStyle & Record<string, any>
 
 const cloneStyle = (style: EdgeStyle): EdgeStyle => ({ ...style })
 
+/** Leitet den Style einer Vorschau-Kante aus dem Style der Verbindung ab. */
+type PreviewStyle = (base: EdgeStyle) => EdgeStyle
+
+type PreviewCell = Cell & {
+  previewStyle?: PreviewStyle
+  // Trägt Label, Label-Versatz und Zusatzlabels der Verbindung
+  previewLabel?: boolean
+  previewSummary?: boolean
+}
+
+const markPreviewEdge = (edge: Cell, previewStyle: PreviewStyle = cloneStyle, previewLabel = false): void => {
+  ;(edge as PreviewCell).previewStyle = previewStyle
+  ;(edge as PreviewCell).previewLabel = previewLabel
+}
+
+const dashedStyle: PreviewStyle = (base) => ({ ...base, dashed: true, dashPattern: base.dashPattern ?? '6 4' })
+
 const applyPoints = (edge: any, points?: { x: number; y: number }[]) => {
   if (!points || points.length === 0) return
   const geometry = edge.getGeometry()
@@ -18,6 +35,36 @@ const applyPoints = (edge: any, points?: { x: number; y: number }[]) => {
 
 export const clearConnectionPreview = (graph: Graph): void => {
   graph.removeCells(graph.getChildCells())
+}
+
+/**
+ * Übernimmt geänderte Einstellungen in die vorhandene Vorschau, ohne sie neu aufzubauen.
+ * So bleiben verschobene Elemente und Knickpunkte erhalten.
+ * @returns false, wenn es noch keine Vorschau gibt und sie neu aufgebaut werden muss
+ */
+export const updateConnectionPreview = (graph: Graph, connection: DiagramConnection): boolean => {
+  const cells = graph.getChildCells() as PreviewCell[]
+  const edges = cells.filter((cell) => cell.previewStyle)
+  if (edges.length === 0) return false
+
+  const model = graph.getDataModel()
+  model.beginUpdate()
+  try {
+    for (const edge of edges) {
+      model.setStyle(edge, edge.previewStyle!(cloneStyle(connection.style)))
+      if (!edge.previewLabel) continue
+
+      model.setValue(edge, connection.defaultLabel ?? '')
+      applyConnectionLabelOffset(edge, connection.labelOffset)
+      applyConnectionAdditionalLabels(graph, edge, connection)
+    }
+
+    cells.filter((cell) => cell.previewSummary).forEach((note) => model.setValue(note, describeScenario(connection.style)))
+  } finally {
+    model.endUpdate()
+  }
+
+  return true
 }
 
 export const renderSimpleConnectionPreview = (graph: Graph, connection: DiagramConnection): Cell | null => {
@@ -57,6 +104,7 @@ export const renderSimpleConnectionPreview = (graph: Graph, connection: DiagramC
       style
     })
     createdEdge = edge ?? null
+    markPreviewEdge(edge, cloneStyle, true)
 
     applyConnectionLabelOffset(edge, connection.labelOffset)
     applyPoints(edge, connection.points)
@@ -91,6 +139,8 @@ const createActorVertex = (graph: Graph, parent: any, { x, y, label, fill }: { x
   })
 }
 
+const describeScenario = (style: EdgeStyle): string => `Sample Scenario\n\n• Entry: Client sends a request\n• Gateway forwards and responds\n• Service publishes an event\n\nProperties:\n• ${describeStyleSummary(style)}`
+
 const describeStyleSummary = (style: EdgeStyle): string => {
   const fragments: string[] = []
 
@@ -109,6 +159,8 @@ const describeStyleSummary = (style: EdgeStyle): string => {
 
   return fragments.join('\n• ')
 }
+
+const feedbackStyle: PreviewStyle = (base) => ({ ...base, curved: true, startArrow: base.startArrow ?? 'open', endArrow: base.endArrow ?? 'classic' })
 
 export const renderScenarioConnectionPreview = (graph: Graph, connection: DiagramConnection): void => {
   clearConnectionPreview(graph)
@@ -148,7 +200,7 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
 
     const note = graph.insertVertex({
       parent,
-      value: `Sample Scenario\n\n• Entry: Client sends a request\n• Gateway forwards and responds\n• Service publishes an event\n\nProperties:\n• ${describeStyleSummary(baseStyle)}`,
+      value: describeScenario(baseStyle),
       x: 40,
       y: 220,
       width: 200,
@@ -163,7 +215,7 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
       }
     })
 
-    void note
+    ;(note as PreviewCell).previewSummary = true
 
     const requestEdge = graph.insertEdge({
       parent,
@@ -173,6 +225,7 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
       style: cloneStyle(baseStyle)
     })
 
+    markPreviewEdge(requestEdge, cloneStyle, true)
     applyConnectionLabelOffset(requestEdge, connection.labelOffset)
     applyPoints(requestEdge, connection.points)
     applyConnectionAdditionalLabels(graph, requestEdge, connection)
@@ -185,6 +238,7 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
       style: cloneStyle(baseStyle)
     })
 
+    markPreviewEdge(forwardEdge)
     const forwardGeometry = forwardEdge.getGeometry()
     if (forwardGeometry) {
       forwardGeometry.points = [new Point(gateway.geometry!.x + gateway.geometry!.width + 30, gateway.geometry!.y + gateway.geometry!.height + 10)]
@@ -195,27 +249,18 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
       source: service,
       target: eventBus,
       value: 'Domain Event',
-      style: cloneStyle({
-        ...baseStyle,
-        dashed: true,
-        dashPattern: baseStyle.dashPattern ?? '6 4'
-      })
+      style: dashedStyle(baseStyle)
     })
-
-    void eventEdge
+    markPreviewEdge(eventEdge, dashedStyle)
 
     const feedbackEdge = graph.insertEdge({
       parent,
       source: eventBus,
       target: client,
       value: 'Notification',
-      style: cloneStyle({
-        ...baseStyle,
-        curved: true,
-        startArrow: baseStyle.startArrow ?? 'open',
-        endArrow: baseStyle.endArrow ?? 'classic'
-      })
+      style: feedbackStyle(baseStyle)
     })
+    markPreviewEdge(feedbackEdge, feedbackStyle)
 
     const feedbackGeometry = feedbackEdge.getGeometry()
     if (feedbackGeometry) {
@@ -413,6 +458,7 @@ export const renderRoutingConnectionPreview = (graph: Graph, connection: Diagram
       style: cloneStyle(baseStyle)
     })
 
+    markPreviewEdge(edge1, cloneStyle, true)
     applyConnectionLabelOffset(edge1, connection.labelOffset)
     applyConnectionAdditionalLabels(graph, edge1, connection)
 
@@ -458,11 +504,7 @@ export const renderRoutingConnectionPreview = (graph: Graph, connection: Diagram
       source: leftNode,
       target: rightNode,
       value: '',
-      style: cloneStyle({
-        ...baseStyle,
-        dashed: true,
-        dashPattern: baseStyle.dashPattern ?? '6 4'
-      })
+      style: dashedStyle(baseStyle)
     })
 
     // Edge 7: Diagonal connection (Top-Left to Bottom-Right) - shows routing difference clearly
@@ -517,15 +559,8 @@ export const renderRoutingConnectionPreview = (graph: Graph, connection: Diagram
     // Select the first edge to highlight the current style
     graph.clearSelection()
 
-    // Suppress unused variable warnings
-    void edge2
-    void edge3
-    void edge4
-    void edge5
-    void edge6
-    void edge7
-    void edge8
-    void edge9
+    markPreviewEdge(edge6, dashedStyle)
+    ;[edge2, edge3, edge4, edge5, edge7, edge8, edge9].forEach((edge) => markPreviewEdge(edge))
   } finally {
     graph.getDataModel().endUpdate()
   }

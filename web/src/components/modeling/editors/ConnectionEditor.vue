@@ -68,9 +68,8 @@ const selectedConnection = computed<DiagramConnection | undefined>(() => {
 })
 
 // Methods
+// Die Vorschau übernimmt Änderungen selbst (DrawingCanvas beobachtet previewConnection)
 const updateAll = () => {
-  // Update-Logik für die Vorschau (analog zu ElementEditor)
-  debouncedUpdate()
   debouncedStoreUpdate()
 }
 const selectConnection = (connectionIndex: number) => {
@@ -156,17 +155,6 @@ const renderConnectionPreview = () => {
   renderSimpleConnectionPreview(graphInstance, connection)
 }
 
-// Debounced Update für Vorschau und Store
-let updateTimeout: number | null = null
-const debouncedUpdate = () => {
-  if (updateTimeout) {
-    clearTimeout(updateTimeout)
-  }
-  updateTimeout = setTimeout(() => {
-    renderConnectionPreview()
-  }, 150)
-}
-
 const debouncedStoreUpdate = () => {
   if (selectedConnection.value && store.definition) {
     store.updateConnectionInLanguage(selectedConnection.value.type, selectedConnection.value)
@@ -174,26 +162,8 @@ const debouncedStoreUpdate = () => {
 }
 
 // Watchers
-watch(
-  selectedConnection,
-  (newConn) => {
-    if (newConn) {
-      renderConnectionPreview()
-      debouncedUpdate()
-    } else {
-      renderConnectionPreview()
-    }
-  },
-  { immediate: true, deep: true }
-)
-
-watch(
-  previewMode,
-  () => {
-    renderConnectionPreview()
-  },
-  { immediate: true }
-)
+// Neu aufbauen bei anderer Verbindung; Modus und Einstellungen übernimmt DrawingCanvas
+watch(selectedConnectionIndex, () => renderConnectionPreview(), { immediate: true })
 
 // Lifecycle
 onMounted(() => {

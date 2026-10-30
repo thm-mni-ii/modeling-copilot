@@ -135,7 +135,7 @@ import { setupDynamicGrid } from '@/utils/setupDynamicGrid'
 import { StablePanningHandler } from '@/utils/StablePanningHandler'
 import { createDefaultShapes, buildShapesFromElements, ensureGraphDropHandlers } from '@/utils/setupToolbar'
 import { isContainerSectionTarget, setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
-import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview } from '@/utils/connectionPreview'
+import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, updateConnectionPreview } from '@/utils/connectionPreview'
 import { CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
 import { setupUndoManager, type UndoManagerApi, type UndoManagerState } from '@/utils/setupUndoManager'
 import { alignHorizontal, alignVertical } from '@/utils/alignCells'
@@ -821,13 +821,14 @@ onUnmounted(() => {
   graph.value = undefined
 })
 
-// Watch für previewConnection (nur für Preview-Modus)
+// Watch für previewConnection (nur für Preview-Modus): Änderungen in die bestehende Vorschau übernehmen,
+// damit verschobene Elemente an ihrem Platz bleiben. Neu aufgebaut wird nur ohne vorhandene Vorschau.
 watch(
   () => props.previewConnection,
   (newConn) => {
-    if (graph.value) {
-      renderConnectionPreviewOnly(newConn)
-    }
+    if (!graph.value) return
+    if (newConn && updateConnectionPreview(graph.value, newConn)) return
+    renderConnectionPreviewOnly(newConn)
   },
   { immediate: true, deep: true }
 )
