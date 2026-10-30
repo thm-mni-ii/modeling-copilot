@@ -121,7 +121,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorHandler, SelectionCellsHandler, SelectionHandler, CellState, EdgeStyle, GraphDataModel, PanningHandler, ImageBox, Client, KeyHandler, TooltipHandler, FitPlugin, Clipboard, ConnectionConstraint } from '@maxgraph/core'
-import { CellHighlight, eventUtils, type MouseListenerSet, type GraphPluginConstructor } from '@maxgraph/core'
+import { CellHighlight, eventUtils, type EdgeStyleFunction, type MouseListenerSet, type GraphPluginConstructor } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { TaskEditSyncState } from '@/utils/taskEdits'
@@ -136,7 +136,7 @@ import { StablePanningHandler } from '@/utils/StablePanningHandler'
 import { createDefaultShapes, buildShapesFromElements, ensureGraphDropHandlers } from '@/utils/setupToolbar'
 import { isContainerSectionTarget, setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
 import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, updateConnectionPreview } from '@/utils/connectionPreview'
-import { CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
+import { AnchorConstraintHandler, CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
 import { setupUndoManager, type UndoManagerApi, type UndoManagerState } from '@/utils/setupUndoManager'
 import { alignHorizontal, alignVertical } from '@/utils/alignCells'
 import { clearValidationWarningOverlays, getGraphValidationMode, isValidationPassActive, setGraphValidationMode } from '@/utils/graphValidationRuntime'
@@ -275,6 +275,18 @@ class MyCustomGraph extends Graph {
   override isValidSource = (cell: Cell | null): boolean => {
     if (cell?.isEdge() && languageConnections.value.find((c) => c.type === (cell as any).connectionId)?.connectable === false) return false
     return super.isValidSource(cell)
+  }
+
+  /**
+   * Umhängen von Kantenenden rastet wie neue Kanten ein (Connection Docking des Elements).
+   * outline = false: maxGraph setzt es fest auf true und legt das Ende sonst an die Mausposition, auch mitten ins Element.
+   */
+  override createEdgeHandler = (state: CellState, edgeStyle: EdgeStyleFunction | null) => {
+    const handler = super.createEdgeHandler(state, edgeStyle)
+    handler.constraintHandler.onDestroy()
+    handler.constraintHandler = new AnchorConstraintHandler(this)
+    handler.outline = false
+    return handler
   }
 
   override convertValueToString = (cell: Cell) => {

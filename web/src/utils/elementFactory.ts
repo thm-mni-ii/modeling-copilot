@@ -84,6 +84,7 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
   cell.setVertex(true)
   cell.setConnectable(element.connectable ?? true)
   ;(cell as any).allowLabelEdit = element.allowLabelEdit !== false
+  if (element.docking) (cell as any).docking = element.docking
   ;(cell as any).diagramElementType = element.type
   ;(cell as any).diagramAttributes = {
     type: element.type,

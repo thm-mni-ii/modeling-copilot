@@ -76,6 +76,7 @@
           "allowLabelEdit": false
         }
       ],
+      "docking": "anchors",
       "connectable": true,
       "resizable": false,
       "movable": true,
@@ -170,6 +171,7 @@
           "allowLabelEdit": false
         }
       ],
+      "docking": "anchors",
       "connectable": true,
       "resizable": false,
       "movable": true,
@@ -252,6 +254,7 @@
           "allowLabelEdit": false
         }
       ],
+      "docking": "anchors",
       "connectable": true,
       "resizable": false,
       "movable": true,

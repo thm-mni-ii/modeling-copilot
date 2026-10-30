@@ -6,9 +6,30 @@ import { applyConnectionAdditionalLabels, applyConnectionLabelOffset } from '@/u
 import { getGraphValidationMode, setValidationPassActive, shouldBlockInteractiveValidation } from '@/utils/graphValidationRuntime'
 import { isTruthyFlag } from '@/utils/flagUtils'
 
-class AnchorConstraintHandler extends ConstraintHandler {
+/** Abstand in Pixeln, in dem ein Kantenende bei "Free on Outline" am Rand festgehalten wird. */
+const OUTLINE_SNAP_DISTANCE = 10
+
+/** Elemente mit "Free on Outline" (docking = 'outline'); sonst rasten Kanten am nächsten Ankerpunkt ein. */
+export const isOutlineDocking = (cell: Cell | null | undefined): boolean => (cell as any)?.docking === 'outline'
+
+/** Andockpunkte für neue Kanten (ConnectionHandler) und das Umhängen von Kantenenden (EdgeHandler). */
+export class AnchorConstraintHandler extends ConstraintHandler {
+  // Ziel und Umhängen rasten am nächsten Anker ein, bei freiem Andocken nur an direkt getroffenen
   override intersects(icon: ImageShape, rectangle: Rectangle, source: boolean, existingEdge: boolean): boolean {
-    return !source || existingEdge || mathUtils.intersects(icon.bounds!, rectangle)
+    const hit = mathUtils.intersects(icon.bounds!, rectangle)
+    return isOutlineDocking(this.currentFocus?.cell) ? hit : !source || existingEdge || hit
+  }
+
+  override update(me: InternalMouseEvent, source: boolean, existingEdge: boolean, point: Point | null): void {
+    super.update(me, source, existingEdge, point)
+    const focus = this.currentFocus
+    if (this.currentConstraint || !focus || !isOutlineDocking(focus.cell) || (source && !existingEdge)) return
+    // Freies Andocken: nahe am Rand bleibt das Ende dort fest, weiter innen dockt es frei an der zugewandten Seite an
+    const mouse = new Point(me.getGraphX(), me.getGraphY())
+    const outlinePoint = this.graph.view.getPerimeterPoint(focus, mouse, false)
+    if (!outlinePoint || Math.hypot(outlinePoint.x - mouse.x, outlinePoint.y - mouse.y) > OUTLINE_SNAP_DISTANCE) return
+    this.currentConstraint = this.graph.getOutlineConstraint(outlinePoint, focus, me)
+    this.currentPoint = outlinePoint
   }
 
   // Keine Ankerpunkte auf Kanten, an die nicht angedockt werden darf
@@ -140,7 +161,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
   }
 
   override updateEdgeState(pt: Point, constraint: ConnectionConstraint | null): void {
-    if (pt != null && this.previous != null) {
+    if (pt != null && this.previous != null && !isOutlineDocking(this.previous.cell)) {
       const constraints = this.graph.getAllConnectionConstraints(this.previous, true)
       let nearestConstraint: ConnectionConstraint | null = null
       let bestDist: number | null = null

@@ -73,6 +73,7 @@
         }
       ],
       "children": [],
+      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -152,6 +153,7 @@
         }
       ],
       "children": [],
+      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -216,6 +218,7 @@
         }
       ],
       "children": [],
+      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -278,6 +281,7 @@
         }
       ],
       "children": [],
+      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -341,6 +345,7 @@
         }
       ],
       "children": [],
+      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -405,6 +410,7 @@
         }
       ],
       "children": [],
+      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -468,6 +474,7 @@
         }
       ],
       "children": [],
+      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -514,6 +521,7 @@
         }
       ],
       "children": [],
+      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -592,6 +600,7 @@
         }
       ],
       "children": [],
+      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
