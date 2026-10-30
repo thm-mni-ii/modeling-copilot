@@ -1,17 +1,20 @@
-"""Fixed score aggregation functions; learned combinations live in evaluation.py."""
+"""Fixed score aggregation functions."""
 
 import numpy as np
 
 
 def mean(matrices):
+    """Mittle die Matrizen elementweise mit gleichem Gewicht."""
     return np.stack(list(matrices.values())).mean(axis=0)
 
 
 def maximum(matrices):
+    """Wähle an jeder Matrixposition den höchsten Score."""
     return np.stack(list(matrices.values())).max(axis=0)
 
 
 def weighted_mean(matrices, *, weights):
+    """Mittle die Matrizen mit geprüften, nichtnegativen Gewichten."""
     names = list(matrices)
     if set(weights) != set(names):
         raise ValueError("weights must specify exactly the selected methods")
@@ -31,6 +34,9 @@ def combine(matrices, config):
         raise ValueError("combiner methods must be a nonempty unique subset of computed methods")
     values = {name: np.clip(matrices[name], 0, 1) for name in names}
     kind = config.get("kind", "mean")
+    if kind == "variant":
+        from .variants import evaluate_variant
+        return evaluate_variant(config["name"], values, **config.get("options", {}))
     if kind not in COMBINERS:
         raise ValueError(f"unknown combiner: {kind}")
     options = {key: value for key, value in config.items() if key not in {"kind", "methods"}}

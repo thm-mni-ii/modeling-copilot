@@ -12,9 +12,10 @@ def test_real_model_path(method):
     refs = [{'id': 'r', 'label': 'Kunde', 'language': 'de'}]
     students = [{'id': 's', 'label': 'Customer', 'language': 'en'}]
     cold = engine.match(refs, students)
+    misses = engine.cache.misses
     warm = engine.match(refs, students)
     assert cold['shape'] == [1, 1]
-    assert cold['metadata']['models'][method]['revision']
+    assert engine.backends[method].revision
     assert -1 <= cold['scores'][method][0][0] <= 1
     assert warm['scores'] == cold['scores']
-    assert warm['metadata']['cacheMisses'] == 0
+    assert engine.cache.misses == misses

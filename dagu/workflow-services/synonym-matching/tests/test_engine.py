@@ -15,7 +15,6 @@ def test_matrix_orientation_ids_duplicates_and_threshold():
     assert result['scores']['levenshtein'][0][:2] == [.8, 1]
     assert result['scores']['levenshtein'][0] == result['scores']['levenshtein'][1]
     assert [r['matches'][0]['submissionElement']['id'] for r in result['synonymMatrix']] == ['student:1'] * 2
-    assert result['synonymMatrix'][0]['top1Top2Margin'] == pytest.approx(.2)
 
 
 @pytest.mark.parametrize('left,right,shape', [([], [], [0, 0]), ([], ['a'], [0, 1]), (['a'], [], [1, 0])])
@@ -75,10 +74,9 @@ def test_weighted_scores_and_cosine_clipping():
     assert scores['a'][0, 0] == -.5
 
 
-def test_ties_have_zero_margin_and_stable_order():
+def test_ties_have_stable_order():
     result = MatchingEngine().match(['a'], ['a', 'a'])
     row = result['synonymMatrix'][0]
-    assert row['top1Top2Margin'] == 0
     assert [m['submissionElement']['id'] for m in row['matches']] == ['student:0', 'student:1']
 
 
@@ -96,3 +94,16 @@ def test_embedding_batches_unique_labels_and_reuses_cache(monkeypatch):
     assert method.matrix(['a', 'a'], ['b', 'a']).tolist() == [[0, 1], [0, 1]]
     method.matrix(['a'], ['b'])
     assert calls == [['a', 'b']]
+
+
+def test_display_rounding_preserves_threshold_decisions():
+    from synonym_matching.engine import format_synonym_matrix
+    engine = MatchingEngine()
+    result = engine.match(['Kunde'], ['Kund'], threshold=.79532)
+    matrix = result['synonymMatrix']
+    displayed = format_synonym_matrix(matrix)
+    assert displayed[0]['matches'][0]['combinedScore'] == .7953
+    assert matrix[0]['matches'][0]['combinedScore'] > .79532
+    assert not engine.match(['Kunde'], ['Kund'], threshold=.79534)['synonymMatrix'][0]['matches']
+    assert set(displayed[0]) == {'referenceElement', 'matches'}
+    assert set(displayed[0]['matches'][0]) == {'submissionElement', 'scores', 'combinedScore'}

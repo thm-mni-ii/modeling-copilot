@@ -30,7 +30,7 @@ def test_named_pipeline_is_equivalent_to_legacy_configuration():
     legacy = MatchingEngine({'preprocessing': {'normalize': True, 'lowercase': True}}).match([' Kunde '], ['KUND'])
     assert named['scores'] == legacy['scores']
     assert named['combinedScores'] == legacy['combinedScores']
-    assert named['config']['preprocessing'] == ['normalize', 'lowercase']
+    assert named['processedLabels']['levenshtein'] == {'reference': ['kunde'], 'student': ['kund']}
 
 
 def test_custom_method_needs_no_engine_changes(monkeypatch):
