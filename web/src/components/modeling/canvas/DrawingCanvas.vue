@@ -268,11 +268,22 @@ class MyCustomGraph extends Graph {
     return !!cell && !cell.isEdge() && (this.isSwimlane(cell) || isContainerSectionTarget(cell)) && canContain(containment, cell, cells ?? [])
   }
 
+  /**
+   * Kanten nehmen nur Verbindungen an, wenn ihre Verbindung "Connectable Line" erlaubt.
+   * setConnectableEdges(true) gilt sonst für alle Kanten jeder Sprache.
+   */
+  override isValidSource = (cell: Cell | null): boolean => {
+    if (cell?.isEdge() && languageConnections.value.find((c) => c.type === (cell as any).connectionId)?.connectable === false) return false
+    return super.isValidSource(cell)
+  }
+
   override convertValueToString = (cell: Cell) => {
     return super.convertValueToString(cell)
   }
 
   override getEdgeValidationError = (edge: Cell | null, source: Cell | null, target: Cell | null): string | null => {
+    // Nicht andockbare Kanten sperren in jedem Modus, auch beim Umhängen eines Kantenendes
+    if ((source?.isEdge() && !this.isValidSource(source)) || (target?.isEdge() && !this.isValidTarget(target))) return ''
     const error = super.getEdgeValidationError(edge, source, target)
     const mode = getGraphValidationMode(this)
     if (mode === 'preventive') {

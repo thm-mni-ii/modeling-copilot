@@ -605,7 +605,7 @@
       "label": "Association",
       "defaultLabel": "",
       "connectionType": "association",
-      "connectable": true,
+      "connectable": false,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -679,7 +679,7 @@
       "label": "Attribute Link",
       "defaultLabel": "",
       "connectionType": "attribute",
-      "connectable": true,
+      "connectable": false,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -703,7 +703,7 @@
       "label": "Generalization",
       "defaultLabel": "",
       "connectionType": "generalization",
-      "connectable": true,
+      "connectable": false,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",

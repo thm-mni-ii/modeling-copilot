@@ -10,6 +10,11 @@ class AnchorConstraintHandler extends ConstraintHandler {
   override intersects(icon: ImageShape, rectangle: Rectangle, source: boolean, existingEdge: boolean): boolean {
     return !source || existingEdge || mathUtils.intersects(icon.bounds!, rectangle)
   }
+
+  // Keine Ankerpunkte auf Kanten, an die nicht angedockt werden darf
+  override isStateIgnored(state: CellState): boolean {
+    return !this.graph.isValidSource(state.cell)
+  }
 }
 
 export class CustomConnectionHandler extends ConnectionHandler {
@@ -129,8 +134,9 @@ export class CustomConnectionHandler extends ConnectionHandler {
     return new AnchorConstraintHandler(this.graph)
   }
 
+  // Über die Graph-Prüfung, damit nicht andockbare Kanten auch im freien Modus gesperrt sind
   override isConnectableCell(cell: Cell): boolean {
-    return cell.isConnectable()
+    return this.graph.isValidSource(cell)
   }
 
   override updateEdgeState(pt: Point, constraint: ConnectionConstraint | null): void {
