@@ -309,7 +309,10 @@
         "verticalAlign": "middle",
         "labelPosition": "center",
         "fontColor": "#000000",
-        "fontSize": 10
+        "fontSize": 10,
+        "edgeStyle": "sideToSideEdgeStyle",
+        "curved": true,
+        "rounded": true
       },
       "additionalLabels": [
         {
@@ -353,7 +356,10 @@
         "verticalAlign": "middle",
         "labelPosition": "center",
         "fontColor": "#000000",
-        "fontSize": 10
+        "fontSize": 10,
+        "edgeStyle": "sideToSideEdgeStyle",
+        "curved": true,
+        "rounded": true
       },
       "additionalLabels": [
         {
@@ -398,7 +404,10 @@
         "fontColor": "#000000",
         "fontSize": 10,
         "fillColor": "#ffffff",
-        "startSize": 2
+        "startSize": 2,
+        "edgeStyle": "sideToSideEdgeStyle",
+        "curved": true,
+        "rounded": true
       },
       "additionalLabels": [
         {
@@ -445,7 +454,10 @@
         "fontSize": 10,
         "fillColor": "#ffffff",
         "startSize": 2,
-        "endSize": 8
+        "endSize": 8,
+        "edgeStyle": "sideToSideEdgeStyle",
+        "curved": true,
+        "rounded": true
       },
       "additionalLabels": [
         {
