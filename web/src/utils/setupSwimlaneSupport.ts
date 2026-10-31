@@ -41,7 +41,7 @@ interface FreeLayoutConfig {
   contentPadding: number
 }
 
-const isContainerSectionTarget = (cell: Cell | null): boolean => {
+export const isContainerSectionTarget = (cell: Cell | null): boolean => {
   if (!cell) return false
   const attrValue = (cell as any).getAttribute?.('containerSection', null)
   return isTruthyFlag(attrValue)

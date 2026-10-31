@@ -74,7 +74,17 @@ export const exportModelAsJson = (graph: Graph) => {
   )
 }
 
+// Older edges stored the language's label definitions, whose IDs repeat on every
+// edge. maxGraph rejects repeated element IDs, so drop them before importing.
+const removeStoredLabelDefinitions = (xml: string) => {
+  if (!xml.includes('connectionAdditionalLabels')) return xml
+  const document = new DOMParser().parseFromString(xml, 'application/xml')
+  document.querySelectorAll('Array[as="connectionAdditionalLabels"]').forEach((node) => node.remove())
+  return new XMLSerializer().serializeToString(document)
+}
+
 export const importModelFromXml = (graph: Graph, xml: string) => {
+  xml = removeStoredLabelDefinitions(xml)
   const model = graph.getDataModel()
   model.beginUpdate()
   try {

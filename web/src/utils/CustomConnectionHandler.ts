@@ -3,12 +3,39 @@ import type { CellStyle } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
 import type { FeedbackCanvasRulesConfig } from '@/model/Feedback'
 import { applyConnectionAdditionalLabels, applyConnectionLabelOffset } from '@/utils/connectionLabelHelpers'
+import { createConnectionStyle } from '@/utils/elementFactory'
 import { getGraphValidationMode, setValidationPassActive, shouldBlockInteractiveValidation } from '@/utils/graphValidationRuntime'
 import { isTruthyFlag } from '@/utils/flagUtils'
 
-class AnchorConstraintHandler extends ConstraintHandler {
+/** Abstand in Pixeln, in dem ein Kantenende bei "Free on Outline" am Rand festgehalten wird. */
+const OUTLINE_SNAP_DISTANCE = 10
+
+/** Elemente mit "Free on Outline" (docking = 'outline'); sonst rasten Kanten am nächsten Ankerpunkt ein. */
+export const isOutlineDocking = (cell: Cell | null | undefined): boolean => (cell as any)?.docking === 'outline'
+
+/** Andockpunkte für neue Kanten (ConnectionHandler) und das Umhängen von Kantenenden (EdgeHandler). */
+export class AnchorConstraintHandler extends ConstraintHandler {
+  // Ziel und Umhängen rasten am nächsten Anker ein, bei freiem Andocken nur an direkt getroffenen
   override intersects(icon: ImageShape, rectangle: Rectangle, source: boolean, existingEdge: boolean): boolean {
-    return !source || existingEdge || mathUtils.intersects(icon.bounds!, rectangle)
+    const hit = mathUtils.intersects(icon.bounds!, rectangle)
+    return isOutlineDocking(this.currentFocus?.cell) ? hit : !source || existingEdge || hit
+  }
+
+  override update(me: InternalMouseEvent, source: boolean, existingEdge: boolean, point: Point | null): void {
+    super.update(me, source, existingEdge, point)
+    const focus = this.currentFocus
+    if (this.currentConstraint || !focus || !isOutlineDocking(focus.cell) || (source && !existingEdge)) return
+    // Freies Andocken: nahe am Rand bleibt das Ende dort fest, weiter innen dockt es frei an der zugewandten Seite an
+    const mouse = new Point(me.getGraphX(), me.getGraphY())
+    const outlinePoint = this.graph.view.getPerimeterPoint(focus, mouse, false)
+    if (!outlinePoint || Math.hypot(outlinePoint.x - mouse.x, outlinePoint.y - mouse.y) > OUTLINE_SNAP_DISTANCE) return
+    this.currentConstraint = this.graph.getOutlineConstraint(outlinePoint, focus, me)
+    this.currentPoint = outlinePoint
+  }
+
+  // Keine Ankerpunkte auf Kanten, an die nicht angedockt werden darf
+  override isStateIgnored(state: CellState): boolean {
+    return !this.graph.isValidSource(state.cell)
   }
 }
 
@@ -107,34 +134,17 @@ export class CustomConnectionHandler extends ConnectionHandler {
     return this.selectedConnection
   }
 
-  private buildConnectionStyle(connection: DiagramConnection): CellStyle {
-    return {
-      shape: 'connector',
-      strokeColor: '#000000',
-      strokeWidth: 1,
-      strokeOpacity: 100,
-      startArrow: 'none',
-      endArrow: 'none',
-      startFill: true,
-      endFill: true,
-      align: 'center',
-      verticalAlign: 'middle',
-      fontColor: '#000000',
-      fontSize: 12,
-      ...connection.style
-    }
-  }
-
   protected override createConstraintHandler(): ConstraintHandler {
     return new AnchorConstraintHandler(this.graph)
   }
 
+  // Über die Graph-Prüfung, damit nicht andockbare Kanten auch im freien Modus gesperrt sind
   override isConnectableCell(cell: Cell): boolean {
-    return cell.isConnectable()
+    return this.graph.isValidSource(cell)
   }
 
   override updateEdgeState(pt: Point, constraint: ConnectionConstraint | null): void {
-    if (pt != null && this.previous != null) {
+    if (pt != null && this.previous != null && !isOutlineDocking(this.previous.cell)) {
       const constraints = this.graph.getAllConnectionConstraints(this.previous, true)
       let nearestConstraint: ConnectionConstraint | null = null
       let bestDist: number | null = null
@@ -214,10 +224,12 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return new CellState(this.graph.view, edge, this.graph.getCellStyle(edge))
     }
 
-    const style = this.buildConnectionStyle(effectiveConnection)
+    const style = createConnectionStyle(effectiveConnection)
     const edge = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', null, null, style)
     ;(edge as any).connectionId = effectiveConnection.type
     ;(edge as any).connectionType = effectiveConnection.connectionType ?? effectiveConnection.type
+    // ConnectionHandler.connect übernimmt die Geometrie dieser Kante für die neue, daher schon hier der Label-Versatz
+    applyConnectionLabelOffset(edge, effectiveConnection.labelOffset)
 
     return new CellState(this.graph.view, edge, this.graph.getCellStyle(edge))
   }
@@ -259,7 +271,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return super.validateConnection(source, target)
     }
 
-    const style = this.buildConnectionStyle(effectiveConnection)
+    const style = createConnectionStyle(effectiveConnection)
     const probeEdge = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', source, target, style)
     probeEdge.setTerminal(source, true)
     probeEdge.setTerminal(target, false)
@@ -301,10 +313,15 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return null as unknown as Cell
     }
 
+    // Ohne "Allow Loose Ends" entsteht keine Kante mit offenem Ende, in jedem Modus
+    if (effectiveConnection?.allowLooseEnds === false && (!sourceCell || !targetCell)) {
+      return null as unknown as Cell
+    }
+
     if (effectiveConnection) {
       const connectionId = effectiveConnection.type
       const edgeLabel = effectiveConnection.defaultLabel ?? ''
-      const connectionStyle = this.buildConnectionStyle(effectiveConnection)
+      const connectionStyle = createConnectionStyle(effectiveConnection)
 
       const edge = super.insertEdge(parent, persistedId, edgeLabel, source, target, connectionStyle)
       if (edge) {
@@ -313,7 +330,6 @@ export class CustomConnectionHandler extends ConnectionHandler {
         ;(edge as any).connectionType = effectiveConnection.connectionType ?? connectionId
         ;(edge as any).connectionStyle = connectionStyle
         ;(edge as any).connectionLabelOffset = effectiveConnection.labelOffset
-        ;(edge as any).connectionAdditionalLabels = effectiveConnection.additionalLabels
 
         applyConnectionLabelOffset(edge, effectiveConnection.labelOffset)
         applyConnectionAdditionalLabels(this.graph, edge, effectiveConnection)

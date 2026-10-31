@@ -122,6 +122,8 @@
           Connection Points
         </v-expansion-panel-title>
         <v-expansion-panel-text>
+          <v-select v-model="diagramElementData.docking" :items="dockingOptions" item-title="title" item-value="value" label="Connection Docking" variant="outlined" density="compact" class="mb-3" placeholder="Snap to Anchor Points" persistent-placeholder hint="Where new and reconnected edges dock onto this element" persistent-hint @update:model-value="emitUpdate" />
+
           <div class="d-flex align-center mb-3">
             <span class="text-subtitle-2 mr-3">Anchor Points</span>
             <v-btn size="small" color="primary" variant="tonal" prepend-icon="mdi-plus" @click="addAnchorPoint"> Add </v-btn>
@@ -413,6 +415,10 @@ const predefinedShapes = [
   { label: 'Triangle', value: 'triangle' }
 ]
 
+const dockingOptions = [
+  { title: 'Snap to Anchor Points', value: 'anchors' },
+  { title: 'Free on Outline', value: 'outline' }
+]
 const alignOptions = ['left', 'center', 'right']
 const verticalAlignOptions = ['top', 'middle', 'bottom']
 const swimlaneDirections = [

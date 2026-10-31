@@ -1,8 +1,8 @@
 import { ConnectorShape, Point, Shape, ShapeRegistry, type AbstractCanvas2D } from '@maxgraph/core'
 import type { ChildElement, DiagramElement } from '@/model/Element'
 
-/** Abstand zwischen den beiden Linien in Pixeln (bei Zoom 1). */
-const DOUBLE_LINE_SPACING = 4
+/** Lücke zwischen den beiden Linien in Pixeln (bei Zoom 1), zusätzlich zur Linienbreite. */
+const DOUBLE_LINE_GAP = 3
 
 /**
  * Kante aus zwei parallelen Linien (z.B. SERM-Kanten mit min = 1).
@@ -10,10 +10,22 @@ const DOUBLE_LINE_SPACING = 4
  * Die Punkte sind bereits unskaliert, der Zoom wirkt über den Canvas.
  */
 class DoubleLineShape extends ConnectorShape {
+  // Mittenabstand wächst mit der Linienbreite, damit die Linien nie verschmelzen
+  private get lineOffset(): number {
+    return (DOUBLE_LINE_GAP + this.strokeWidth) / 2
+  }
+
   override paintLine(c: AbstractCanvas2D, pts: Point[], rounded?: boolean): void {
-    const offset = DOUBLE_LINE_SPACING / 2
+    const offset = this.lineOffset
     super.paintLine(c, offsetPolyline(pts, offset), rounded)
     super.paintLine(c, offsetPolyline(pts, -offset), rounded)
+  }
+
+  // Mit "curved" zeichnet maxGraph über paintCurvedLine statt paintLine
+  override paintCurvedLine(c: AbstractCanvas2D, pts: Point[]): void {
+    const offset = this.lineOffset
+    super.paintCurvedLine(c, offsetPolyline(pts, offset))
+    super.paintCurvedLine(c, offsetPolyline(pts, -offset))
   }
 }
 

@@ -30,6 +30,7 @@
               <DrawingCanvas ref="drawingCanvasRef" :show-elements="previewSidebarVisible" :model="canvasModel" :preview-connection="selectedConnection" :preview-mode="previewMode" :language-connections="connections" :language-elements="elements" :language-syntax="languageSyntaxForCanvas" />
             </div>
             <v-alert v-if="!selectedConnection" type="info" variant="tonal" class="mt-3"> Select a Connection to see a preview </v-alert>
+            <v-alert v-else-if="selectedConnection.allowLooseEnds === false" type="info" variant="tonal" density="comfortable" class="mt-3 flex-0-0"> Loose ends are allowed in the preview. On the canvas, this connection always stays connected. </v-alert>
           </v-card-text>
         </v-card>
       </v-col>
@@ -68,9 +69,8 @@ const selectedConnection = computed<DiagramConnection | undefined>(() => {
 })
 
 // Methods
+// Die Vorschau übernimmt Änderungen selbst (DrawingCanvas beobachtet previewConnection)
 const updateAll = () => {
-  // Update-Logik für die Vorschau (analog zu ElementEditor)
-  debouncedUpdate()
   debouncedStoreUpdate()
 }
 const selectConnection = (connectionIndex: number) => {
@@ -156,17 +156,6 @@ const renderConnectionPreview = () => {
   renderSimpleConnectionPreview(graphInstance, connection)
 }
 
-// Debounced Update für Vorschau und Store
-let updateTimeout: number | null = null
-const debouncedUpdate = () => {
-  if (updateTimeout) {
-    clearTimeout(updateTimeout)
-  }
-  updateTimeout = setTimeout(() => {
-    renderConnectionPreview()
-  }, 150)
-}
-
 const debouncedStoreUpdate = () => {
   if (selectedConnection.value && store.definition) {
     store.updateConnectionInLanguage(selectedConnection.value.type, selectedConnection.value)
@@ -174,26 +163,8 @@ const debouncedStoreUpdate = () => {
 }
 
 // Watchers
-watch(
-  selectedConnection,
-  (newConn) => {
-    if (newConn) {
-      renderConnectionPreview()
-      debouncedUpdate()
-    } else {
-      renderConnectionPreview()
-    }
-  },
-  { immediate: true, deep: true }
-)
-
-watch(
-  previewMode,
-  () => {
-    renderConnectionPreview()
-  },
-  { immediate: true }
-)
+// Neu aufbauen bei anderer Verbindung; Modus und Einstellungen übernimmt DrawingCanvas
+watch(selectedConnectionIndex, () => renderConnectionPreview(), { immediate: true })
 
 // Lifecycle
 onMounted(() => {

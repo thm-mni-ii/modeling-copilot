@@ -121,7 +121,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorHandler, SelectionCellsHandler, SelectionHandler, CellState, EdgeStyle, GraphDataModel, PanningHandler, ImageBox, Client, KeyHandler, TooltipHandler, FitPlugin, Clipboard, ConnectionConstraint } from '@maxgraph/core'
-import { CellHighlight, eventUtils, type MouseListenerSet, type GraphPluginConstructor } from '@maxgraph/core'
+import { CellHighlight, eventUtils, type EdgeStyleFunction, type MouseListenerSet, type GraphPluginConstructor } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { TaskEditSyncState } from '@/utils/taskEdits'
@@ -134,9 +134,9 @@ import { notifyError } from '@/composables/useNotifications'
 import { setupDynamicGrid } from '@/utils/setupDynamicGrid'
 import { StablePanningHandler } from '@/utils/StablePanningHandler'
 import { createDefaultShapes, buildShapesFromElements, ensureGraphDropHandlers } from '@/utils/setupToolbar'
-import { setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
-import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview } from '@/utils/connectionPreview'
-import { CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
+import { isContainerSectionTarget, setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
+import { clearConnectionPreview, isPreviewEdge, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, updateConnectionPreview } from '@/utils/connectionPreview'
+import { AnchorConstraintHandler, CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
 import { setupUndoManager, type UndoManagerApi, type UndoManagerState } from '@/utils/setupUndoManager'
 import { alignHorizontal, alignVertical } from '@/utils/alignCells'
 import { clearValidationWarningOverlays, getGraphValidationMode, isValidationPassActive, setGraphValidationMode } from '@/utils/graphValidationRuntime'
@@ -160,6 +160,8 @@ import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connecti
 import type { DiagramSyntax } from '@/model/Syntax'
 import type { CanvasWindowDefinition, CanvasWindowPatch } from '@/model/CanvasWindow'
 import { buildValidationRulesFromSyntax, DiagramValidator } from '@/utils/multiplicity'
+import { buildContainmentFromSyntax, canContain, type ContainmentMap } from '@/utils/containment'
+import { buildAcyclicFromSyntax, closesCycle, renderAcyclicMessage } from '@/utils/acyclic'
 import type { AutonomyMode } from '@/model/Autonomy'
 import type { DiagramFeedbackConfig, FeedbackCanvasOverlayEntry } from '@/model/Feedback'
 import { createDefaultFeedbackCanvasConfig } from '@/utils/feedbackConfig'
@@ -203,6 +205,12 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
   }
 }
 
+// Containment-Regeln der Syntax, gelesen von MyCustomGraph.isValidDropTarget
+let containment: ContainmentMap = new Map()
+
+// Meldung der Acyclic-Regel, gelesen von MyCustomGraph.validateEdge; null = Zyklen erlaubt
+let acyclicMessage: string | null = null
+
 class MyCustomGraph extends Graph {
   constructor(container: HTMLElement, model?: GraphDataModel, plugins?: GraphPluginConstructor[]) {
     super(container, model, plugins)
@@ -245,7 +253,8 @@ class MyCustomGraph extends Graph {
   }
 
   override isCellEditable = (cell: Cell) => {
-    const allow = (cell as any).allowLabelEdit
+    // Kanten: "Label Editable on Canvas" der Verbindung, Elemente und Zusatzlabels: ihr eigenes allowLabelEdit
+    const allow = cell.isEdge() ? this.getConnectionOf(cell)?.allowLabelEdit : (cell as any).allowLabelEdit
 
     if (allow === false) {
       return false
@@ -256,17 +265,67 @@ class MyCustomGraph extends Graph {
     return super.isCellEditable(cell)
   }
 
+  /**
+   * Nur Container nehmen Elemente auf, und nur die Typen, die die Containment-Regel erlaubt.
+   * MaxGraph akzeptiert sonst jede Zelle mit Kindern, z.B. einen SERM-E-Typ wegen seiner Attributliste.
+   */
+  override isValidDropTarget = (cell: Cell, cells?: Cell[]): boolean => {
+    return !!cell && !cell.isEdge() && (this.isSwimlane(cell) || isContainerSectionTarget(cell)) && canContain(containment, cell, cells ?? [])
+  }
+
+  /**
+   * Kanten nehmen nur Verbindungen an, wenn ihre Verbindung "Connectable Line" erlaubt.
+   * setConnectableEdges(true) gilt sonst für alle Kanten jeder Sprache.
+   */
+  override isValidSource = (cell: Cell | null): boolean => {
+    if (cell?.isEdge() && this.getConnectionOf(cell)?.connectable === false) return false
+    return super.isValidSource(cell)
+  }
+
+  getConnectionOf = (edge: Cell) => languageConnections.value.find((c) => c.type === (edge as any).connectionId)
+
+  // Ohne "Allow Loose Ends" bleibt eine Kante an beiden Enden verbunden; die Vorschau im Editor bleibt frei verformbar
+  allowsLooseEnds = (edge: Cell) => isPreviewEdge(edge) || this.getConnectionOf(edge)?.allowLooseEnds !== false
+
+  // Verschieben der ganzen Kante löst ihre Enden nur, wenn lose Enden erlaubt sind
+  override disconnectGraph = (cells: Cell[]) => {
+    super.disconnectGraph(cells.filter((cell) => !cell.isEdge() || this.allowsLooseEnds(cell)))
+  }
+
+  /**
+   * Umhängen von Kantenenden rastet wie neue Kanten ein (Connection Docking des Elements).
+   * outline = false: maxGraph setzt es fest auf true und legt das Ende sonst an die Mausposition, auch mitten ins Element.
+   */
+  override createEdgeHandler = (state: CellState, edgeStyle: EdgeStyleFunction | null) => {
+    const handler = super.createEdgeHandler(state, edgeStyle)
+    handler.constraintHandler.onDestroy()
+    handler.constraintHandler = new AnchorConstraintHandler(this)
+    handler.outline = false
+    // Ein Ende ins Leere ziehen springt ohne "Allow Loose Ends" zurück
+    const changeTerminalPoint = handler.changeTerminalPoint.bind(handler)
+    handler.changeTerminalPoint = (edge, point, isSource, clone) => (this.allowsLooseEnds(edge) ? changeTerminalPoint(edge, point, isSource, clone) : edge)
+    return handler
+  }
+
   override convertValueToString = (cell: Cell) => {
     return super.convertValueToString(cell)
   }
 
   override getEdgeValidationError = (edge: Cell | null, source: Cell | null, target: Cell | null): string | null => {
+    // Nicht andockbare Kanten sperren in jedem Modus, auch beim Umhängen eines Kantenendes
+    if ((source?.isEdge() && !this.isValidSource(source)) || (target?.isEdge() && !this.isValidTarget(target))) return ''
     const error = super.getEdgeValidationError(edge, source, target)
     const mode = getGraphValidationMode(this)
     if (mode === 'preventive') {
       return error
     }
     return isValidationPassActive(this) ? error : null
+  }
+
+  // Natives validateEdge (aufgerufen aus getEdgeValidationError): Kante darf keinen Zyklus schließen
+  override validateEdge = (edge: Cell, source: Cell, target: Cell): string | null => {
+    if (!acyclicMessage || source.isEdge() || target.isEdge() || !closesCycle(edge, source, target)) return super.validateEdge(edge, source, target)
+    return renderAcyclicMessage(acyclicMessage, source, target)
   }
 
   private overlayAddedCallback?: (cell: Cell, overlay: CellOverlay) => void
@@ -510,6 +569,8 @@ const applyValidationRulesToGraph = () => {
 }
 
 const rebuildValidationRules = (rules?: DiagramSyntax[]) => {
+  containment = buildContainmentFromSyntax(rules)
+  acyclicMessage = buildAcyclicFromSyntax(rules)
   const validationRules = buildValidationRulesFromSyntax(rules ?? [])
   diagramValidator.addRules(validationRules)
   applyValidationRulesToGraph()
@@ -808,13 +869,14 @@ onUnmounted(() => {
   graph.value = undefined
 })
 
-// Watch für previewConnection (nur für Preview-Modus)
+// Watch für previewConnection (nur für Preview-Modus): Änderungen in die bestehende Vorschau übernehmen,
+// damit verschobene Elemente an ihrem Platz bleiben. Neu aufgebaut wird nur ohne vorhandene Vorschau.
 watch(
   () => props.previewConnection,
   (newConn) => {
-    if (graph.value) {
-      renderConnectionPreviewOnly(newConn)
-    }
+    if (!graph.value) return
+    if (newConn && updateConnectionPreview(graph.value, newConn)) return
+    renderConnectionPreviewOnly(newConn)
   },
   { immediate: true, deep: true }
 )
