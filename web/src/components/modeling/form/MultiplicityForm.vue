@@ -85,15 +85,15 @@
                   </v-btn-toggle>
                 </td>
                 <td class="refinement-cell refinement-sep text-center">
-                  <v-btn variant="elevated" class="matrix-button rounded-lg" :class="connectionTypeCellClass(relation, '__all__')" size="small" :disabled="!hasLanguageVersion" @click="setAllConnectionTypes(relation)">
+                  <v-btn variant="elevated" class="matrix-button rounded-lg" :class="connectionTypeCellClass(relation.refinement.connectionTypes, '__all__')" size="small" :disabled="!hasLanguageVersion" @click="setAllConnectionTypes(relation)">
                     <v-icon size="16">mdi-select-all</v-icon>
                   </v-btn>
                 </td>
                 <td v-for="connectionType in connectionOptions" :key="`type-cell-${relationKey(relation.sourceType, relation.targetType)}-${connectionType}`" class="refinement-cell text-center">
                   <v-tooltip :text="`${relation.sourceType} → ${relation.targetType} (${connectionType})`" location="bottom">
                     <template #activator="{ props: typeProps }">
-                      <v-btn v-bind="typeProps" variant="elevated" class="matrix-button rounded-lg" :class="connectionTypeCellClass(relation, connectionType)" size="small" :disabled="!hasLanguageVersion" @click="toggleConnectionType(relation, connectionType)">
-                        <v-icon size="16">{{ connectionTypeCellIcon(relation, connectionType) }}</v-icon>
+                      <v-btn v-bind="typeProps" variant="elevated" class="matrix-button rounded-lg" :class="connectionTypeCellClass(relation.refinement.connectionTypes, connectionType)" size="small" :disabled="!hasLanguageVersion" @click="toggleConnectionType(relation, connectionType)">
+                        <v-icon size="16">{{ connectionTypeCellIcon(relation.refinement.connectionTypes, connectionType) }}</v-icon>
                       </v-btn>
                     </template>
                   </v-tooltip>
@@ -108,36 +108,80 @@
     <section class="d-flex flex-column ga-3 refinement-section">
       <div class="d-flex align-center font-weight-semibold text-h6 mb-0">
         <v-icon color="primary" class="mr-2">mdi-arrow-collapse-right</v-icon>
-        <span>Incoming Edges</span>
+        <span>Incoming / Outgoing Edges</span>
       </div>
 
-      <v-alert v-if="incomingTargetTypes.length === 0" type="info" variant="tonal" class="mt-3"> Mark at least one Connection as <strong>allowed</strong> in the matrix to limit incoming Connections. </v-alert>
+      <p class="text-body-2 text-medium-emphasis mb-1">Each rule counts the Connections at an Element in the chosen direction; <strong>Both</strong> ignores the direction. Empty fields match everything, <strong>All</strong> = all Connection types; min <strong>0</strong> and empty max = no restriction.</p>
 
-      <template v-else>
-        <p class="text-body-2 text-medium-emphasis mb-1">Number of incoming Connections per target Element, counted across all source types. Min <strong>0</strong> and empty max = no restriction.</p>
-        <v-sheet class="matrix-wrapper elevation-1 rounded-lg bg-white" border>
-          <v-table density="compact" class="incoming-matrix">
-            <thead>
+      <v-sheet v-if="edgeRules.length" class="matrix-wrapper elevation-1 rounded-lg bg-white" border>
+        <v-table density="compact" class="refinement-matrix">
+          <thead>
+            <tr>
+              <th class="refinement-corner">Element</th>
+              <th class="refinement-kard-header">Direction</th>
+              <th class="refinement-kard-header">Other End</th>
+              <th class="refinement-kard-header">Min</th>
+              <th class="refinement-kard-header">Max</th>
+              <th class="refinement-sep text-center">All</th>
+              <th v-for="connectionType in connectionOptions" :key="`edge-type-head-${connectionType}`" class="text-center">
+                {{ connectionType }}
+              </th>
+              <th class="refinement-sep" />
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="(entry, index) in edgeRules" :key="`edge-rule-${index}`">
               <tr>
-                <th class="refinement-corner">Element</th>
-                <th class="refinement-kard-header">Min</th>
-                <th class="refinement-kard-header">Max</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="elementType in incomingTargetTypes" :key="`incoming-${elementType}`">
-                <th class="refinement-header">{{ elementType }}</th>
-                <td class="refinement-cell">
-                  <v-text-field type="number" min="0" density="compact" variant="outlined" hide-details class="incoming-field" :model-value="incomingCardinality(elementType).min" :disabled="!hasLanguageVersion" @update:model-value="(value: string) => setIncomingMin(elementType, value)" />
+                <td class="refinement-header">
+                  <v-select :model-value="entry.elementType || null" :items="elementOptions" placeholder="Any" clearable density="compact" variant="outlined" hide-details class="edge-select" :disabled="!hasLanguageVersion" @update:model-value="(type: string | null) => setEdgeRuleField(entry, 'elementType', type ?? '')" />
+                </td>
+                <td class="refinement-cell refinement-cell--cardinality">
+                  <v-btn-toggle density="compact" mandatory rounded="lg" :model-value="entry.direction ?? 'incoming'" :disabled="!hasLanguageVersion" @update:model-value="(direction: EdgeDirection) => setEdgeRuleField(entry, 'direction', direction)">
+                    <v-btn v-for="direction in edgeDirections" :key="direction.value" :value="direction.value" size="x-small" class="preset-btn">{{ direction.label }}</v-btn>
+                  </v-btn-toggle>
                 </td>
                 <td class="refinement-cell">
-                  <v-text-field type="number" min="0" density="compact" variant="outlined" hide-details placeholder="*" class="incoming-field" :model-value="incomingCardinality(elementType).max ?? ''" :error="isIncomingMaxInvalid(elementType)" :disabled="!hasLanguageVersion" @update:model-value="(value: string) => setIncomingMax(elementType, value)" />
+                  <v-select :model-value="entry.neighborTypes ?? []" :items="elementOptions" placeholder="Any" multiple chips closable-chips density="compact" variant="outlined" hide-details class="edge-select" :disabled="!hasLanguageVersion" @update:model-value="(types: string[]) => setEdgeRuleField(entry, 'neighborTypes', types)" />
+                </td>
+                <td class="refinement-cell">
+                  <v-text-field type="number" min="0" density="compact" variant="outlined" hide-details class="incoming-field" :model-value="entry.cardinality.min" :disabled="!hasLanguageVersion" @update:model-value="(value: string) => setEdgeRuleMin(entry, value)" />
+                </td>
+                <td class="refinement-cell">
+                  <v-text-field type="number" min="0" density="compact" variant="outlined" hide-details placeholder="*" class="incoming-field" :model-value="entry.cardinality.max ?? ''" :error="isEdgeRuleMaxInvalid(entry)" :disabled="!hasLanguageVersion" @update:model-value="(value: string) => setEdgeRuleMax(entry, value)" />
+                </td>
+                <td class="refinement-cell refinement-sep text-center">
+                  <v-btn variant="elevated" class="matrix-button rounded-lg" :class="connectionTypeCellClass(entry.connectionTypes ?? [], '__all__')" size="small" :disabled="!hasLanguageVersion" @click="setEdgeRuleField(entry, 'connectionTypes', [])">
+                    <v-icon size="16">mdi-select-all</v-icon>
+                  </v-btn>
+                </td>
+                <td v-for="connectionType in connectionOptions" :key="`edge-type-cell-${index}-${connectionType}`" class="refinement-cell text-center">
+                  <v-btn variant="elevated" class="matrix-button rounded-lg" :class="connectionTypeCellClass(entry.connectionTypes ?? [], connectionType)" size="small" :disabled="!hasLanguageVersion" @click="setEdgeRuleField(entry, 'connectionTypes', toggledConnectionTypes(entry.connectionTypes ?? [], connectionType))">
+                    <v-icon size="16">{{ connectionTypeCellIcon(entry.connectionTypes ?? [], connectionType) }}</v-icon>
+                  </v-btn>
+                </td>
+                <td class="refinement-cell refinement-sep text-no-wrap">
+                  <v-tooltip text="Error Message" location="bottom">
+                    <template #activator="{ props: messageProps }">
+                      <v-btn v-bind="messageProps" :icon="entry.messageTemplate ? 'mdi-message-text' : 'mdi-message-text-outline'" variant="text" size="small" :color="entry.messageTemplate ? 'primary' : undefined" @click="toggleEdgeRuleMessage(index)" />
+                    </template>
+                  </v-tooltip>
+                  <v-btn icon="mdi-delete-outline" variant="text" size="small" :disabled="!hasLanguageVersion" @click="removeEdgeRule(index)" />
                 </td>
               </tr>
-            </tbody>
-          </v-table>
-        </v-sheet>
-      </template>
+              <!-- Eigene Meldung aufgeklappt unter der Regel, damit die Zeile schmal bleibt -->
+              <tr v-if="openEdgeRuleMessages.has(index)">
+                <td class="refinement-cell text-left" :colspan="connectionOptions.length + 7">
+                  <v-text-field :model-value="entry.messageTemplate ?? ''" label="Error Message for this rule" placeholder="Empty = Error Message Template below" density="compact" variant="outlined" hide-details class="edge-message" :disabled="!hasLanguageVersion" @update:model-value="(value: string) => setEdgeRuleField(entry, 'messageTemplate', value)" />
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </v-table>
+      </v-sheet>
+
+      <div>
+        <v-btn prepend-icon="mdi-plus" variant="tonal" color="primary" size="small" :disabled="!hasLanguageVersion || elementOptions.length === 0" @click="addEdgeRule">Add Rule</v-btn>
+      </div>
     </section>
 
     <section class="d-flex flex-column ga-3">
@@ -161,9 +205,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
-import type { MultiplicityCardinality, MultiplicityConfig, MultiplicityRelation, MultiplicityRelationState } from '@/model/Syntax'
+import type { EdgeCardinality, EdgeDirection, MultiplicityConfig, MultiplicityRelation, MultiplicityRelationState } from '@/model/Syntax'
 
 type RelationState = MultiplicityRelationState | 'unset'
 
@@ -239,9 +283,13 @@ const cycleRelationState = (source: string, target: string) => {
   emitUpdate()
 }
 
-const usesAllConnectionTypes = (relation: MultiplicityRelation): boolean => relation.refinement.connectionTypes.length === 0
-
-const isConnectionTypeSelected = (relation: MultiplicityRelation, connectionType: string): boolean => relation.refinement.connectionTypes.includes(connectionType)
+// Auswahl der Verbindungstypen für Refinement und Kantenregeln; leere Liste = alle Typen
+const toggledConnectionTypes = (types: string[], connectionType: string): string[] => {
+  if (types.length === 0) return [connectionType]
+  const next = types.includes(connectionType) ? types.filter((entry) => entry !== connectionType) : [...types, connectionType]
+  // Reihenfolge der Sprache, damit Aus- und wieder Einschalten den gespeicherten Stand ergibt; unbekannte Typen bleiben hinten
+  return [...connectionOptions.value.filter((entry) => next.includes(entry)), ...next.filter((entry) => !connectionOptions.value.includes(entry))]
+}
 
 const setAllConnectionTypes = (relation: MultiplicityRelation) => {
   relation.refinement.connectionTypes = []
@@ -249,37 +297,25 @@ const setAllConnectionTypes = (relation: MultiplicityRelation) => {
 }
 
 const toggleConnectionType = (relation: MultiplicityRelation, connectionType: string) => {
-  if (usesAllConnectionTypes(relation)) {
-    relation.refinement.connectionTypes = [connectionType]
-    emitUpdate()
-    return
-  }
-
-  if (isConnectionTypeSelected(relation, connectionType)) {
-    relation.refinement.connectionTypes = relation.refinement.connectionTypes.filter((entry) => entry !== connectionType)
-  } else {
-    relation.refinement.connectionTypes = [...relation.refinement.connectionTypes, connectionType]
-  }
-
-  relation.refinement.connectionTypes = [...new Set(relation.refinement.connectionTypes)]
+  relation.refinement.connectionTypes = toggledConnectionTypes(relation.refinement.connectionTypes, connectionType)
   emitUpdate()
 }
 
-const connectionTypeCellClass = (relation: MultiplicityRelation, connectionType: string): string => {
+const connectionTypeCellClass = (types: string[], connectionType: string): string => {
   if (connectionType === '__all__') {
-    return usesAllConnectionTypes(relation) ? 'matrix-button--allowed' : 'matrix-button--unset'
+    return types.length === 0 ? 'matrix-button--allowed' : 'matrix-button--unset'
   }
 
-  if (usesAllConnectionTypes(relation)) {
+  if (types.length === 0) {
     return 'matrix-button--all'
   }
 
-  return isConnectionTypeSelected(relation, connectionType) ? 'matrix-button--allowed' : 'matrix-button--unset'
+  return types.includes(connectionType) ? 'matrix-button--allowed' : 'matrix-button--unset'
 }
 
-const connectionTypeCellIcon = (relation: MultiplicityRelation, connectionType: string): string => {
-  if (usesAllConnectionTypes(relation)) return 'mdi-check-all'
-  return isConnectionTypeSelected(relation, connectionType) ? 'mdi-check' : 'mdi-minus'
+const connectionTypeCellIcon = (types: string[], connectionType: string): string => {
+  if (types.length === 0) return 'mdi-check-all'
+  return types.includes(connectionType) ? 'mdi-check' : 'mdi-minus'
 }
 
 const isCardinalityPresetSelected = (relation: MultiplicityRelation, preset: CardinalityPreset): boolean => relation.refinement.cardinality.min === preset.min && relation.refinement.cardinality.max === preset.max
@@ -318,34 +354,54 @@ const sortedRelations = computed(() => {
 
 const allowedRelations = computed(() => sortedRelations.value.filter((relation) => relation.state === 'allowed'))
 
-// Eingehende Kanten: nur Elemente, in die laut Matrix eine Verbindung führen darf
-const incomingTargetTypes = computed(() => elementOptions.value.filter((elementType) => allowedRelations.value.some((relation) => relation.targetType === elementType)))
+// Kantenregeln liegen weiter unter config.incoming, damit gespeicherte Sprachen gültig bleiben
+const edgeRules = computed(() => props.config.incoming ?? [])
 
-const incomingCardinality = (elementType: string): MultiplicityCardinality => props.config.incoming?.find((entry) => entry.elementType === elementType)?.cardinality ?? { min: 0, max: null }
+const edgeDirections: { value: EdgeDirection; label: string }[] = [
+  { value: 'incoming', label: 'In' },
+  { value: 'outgoing', label: 'Out' },
+  { value: 'both', label: 'Both' }
+]
 
-// 0..* entfernt den Eintrag, damit bleibt das bisherige Verhalten der Standard
-const setIncomingCardinality = (elementType: string, cardinality: MultiplicityCardinality) => {
-  const incoming = (props.config.incoming ?? []).filter((entry) => entry.elementType !== elementType)
-  if (cardinality.min > 0 || cardinality.max !== null) incoming.push({ elementType, cardinality })
-  Object.assign(props.config, { incoming })
+const addEdgeRule = () => {
+  Object.assign(props.config, { incoming: [...edgeRules.value, { elementType: '', cardinality: { min: 0, max: null } }] })
   emitUpdate()
 }
 
-const setIncomingMin = (elementType: string, value: string) => {
-  const min = Math.max(0, Number.parseInt(value, 10) || 0)
-  setIncomingCardinality(elementType, { min, max: incomingCardinality(elementType).max })
+// Zeilen mit aufgeklappter eigener Meldung
+const openEdgeRuleMessages = ref(new Set<number>())
+
+const toggleEdgeRuleMessage = (index: number) => {
+  const open = new Set(openEdgeRuleMessages.value)
+  if (!open.delete(index)) open.add(index)
+  openEdgeRuleMessages.value = open
+}
+
+const removeEdgeRule = (index: number) => {
+  Object.assign(props.config, { incoming: edgeRules.value.filter((_, entryIndex) => entryIndex !== index) })
+  openEdgeRuleMessages.value = new Set()
+  emitUpdate()
+}
+
+// Standardwerte entfernen das Feld, damit Umstellen und Zurückstellen den gespeicherten Stand ergibt
+const setEdgeRuleField = <K extends keyof EdgeCardinality>(entry: EdgeCardinality, field: K, value: EdgeCardinality[K]) => {
+  const isDefault = (field === 'direction' && value === 'incoming') || (field === 'messageTemplate' && value === '') || (Array.isArray(value) && value.length === 0)
+  if (isDefault) Reflect.deleteProperty(entry, field)
+  else entry[field] = value
+  emitUpdate()
+}
+
+const setEdgeRuleMin = (entry: EdgeCardinality, value: string) => {
+  setEdgeRuleField(entry, 'cardinality', { min: Math.max(0, Number.parseInt(value, 10) || 0), max: entry.cardinality.max })
 }
 
 // Leeres Feld = unbegrenzt (*); max < min wird am Feld markiert statt beim Tippen korrigiert
-const setIncomingMax = (elementType: string, value: string) => {
+const setEdgeRuleMax = (entry: EdgeCardinality, value: string) => {
   const parsed = Number.parseInt(value, 10)
-  setIncomingCardinality(elementType, { min: incomingCardinality(elementType).min, max: Number.isNaN(parsed) ? null : Math.max(0, parsed) })
+  setEdgeRuleField(entry, 'cardinality', { min: entry.cardinality.min, max: Number.isNaN(parsed) ? null : Math.max(0, parsed) })
 }
 
-const isIncomingMaxInvalid = (elementType: string): boolean => {
-  const { min, max } = incomingCardinality(elementType)
-  return max !== null && max < min
-}
+const isEdgeRuleMaxInvalid = (entry: EdgeCardinality): boolean => entry.cardinality.max !== null && entry.cardinality.max < entry.cardinality.min
 
 watch(
   () => props.config.messageTemplate,
@@ -463,14 +519,21 @@ const uiStructureExampleJson = computed(() => JSON.stringify(uiStructureExample.
   border-spacing: 0;
 }
 
-.incoming-matrix {
-  width: max-content;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
 .incoming-field {
   width: 90px;
+}
+
+.edge-select {
+  min-width: 240px;
+}
+
+/* Bleibt beim horizontalen Scrollen links sichtbar, über der festen Element-Spalte */
+.edge-message {
+  position: sticky;
+  left: 12px;
+  z-index: 3;
+  max-width: 560px;
+  background: #ffffff;
 }
 
 .refinement-matrix thead th {

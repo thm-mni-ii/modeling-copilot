@@ -1,5 +1,5 @@
 import { InternalEvent, Multiplicity, type Cell, type Graph } from '@maxgraph/core'
-import type { DiagramSyntax, IncomingCardinality, MultiplicityRelation } from '@/model/Syntax'
+import type { DiagramSyntax, EdgeCardinality, MultiplicityRelation } from '@/model/Syntax'
 import { setValidationPassActive } from '@/utils/graphValidationRuntime'
 
 export type ValidationCheckType = 'ElementCheck' | 'ConnectionCheck' | 'MultiplicityCheck'
@@ -213,51 +213,87 @@ class DiagramMultiplicity extends Multiplicity {
   }
 }
 
-// Eingehende Kanten pro Elementtyp über das native Multiplicity mit source = false
-class DiagramIncomingMultiplicity extends Multiplicity {
-  readonly entry: IncomingCardinality
+// Kanten eines Elements über das native Multiplicity: source = ausgehend, validNeighbors = Elementtypen am anderen Ende
+class DiagramEdgeMultiplicity extends Multiplicity {
+  readonly entry: EdgeCardinality
 
   private readonly messageTemplate: string
 
-  constructor(entry: IncomingCardinality, messageTemplate: string) {
-    super(false, entry.elementType, null, null, entry.cardinality.min, entry.cardinality.max ?? Number.MAX_VALUE, [], '', '', true)
+  constructor(entry: EdgeCardinality, messageTemplate: string) {
+    super(entry.direction === 'outgoing', entry.elementType, null, null, entry.cardinality.min, entry.cardinality.max ?? Number.MAX_VALUE, entry.neighborTypes ?? [], '', '', true)
     this.entry = entry
-    this.messageTemplate = messageTemplate.trim().length > 0 ? messageTemplate : DEFAULT_MESSAGE_TEMPLATE
+    const ruleTemplate = messageTemplate.trim().length > 0 ? messageTemplate : DEFAULT_MESSAGE_TEMPLATE
+    this.messageTemplate = entry.messageTemplate?.trim() || ruleTemplate
   }
 
-  private renderMessage(): string {
-    const { min, max } = this.entry.cardinality
-    return `${fillTemplate(this.messageTemplate, { source: '*', target: this.entry.elementType, connection: '*', min, max: asMaxLabel(max) })}\n`
+  private get direction() {
+    return this.entry.direction ?? 'incoming'
   }
 
-  private countIncoming(cell: Cell): number {
-    const target = cell.getEdgeCount() > 0 ? cell : findTypedCell(cell) ?? cell
+  // Ohne Elementtyp gilt die Regel für jede verbindbare Zelle mit eigenem Typ, nicht für Kinder wie die SERM-Attributliste
+  private matchesElement(cell: Cell): boolean {
+    const typedCell = findTypedCell(cell)
+    if (!typedCell) return false
+    return this.entry.elementType ? getElementType(typedCell) === this.entry.elementType : typedCell === cell && cell.isConnectable()
+  }
+
+  // Terminals werden übergeben, weil die gerade gezogene Kante noch keine hat
+  private matchesEdge(edge: Cell, source: Cell | null, target: Cell | null, cell: Cell): boolean {
+    if (!source || !target) return false
+    const isSource = source === cell
+    const isTarget = target === cell
+    if (this.direction === 'incoming' ? !isTarget : this.direction === 'outgoing' ? !isSource : !isSource && !isTarget) return false
+
+    const connectionTypes = this.entry.connectionTypes ?? []
+    if (connectionTypes.length > 0 && !connectionTypes.includes(getConnectionType(edge) ?? '')) return false
+
+    const neighborTypes = this.entry.neighborTypes ?? []
+    const neighbor = this.direction === 'incoming' || (this.direction === 'both' && !isSource) ? source : target
+    return neighborTypes.length === 0 || neighborTypes.includes(getElementType(neighbor) ?? '')
+  }
+
+  private countEdges(cell: Cell, ignoredEdge?: Cell | null): number {
+    const terminal = cell.getEdgeCount() > 0 ? cell : findTypedCell(cell) ?? cell
     let count = 0
-    for (let index = 0; index < target.getEdgeCount(); index += 1) {
-      const edge = target.getEdgeAt(index)
-      if (edge?.isEdge() && edge.getTerminal(false) === target && edge.getTerminal(true)) count += 1
+    for (let index = 0; index < terminal.getEdgeCount(); index += 1) {
+      const edge = terminal.getEdgeAt(index)
+      if (edge?.isEdge() && edge !== ignoredEdge && this.matchesEdge(edge, edge.getTerminal(true), edge.getTerminal(false), terminal)) count += 1
     }
     return count
   }
 
-  // Natives check zählt targetIn, vergleicht den Typ aber per value === type (und ruft checkTerminal mit vertauschten Argumenten)
-  override check(_graph: Graph, _edge: Cell, _source: Cell, target: Cell, _sourceOut: number, targetIn: number): string | null {
-    if (getElementType(target) !== this.entry.elementType || this.entry.cardinality.max === null) return null
-    return targetIn >= this.entry.cardinality.max ? this.renderMessage() : null
+  private renderMessage(cell: Cell): string {
+    const { min, max } = this.entry.cardinality
+    const elementType = getElementType(cell) ?? '*'
+    const neighbors = this.entry.neighborTypes?.length ? this.entry.neighborTypes.join(', ') : '*'
+    const connection = this.entry.connectionTypes?.length ? this.entry.connectionTypes.join(', ') : '*'
+    const incoming = this.direction === 'incoming'
+    return `${fillTemplate(this.messageTemplate, { source: incoming ? neighbors : elementType, target: incoming ? elementType : neighbors, connection, min, max: asMaxLabel(max) })}\n`
+  }
+
+  // Natives check zählt alle Kanten und vergleicht den Typ per value === type, daher eigene Zählung mit Filtern
+  override check(_graph: Graph, edge: Cell, source: Cell, target: Cell): string | null {
+    const { max } = this.entry.cardinality
+    if (max === null) return null
+    const terminals = this.direction === 'incoming' ? [target] : this.direction === 'outgoing' ? [source] : [...new Set([source, target])]
+    for (const cell of terminals) {
+      if (this.matchesElement(cell) && this.matchesEdge(edge, source, target, cell) && this.countEdges(cell, edge) >= max) return this.renderMessage(cell)
+    }
+    return null
   }
 
   checkTerminalCardinality(cell: Cell): string | null {
-    if (getElementType(cell) !== this.entry.elementType) return null
-    const count = this.countIncoming(cell)
+    if (!this.matchesElement(cell)) return null
+    const count = this.countEdges(cell)
     const { min, max } = this.entry.cardinality
-    return count < min || (max !== null && count > max) ? this.renderMessage() : null
+    return count < min || (max !== null && count > max) ? this.renderMessage(cell) : null
   }
 }
 
 class MultiplicityValidationRule extends DiagramValidationRule {
-  readonly multiplicities: (DiagramMultiplicity | DiagramIncomingMultiplicity)[]
+  readonly multiplicities: (DiagramMultiplicity | DiagramEdgeMultiplicity)[]
 
-  constructor(multiplicities: (DiagramMultiplicity | DiagramIncomingMultiplicity)[]) {
+  constructor(multiplicities: (DiagramMultiplicity | DiagramEdgeMultiplicity)[]) {
     super('MultiplicityCheck')
     this.multiplicities = multiplicities
   }
@@ -340,7 +376,7 @@ export const buildValidationRulesFromSyntax = (rules: DiagramSyntax[] | null | u
     return []
   }
 
-  const multiplicities: (DiagramMultiplicity | DiagramIncomingMultiplicity)[] = []
+  const multiplicities: (DiagramMultiplicity | DiagramEdgeMultiplicity)[] = []
 
   for (const rule of rules) {
     if (rule.ruleType !== 'multiplicity') continue
@@ -352,7 +388,7 @@ export const buildValidationRulesFromSyntax = (rules: DiagramSyntax[] | null | u
     }
 
     for (const entry of rule.config.incoming ?? []) {
-      multiplicities.push(new DiagramIncomingMultiplicity(entry, template))
+      multiplicities.push(new DiagramEdgeMultiplicity(entry, template))
     }
   }
 

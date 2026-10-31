@@ -18,17 +18,28 @@ export interface MultiplicityRelation {
   refinement: MultiplicityRefinement
 }
 
-/** Eingehende Kanten pro Elementtyp, über alle Quelltypen gezählt */
-export interface IncomingCardinality {
+export type EdgeDirection = 'incoming' | 'outgoing' | 'both'
+
+/** Zahl der Kanten eines Elements in einer Richtung; leere Felder passen auf alles */
+export interface EdgeCardinality {
+  /** Leer = jedes Element */
   elementType: string
+  /** Ohne Angabe eingehend; both = egal, welches Kantenende am Element hängt */
+  direction?: EdgeDirection
+  /** Leer = alle Verbindungstypen */
+  connectionTypes?: string[]
+  /** Elementtypen am anderen Kantenende; leer = alle */
+  neighborTypes?: string[]
   cardinality: MultiplicityCardinality
+  /** Leer = Template der Regel */
+  messageTemplate?: string
 }
 
 export interface MultiplicityConfig {
   messageTemplate: string
   relations: MultiplicityRelation[]
-  /** Ohne Eintrag ist die Zahl eingehender Kanten frei */
-  incoming?: IncomingCardinality[]
+  /** Kantenregeln pro Element; der Name bleibt, damit gespeicherte Sprachen gültig bleiben */
+  incoming?: EdgeCardinality[]
 }
 
 export interface MultiplicityRule {
