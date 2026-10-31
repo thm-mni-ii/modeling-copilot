@@ -22,6 +22,7 @@ api/openapi.json
 dagu/workflows/.dag.index
 
 # Personal development suite and assistant configuration
+/AGENTS.md
 /.local/
 /.codex/
 /.agents/
