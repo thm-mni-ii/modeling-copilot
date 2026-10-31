@@ -263,6 +263,100 @@
       "canvas": "RECT 0 0 1 1\nMOVE 0.16 0\nLINE 0 0.5\nLINE 0.16 1\nMOVE 0.84 0\nLINE 1 0.5\nLINE 0.84 1"
     },
     {
+      "type": "serm-generalization",
+      "defaultLabel": "",
+      "renderMode": "canvas2d",
+      "x": 50,
+      "y": 50,
+      "width": 50,
+      "height": 50,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "foldable": false,
+        "spacingTop": 4
+      },
+      "anchorPoints": [
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 1,
+          "y": 0
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 1,
+          "y": 1
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": false,
+      "movable": true,
+      "allowLabelEdit": false,
+      "predefinedShape": "triangle",
+      "canvas": "MOVE 0 0.5\nLINE 1 0\nLINE 1 1\nLINE 0 0.5"
+    },
+    {
+      "type": "serm-generalization-disjoint",
+      "defaultLabel": "",
+      "renderMode": "canvas2d",
+      "x": 50,
+      "y": 50,
+      "width": 50,
+      "height": 50,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "foldable": false,
+        "spacingTop": 4
+      },
+      "anchorPoints": [
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 1,
+          "y": 0
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 1,
+          "y": 1
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": false,
+      "movable": true,
+      "allowLabelEdit": false,
+      "predefinedShape": "triangle",
+      "canvas": "MOVE 0 0.5\nLINE 1 0\nLINE 1 1\nLINE 0 0.5\nELLIPSE 0.5 0.37 0.26 0.26\nLINE 0.49 0.64 0.77 0.36"
+    },
+    {
       "type": "serm-attribute",
       "defaultLabel": "Attribute",
       "renderMode": "predefined",
@@ -295,11 +389,10 @@
     {
       "type": "serm-0-1",
       "label": "(0,1)",
-      "defaultLabel": "",
       "connectionType": "0-1",
       "connectable": false,
       "allowLooseEnds": false,
-      "allowLabelEdit": false,
+      "allowLabelEdit": true,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -318,18 +411,20 @@
         "edgeStyle": "sideToSideEdgeStyle",
         "curved": true,
         "rounded": true,
-        "noLabel": true
+        "noLabel": false
       },
-      "additionalLabels": []
+      "additionalLabels": [],
+      "labelOffset": {
+        "y": 6
+      }
     },
     {
       "type": "serm-0-n",
       "label": "(0,*)",
-      "defaultLabel": "",
       "connectionType": "0-n",
       "connectable": false,
       "allowLooseEnds": false,
-      "allowLabelEdit": false,
+      "allowLabelEdit": true,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -348,18 +443,20 @@
         "edgeStyle": "sideToSideEdgeStyle",
         "curved": true,
         "rounded": true,
-        "noLabel": true
+        "noLabel": false
       },
-      "additionalLabels": []
+      "additionalLabels": [],
+      "labelOffset": {
+        "y": 6
+      }
     },
     {
       "type": "serm-1-1",
       "label": "(1,1)",
-      "defaultLabel": "",
       "connectionType": "1-1",
       "connectable": false,
       "allowLooseEnds": false,
-      "allowLabelEdit": false,
+      "allowLabelEdit": true,
       "style": {
         "shape": "doubleLine",
         "strokeColor": "#000000",
@@ -379,18 +476,20 @@
         "edgeStyle": "sideToSideEdgeStyle",
         "curved": true,
         "rounded": true,
-        "noLabel": true
+        "noLabel": false
       },
-      "additionalLabels": []
+      "additionalLabels": [],
+      "labelOffset": {
+        "y": 6
+      }
     },
     {
       "type": "serm-1-n",
       "label": "(1,*)",
-      "defaultLabel": "",
       "connectionType": "1-n",
       "connectable": false,
       "allowLooseEnds": false,
-      "allowLabelEdit": false,
+      "allowLabelEdit": true,
       "style": {
         "shape": "doubleLine",
         "strokeColor": "#000000",
@@ -412,9 +511,12 @@
         "edgeStyle": "sideToSideEdgeStyle",
         "curved": true,
         "rounded": true,
-        "noLabel": true
+        "noLabel": false
       },
-      "additionalLabels": []
+      "additionalLabels": [],
+      "labelOffset": {
+        "y": 6
+      }
     }
   ],
   "syntax": [
@@ -440,7 +542,12 @@
             "targetType": "serm-er",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "0-1",
+                "0-n",
+                "1-1",
+                "1-n"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -452,7 +559,42 @@
             "targetType": "serm-relationship",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "0-1",
+                "0-n",
+                "1-1",
+                "1-n"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-entity",
+            "targetType": "serm-generalization",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "0-1",
+                "1-1"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-entity",
+            "targetType": "serm-generalization-disjoint",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "0-1",
+                "1-1"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -476,7 +618,12 @@
             "targetType": "serm-er",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "0-1",
+                "0-n",
+                "1-1",
+                "1-n"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -487,6 +634,35 @@
             "sourceType": "serm-er",
             "targetType": "serm-relationship",
             "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "0-1",
+                "0-n",
+                "1-1",
+                "1-n"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-er",
+            "targetType": "serm-generalization",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-er",
+            "targetType": "serm-generalization-disjoint",
+            "state": "forbidden",
             "refinement": {
               "connectionTypes": [],
               "cardinality": {
@@ -522,6 +698,154 @@
           {
             "sourceType": "serm-relationship",
             "targetType": "serm-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-relationship",
+            "targetType": "serm-generalization",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-relationship",
+            "targetType": "serm-generalization-disjoint",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-generalization",
+            "targetType": "serm-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-generalization",
+            "targetType": "serm-er",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "0-1"
+              ],
+              "cardinality": {
+                "min": 2,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-generalization",
+            "targetType": "serm-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-generalization",
+            "targetType": "serm-generalization",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-generalization",
+            "targetType": "serm-generalization-disjoint",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-generalization-disjoint",
+            "targetType": "serm-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-generalization-disjoint",
+            "targetType": "serm-er",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "0-1"
+              ],
+              "cardinality": {
+                "min": 2,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-generalization-disjoint",
+            "targetType": "serm-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-generalization-disjoint",
+            "targetType": "serm-generalization",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-generalization-disjoint",
+            "targetType": "serm-generalization-disjoint",
             "state": "forbidden",
             "refinement": {
               "connectionTypes": [],
@@ -545,6 +869,20 @@
             "cardinality": {
               "min": 2,
               "max": null
+            }
+          },
+          {
+            "elementType": "serm-generalization",
+            "cardinality": {
+              "min": 1,
+              "max": 1
+            }
+          },
+          {
+            "elementType": "serm-generalization-disjoint",
+            "cardinality": {
+              "min": 1,
+              "max": 1
             }
           }
         ]
@@ -714,6 +1052,100 @@
         }
       },
       "serm-attribute": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "serm-generalization": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "serm-generalization-disjoint": {
         "correct": {
           "image": {
             "src": "/images/checkmark.gif",
