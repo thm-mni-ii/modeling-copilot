@@ -83,6 +83,11 @@
               <slot name="canvas-top-right" />
             </div>
 
+            <!-- Meldungen ohne eigene Zelle (validateCell der Wurzel), z.B. "mindestens ein Zyklus" -->
+            <v-alert v-if="diagramWarnings.length" type="warning" variant="tonal" density="compact" class="canvas-diagram-warnings" @pointerdown.stop>
+              <div v-for="message in diagramWarnings" :key="message">{{ message }}</div>
+            </v-alert>
+
             <GraphControls @zoom-in="zoomIn" @zoom-out="zoomOut" @fit-to-window="fitToWindow" @toggle-grid="toggleGrid" @force-grid-repaint="forceGridRepaint" />
 
             <!-- Graph Settings Component -->
@@ -161,7 +166,7 @@ import type { DiagramSyntax } from '@/model/Syntax'
 import type { CanvasWindowDefinition, CanvasWindowPatch } from '@/model/CanvasWindow'
 import { buildValidationRulesFromSyntax, DiagramValidator } from '@/utils/multiplicity'
 import { buildContainmentFromSyntax, canContain, type ContainmentMap } from '@/utils/containment'
-import { buildAcyclicFromSyntax, closesCycle, renderAcyclicMessage, type AcyclicSettings } from '@/utils/acyclic'
+import { buildAcyclicFromSyntax, closesCycle, isOnCycle, renderAcyclicMessage, renderCycleRequiredMessage, type AcyclicSettings } from '@/utils/acyclic'
 import type { AutonomyMode } from '@/model/Autonomy'
 import type { DiagramFeedbackConfig, FeedbackCanvasOverlayEntry } from '@/model/Feedback'
 import { createDefaultFeedbackCanvasConfig } from '@/utils/feedbackConfig'
@@ -330,8 +335,30 @@ class MyCustomGraph extends Graph {
 
   // Natives validateEdge (aufgerufen aus getEdgeValidationError): Kante darf keinen Zyklus schließen
   override validateEdge = (edge: Cell, source: Cell, target: Cell): string | null => {
-    if (!acyclic || source.isEdge() || target.isEdge() || !closesCycle(edge, source, target, acyclic.connectionTypes)) return super.validateEdge(edge, source, target)
+    if (acyclic?.mode !== 'forbid' || source.isEdge() || target.isEdge() || !closesCycle(edge, source, target, acyclic.connectionTypes, acyclic.ignoreDirection)) return super.validateEdge(edge, source, target)
     return renderAcyclicMessage(acyclic.message, source, target)
+  }
+
+  /**
+   * Natives validateCell (ValidationMixin.js:117, aufgerufen aus validateGraph für jede Zelle und die Wurzel):
+   * every markiert Elemente der gewählten Typen ohne Zyklus, any meldet an der Wurzel, wenn das Diagramm keinen Zyklus hat.
+   * Blockieren geht nicht, weil ein Zyklus Kante für Kante entsteht.
+   */
+  override validateCell = (cell: Cell, context: CellState): string | null => {
+    const base = super.validateCell(cell, context)
+    if (!acyclic || acyclic.mode === 'forbid') return base
+    const isElement = (candidate: Cell) => candidate.isVertex() && candidate.isConnectable() && !!(candidate as any).diagramElementType
+    const required = acyclic.elementTypes
+    let error: string | null = null
+    if (acyclic.mode === 'every' && isElement(cell) && (required.length === 0 || required.includes((cell as any).diagramElementType)) && !isOnCycle(cell, acyclic)) {
+      error = renderCycleRequiredMessage(acyclic.message, cell)
+    }
+    if (acyclic.mode === 'any' && cell === this.getDataModel().getRoot()) {
+      const settings = acyclic
+      const hasCycle = Object.values(this.getDataModel().cells ?? {}).some((candidate) => isElement(candidate) && isOnCycle(candidate, settings))
+      if (!hasCycle) error = renderCycleRequiredMessage(acyclic.message)
+    }
+    return base || error ? `${base ?? ''}${error ?? ''}` : null
   }
 
   private overlayAddedCallback?: (cell: Cell, overlay: CellOverlay) => void
@@ -536,6 +563,8 @@ const overlayEntries = computed(() => props.overlays ?? [])
 const { overlayTooltip, overlayTooltipAnchorStyle, registerGraph, cleanup: cleanupCanvasOverlays } = useCanvasOverlays(graphWrapper, overlayEntries)
 // Zentraler Validator für alle Diagramm-Regeln
 const diagramValidator = new DiagramValidator()
+// Meldungen der Validierung für das ganze Diagramm, angezeigt als Hinweis über der Zeichenfläche
+const diagramWarnings = ref<string[]>([])
 
 const normalizeErrorLines = (rawMessage: string): string[] =>
   rawMessage
@@ -572,6 +601,7 @@ const applyValidationRulesToGraph = () => {
   diagramValidator.applyToGraph(currentGraph, {
     liveValidation: autonomyMode.value !== 'free'
   })
+  diagramWarnings.value = autonomyMode.value !== 'free' ? diagramValidator.validateGraph(currentGraph) : []
 }
 
 const rebuildValidationRules = (rules?: DiagramSyntax[]) => {
@@ -838,8 +868,9 @@ onMounted(() => {
     currentGraph?.view.validate()
 
     if (currentGraph && autonomyMode.value !== 'free') {
-      diagramValidator.validateGraph(currentGraph)
+      diagramWarnings.value = diagramValidator.validateGraph(currentGraph)
     } else if (currentGraph) {
+      diagramWarnings.value = []
       clearValidationWarningOverlays(currentGraph)
     }
 
@@ -1445,6 +1476,16 @@ defineExpose({
   right: 5px;
   z-index: 10;
   max-width: calc(100% - 20px);
+}
+
+.canvas-diagram-warnings {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: max-content;
+  max-width: calc(100% - 16px);
 }
 
 .canvas-window-default-content {
