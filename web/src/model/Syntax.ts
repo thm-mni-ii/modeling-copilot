@@ -49,4 +49,12 @@ export interface ContainmentRule {
   }
 }
 
-export type DiagramSyntax = MultiplicityRule | ContainmentRule
+/** Keine Verbindung darf einen Zyklus schließen; ohne Regel sind Zyklen erlaubt. */
+export interface AcyclicRule {
+  ruleType: 'acyclic'
+  config: {
+    messageTemplate: string
+  }
+}
+
+export type DiagramSyntax = MultiplicityRule | ContainmentRule | AcyclicRule

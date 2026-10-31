@@ -562,6 +562,12 @@
           }
         ]
       }
+    },
+    {
+      "ruleType": "acyclic",
+      "config": {
+        "messageTemplate": "The connection {source} -> {target} would close a cycle."
+      }
     }
   ],
   "feedback": {

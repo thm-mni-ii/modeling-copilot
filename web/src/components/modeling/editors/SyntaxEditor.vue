@@ -7,6 +7,7 @@
           <BasicEditorForm type="syntax" :selected-item="selectedRule">
             <SyntaxEditorForm v-if="selectedRule" :selected-rule="selectedRule" @update="updateAll" />
             <ContainmentForm v-if="selectedRule" class="mt-8" />
+            <AcyclicForm v-if="selectedRule" class="mt-8" />
           </BasicEditorForm>
         </div>
       </v-col>
@@ -45,6 +46,7 @@ import BasicEditorForm from '../form/BasicEditorForm.vue'
 import type { GraphDataModel } from '@maxgraph/core'
 import SyntaxEditorForm from '../form/SyntaxEditorForm.vue'
 import ContainmentForm from '../form/ContainmentForm.vue'
+import AcyclicForm from '../form/AcyclicForm.vue'
 import type { MultiplicityRule } from '@/model/Syntax'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 

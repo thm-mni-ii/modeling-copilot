@@ -291,7 +291,7 @@ export class DiagramValidator {
       typedGraph[ORIGINAL_CELL_VALIDATION_KEY] = graph.getCellValidationError.bind(graph)
     }
 
-    if (multiplicities.length === 0) {
+    if (this.rules.length === 0) {
       if (typedGraph[ORIGINAL_CELL_VALIDATION_KEY]) {
         graph.getCellValidationError = typedGraph[ORIGINAL_CELL_VALIDATION_KEY]
       }
@@ -356,5 +356,8 @@ export const buildValidationRulesFromSyntax = (rules: DiagramSyntax[] | null | u
     }
   }
 
-  return multiplicities.length > 0 ? [new MultiplicityValidationRule(multiplicities)] : []
+  const validationRules: DiagramValidationRule[] = multiplicities.length > 0 ? [new MultiplicityValidationRule(multiplicities)] : []
+  // Die Zyklus-Prüfung selbst läuft in MyCustomGraph.validateEdge; der Eintrag hält nur die Live-Validierung an
+  if (rules.some((rule) => rule.ruleType === 'acyclic')) validationRules.push(new DiagramValidationRule('ConnectionCheck'))
+  return validationRules
 }

@@ -161,6 +161,7 @@ import type { DiagramSyntax } from '@/model/Syntax'
 import type { CanvasWindowDefinition, CanvasWindowPatch } from '@/model/CanvasWindow'
 import { buildValidationRulesFromSyntax, DiagramValidator } from '@/utils/multiplicity'
 import { buildContainmentFromSyntax, canContain, type ContainmentMap } from '@/utils/containment'
+import { buildAcyclicFromSyntax, closesCycle, renderAcyclicMessage } from '@/utils/acyclic'
 import type { AutonomyMode } from '@/model/Autonomy'
 import type { DiagramFeedbackConfig, FeedbackCanvasOverlayEntry } from '@/model/Feedback'
 import { createDefaultFeedbackCanvasConfig } from '@/utils/feedbackConfig'
@@ -206,6 +207,9 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
 
 // Containment-Regeln der Syntax, gelesen von MyCustomGraph.isValidDropTarget
 let containment: ContainmentMap = new Map()
+
+// Meldung der Acyclic-Regel, gelesen von MyCustomGraph.validateEdge; null = Zyklen erlaubt
+let acyclicMessage: string | null = null
 
 class MyCustomGraph extends Graph {
   constructor(container: HTMLElement, model?: GraphDataModel, plugins?: GraphPluginConstructor[]) {
@@ -316,6 +320,12 @@ class MyCustomGraph extends Graph {
       return error
     }
     return isValidationPassActive(this) ? error : null
+  }
+
+  // Natives validateEdge (aufgerufen aus getEdgeValidationError): Kante darf keinen Zyklus schließen
+  override validateEdge = (edge: Cell, source: Cell, target: Cell): string | null => {
+    if (!acyclicMessage || source.isEdge() || target.isEdge() || !closesCycle(edge, source, target)) return super.validateEdge(edge, source, target)
+    return renderAcyclicMessage(acyclicMessage, source, target)
   }
 
   private overlayAddedCallback?: (cell: Cell, overlay: CellOverlay) => void
@@ -560,6 +570,7 @@ const applyValidationRulesToGraph = () => {
 
 const rebuildValidationRules = (rules?: DiagramSyntax[]) => {
   containment = buildContainmentFromSyntax(rules)
+  acyclicMessage = buildAcyclicFromSyntax(rules)
   const validationRules = buildValidationRulesFromSyntax(rules ?? [])
   diagramValidator.addRules(validationRules)
   applyValidationRulesToGraph()

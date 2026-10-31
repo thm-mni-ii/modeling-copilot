@@ -200,6 +200,13 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
     else definition.value.syntax = definition.value.syntax.filter((entry) => entry.ruleType !== 'containment')
   }
 
+  /** Schaltet die Acyclic-Regel; null entfernt sie, Zyklen sind dann erlaubt. */
+  const setAcyclicRule = (messageTemplate: string | null) => {
+    if (!definition.value) return
+    if (messageTemplate !== null) addSyntaxToLanguage({ ruleType: 'acyclic', config: { messageTemplate } })
+    else definition.value.syntax = definition.value.syntax.filter((entry) => entry.ruleType !== 'acyclic')
+  }
+
   const getMultiplicityRuleForLanguage = () => {
     if (!definition.value) return undefined
     const existing = definition.value.syntax.find((rule): rule is MultiplicityRule => rule.ruleType === 'multiplicity')
@@ -260,6 +267,7 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
     removeSyntaxFromLanguage,
     getMultiplicityRuleForLanguage,
     setMultiplicityRelationState,
-    setContainmentChildTypes
+    setContainmentChildTypes,
+    setAcyclicRule
   }
 })
