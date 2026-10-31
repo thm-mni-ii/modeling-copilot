@@ -18,9 +18,17 @@ export interface MultiplicityRelation {
   refinement: MultiplicityRefinement
 }
 
+/** Eingehende Kanten pro Elementtyp, über alle Quelltypen gezählt */
+export interface IncomingCardinality {
+  elementType: string
+  cardinality: MultiplicityCardinality
+}
+
 export interface MultiplicityConfig {
   messageTemplate: string
   relations: MultiplicityRelation[]
+  /** Ohne Eintrag ist die Zahl eingehender Kanten frei */
+  incoming?: IncomingCardinality[]
 }
 
 export interface MultiplicityRule {

@@ -105,6 +105,41 @@
       </template>
     </section>
 
+    <section class="d-flex flex-column ga-3 refinement-section">
+      <div class="d-flex align-center font-weight-semibold text-h6 mb-0">
+        <v-icon color="primary" class="mr-2">mdi-arrow-collapse-right</v-icon>
+        <span>Incoming Edges</span>
+      </div>
+
+      <v-alert v-if="incomingTargetTypes.length === 0" type="info" variant="tonal" class="mt-3"> Mark at least one Connection as <strong>allowed</strong> in the matrix to limit incoming Connections. </v-alert>
+
+      <template v-else>
+        <p class="text-body-2 text-medium-emphasis mb-1">Number of incoming Connections per target Element, counted across all source types. Min <strong>0</strong> and empty max = no restriction.</p>
+        <v-sheet class="matrix-wrapper elevation-1 rounded-lg bg-white" border>
+          <v-table density="compact" class="incoming-matrix">
+            <thead>
+              <tr>
+                <th class="refinement-corner">Element</th>
+                <th class="refinement-kard-header">Min</th>
+                <th class="refinement-kard-header">Max</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="elementType in incomingTargetTypes" :key="`incoming-${elementType}`">
+                <th class="refinement-header">{{ elementType }}</th>
+                <td class="refinement-cell">
+                  <v-text-field type="number" min="0" density="compact" variant="outlined" hide-details class="incoming-field" :model-value="incomingCardinality(elementType).min" :disabled="!hasLanguageVersion" @update:model-value="(value: string) => setIncomingMin(elementType, value)" />
+                </td>
+                <td class="refinement-cell">
+                  <v-text-field type="number" min="0" density="compact" variant="outlined" hide-details placeholder="*" class="incoming-field" :model-value="incomingCardinality(elementType).max ?? ''" :error="isIncomingMaxInvalid(elementType)" :disabled="!hasLanguageVersion" @update:model-value="(value: string) => setIncomingMax(elementType, value)" />
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-sheet>
+      </template>
+    </section>
+
     <section class="d-flex flex-column ga-3">
       <div class="d-flex align-center font-weight-semibold text-h6">
         <v-icon color="primary" class="mr-2">mdi-script-text-outline</v-icon>
@@ -128,7 +163,7 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
-import type { MultiplicityConfig, MultiplicityRelation, MultiplicityRelationState } from '@/model/Syntax'
+import type { MultiplicityCardinality, MultiplicityConfig, MultiplicityRelation, MultiplicityRelationState } from '@/model/Syntax'
 
 type RelationState = MultiplicityRelationState | 'unset'
 
@@ -283,6 +318,35 @@ const sortedRelations = computed(() => {
 
 const allowedRelations = computed(() => sortedRelations.value.filter((relation) => relation.state === 'allowed'))
 
+// Eingehende Kanten: nur Elemente, in die laut Matrix eine Verbindung führen darf
+const incomingTargetTypes = computed(() => elementOptions.value.filter((elementType) => allowedRelations.value.some((relation) => relation.targetType === elementType)))
+
+const incomingCardinality = (elementType: string): MultiplicityCardinality => props.config.incoming?.find((entry) => entry.elementType === elementType)?.cardinality ?? { min: 0, max: null }
+
+// 0..* entfernt den Eintrag, damit bleibt das bisherige Verhalten der Standard
+const setIncomingCardinality = (elementType: string, cardinality: MultiplicityCardinality) => {
+  const incoming = (props.config.incoming ?? []).filter((entry) => entry.elementType !== elementType)
+  if (cardinality.min > 0 || cardinality.max !== null) incoming.push({ elementType, cardinality })
+  Object.assign(props.config, { incoming })
+  emitUpdate()
+}
+
+const setIncomingMin = (elementType: string, value: string) => {
+  const min = Math.max(0, Number.parseInt(value, 10) || 0)
+  setIncomingCardinality(elementType, { min, max: incomingCardinality(elementType).max })
+}
+
+// Leeres Feld = unbegrenzt (*); max < min wird am Feld markiert statt beim Tippen korrigiert
+const setIncomingMax = (elementType: string, value: string) => {
+  const parsed = Number.parseInt(value, 10)
+  setIncomingCardinality(elementType, { min: incomingCardinality(elementType).min, max: Number.isNaN(parsed) ? null : Math.max(0, parsed) })
+}
+
+const isIncomingMaxInvalid = (elementType: string): boolean => {
+  const { min, max } = incomingCardinality(elementType)
+  return max !== null && max < min
+}
+
 watch(
   () => props.config.messageTemplate,
   (template) => {
@@ -321,7 +385,8 @@ const uiStructureExample = computed(() => ({
           max: relation.refinement.cardinality.max
         }
       }
-    }))
+    })),
+    incoming: props.config.incoming ?? []
   }
 }))
 
@@ -396,6 +461,16 @@ const uiStructureExampleJson = computed(() => JSON.stringify(uiStructureExample.
   width: max-content;
   border-collapse: separate;
   border-spacing: 0;
+}
+
+.incoming-matrix {
+  width: max-content;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.incoming-field {
+  width: 90px;
 }
 
 .refinement-matrix thead th {

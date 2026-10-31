@@ -1,5 +1,5 @@
 import { InternalEvent, Multiplicity, type Cell, type Graph } from '@maxgraph/core'
-import type { DiagramSyntax, MultiplicityRelation } from '@/model/Syntax'
+import type { DiagramSyntax, IncomingCardinality, MultiplicityRelation } from '@/model/Syntax'
 import { setValidationPassActive } from '@/utils/graphValidationRuntime'
 
 export type ValidationCheckType = 'ElementCheck' | 'ConnectionCheck' | 'MultiplicityCheck'
@@ -213,10 +213,51 @@ class DiagramMultiplicity extends Multiplicity {
   }
 }
 
-class MultiplicityValidationRule extends DiagramValidationRule {
-  readonly multiplicities: DiagramMultiplicity[]
+// Eingehende Kanten pro Elementtyp über das native Multiplicity mit source = false
+class DiagramIncomingMultiplicity extends Multiplicity {
+  readonly entry: IncomingCardinality
 
-  constructor(multiplicities: DiagramMultiplicity[]) {
+  private readonly messageTemplate: string
+
+  constructor(entry: IncomingCardinality, messageTemplate: string) {
+    super(false, entry.elementType, null, null, entry.cardinality.min, entry.cardinality.max ?? Number.MAX_VALUE, [], '', '', true)
+    this.entry = entry
+    this.messageTemplate = messageTemplate.trim().length > 0 ? messageTemplate : DEFAULT_MESSAGE_TEMPLATE
+  }
+
+  private renderMessage(): string {
+    const { min, max } = this.entry.cardinality
+    return `${fillTemplate(this.messageTemplate, { source: '*', target: this.entry.elementType, connection: '*', min, max: asMaxLabel(max) })}\n`
+  }
+
+  private countIncoming(cell: Cell): number {
+    const target = cell.getEdgeCount() > 0 ? cell : findTypedCell(cell) ?? cell
+    let count = 0
+    for (let index = 0; index < target.getEdgeCount(); index += 1) {
+      const edge = target.getEdgeAt(index)
+      if (edge?.isEdge() && edge.getTerminal(false) === target && edge.getTerminal(true)) count += 1
+    }
+    return count
+  }
+
+  // Natives check zählt targetIn, vergleicht den Typ aber per value === type (und ruft checkTerminal mit vertauschten Argumenten)
+  override check(_graph: Graph, _edge: Cell, _source: Cell, target: Cell, _sourceOut: number, targetIn: number): string | null {
+    if (getElementType(target) !== this.entry.elementType || this.entry.cardinality.max === null) return null
+    return targetIn >= this.entry.cardinality.max ? this.renderMessage() : null
+  }
+
+  checkTerminalCardinality(cell: Cell): string | null {
+    if (getElementType(cell) !== this.entry.elementType) return null
+    const count = this.countIncoming(cell)
+    const { min, max } = this.entry.cardinality
+    return count < min || (max !== null && count > max) ? this.renderMessage() : null
+  }
+}
+
+class MultiplicityValidationRule extends DiagramValidationRule {
+  readonly multiplicities: (DiagramMultiplicity | DiagramIncomingMultiplicity)[]
+
+  constructor(multiplicities: (DiagramMultiplicity | DiagramIncomingMultiplicity)[]) {
     super('MultiplicityCheck')
     this.multiplicities = multiplicities
   }
@@ -299,7 +340,7 @@ export const buildValidationRulesFromSyntax = (rules: DiagramSyntax[] | null | u
     return []
   }
 
-  const multiplicities: DiagramMultiplicity[] = []
+  const multiplicities: (DiagramMultiplicity | DiagramIncomingMultiplicity)[] = []
 
   for (const rule of rules) {
     if (rule.ruleType !== 'multiplicity') continue
@@ -308,6 +349,10 @@ export const buildValidationRulesFromSyntax = (rules: DiagramSyntax[] | null | u
 
     for (const relation of rule.config.relations) {
       multiplicities.push(new DiagramMultiplicity(relation, template))
+    }
+
+    for (const entry of rule.config.incoming ?? []) {
+      multiplicities.push(new DiagramIncomingMultiplicity(entry, template))
     }
   }
 

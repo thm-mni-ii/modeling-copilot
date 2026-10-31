@@ -531,6 +531,22 @@
               }
             }
           }
+        ],
+        "incoming": [
+          {
+            "elementType": "serm-er",
+            "cardinality": {
+              "min": 1,
+              "max": null
+            }
+          },
+          {
+            "elementType": "serm-relationship",
+            "cardinality": {
+              "min": 2,
+              "max": null
+            }
+          }
         ]
       }
     },
