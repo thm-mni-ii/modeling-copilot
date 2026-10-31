@@ -3,6 +3,7 @@ import type { CellStyle } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
 import type { FeedbackCanvasRulesConfig } from '@/model/Feedback'
 import { applyConnectionAdditionalLabels, applyConnectionLabelOffset } from '@/utils/connectionLabelHelpers'
+import { createConnectionStyle } from '@/utils/elementFactory'
 import { getGraphValidationMode, setValidationPassActive, shouldBlockInteractiveValidation } from '@/utils/graphValidationRuntime'
 import { isTruthyFlag } from '@/utils/flagUtils'
 
@@ -133,24 +134,6 @@ export class CustomConnectionHandler extends ConnectionHandler {
     return this.selectedConnection
   }
 
-  private buildConnectionStyle(connection: DiagramConnection): CellStyle {
-    return {
-      shape: 'connector',
-      strokeColor: '#000000',
-      strokeWidth: 1,
-      strokeOpacity: 100,
-      startArrow: 'none',
-      endArrow: 'none',
-      startFill: true,
-      endFill: true,
-      align: 'center',
-      verticalAlign: 'middle',
-      fontColor: '#000000',
-      fontSize: 12,
-      ...connection.style
-    }
-  }
-
   protected override createConstraintHandler(): ConstraintHandler {
     return new AnchorConstraintHandler(this.graph)
   }
@@ -241,10 +224,12 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return new CellState(this.graph.view, edge, this.graph.getCellStyle(edge))
     }
 
-    const style = this.buildConnectionStyle(effectiveConnection)
+    const style = createConnectionStyle(effectiveConnection)
     const edge = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', null, null, style)
     ;(edge as any).connectionId = effectiveConnection.type
     ;(edge as any).connectionType = effectiveConnection.connectionType ?? effectiveConnection.type
+    // ConnectionHandler.connect übernimmt die Geometrie dieser Kante für die neue, daher schon hier der Label-Versatz
+    applyConnectionLabelOffset(edge, effectiveConnection.labelOffset)
 
     return new CellState(this.graph.view, edge, this.graph.getCellStyle(edge))
   }
@@ -286,7 +271,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return super.validateConnection(source, target)
     }
 
-    const style = this.buildConnectionStyle(effectiveConnection)
+    const style = createConnectionStyle(effectiveConnection)
     const probeEdge = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', source, target, style)
     probeEdge.setTerminal(source, true)
     probeEdge.setTerminal(target, false)
@@ -336,7 +321,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
     if (effectiveConnection) {
       const connectionId = effectiveConnection.type
       const edgeLabel = effectiveConnection.defaultLabel ?? ''
-      const connectionStyle = this.buildConnectionStyle(effectiveConnection)
+      const connectionStyle = createConnectionStyle(effectiveConnection)
 
       const edge = super.insertEdge(parent, persistedId, edgeLabel, source, target, connectionStyle)
       if (edge) {

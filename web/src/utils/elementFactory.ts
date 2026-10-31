@@ -1,5 +1,6 @@
 import { Cell, Geometry, ConnectionConstraint, Point, Rectangle } from '@maxgraph/core'
-import type { Graph } from '@maxgraph/core'
+import type { CellStyle, Graph } from '@maxgraph/core'
+import type { DiagramConnection } from '@/model/Connection'
 import type { DiagramElement } from '@/model/Element'
 import { registerElementShapes } from './shapeRegistry'
 
@@ -172,6 +173,24 @@ export function addCellToGraph(graph: Graph, cell: Cell, element: DiagramElement
  * @param connection - Die DiagramConnection-Definition
  * @returns Das Style-Objekt für MaxGraph
  */
+export function createConnectionStyle(connection: DiagramConnection): CellStyle {
+  return {
+    shape: 'connector',
+    strokeColor: '#000000',
+    strokeWidth: 1,
+    strokeOpacity: 100,
+    startArrow: 'none',
+    endArrow: 'none',
+    startFill: true,
+    endFill: true,
+    align: 'center',
+    verticalAlign: 'middle',
+    fontColor: '#000000',
+    fontSize: 12,
+    ...connection.style
+  }
+}
+
 /**
  * Rendert eine Verbindungs-Vorschau im Graph (nur die Edge, mit Dummy-Knoten)
  *

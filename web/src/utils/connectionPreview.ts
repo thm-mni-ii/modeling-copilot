@@ -2,6 +2,7 @@ import { Graph, Point, Cell, FitPlugin } from '@maxgraph/core'
 import type { CellStyle } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
 import { applyConnectionAdditionalLabels, applyConnectionLabelOffset } from './connectionLabelHelpers'
+import { createConnectionStyle } from './elementFactory'
 
 export type ConnectionPreviewMode = 'simple' | 'scenario' | 'routing'
 
@@ -55,7 +56,7 @@ export const updateConnectionPreview = (graph: Graph, connection: DiagramConnect
   model.beginUpdate()
   try {
     for (const edge of edges) {
-      model.setStyle(edge, edge.previewStyle!(cloneStyle(connection.style)))
+      model.setStyle(edge, edge.previewStyle!(createConnectionStyle(connection)))
       if (!edge.previewLabel) continue
 
       model.setValue(edge, connection.defaultLabel ?? '')
@@ -63,7 +64,7 @@ export const updateConnectionPreview = (graph: Graph, connection: DiagramConnect
       applyConnectionAdditionalLabels(graph, edge, connection)
     }
 
-    cells.filter((cell) => cell.previewSummary).forEach((note) => model.setValue(note, describeScenario(connection.style)))
+    cells.filter((cell) => cell.previewSummary).forEach((note) => model.setValue(note, describeScenario(createConnectionStyle(connection))))
   } finally {
     model.endUpdate()
   }
@@ -78,7 +79,7 @@ export const renderSimpleConnectionPreview = (graph: Graph, connection: DiagramC
 
   graph.getDataModel().beginUpdate()
   try {
-    const style = cloneStyle(connection.style)
+    const style = createConnectionStyle(connection)
 
     const source = graph.insertVertex({
       parent,
@@ -172,7 +173,7 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
 
   graph.getDataModel().beginUpdate()
   try {
-    const baseStyle = cloneStyle(connection.style)
+    const baseStyle = createConnectionStyle(connection)
 
     const client = createActorVertex(graph, parent, {
       x: 40,
@@ -290,7 +291,7 @@ export const renderRoutingConnectionPreview = (graph: Graph, connection: Diagram
 
   graph.getDataModel().beginUpdate()
   try {
-    const baseStyle = cloneStyle(connection.style)
+    const baseStyle = createConnectionStyle(connection)
 
     // Create a complex layout with obstacles to demonstrate routing algorithms
     // This layout will show different paths depending on the routing algorithm chosen

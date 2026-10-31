@@ -1,10 +1,12 @@
-import { Graph, InternalEvent, Point } from '@maxgraph/core'
+import { EdgeStyle, Graph, InternalEvent, Point } from '@maxgraph/core'
 import { protectHtmlLabels } from './htmlLabels'
 
 export const createPreviewGraph = (container: HTMLDivElement): Graph => {
   container.innerHTML = ''
 
   const graph = new Graph(container)
+  // Gleiche Standard-Linienführung wie im Canvas (DrawingCanvas.vue)
+  graph.getStylesheet().getDefaultEdgeStyle().edgeStyle = EdgeStyle.OrthConnector
   graph.setEnabled(false)
   graph.setPanning(false)
   graph.setConnectable(false)
