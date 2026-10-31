@@ -17,6 +17,8 @@ api/openapi.json
 
 # Local MCP browser artifacts
 .playwright-mcp/
+.playwright-cli/
+.playwright/
 
 # Dagu-generated DAG discovery cache (host-specific absolute paths)
 dagu/workflows/.dag.index
@@ -25,4 +27,7 @@ dagu/workflows/.dag.index
 /.local/
 /.codex/
 /.agents/
+AGENTS.md
+AGENTS.override.md
+SKILL.md
 /tmp/
