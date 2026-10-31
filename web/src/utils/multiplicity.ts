@@ -72,7 +72,7 @@ const getElementType = (cell: Cell | null): string | null => {
   return null
 }
 
-const getConnectionType = (edge: Cell | null): string | null => {
+export const getConnectionType = (edge: Cell | null): string | null => {
   if (!edge) return null
 
   const semanticType = (edge as any).connectionType

@@ -144,7 +144,10 @@ export class CustomConnectionHandler extends ConnectionHandler {
   }
 
   override updateEdgeState(pt: Point, constraint: ConnectionConstraint | null): void {
-    if (pt != null && this.previous != null && !isOutlineDocking(this.previous.cell)) {
+    // Über dem Startelement selbst bleibt der Startanker stehen, sonst fällt er auf den Zielanker
+    // und maxGraph verwirft die Schleife (checkConstraints in ConnectionHandler.mouseUp)
+    const overSource = this.constraintHandler.currentFocus?.cell === this.previous?.cell
+    if (pt != null && this.previous != null && !overSource && !isOutlineDocking(this.previous.cell)) {
       const constraints = this.graph.getAllConnectionConstraints(this.previous, true)
       let nearestConstraint: ConnectionConstraint | null = null
       let bestDist: number | null = null

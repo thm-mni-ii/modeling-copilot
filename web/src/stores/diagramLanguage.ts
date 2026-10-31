@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { DiagramConnection, DiagramElement, DiagramLanguage, DiagramSyntax } from '@/model/DiagramLanguage'
 import type { FeedbackCanvasConfig, FeedbackTargetOverlays, FeedbackTargetType } from '@/model/Feedback'
-import type { ContainmentRule, MultiplicityRelation, MultiplicityRelationState, MultiplicityRule } from '@/model/Syntax'
+import type { AcyclicRule, ContainmentRule, MultiplicityRelation, MultiplicityRelationState, MultiplicityRule } from '@/model/Syntax'
 import languageService from '@/services/language/language.service'
 import type { ApiId } from '@/services/api/types/common'
 import type { Language, LanguageVersion, LanguageVersionKind, LanguageVersionInfo } from '@/services/api/types/language'
@@ -204,10 +204,10 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
     else syntax.splice(syntax.findIndex((entry) => entry.ruleType === 'multiplicity') + 1, 0, { ruleType: 'containment', config: { relations } })
   }
 
-  /** Schaltet die Acyclic-Regel; null entfernt sie, Zyklen sind dann erlaubt. */
-  const setAcyclicRule = (messageTemplate: string | null) => {
+  /** Setzt die Acyclic-Regel; null entfernt sie, Zyklen sind dann erlaubt. */
+  const setAcyclicRule = (config: AcyclicRule['config'] | null) => {
     if (!definition.value) return
-    if (messageTemplate !== null) addSyntaxToLanguage({ ruleType: 'acyclic', config: { messageTemplate } })
+    if (config !== null) addSyntaxToLanguage({ ruleType: 'acyclic', config })
     else definition.value.syntax = definition.value.syntax.filter((entry) => entry.ruleType !== 'acyclic')
   }
 

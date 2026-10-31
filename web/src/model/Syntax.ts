@@ -65,6 +65,8 @@ export interface AcyclicRule {
   ruleType: 'acyclic'
   config: {
     messageTemplate: string
+    /** Nur diese Verbindungstypen zählen für den Zyklus; leer = alle */
+    connectionTypes?: string[]
   }
 }
 

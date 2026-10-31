@@ -161,7 +161,7 @@ import type { DiagramSyntax } from '@/model/Syntax'
 import type { CanvasWindowDefinition, CanvasWindowPatch } from '@/model/CanvasWindow'
 import { buildValidationRulesFromSyntax, DiagramValidator } from '@/utils/multiplicity'
 import { buildContainmentFromSyntax, canContain, type ContainmentMap } from '@/utils/containment'
-import { buildAcyclicFromSyntax, closesCycle, renderAcyclicMessage } from '@/utils/acyclic'
+import { buildAcyclicFromSyntax, closesCycle, renderAcyclicMessage, type AcyclicSettings } from '@/utils/acyclic'
 import type { AutonomyMode } from '@/model/Autonomy'
 import type { DiagramFeedbackConfig, FeedbackCanvasOverlayEntry } from '@/model/Feedback'
 import { createDefaultFeedbackCanvasConfig } from '@/utils/feedbackConfig'
@@ -208,12 +208,14 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
 // Containment-Regeln der Syntax, gelesen von MyCustomGraph.isValidDropTarget
 let containment: ContainmentMap = new Map()
 
-// Meldung der Acyclic-Regel, gelesen von MyCustomGraph.validateEdge; null = Zyklen erlaubt
-let acyclicMessage: string | null = null
+// Acyclic-Regel, gelesen von MyCustomGraph.validateEdge; null = Zyklen erlaubt
+let acyclic: AcyclicSettings | null = null
 
 class MyCustomGraph extends Graph {
   constructor(container: HTMLElement, model?: GraphDataModel, plugins?: GraphPluginConstructor[]) {
     super(container, model, plugins)
+    // Schleifen entscheidet getEdgeValidationError pro Verbindung statt global
+    this.setAllowLoops(true)
     this.overlayAddedCallback = undefined
     this.overlayRemovedCallback = undefined
 
@@ -314,7 +316,11 @@ class MyCustomGraph extends Graph {
   override getEdgeValidationError = (edge: Cell | null, source: Cell | null, target: Cell | null): string | null => {
     // Nicht andockbare Kanten sperren in jedem Modus, auch beim Umhängen eines Kantenendes
     if ((source?.isEdge() && !this.isValidSource(source)) || (target?.isEdge() && !this.isValidTarget(target))) return ''
-    const error = super.getEdgeValidationError(edge, source, target)
+    // Wie die native allowLoops-Prüfung (ValidationMixin.js:35), aber pro Verbindung: "Allow Loops" (Standard: gesperrt).
+    // Mit Meldung statt '', weil ConnectionHandler.mouseUp einen leeren Fehler als gültig behandelt
+    const connection = edge ? this.getConnectionOf(edge) : undefined
+    const blockedLoop = !!source && source === target && connection?.allowLoops !== true
+    const error = blockedLoop ? `The Connection ${connection?.connectionType ?? connection?.type ?? '-'} may not connect ${(source as any).diagramElementType ?? '-'} to itself.\n` : super.getEdgeValidationError(edge, source, target)
     const mode = getGraphValidationMode(this)
     if (mode === 'preventive') {
       return error
@@ -324,8 +330,8 @@ class MyCustomGraph extends Graph {
 
   // Natives validateEdge (aufgerufen aus getEdgeValidationError): Kante darf keinen Zyklus schließen
   override validateEdge = (edge: Cell, source: Cell, target: Cell): string | null => {
-    if (!acyclicMessage || source.isEdge() || target.isEdge() || !closesCycle(edge, source, target)) return super.validateEdge(edge, source, target)
-    return renderAcyclicMessage(acyclicMessage, source, target)
+    if (!acyclic || source.isEdge() || target.isEdge() || !closesCycle(edge, source, target, acyclic.connectionTypes)) return super.validateEdge(edge, source, target)
+    return renderAcyclicMessage(acyclic.message, source, target)
   }
 
   private overlayAddedCallback?: (cell: Cell, overlay: CellOverlay) => void
@@ -570,7 +576,7 @@ const applyValidationRulesToGraph = () => {
 
 const rebuildValidationRules = (rules?: DiagramSyntax[]) => {
   containment = buildContainmentFromSyntax(rules)
-  acyclicMessage = buildAcyclicFromSyntax(rules)
+  acyclic = buildAcyclicFromSyntax(rules)
   const validationRules = buildValidationRulesFromSyntax(rules ?? [])
   diagramValidator.addRules(validationRules)
   applyValidationRulesToGraph()

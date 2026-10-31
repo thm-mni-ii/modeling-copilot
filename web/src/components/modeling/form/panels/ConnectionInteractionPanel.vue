@@ -13,6 +13,10 @@
     </FieldWithIndicator>
 
     <FieldWithIndicator :config="{ minComplexity: 'dev' }">
+      <v-switch v-model="allowLoopsValue" color="primary" density="compact" class="mb-3" label="Allow Loops" hint="Allows both ends of this line to attach to the same Element." persistent-hint @update:model-value="emit('update')" />
+    </FieldWithIndicator>
+
+    <FieldWithIndicator :config="{ minComplexity: 'dev' }">
       <v-switch v-model="localStyle.pointerEvents" color="primary" density="compact" class="mb-3" label="Pointer Events Enabled" hint="Controls whether the Connection receives mouse events." persistent-hint @update:model-value="emit('update')" />
     </FieldWithIndicator>
 
@@ -55,6 +59,15 @@ const allowLooseEndsValue = computed({
   set: (value: boolean) => {
     // eslint-disable-next-line vue/no-mutating-props
     props.connection.allowLooseEnds = value
+  }
+})
+
+// Standard (aus) entfernt das Feld, damit Umstellen und Zurückstellen den gespeicherten Stand ergibt
+const allowLoopsValue = computed({
+  get: () => props.connection.allowLoops ?? false,
+  set: (value: boolean) => {
+    // eslint-disable-next-line vue/no-mutating-props
+    props.connection.allowLoops = value || undefined
   }
 })
 </script>
