@@ -1,0 +1,2424 @@
+{
+  "elements": [
+    {
+      "type": "erm-entity",
+      "defaultLabel": "Entity",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 120,
+      "height": 60,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "whiteSpace": "wrap",
+        "spacingLeft": 6,
+        "spacingRight": 6,
+        "spacingTop": 6
+      },
+      "anchorPoints": [
+        {
+          "x": 0.25,
+          "y": 0
+        },
+        {
+          "x": 0.5,
+          "y": 0
+        },
+        {
+          "x": 0.75,
+          "y": 0
+        },
+        {
+          "x": 1,
+          "y": 0.25
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 1,
+          "y": 0.75
+        },
+        {
+          "x": 0.75,
+          "y": 1
+        },
+        {
+          "x": 0.5,
+          "y": 1
+        },
+        {
+          "x": 0.25,
+          "y": 1
+        },
+        {
+          "x": 0,
+          "y": 0.75
+        },
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 0,
+          "y": 0.25
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "rectangle"
+    },
+    {
+      "type": "erm-weak-entity",
+      "defaultLabel": "Weak Entity",
+      "renderMode": "canvas2d",
+      "x": 50,
+      "y": 50,
+      "width": 120,
+      "height": 60,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "whiteSpace": "wrap",
+        "spacingLeft": 10,
+        "spacingRight": 10,
+        "spacingTop": 6
+      },
+      "anchorPoints": [
+        {
+          "x": 0.25,
+          "y": 0
+        },
+        {
+          "x": 0.5,
+          "y": 0
+        },
+        {
+          "x": 0.75,
+          "y": 0
+        },
+        {
+          "x": 1,
+          "y": 0.25
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 1,
+          "y": 0.75
+        },
+        {
+          "x": 0.75,
+          "y": 1
+        },
+        {
+          "x": 0.5,
+          "y": 1
+        },
+        {
+          "x": 0.25,
+          "y": 1
+        },
+        {
+          "x": 0,
+          "y": 0.75
+        },
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 0,
+          "y": 0.25
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "canvas": "RECT 0 0 1 1\nRECT 0.05 0.1 0.9 0.8"
+    },
+    {
+      "type": "erm-relationship",
+      "defaultLabel": "Relationship",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 140,
+      "height": 70,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "perimeter": "rhombusPerimeter",
+        "whiteSpace": "wrap",
+        "spacingLeft": 18,
+        "spacingRight": 18,
+        "spacingTop": 4
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0
+        },
+        {
+          "x": 0.75,
+          "y": 0.25
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 0.75,
+          "y": 0.75
+        },
+        {
+          "x": 0.5,
+          "y": 1
+        },
+        {
+          "x": 0.25,
+          "y": 0.75
+        },
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 0.25,
+          "y": 0.25
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "rhombus"
+    },
+    {
+      "type": "erm-weak-relationship",
+      "defaultLabel": "Weak Relationship",
+      "renderMode": "canvas2d",
+      "x": 50,
+      "y": 50,
+      "width": 160,
+      "height": 80,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "whiteSpace": "wrap",
+        "spacingLeft": 30,
+        "spacingRight": 30
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0
+        },
+        {
+          "x": 0.75,
+          "y": 0.25
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 0.75,
+          "y": 0.75
+        },
+        {
+          "x": 0.5,
+          "y": 1
+        },
+        {
+          "x": 0.25,
+          "y": 0.75
+        },
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 0.25,
+          "y": 0.25
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "canvas": "MOVE 0.5 0\nLINE 1 0.5\nLINE 0.5 1\nLINE 0 0.5\nLINE 0.5 0\nMOVE 0.5 0.1\nLINE 0.93 0.5\nLINE 0.5 0.9\nLINE 0.07 0.5\nLINE 0.5 0.1"
+    },
+    {
+      "type": "erm-attribute",
+      "defaultLabel": "Attribute",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 120,
+      "height": 60,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 1,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "perimeter": "ellipsePerimeter",
+        "whiteSpace": "wrap",
+        "spacingLeft": 8,
+        "spacingRight": 8
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0
+        },
+        {
+          "x": 0.85,
+          "y": 0.15
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 0.85,
+          "y": 0.85
+        },
+        {
+          "x": 0.5,
+          "y": 1
+        },
+        {
+          "x": 0.15,
+          "y": 0.85
+        },
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 0.15,
+          "y": 0.15
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "ellipse"
+    },
+    {
+      "type": "erm-key-attribute",
+      "defaultLabel": "Key Attribute",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 120,
+      "height": 60,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 1,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "perimeter": "ellipsePerimeter",
+        "fontStyle": 4,
+        "whiteSpace": "wrap",
+        "spacingLeft": 8,
+        "spacingRight": 8
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0
+        },
+        {
+          "x": 0.85,
+          "y": 0.15
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 0.85,
+          "y": 0.85
+        },
+        {
+          "x": 0.5,
+          "y": 1
+        },
+        {
+          "x": 0.15,
+          "y": 0.85
+        },
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 0.15,
+          "y": 0.15
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "ellipse"
+    },
+    {
+      "type": "erm-multivalued-attribute",
+      "defaultLabel": "Multivalued Attribute",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 120,
+      "height": 60,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 1,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "perimeter": "ellipsePerimeter",
+        "whiteSpace": "wrap",
+        "spacingLeft": 12,
+        "spacingRight": 12
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0
+        },
+        {
+          "x": 0.85,
+          "y": 0.15
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 0.85,
+          "y": 0.85
+        },
+        {
+          "x": 0.5,
+          "y": 1
+        },
+        {
+          "x": 0.15,
+          "y": 0.85
+        },
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 0.15,
+          "y": 0.15
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "doubleEllipse"
+    },
+    {
+      "type": "erm-isa",
+      "defaultLabel": "is_a",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 60,
+      "height": 50,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 10,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "bottom",
+        "direction": "north",
+        "perimeter": "trianglePerimeter",
+        "spacingBottom": 4
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0
+        },
+        {
+          "x": 0.5,
+          "y": 1
+        },
+        {
+          "x": 0,
+          "y": 1
+        },
+        {
+          "x": 1,
+          "y": 1
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "triangle"
+    },
+    {
+      "type": "erm-aggregation",
+      "defaultLabel": "Aggregation",
+      "renderMode": "canvas2d",
+      "x": 50,
+      "y": 50,
+      "width": 180,
+      "height": 90,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "whiteSpace": "wrap",
+        "spacingLeft": 36,
+        "spacingRight": 36
+      },
+      "anchorPoints": [
+        {
+          "x": 0.25,
+          "y": 0
+        },
+        {
+          "x": 0.5,
+          "y": 0
+        },
+        {
+          "x": 0.75,
+          "y": 0
+        },
+        {
+          "x": 1,
+          "y": 0.25
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 1,
+          "y": 0.75
+        },
+        {
+          "x": 0.75,
+          "y": 1
+        },
+        {
+          "x": 0.5,
+          "y": 1
+        },
+        {
+          "x": 0.25,
+          "y": 1
+        },
+        {
+          "x": 0,
+          "y": 0.75
+        },
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 0,
+          "y": 0.25
+        }
+      ],
+      "children": [],
+      "docking": "anchors",
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "canvas": "RECT 0 0 1 1\nMOVE 0.5 0.1\nLINE 0.9 0.5\nLINE 0.5 0.9\nLINE 0.1 0.5\nLINE 0.5 0.1"
+    }
+  ],
+  "connections": [
+    {
+      "type": "erm-association",
+      "label": "Association",
+      "defaultLabel": "",
+      "connectionType": "association",
+      "connectable": false,
+      "allowLooseEnds": false,
+      "allowLabelEdit": false,
+      "style": {
+        "shape": "connector",
+        "strokeColor": "#000000",
+        "strokeWidth": 1,
+        "strokeOpacity": 100,
+        "dashed": false,
+        "startArrow": "none",
+        "endArrow": "none",
+        "startFill": true,
+        "endFill": true,
+        "align": "center",
+        "verticalAlign": "middle",
+        "labelPosition": "center",
+        "fontColor": "#000000",
+        "fontSize": 10
+      },
+      "additionalLabels": [
+        {
+          "type": "cardinality",
+          "text": "mc",
+          "geometry": {
+            "x": 0.6,
+            "y": 0,
+            "relative": true,
+            "offsetX": 0,
+            "offsetY": -16,
+            "width": 40,
+            "height": 20
+          },
+          "style": {
+            "fontSize": 12,
+            "fontColor": "#000000",
+            "shape": "label",
+            "align": "center",
+            "verticalAlign": "middle"
+          },
+          "connectable": false,
+          "allowLabelEdit": true,
+          "id": "Label 1"
+        },
+        {
+          "type": "role",
+          "text": "",
+          "geometry": {
+            "x": -0.6,
+            "y": 0,
+            "relative": true,
+            "offsetX": 0,
+            "offsetY": -12,
+            "width": 40,
+            "height": 20
+          },
+          "style": {
+            "fontSize": 12,
+            "fontColor": "#000000",
+            "shape": "label",
+            "align": "center",
+            "verticalAlign": "middle"
+          },
+          "connectable": false,
+          "allowLabelEdit": true,
+          "id": "Label 2"
+        }
+      ],
+      "labelOffset": {
+        "y": 0
+      }
+    },
+    {
+      "type": "erm-attribute-link",
+      "label": "Attribute Link",
+      "defaultLabel": "",
+      "connectionType": "attribute",
+      "connectable": false,
+      "allowLooseEnds": false,
+      "allowLabelEdit": false,
+      "style": {
+        "shape": "connector",
+        "strokeColor": "#000000",
+        "strokeWidth": 1,
+        "strokeOpacity": 100,
+        "dashed": false,
+        "startArrow": "none",
+        "endArrow": "none",
+        "startFill": true,
+        "endFill": true,
+        "align": "center",
+        "verticalAlign": "middle",
+        "labelPosition": "center",
+        "fontColor": "#000000",
+        "fontSize": 10
+      },
+      "additionalLabels": []
+    },
+    {
+      "type": "erm-generalization",
+      "label": "Generalization",
+      "defaultLabel": "",
+      "connectionType": "generalization",
+      "connectable": false,
+      "allowLooseEnds": false,
+      "allowLabelEdit": false,
+      "style": {
+        "shape": "connector",
+        "strokeColor": "#000000",
+        "strokeWidth": 1,
+        "strokeOpacity": 100,
+        "dashed": false,
+        "startArrow": "none",
+        "endArrow": "none",
+        "startFill": true,
+        "endFill": true,
+        "align": "center",
+        "verticalAlign": "middle",
+        "labelPosition": "center",
+        "fontColor": "#000000",
+        "fontSize": 10
+      },
+      "additionalLabels": []
+    }
+  ],
+  "syntax": [
+    {
+      "ruleType": "multiplicity",
+      "config": {
+        "messageTemplate": "The connection {source} -> {target} ({connection}) violates the cardinality ({min}..{max}).",
+        "relations": [
+          {
+            "sourceType": "erm-entity",
+            "targetType": "erm-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-entity",
+            "targetType": "erm-weak-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-entity",
+            "targetType": "erm-relationship",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "association"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-entity",
+            "targetType": "erm-weak-relationship",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "association"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-entity",
+            "targetType": "erm-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-entity",
+            "targetType": "erm-key-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-entity",
+            "targetType": "erm-multivalued-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-entity",
+            "targetType": "erm-isa",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "generalization"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-entity",
+            "targetType": "erm-aggregation",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-entity",
+            "targetType": "erm-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-entity",
+            "targetType": "erm-weak-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-entity",
+            "targetType": "erm-relationship",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "association"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-entity",
+            "targetType": "erm-weak-relationship",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "association"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-entity",
+            "targetType": "erm-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-entity",
+            "targetType": "erm-key-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-entity",
+            "targetType": "erm-multivalued-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-entity",
+            "targetType": "erm-isa",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-entity",
+            "targetType": "erm-aggregation",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-relationship",
+            "targetType": "erm-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-relationship",
+            "targetType": "erm-weak-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-relationship",
+            "targetType": "erm-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-relationship",
+            "targetType": "erm-weak-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-relationship",
+            "targetType": "erm-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-relationship",
+            "targetType": "erm-key-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-relationship",
+            "targetType": "erm-multivalued-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-relationship",
+            "targetType": "erm-isa",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-relationship",
+            "targetType": "erm-aggregation",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-relationship",
+            "targetType": "erm-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-relationship",
+            "targetType": "erm-weak-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-relationship",
+            "targetType": "erm-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-relationship",
+            "targetType": "erm-weak-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-relationship",
+            "targetType": "erm-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-relationship",
+            "targetType": "erm-key-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-relationship",
+            "targetType": "erm-multivalued-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-relationship",
+            "targetType": "erm-isa",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-weak-relationship",
+            "targetType": "erm-aggregation",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-attribute",
+            "targetType": "erm-entity",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "attribute"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-attribute",
+            "targetType": "erm-weak-entity",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "attribute"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-attribute",
+            "targetType": "erm-relationship",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "attribute"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-attribute",
+            "targetType": "erm-weak-relationship",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "attribute"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-attribute",
+            "targetType": "erm-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-attribute",
+            "targetType": "erm-key-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-attribute",
+            "targetType": "erm-multivalued-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-attribute",
+            "targetType": "erm-isa",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-attribute",
+            "targetType": "erm-aggregation",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "attribute"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-key-attribute",
+            "targetType": "erm-entity",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "attribute"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-key-attribute",
+            "targetType": "erm-weak-entity",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "attribute"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-key-attribute",
+            "targetType": "erm-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-key-attribute",
+            "targetType": "erm-weak-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-key-attribute",
+            "targetType": "erm-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-key-attribute",
+            "targetType": "erm-key-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-key-attribute",
+            "targetType": "erm-multivalued-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-key-attribute",
+            "targetType": "erm-isa",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-key-attribute",
+            "targetType": "erm-aggregation",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-multivalued-attribute",
+            "targetType": "erm-entity",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "attribute"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-multivalued-attribute",
+            "targetType": "erm-weak-entity",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "attribute"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-multivalued-attribute",
+            "targetType": "erm-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-multivalued-attribute",
+            "targetType": "erm-weak-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-multivalued-attribute",
+            "targetType": "erm-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-multivalued-attribute",
+            "targetType": "erm-key-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-multivalued-attribute",
+            "targetType": "erm-multivalued-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-multivalued-attribute",
+            "targetType": "erm-isa",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-multivalued-attribute",
+            "targetType": "erm-aggregation",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "attribute"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-isa",
+            "targetType": "erm-entity",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "generalization"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "sourceType": "erm-isa",
+            "targetType": "erm-weak-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-isa",
+            "targetType": "erm-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-isa",
+            "targetType": "erm-weak-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-isa",
+            "targetType": "erm-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-isa",
+            "targetType": "erm-key-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-isa",
+            "targetType": "erm-multivalued-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-isa",
+            "targetType": "erm-isa",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-isa",
+            "targetType": "erm-aggregation",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-aggregation",
+            "targetType": "erm-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-aggregation",
+            "targetType": "erm-weak-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-aggregation",
+            "targetType": "erm-relationship",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "association"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-aggregation",
+            "targetType": "erm-weak-relationship",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "association"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-aggregation",
+            "targetType": "erm-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-aggregation",
+            "targetType": "erm-key-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-aggregation",
+            "targetType": "erm-multivalued-attribute",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-aggregation",
+            "targetType": "erm-isa",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "erm-aggregation",
+            "targetType": "erm-aggregation",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          }
+        ],
+        "incoming": []
+      }
+    }
+  ],
+  "feedback": {
+    "elements": {
+      "erm-entity": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "erm-weak-entity": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "erm-relationship": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "erm-weak-relationship": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "erm-attribute": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "erm-key-attribute": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "erm-multivalued-attribute": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "erm-isa": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "erm-aggregation": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      }
+    },
+    "connections": {
+      "erm-association": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "erm-attribute-link": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "erm-generalization": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      }
+    },
+    "canvas": {
+      "activeElementId": "feedback-element-1",
+      "configurableElements": [
+        {
+          "id": "feedback-element-1",
+          "element": {
+            "type": "__feedback_label___1",
+            "defaultLabel": "Feedback",
+            "renderMode": "swimlane",
+            "predefinedShape": "rectangle",
+            "x": 0,
+            "y": 0,
+            "width": 180,
+            "height": 72,
+            "style": {
+              "shape": "swimlane",
+              "rounded": 0,
+              "strokeColor": "#f57c00",
+              "fillColor": "#fff8e1",
+              "strokeWidth": 1,
+              "fontSize": 12,
+              "fontColor": "#5d4037",
+              "fontFamily": "Arial",
+              "fontStyle": 1,
+              "align": "left",
+              "verticalAlign": "middle",
+              "startSize": 28,
+              "horizontal": true,
+              "labelBackgroundColor": "#ffe0b2",
+              "spacingLeft": 10,
+              "whiteSpace": "wrap",
+              "cellRole": "feedback",
+              "lockToLayer": 1
+            },
+            "anchorPoints": [
+              {
+                "x": 0.5,
+                "y": 0
+              },
+              {
+                "x": 1,
+                "y": 0.5
+              },
+              {
+                "x": 0.5,
+                "y": 1
+              },
+              {
+                "x": 0,
+                "y": 0.5
+              }
+            ],
+            "children": [],
+            "connectable": true,
+            "resizable": true,
+            "movable": true,
+            "allowLabelEdit": false
+          },
+          "connection": {
+            "type": "__feedback_note_link___1",
+            "label": "Feedback Connection",
+            "defaultLabel": "",
+            "connectionType": "feedback-note",
+            "connectable": false,
+            "style": {
+              "shape": "connector",
+              "strokeColor": "#9e9e9e",
+              "strokeWidth": 1,
+              "strokeOpacity": 100,
+              "dashed": true,
+              "dashPattern": "4 4",
+              "startArrow": "none",
+              "endArrow": "none",
+              "startFill": true,
+              "endFill": true,
+              "align": "center",
+              "verticalAlign": "middle",
+              "labelPosition": "center",
+              "fontColor": "#9e9e9e",
+              "fontSize": 9
+            },
+            "additionalLabels": []
+          }
+        }
+      ],
+      "rules": {
+        "onlyFeedbackAsSource": true,
+        "allowTargetElements": true,
+        "allowTargetConnections": true,
+        "forbidFeedbackAsTarget": true,
+        "enforceDedicatedConnection": true,
+        "preventContainerDrop": true
+      }
+    }
+  }
+}

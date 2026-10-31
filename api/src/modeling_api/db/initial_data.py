@@ -44,6 +44,12 @@ _SEED_LANGUAGES = (
     (SERM_ID, SERM_VERSION_ID, SERM_NAME, "serm.json"),
 )
 
+# Release 2.0 of seed languages, applied only while nobody has edited the language.
+_SEED_LANGUAGE_RELEASES = (
+    (ERM_ID, ERM_VERSION_ID, "erm_v2.json"),
+    (SERM_ID, SERM_VERSION_ID, "serm_v2.json"),
+)
+
 # Examples with tasks (<name>_tasks.json) and an optional shared sample solution (<name>_sample_solution.json).
 _SEED_EXAMPLES = ("order_management", "order_processing", "course_planning")
 
@@ -144,6 +150,37 @@ async def _seed_language(
     )
 
 
+async def _seed_language_release(language_id, initial_version_id, filename, created_at, *, release_number=2):
+    """Upgrade a seed language as a new immutable release, preserving admin edits."""
+    namespace = UUID(language_id)
+    previous_ids = {initial_version_id} | {str(uuid5(namespace, f"release:{number}")) for number in range(2, release_number)}
+    version_id = str(uuid5(namespace, f"release:{release_number}"))
+    current = await db.languages.find_one({"_id": language_id})
+    if current is None or current.get("archivedAt") or current["latestVersionId"] not in previous_ids:
+        return
+    await db.language_versions.update_one(
+        {"_id": version_id},
+        {
+            "$setOnInsert": {
+                "languageId": language_id,
+                "versionNumber": f"{release_number}.0",
+                "createdBy": SYSTEM_OWNER_ID,
+                "createdAt": created_at,
+                "kind": "release",
+                "releaseName": f"Release {release_number}.0",
+                "description": None,
+                "includedLanguageVersions": [],
+                "data": _load_initial_data(filename),
+            }
+        },
+        upsert=True,
+    )
+    await db.languages.update_one(
+        {"_id": language_id, "latestVersionId": current["latestVersionId"]},
+        {"$set": {"latestVersionId": version_id}},
+    )
+
+
 async def seed_initial_data() -> None:
     """Store fixed seed data for a new Modeling Copilot database."""
     created_at = utcnow()
@@ -157,6 +194,8 @@ async def seed_initial_data() -> None:
         )
     for language_id, version_id, name, filename in _SEED_LANGUAGES:
         await _seed_language(language_id, version_id, name, filename, created_at)
+    for language_id, version_id, filename in _SEED_LANGUAGE_RELEASES:
+        await _seed_language_release(language_id, version_id, filename, created_at)
 
     for name in _SEED_EXAMPLES:
         await _seed_example(name, created_at)

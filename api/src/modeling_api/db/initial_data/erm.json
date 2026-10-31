@@ -24,56 +24,23 @@
       },
       "anchorPoints": [
         {
-          "x": 0.25,
-          "y": 0
-        },
-        {
           "x": 0.5,
           "y": 0
-        },
-        {
-          "x": 0.75,
-          "y": 0
-        },
-        {
-          "x": 1,
-          "y": 0.25
         },
         {
           "x": 1,
           "y": 0.5
         },
         {
-          "x": 1,
-          "y": 0.75
-        },
-        {
-          "x": 0.75,
-          "y": 1
-        },
-        {
           "x": 0.5,
           "y": 1
         },
         {
-          "x": 0.25,
-          "y": 1
-        },
-        {
-          "x": 0,
-          "y": 0.75
-        },
-        {
           "x": 0,
           "y": 0.5
-        },
-        {
-          "x": 0,
-          "y": 0.25
         }
       ],
       "children": [],
-      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -104,56 +71,23 @@
       },
       "anchorPoints": [
         {
-          "x": 0.25,
-          "y": 0
-        },
-        {
           "x": 0.5,
           "y": 0
-        },
-        {
-          "x": 0.75,
-          "y": 0
-        },
-        {
-          "x": 1,
-          "y": 0.25
         },
         {
           "x": 1,
           "y": 0.5
         },
         {
-          "x": 1,
-          "y": 0.75
-        },
-        {
-          "x": 0.75,
-          "y": 1
-        },
-        {
           "x": 0.5,
           "y": 1
         },
         {
-          "x": 0.25,
-          "y": 1
-        },
-        {
-          "x": 0,
-          "y": 0.75
-        },
-        {
           "x": 0,
           "y": 0.5
-        },
-        {
-          "x": 0,
-          "y": 0.25
         }
       ],
       "children": [],
-      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -189,36 +123,19 @@
           "y": 0
         },
         {
-          "x": 0.75,
-          "y": 0.25
-        },
-        {
           "x": 1,
           "y": 0.5
-        },
-        {
-          "x": 0.75,
-          "y": 0.75
         },
         {
           "x": 0.5,
           "y": 1
         },
         {
-          "x": 0.25,
-          "y": 0.75
-        },
-        {
           "x": 0,
           "y": 0.5
-        },
-        {
-          "x": 0.25,
-          "y": 0.25
         }
       ],
       "children": [],
-      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -252,36 +169,19 @@
           "y": 0
         },
         {
-          "x": 0.75,
-          "y": 0.25
-        },
-        {
           "x": 1,
           "y": 0.5
-        },
-        {
-          "x": 0.75,
-          "y": 0.75
         },
         {
           "x": 0.5,
           "y": 1
         },
         {
-          "x": 0.25,
-          "y": 0.75
-        },
-        {
           "x": 0,
           "y": 0.5
-        },
-        {
-          "x": 0.25,
-          "y": 0.25
         }
       ],
       "children": [],
-      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -316,36 +216,19 @@
           "y": 0
         },
         {
-          "x": 0.85,
-          "y": 0.15
-        },
-        {
           "x": 1,
           "y": 0.5
-        },
-        {
-          "x": 0.85,
-          "y": 0.85
         },
         {
           "x": 0.5,
           "y": 1
         },
         {
-          "x": 0.15,
-          "y": 0.85
-        },
-        {
           "x": 0,
           "y": 0.5
-        },
-        {
-          "x": 0.15,
-          "y": 0.15
         }
       ],
       "children": [],
-      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -381,36 +264,19 @@
           "y": 0
         },
         {
-          "x": 0.85,
-          "y": 0.15
-        },
-        {
           "x": 1,
           "y": 0.5
-        },
-        {
-          "x": 0.85,
-          "y": 0.85
         },
         {
           "x": 0.5,
           "y": 1
         },
         {
-          "x": 0.15,
-          "y": 0.85
-        },
-        {
           "x": 0,
           "y": 0.5
-        },
-        {
-          "x": 0.15,
-          "y": 0.15
         }
       ],
       "children": [],
-      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -445,36 +311,19 @@
           "y": 0
         },
         {
-          "x": 0.85,
-          "y": 0.15
-        },
-        {
           "x": 1,
           "y": 0.5
-        },
-        {
-          "x": 0.85,
-          "y": 0.85
         },
         {
           "x": 0.5,
           "y": 1
         },
         {
-          "x": 0.15,
-          "y": 0.85
-        },
-        {
           "x": 0,
           "y": 0.5
-        },
-        {
-          "x": 0.15,
-          "y": 0.15
         }
       ],
       "children": [],
-      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -521,7 +370,6 @@
         }
       ],
       "children": [],
-      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -551,56 +399,23 @@
       },
       "anchorPoints": [
         {
-          "x": 0.25,
-          "y": 0
-        },
-        {
           "x": 0.5,
           "y": 0
-        },
-        {
-          "x": 0.75,
-          "y": 0
-        },
-        {
-          "x": 1,
-          "y": 0.25
         },
         {
           "x": 1,
           "y": 0.5
         },
         {
-          "x": 1,
-          "y": 0.75
-        },
-        {
-          "x": 0.75,
-          "y": 1
-        },
-        {
           "x": 0.5,
           "y": 1
         },
         {
-          "x": 0.25,
-          "y": 1
-        },
-        {
-          "x": 0,
-          "y": 0.75
-        },
-        {
           "x": 0,
           "y": 0.5
-        },
-        {
-          "x": 0,
-          "y": 0.25
         }
       ],
       "children": [],
-      "docking": "anchors",
       "connectable": true,
       "resizable": true,
       "movable": true,
@@ -614,9 +429,7 @@
       "label": "Association",
       "defaultLabel": "",
       "connectionType": "association",
-      "connectable": false,
-      "allowLooseEnds": false,
-      "allowLabelEdit": false,
+      "connectable": true,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -690,9 +503,7 @@
       "label": "Attribute Link",
       "defaultLabel": "",
       "connectionType": "attribute",
-      "connectable": false,
-      "allowLooseEnds": false,
-      "allowLabelEdit": false,
+      "connectable": true,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -716,9 +527,7 @@
       "label": "Generalization",
       "defaultLabel": "",
       "connectionType": "generalization",
-      "connectable": false,
-      "allowLooseEnds": false,
-      "allowLabelEdit": false,
+      "connectable": true,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -1752,8 +1561,7 @@
               }
             }
           }
-        ],
-        "incoming": []
+        ]
       }
     }
   ],
