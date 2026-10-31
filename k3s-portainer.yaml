@@ -406,9 +406,12 @@ spec:
                 - >-
                   mongo --quiet --authenticationDatabase admin
                   -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD"
-                  --eval "try { rs.status(); } catch (e) { if (e.code !== 94) throw e;
-                  rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }); }
-                  db.isMaster().ismaster" | grep -q true
+                  --eval 'var status = rs.status();
+                  if (status.code === 94) {
+                    var result = rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "localhost:27017" }] });
+                    if (!result.ok) { printjson(result); quit(1); }
+                  } else if (!status.ok) { printjson(status); quit(1); }
+                  quit(db.isMaster().ismaster ? 0 : 1);'
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 10
