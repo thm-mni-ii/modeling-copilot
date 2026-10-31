@@ -192,12 +192,16 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
   /** Setzt die erlaubten Typen eines Containers; eine leere Liste hebt die Einschränkung auf. */
   const setContainmentChildTypes = (containerType: string, childTypes: string[]) => {
     if (!definition.value) return
-    const rule = definition.value.syntax.find((entry): entry is ContainmentRule => entry.ruleType === 'containment')
-    const relations = (rule?.config.relations ?? []).filter((relation) => relation.containerType !== containerType)
-    if (childTypes.length > 0) relations.push({ containerType, childTypes })
+    const syntax = definition.value.syntax
+    const current = syntax.find((entry): entry is ContainmentRule => entry.ruleType === 'containment')?.config.relations ?? []
+    // Relation und Regel bleiben an ihrem Platz, damit Umstellen und Zurückstellen den gespeicherten Stand ergibt
+    const exists = current.some((relation) => relation.containerType === containerType)
+    const relations = childTypes.length === 0 ? current.filter((relation) => relation.containerType !== containerType) : exists ? current.map((relation) => (relation.containerType === containerType ? { containerType, childTypes } : relation)) : [...current, { containerType, childTypes }]
 
-    if (relations.length > 0) addSyntaxToLanguage({ ruleType: 'containment', config: { relations } })
-    else definition.value.syntax = definition.value.syntax.filter((entry) => entry.ruleType !== 'containment')
+    if (relations.length === 0) definition.value.syntax = syntax.filter((entry) => entry.ruleType !== 'containment')
+    else if (syntax.some((entry) => entry.ruleType === 'containment')) addSyntaxToLanguage({ ruleType: 'containment', config: { relations } })
+    // Neue Regel direkt nach der Multiplicity-Regel, wie in den Seeds
+    else syntax.splice(syntax.findIndex((entry) => entry.ruleType === 'multiplicity') + 1, 0, { ruleType: 'containment', config: { relations } })
   }
 
   /** Schaltet die Acyclic-Regel; null entfernt sie, Zyklen sind dann erlaubt. */
