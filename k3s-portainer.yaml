@@ -305,6 +305,8 @@ spec:
 ---
 # Collab-Kit, the published image with its own database. The secret collab-kit-secrets
 # holds DB_USER, DB_PASSWORD and MONGO_KEYFILE.
+# MONGO_KEYFILE is raw secret material (prefer a random value of 32-768 bytes).
+# The init container encodes it as base64 for MongoDB's keyfile format.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -352,10 +354,22 @@ spec:
     spec:
       initContainers:
         # A replica set with a password needs a key file that only mongod may read.
-        # A secret volume cannot set the owner, so the key is copied with owner and mode.
+        # A secret volume cannot set the owner, so the encoded key gets owner and mode here.
         - name: keyfile
           image: mongo:4.4.29
-          command: ["install", "-m", "400", "-o", "999", "-g", "999", "/secret/keyfile", "/keyfile/"]
+          command:
+            - sh
+            - -ec
+            - |
+              umask 077
+              base64 -w 0 /secret/keyfile > /keyfile/keyfile
+              key_length=$(wc -c < /keyfile/keyfile)
+              if [ "$key_length" -lt 6 ] || [ "$key_length" -gt 1024 ]; then
+                echo "MONGO_KEYFILE must encode to 6-1024 base64 characters." >&2
+                exit 1
+              fi
+              chown 999:999 /keyfile/keyfile
+              chmod 400 /keyfile/keyfile
           volumeMounts:
             - name: secret
               mountPath: /secret
@@ -392,7 +406,8 @@ spec:
                 - >-
                   mongo --quiet --authenticationDatabase admin
                   -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD"
-                  --eval "rs.status().ok || rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] });
+                  --eval "try { rs.status(); } catch (e) { if (e.code !== 94) throw e;
+                  rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }); }
                   db.isMaster().ismaster" | grep -q true
             initialDelaySeconds: 5
             periodSeconds: 10
