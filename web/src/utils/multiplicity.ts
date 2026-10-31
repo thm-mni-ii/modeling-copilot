@@ -1,6 +1,6 @@
 import { InternalEvent, Multiplicity, type Cell, type Graph } from '@maxgraph/core'
 import type { DiagramSyntax, EdgeCardinality, MultiplicityRelation } from '@/model/Syntax'
-import { setValidationPassActive } from '@/utils/graphValidationRuntime'
+import { clearValidationWarningOverlays, setValidationPassActive } from '@/utils/graphValidationRuntime'
 
 export type ValidationCheckType = 'ElementCheck' | 'ConnectionCheck' | 'MultiplicityCheck'
 
@@ -309,6 +309,8 @@ export class DiagramValidator {
   private runValidationPass(graph: PatchedGraph): string | null {
     setValidationPassActive(graph, true)
     try {
+      // Natives setCellWarning (OverlaysMixin.js:80) hängt je Lauf ein weiteres Overlay an; alte Warnungen vorher entfernen
+      clearValidationWarningOverlays(graph)
       return graph.validateGraph()
     } finally {
       setValidationPassActive(graph, false)
