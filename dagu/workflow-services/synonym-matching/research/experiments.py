@@ -14,10 +14,10 @@ from pathlib import Path
 import numpy as np
 
 from .assignment import select_matches
-from .engine import MatchingEngine, nonempty_pairs
+from synonym_matching.engine import MatchingEngine, nonempty_pairs
 from .evaluation import evaluate_case, summarize
-from .lexicons import DATA_DIR
-from .variants import REQUIRES, evaluate_variant
+from synonym_matching.lexicons import DATA_DIR
+from synonym_matching.variants import REQUIRES, evaluate_variant
 
 PIPELINES = {
     'raw': [],
@@ -123,7 +123,7 @@ def provenance(engines):
                                 'config': engine.config['embedding'].get(name, {})}
         if engine.translator.revision:
             models['translation'] = engine.translator.revision
-    from .methods import EMBEDDING_MODELS
+    from synonym_matching.methods import EMBEDDING_MODELS
     resources = {}
     for name in ('openthesaurus.txt', 'nltk_data/corpora/wordnet.zip'):
         path = DATA_DIR / name
@@ -133,7 +133,12 @@ def provenance(engines):
             'packages': packages, 'models': models, 'model_names': EMBEDDING_MODELS,
             'translation_model': 'Helsinki-NLP/opus-mt-de-en',
             'resources': resources,
-            'source_hashes': {p.name: sha256(p) for p in Path(__file__).parent.glob('*.py')}}
+            'source_hashes': {
+                str(p.relative_to(DATA_DIR.parent.parent)): sha256(p)
+                for folder in (Path(__file__).parent,
+                               DATA_DIR.parent.parent / 'src/synonym_matching')
+                for p in folder.glob('*.py')
+            }}
 
 
 def score_statistics(features):

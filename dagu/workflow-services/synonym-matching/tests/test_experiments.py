@@ -3,8 +3,8 @@ import json
 import numpy as np
 import pytest
 
-from synonym_matching.assignment import select_matches
-from synonym_matching.experiments import catalogue, combine_spec, run_experiments
+from research.assignment import select_matches
+from research.experiments import catalogue, combine_spec, run_experiments
 from synonym_matching.preprocessing import split_compounds
 
 

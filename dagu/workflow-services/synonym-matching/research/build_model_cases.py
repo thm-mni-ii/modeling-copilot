@@ -121,8 +121,10 @@ def build():
 def main():
     """Schreibe die reproduzierbaren JSON-Beispiele in diesen Ordner."""
     _, cases, payload = build()
-    for name, data in [('model-cases.json', cases), ('order-management-input.json', payload)]:
-        (HERE / name).write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+    outputs = [(HERE / 'model-cases.json', cases),
+               (HERE.parent / 'examples/order-management-input.json', payload)]
+    for path, data in outputs:
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
 
 
 if __name__ == '__main__':

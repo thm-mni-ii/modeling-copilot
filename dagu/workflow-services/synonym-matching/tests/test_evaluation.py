@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from synonym_matching.evaluation import evaluate_case, summarize
+from research.evaluation import evaluate_case, summarize
 
 
 def test_pair_metrics_and_competing_candidates():

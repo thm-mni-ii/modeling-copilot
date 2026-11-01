@@ -32,6 +32,23 @@ def test_environment_precedes_stdin():
     assert result.returncode == 0, result.stderr
 
 
+def test_service_function_allows_method_selection_without_research_imports():
+    # Ein frischer Prozess stellt sicher, dass pytest keine Forschungsimporte mitbringt.
+    code = """
+import sys
+from synonym_matching import match
+result = match(['Kunde'], ['Kund'], config={'methods': ['levenshtein']})
+candidate = result['synonymMatrix'][0]['matches'][0]
+assert candidate['scores'] == {'levenshtein': 0.8}
+assert candidate['combinedScore'] == 0.8
+assert not any(name == 'research' or name.startswith('research.') for name in sys.modules)
+"""
+    env = dict(os.environ, PYTHONPATH=str(ROOT / 'src'))
+    result = subprocess.run([sys.executable, '-c', code], capture_output=True,
+                            text=True, env=env)
+    assert result.returncode == 0, result.stderr
+
+
 def test_invalid_and_old_dummy_payloads_fail():
     for payload in ['not-json', '[]', '{}', '{"step":"test"}', '{"input":{"source":"task"}}']:
         result = run(payload)

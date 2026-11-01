@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-EXAMPLES = Path(__file__).resolve().parents[1] / 'examples'
+ROOT = Path(__file__).resolve().parents[1]
+EXAMPLES = ROOT / 'research'
 
 
 def load(name):
@@ -17,7 +18,7 @@ def load(name):
 def test_examples_match_graph_and_cover_all_requested_cases():
     original, generated, payload = load('build_model_cases').build()
     assert generated == json.loads((EXAMPLES / 'model-cases.json').read_text())
-    assert payload == json.loads((EXAMPLES / 'order-management-input.json').read_text())
+    assert payload == json.loads((ROOT / 'examples/order-management-input.json').read_text())
     assert {c['case_number'] for c in generated['cases']} == set(range(1, 35))
     before = ET.fromstring(original['model']['version']['data']['xml'])
     assert [c.get('id') for c in before.iter('Cell') if c.get('value')] == [

@@ -4,6 +4,37 @@ Zwei Listen von Modelllabels hinein, eine Synonymmatrix mit IDs, Labels,
 Einzelscores und Combined Score heraus. Keine HTTP-API oder Datenbank;
 die Anbindung übernimmt der aufrufende Dienst.
 
+## Servicepfad und Forschungspfad
+
+- `src/main.py` → `synonym_matching.service.match()` → `MatchingEngine`:
+  eine Eingabe verarbeiten und unmittelbar die Synonymmatrix zurückgeben.
+- `research/`: Testdaten, Variantenvergleiche, Zuordnungsstrategien und Evaluation.
+  Dieser Pfad verwendet denselben Matching-Kern, wird aber vom Service nicht
+  importiert und nicht ins Docker-Image kopiert.
+- `examples/`: kleine Eingaben und Beispiele für die Verwendung.
+- `scripts/`: einmalige Vorbereitung von Modellen und Lexika.
+
+Direkter Serviceaufruf in Python (mit `PYTHONPATH=src`):
+
+```python
+from synonym_matching import match
+
+result = match(["Kunde"], ["Kund"], config={"methods": ["levenshtein"]})
+```
+
+Ohne Konfiguration laufen die bisherigen fünf String-Baselines. Eine andere
+registrierte Methode wird über `config.methods` gewählt; die Ein-/Ausgabe bleibt
+gleich. Die Experimentläufe wählen kein Verfahren automatisch als neuen Standard.
+
+Forschungsläufe aus diesem Serviceverzeichnis starten:
+
+```bash
+PYTHONPATH=src python -m research.check_model_cases --output results/vergleich.json
+```
+
+Die Engine kann direkt verwendet und wiederverwendet werden, wenn für Experimente
+ungerundete Matrizen und ein gemeinsamer Featurecache benötigt werden.
+
 ## Start
 
 Mit aktivierter lokaler Python-3.12-Umgebung:
@@ -89,7 +120,7 @@ Die CLI verarbeitet bereits extrahierte Labels, kein Graph-XML.
 - `preprocessing.py`, `translation.py`, `cache.py`: Textvorbereitung und
   Wiederverwendung von Embeddings/Übersetzungen pro eindeutigem Label im RAM.
 - `config.py`: Konfiguration prüfen.
-- `evaluation.py`: kleine Auswertung erwarteter Zuordnungen, kein Training.
+- `research/evaluation.py`: Auswertung erwarteter Zuordnungen außerhalb des Service-Kerns.
 
 Die Kandidatenheuristik (`context_aware`) wertet Konkurrenz innerhalb der Matrix
 aus, keine Graphstruktur oder Wortbedeutung im Aufgabenkontext.
@@ -131,12 +162,12 @@ nur Normalisierung. Stopword Removal kann Negation entfernen.
 
 `examples/order-management-input.json`: neun Labels der Repository-Musterlösung
 und synthetisch veränderte Schülerlabels mit ursprünglichen IDs.
-`examples/model-cases.json`: alle 28 Kategorien; Kategorie 28 hat fünf Unterfälle,
+`research/model-cases.json`: alle 28 Kategorien; Kategorie 28 hat fünf Unterfälle,
 ursprünglich 32 Szenarien mit vollständigen Paarannotationen; erweitert sind es 38.
 
 ```bash
-PYTHONPATH=src python examples/check_model_cases.py --output results/vergleich.json
-HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python examples/check_model_cases.py --models --output results/vergleich-modelle.json
+PYTHONPATH=src python -m research.check_model_cases --output results/vergleich.json
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python -m research.check_model_cases --models --output results/vergleich-modelle.json
 ```
 
 Nur zwei Dateien entstehen:
@@ -163,7 +194,7 @@ Top-1 bei Einzelpaaren ist trivial, der Graphfall wird separat ausgewiesen.
 Spanische Fälle nicht mit dem auf DE/EN beschränkten Übersetzungspfad gleichsetzen.
 Leere Mengen zählen nicht als Qualitätserfolge. Reale, geprüfte Abgaben fehlen noch.
 
-`python examples/build_model_cases.py` erzeugt die Beispiele aus dem unveränderten
+`python -m research.build_model_cases` erzeugt die Beispiele aus dem unveränderten
 Repository-Graphen neu. Kein zusätzlicher Schülergraph wird gespeichert.
 
 ## Tests
@@ -184,9 +215,9 @@ aber nicht im aktiven Service. TF-IDF braucht einen festgelegten Korpus; lernend
 Kombinationen benötigen ausreichende gelabelte Daten und saubere Trainings-/
 Validierungs-/Testtrennung, gegebenenfalls Out-of-Fold-Features.
 
-Benchmark-Suites, separater Split-Datensatz, CSV-Berichte und Umgebungs-/Quellcode-
-protokolle sind entfernt. Alte lokale Ergebnisse bleiben erhalten; neue Läufe
-erzeugen nur Matrizen und die kleine Übersicht.
+Ein separater Trainingsdatensatz und CSV-Berichte sind nicht vorgesehen. Der normale
+Vergleich erzeugt Matrizen und eine Übersicht; der erweiterte Forschungslauf ergänzt
+Konfiguration und Herkunftsinformationen zur Reproduzierbarkeit.
 
 ## WordNet und OpenThesaurus
 
@@ -227,7 +258,7 @@ Labels bleiben in der Ausgabe erhalten. Eigene lokale Pfade sind optional über
 Mit den vorhandenen Testfällen vergleichen:
 
 ```bash
-HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python examples/check_model_cases.py --models --lexicons --output results/lexika.json
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python -m research.check_model_cases --models --lexicons --output results/lexika.json
 RUN_LEXICON_TESTS=1 python -m pytest tests/test_lexicons.py -q
 ```
 
@@ -249,7 +280,7 @@ Download erhalten. Der verwendete Textdump enthält sein Erstellungsdatum im Kop
 2. `src/synonym_matching/engine.py`: Gesamtablauf in `MatchingEngine.match()`.
 3. `preprocessing.py`, `methods.py`, `lexicons.py`: Wie entsteht ein Einzelscore?
 4. `combiners.py`, `variants.py`: Wie werden Einzelscores kombiniert?
-5. `examples/check_model_cases.py`, `evaluation.py`: Wie werden Fälle verglichen?
+5. `research/check_model_cases.py`, `research/evaluation.py`: Wie werden Fälle verglichen?
 6. `config.py`, `cache.py`, `translation.py`: Einstellungen und Wiederverwendung.
 
 Kommentare und Docstrings erklären Zweck, Eingaben und wichtige Sonderfälle.
@@ -265,7 +296,7 @@ die vorhandenen Funktionen bleiben für Aufrufer verfügbar. Es gibt keine
 nachträgliche Deduplizierung anhand zufällig gleicher Testergebnisse.
 
 ```bash
-HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python examples/check_model_cases.py --extended --models --lexicons --output results/erweitert.json
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python -m research.check_model_cases --extended --models --lexicons --output results/erweitert.json
 ```
 
 Der erweiterte Lauf erzeugt wieder nur JSON und Markdown. Anders als die normale

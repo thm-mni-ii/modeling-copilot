@@ -9,8 +9,7 @@ from pathlib import Path
 
 import jsonschema
 
-from synonym_matching import MatchingEngine
-from synonym_matching.engine import format_synonym_matrix
+from synonym_matching import match
 
 SERVICE = 'synonym-matching'
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / 'schemas/input.schema.json'
@@ -43,13 +42,12 @@ def main():
         jsonschema.validate(payload, schema)
         data = payload['input']
 
-        engine = MatchingEngine(data.get('config'))
-        result = engine.match(
+        output = match(
             data['referenceModel']['elements'],
             data['studentModel']['elements'],
+            config=data.get('config'),
             threshold=data.get('threshold'),
         )
-        output = {'synonymMatrix': format_synonym_matrix(result['synonymMatrix'])}
         print(json.dumps(output, ensure_ascii=False, allow_nan=False))
         return 0
     except Exception as error:

@@ -11,7 +11,7 @@ from synonym_matching.engine import (
     format_synonym_matrix,
     nonempty_pairs,
 )
-from synonym_matching.evaluation import evaluate_case, summarize
+from research.evaluation import evaluate_case, summarize
 from synonym_matching.variants import REQUIRES, evaluate_variant
 
 HERE = Path(__file__).resolve().parent
@@ -199,7 +199,7 @@ def main():
     if args.extended:
         if args.preprocessing is not None:
             parser.error('--extended uses predefined preprocessing comparisons')
-        from synonym_matching.experiments import run_experiments
+        from research.experiments import run_experiments
         errors = run_experiments(
             data, args.output, models=args.models, lexicons=args.lexicons,
             threshold=args.threshold,
