@@ -15,8 +15,27 @@ python src/main.py --input examples/order-management-input.json
 
 Alternativ liest die CLI JSON aus `TEMPLATE_INPUT` oder stdin. Die Ausgabe ist
 ein JSON-Objekt mit `synonymMatrix`. Fehler: stderr und Exitcode 1.
-Die Dockerdatei ist noch der Skeleton-Stand und installiert keine Abhängigkeiten;
-Containeranbindung ist eine separate Aufgabe.
+Das Docker-Image enthält Abhängigkeiten, Schemas, die drei Standardmodelle,
+spaCy-Modelle für DE/EN sowie WordNet und OpenThesaurus inklusive Lizenzhinweisen.
+Downloads erfolgen beim Build; Matching läuft anschließend offline. Der erste
+Build benötigt Internet und wegen der Modellgewichte entsprechend Zeit und Platz.
+
+Vom Repository-Hauptverzeichnis aus:
+
+```bash
+docker compose --profile workflow-services build workflow-synonym-matching
+docker run --rm -i modeling-copilot/synonym-matching:0.1.1 < dagu/workflow-services/synonym-matching/examples/order-management-input.json
+```
+
+Ein Container verarbeitet eine Eingabe und endet danach. Modelldateien bleiben im
+Image, Modelle und Featurecache im RAM gelten nur für diesen Prozess. Eigene
+Modellnamen benötigen ein entsprechend vorbereitetes Image. Die bestehenden
+Modellrevisionen stehen standardmäßig auf `main`; für archivierte Experimente
+werden die tatsächlich geladenen Revisionen im Ergebnis festgehalten.
+
+Die Datenübergabe im Dagu-Workflow ist weiterhin Demo-Stand und muss vom Aufrufer
+an das dokumentierte Eingabeschema angepasst werden. Der Container allein stellt
+noch keine vollständige Workflow-Anbindung her.
 
 ## Eingabe und Ausgabe
 
@@ -174,7 +193,7 @@ erzeugen nur Matrizen und die kleine Übersicht.
 Einmalig die lokalen Daten vorbereiten (NLTK steht in `requirements.txt`):
 
 ```bash
-python examples/download_lexicons.py
+python scripts/download_lexicons.py
 ```
 
 Die Daten liegen unter `.cache/lexicons/` und werden nicht in Git aufgenommen.

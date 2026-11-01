@@ -45,7 +45,7 @@ class WordNet:
                 continue
         if root is None:
             raise FileNotFoundError(
-                'WordNet missing: run python examples/download_lexicons.py'
+                'WordNet missing: run python scripts/download_lexicons.py'
             )
 
         # NLTK sucht index.sense zusätzlich über seinen globalen Suchpfad.
