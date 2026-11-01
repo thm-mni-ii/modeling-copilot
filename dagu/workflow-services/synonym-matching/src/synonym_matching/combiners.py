@@ -1,4 +1,4 @@
-"""Fixed score aggregation functions."""
+"""Kombiniere Einzelmatrizen mit festen Rechenregeln."""
 
 import numpy as np
 
@@ -28,7 +28,7 @@ COMBINERS = {"mean": mean, "max": maximum, "weighted_mean": weighted_mean}
 
 
 def combine(matrices, config):
-    """Configuration adapter: select features, clip cosine, call one function."""
+    """Wähle Scores, begrenze Cosinuswerte und rufe die konfigurierte Kombination auf."""
     names = config.get("methods", list(matrices))
     if not names or len(set(names)) != len(names) or set(names) - matrices.keys():
         raise ValueError("combiner methods must be a nonempty unique subset of computed methods")

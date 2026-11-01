@@ -1,4 +1,4 @@
-"""Methods return raw pairwise matrices; larger values always mean more similar."""
+"""Verfahren liefern paarweise Rohscores; größere Werte bedeuten höhere Ähnlichkeit."""
 
 from importlib.metadata import version
 
@@ -9,6 +9,7 @@ from rapidfuzz.fuzz import token_sort_ratio as _token_sort_ratio
 from .preprocessing import Preprocessor
 from .translation import Translator
 
+
 def _pairwise(left, right, score):
     """Wende eine Paarfunktion auf alle Referenz-/Schülerlabels an."""
     matrix = np.zeros((len(left), len(right)))
@@ -17,7 +18,6 @@ def _pairwise(left, right, score):
             if reference_text.strip() and student_text.strip():
                 matrix[row, column] = score(reference_text, student_text)
     return matrix
-
 
 
 def levenshtein(left, right):
@@ -55,7 +55,6 @@ def char_ngram(left, right, n=3):
     return _pairwise(left, right, compare_grams)
 
 
-
 def char_bigram(left, right):
     """Vergleiche Zeichenfolgen der Länge zwei."""
     return char_ngram(left, right, n=2)
@@ -67,12 +66,12 @@ def char_trigram(left, right):
 
 
 def multilingual_embedding(left, right, *, backend):
-    """The backend only owns model loading and feature caching."""
+    """Nutze das Backend für Modellladen und wiederverwendete Embeddings."""
     return backend.matrix(left, right)
 
 
 def translated_embedding(left, right, *, backend):
-    """Inputs are translated by the backend's batch preparation step."""
+    """Die Texte wurden bei der Vorbereitung bereits ins Englische übersetzt."""
     return backend.matrix(left, right)
 
 
@@ -86,7 +85,6 @@ def token_jaccard(left, right):
         return len(common) / len(all_tokens)
 
     return _pairwise(left, right, compare_tokens)
-
 
 
 def token_sort_ratio(left, right):
@@ -105,17 +103,17 @@ def exact_match(left, right):
 
 
 def translated_string(left, right):
-    """String ensemble over texts already translated into English."""
+    """Mittle String-Scores für die bereits ins Englische übersetzten Texte."""
     return (levenshtein(left, right) + jaro_winkler(left, right) + char_trigram(left, right)) / 3
 
 
 def wordnet(left, right, *, backend):
-    """Shared English WordNet synset after translation."""
+    """Prüfe gemeinsame englische WordNet-Synsets nach der Übersetzung."""
     return backend.matrix(left, right)
 
 
 def openthesaurus(left, right, *, backend):
-    """Shared German synonym group, without translation."""
+    """Prüfe gemeinsame deutsche Synonymgruppen ohne Übersetzung."""
     return backend.matrix(left, right)
 
 
@@ -126,9 +124,6 @@ METHODS = {
     'jaro_winkler': jaro_winkler,
     'char_bigram': char_bigram,
     'char_trigram': char_trigram,
-}
-DEFAULT_METHODS = list(METHODS)
-METHODS.update({
     'token_jaccard': token_jaccard,
     'token_sort_ratio': token_sort_ratio,
     'word_order': word_order,
@@ -138,7 +133,12 @@ METHODS.update({
     'openthesaurus': openthesaurus,
     'multilingual': multilingual_embedding,
     'translated_embedding': translated_embedding,
-})
+}
+# Verfügbare Verfahren und sicherer Standard sind unabhängig voneinander.
+DEFAULT_METHODS = [
+    'levenshtein', 'damerau_levenshtein', 'jaro_winkler',
+    'char_bigram', 'char_trigram',
+]
 EMBEDDING_MODELS = {
     "multilingual": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     "translated_embedding": "sentence-transformers/all-MiniLM-L6-v2",

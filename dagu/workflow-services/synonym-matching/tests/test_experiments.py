@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from research.assignment import select_matches
-from research.experiments import catalogue, combine_spec, run_experiments
+from research.experiments import configurations, combine_spec, run_experiments
 from synonym_matching.preprocessing import split_compounds
 
 
@@ -33,8 +33,8 @@ def test_mutual_best_ties_and_invalid_cells():
     assert select_matches(np.ones((2, 2)), np.ones((2, 2)), .5, 'mutual_best').all()
 
 
-def test_catalogue_has_no_aliases_and_three_unique_weights():
-    _, specs = catalogue(True, True)
+def test_configurations_has_no_aliases_and_three_unique_weights():
+    specs = list(configurations(True, True, {'lowercase': ['normalize', 'lowercase']}).values())
     names = [s['name'] for s in specs]
     assert len(names) == len(set(names))
     assert not set(names) & {'translation_string', 'translation_monolingual',

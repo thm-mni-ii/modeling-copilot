@@ -1,4 +1,4 @@
-"""Reuse features for unique labels within one engine; no files or database."""
+"""Verwende Ergebnisse pro Label innerhalb einer Engine im RAM wieder."""
 
 import json
 

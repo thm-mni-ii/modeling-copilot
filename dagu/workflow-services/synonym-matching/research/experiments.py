@@ -8,6 +8,7 @@ import hashlib
 import importlib.metadata
 import json
 import platform
+import random
 import time
 from pathlib import Path
 
@@ -40,7 +41,7 @@ ALIASES = {
 }
 
 
-def catalogue(models=False, lexicons=False):
+def configurations(models=False, lexicons=False, pipelines=None):
     """Erstelle eindeutige Spezifikationen statt mehrfacher Namen für dieselbe Formel."""
     methods = list(STRING_METHODS) + ['exact_match']
     if models:
@@ -69,7 +70,17 @@ def catalogue(models=False, lexicons=False):
                               'requires': [lexicon, 'multilingual']})
         specs.append({'name': 'wordnet_openthesaurus', 'kind': 'mean',
                       'requires': ['wordnet', 'openthesaurus']})
-    return methods, specs
+    # Jede Zeile beschreibt genau einen Versuch. Hier neue Kombinationen ergänzen.
+    pipelines = PIPELINES if pipelines is None else pipelines
+    result = {}
+    for spec in specs:
+        uses_strings = bool(set(spec['requires']) & set(STRING_METHODS))
+        preprocessing = pipelines if uses_strings else {'fixed': ['normalize']}
+        for name, steps in preprocessing.items():
+            result[name + '/' + spec['name']] = {
+                **spec, 'preprocessing': steps, 'embedding_preprocessing': ['normalize'],
+            }
+    return result
 
 
 def combine_spec(spec, raw):
@@ -181,14 +192,18 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
         raise ValueError('case IDs must be unique')
     if not strategies or set(strategies) - set(STRATEGIES):
         raise ValueError('unknown or empty assignment strategies')
-    methods, specs = catalogue(models, lexicons)
+    # Seeds einmal pro Versuch setzen, nicht bei jeder Engine-Erzeugung.
+    random.seed(42)
+    np.random.seed(42)
+    definitions = configurations(models, lexicons, pipelines)
     engines, features, errors = {}, {}, []
-    records, definitions = [], {}
+    records = []
+    translator = None
     started = time.perf_counter()
 
-    def feature(method, pipeline, case):
+    def feature(method, steps, case):
         """Cache-Schlüssel enthält die tatsächlich wirksame Verarbeitungskette."""
-        steps = pipelines[pipeline] if method in STRING_METHODS else ['normalize']
+        nonlocal translator
         key = (method, tuple(steps))
         cache_key = (key, case['id'])
         if cache_key in features:
@@ -201,68 +216,59 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
                 if key not in engines:
                     engines[key] = MatchingEngine({'methods': [method],
                                                    'preprocessing': steps})
-                    # Über die Sprachpfade hinweg keine identische Übersetzung wiederholen.
+                    # Nur ein Übersetzer für alle übersetzenden Verfahren.
                     if method in {'wordnet', 'translated_string', 'translated_embedding'}:
-                        for other in engines.values():
-                            if other is not engines[key] and any(n in other.methods for n in
-                                    {'wordnet', 'translated_string', 'translated_embedding'}):
-                                engines[key].translator = other.translator
-                                if method == 'translated_embedding':
-                                    engines[key].backends[method].translator = other.translator
-                                break
+                        if translator is None:
+                            translator = engines[key].translator
+                        engines[key].translator = translator
+                        if method == 'translated_embedding':
+                            engines[key].backends[method].translator = translator
                 t0 = time.perf_counter()
-                result = engines[key].match(case['reference'], case['student'])
+                result = engines[key].compute_scores(case['reference'], case['student'])
                 seconds = time.perf_counter() - t0
                 texts = result['processedLabels'][method]
-                item = {'status': 'ok', 'scores': result['scores'][method],
+                item = {'status': 'ok', 'scores': result['scores'][method].tolist(),
                         'shape': result['shape'], 'seconds': seconds,
                         'processedLabels': texts,
                         'eligible': nonempty_pairs(texts['reference'], texts['student']).tolist()}
             except Exception as error:
                 item = {'status': 'error', 'reason': f'{type(error).__name__}: {error}'}
-                errors.append({'method': method, 'pipeline': pipeline,
+                errors.append({'method': method, 'preprocessing': steps,
                                'case': case['id'], 'reason': item['reason']})
         features[cache_key] = item
         return item
 
-    for spec in specs:
-        # Embeddings/Lexika/Exact Match bleiben invariant und laufen nur einmal.
-        affected = bool(set(spec['requires']) & set(STRING_METHODS))
-        active_pipelines = list(pipelines) if affected else [next(iter(pipelines))]
-        for pipeline in active_pipelines:
-            label = pipeline if affected else 'fixed'
-            identifier = label + '/' + spec['name']
-            definitions[identifier] = {'preprocessing': pipelines[pipeline] if affected else ['normalize'],
-                                       'embedding_preprocessing': ['normalize'], **spec}
-            for case in data['cases']:
-                parts = {name: feature(name, pipeline, case) for name in spec['requires']}
-                base = {'experiment': identifier, 'case': case['id']}
-                missing = {n: p for n, p in parts.items() if p['status'] != 'ok'}
-                if missing:
-                    records.append({**base, 'status': 'unavailable', 'missing': missing})
-                    continue
-                shape = (len(case['reference']), len(case['student']))
-                raw = {n: np.asarray(p['scores']).reshape(shape) for n, p in parts.items()}
-                eligible = np.logical_or.reduce([
-                    np.asarray(p['eligible'], dtype=bool).reshape(shape) for p in parts.values()])
-                eligible &= nonempty_pairs([e['label'] for e in case['reference']],
-                                           [e['label'] for e in case['student']])
+    for identifier, spec in definitions.items():
+        for case in data['cases']:
+            parts = {name: feature(name, spec['preprocessing'] if name in STRING_METHODS
+                                   else ['normalize'], case) for name in spec['requires']}
+            base = {'experiment': identifier, 'case': case['id']}
+            missing = {n: p for n, p in parts.items() if p['status'] != 'ok'}
+            if missing:
+                records.append({**base, 'status': 'unavailable', 'missing': missing})
+                continue
+            shape = (len(case['reference']), len(case['student']))
+            raw = {n: np.asarray(p['scores']).reshape(shape) for n, p in parts.items()}
+            eligible = np.logical_or.reduce([
+                np.asarray(p['eligible'], dtype=bool).reshape(shape) for p in parts.values()])
+            eligible &= nonempty_pairs([e['label'] for e in case['reference']],
+                                       [e['label'] for e in case['student']])
+            t0 = time.perf_counter()
+            scores = combine_spec(spec, raw)
+            combine_seconds = time.perf_counter() - t0
+            decisions = {}
+            for strategy in strategies:
                 t0 = time.perf_counter()
-                scores = combine_spec(spec, raw)
-                combine_seconds = time.perf_counter() - t0
-                decisions = {}
-                for strategy in strategies:
-                    t0 = time.perf_counter()
-                    selected = select_matches(scores, eligible, threshold, strategy)
-                    assignment_seconds = time.perf_counter() - t0
-                    decisions[strategy] = {
-                        'selected': selected.tolist(), 'seconds': assignment_seconds,
-                        'metrics': evaluate_case(case, scores, threshold,
-                                                 eligible=eligible, selected=selected)}
-                records.append({**base, 'status': 'ok', 'shape': list(shape),
-                                'combinedScores': scores.tolist(), 'decisions': decisions,
-                                'feature_seconds': sum(p['seconds'] for p in parts.values()),
-                                'combine_seconds': combine_seconds})
+                selected = select_matches(scores, eligible, threshold, strategy)
+                assignment_seconds = time.perf_counter() - t0
+                decisions[strategy] = {
+                    'selected': selected.tolist(), 'seconds': assignment_seconds,
+                    'metrics': evaluate_case(case, scores, threshold,
+                                             eligible=eligible, selected=selected)}
+            records.append({**base, 'status': 'ok', 'shape': list(shape),
+                            'combinedScores': scores.tolist(), 'decisions': decisions,
+                            'feature_seconds': sum(p['seconds'] for p in parts.values()),
+                            'combine_seconds': combine_seconds})
 
     # Eine einzige Datei reicht zur Rekonstruktion: Daten, Parameter und Rohscores.
     feature_records = []
@@ -271,7 +277,8 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
                                 'case': case_id, **item})
     payload = {'version': 1, 'seed': 42, 'threshold': threshold,
                'score_policy': 'raw cosine [-1,1]; combinations clip to [0,1]; no calibration',
-               'timing_policy': 'sequential CPU; shared cached features; load time included on first use',
+               'timing_policy': ('sequential CPU; shared cached raw features; load time included on first use; '
+                                 'feature time excludes candidate construction and JSON conversion'),
                'dataset': data, 'definitions': definitions, 'features': feature_records,
                'records': records, 'errors': errors, 'provenance': provenance(engines),
                'score_statistics': score_statistics(feature_records),

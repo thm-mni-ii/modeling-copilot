@@ -1,11 +1,10 @@
 """Steuert den Ablauf vom Labelpaar bis zur vollständigen Synonymmatrix.
 
 Zeilen gehören zur Musterlösung, Spalten zur Schülerlösung. Die Engine liefert
-ungerundete Scores; erst der CLI-Aufrufer rundet sie für die JSON-Ausgabe.
+ungerundete Scores; erst die Ausgabeformatierung rundet sie für JSON.
 """
 
 import math
-import random
 
 import numpy as np
 
@@ -149,8 +148,6 @@ class MatchingEngine:
         if 'translated_embedding' in self.backends:
             # Alle übersetzenden Methoden teilen sich denselben Übersetzer.
             self.backends['translated_embedding'].translator = self.translator
-        random.seed(self.config['seed'])
-        np.random.seed(self.config['seed'])
 
     def _prepare_texts(self, name, labels, string_texts, embedding_texts,
                        languages, has_pairs):
@@ -170,24 +167,12 @@ class MatchingEngine:
             texts = [normalize(element['label']) for element in labels]
         return texts
 
-    def match(self, reference, student, *, threshold=None):
-        """Berechne alle Paar-Scores und die daraus abgeleitete Synonymmatrix.
+    def compute_scores(self, reference, student):
+        """Berechne ungerundete NumPy-Matrizen ohne Kombination und Kandidatenlisten.
 
-        Args:
-            reference: Labels oder Element-Dictionaries der Musterlösung.
-            student: Labels oder Element-Dictionaries der Schülerlösung.
-            threshold: Optionaler Mindestscore für die Kandidatenlisten.
-
-        Returns:
-            Dictionary mit vollständigen Einzel-/Combined-Matrizen und einer
-            Synonymmatrix. Der Threshold filtert nur die Kandidatenlisten.
+        Der Forschungspfad kombiniert dieselben Rohscores mehrfach. Deshalb werden
+        hier weder Kandidaten sortiert noch Matrizen in JSON-Listen umgewandelt.
         """
-        if threshold is not None:
-            if (type(threshold) not in (float, int)
-                    or not math.isfinite(threshold)
-                    or not 0 <= threshold <= 1):
-                raise ValueError('threshold must be null or a finite number in [0, 1]')
-
         reference = elements(reference, 'reference')
         student = elements(student, 'student')
         labels = reference + student
@@ -234,6 +219,36 @@ class MatchingEngine:
             matrices[name] = matrix
             processed_labels[name] = {'reference': left, 'student': right}
 
+        return {
+            'referenceElements': reference,
+            'studentElements': student,
+            'shape': list(shape),
+            'scores': matrices,
+            'processedLabels': processed_labels,
+            'validPairs': valid,
+            'usablePairs': usable_pairs,
+        }
+
+    def match(self, reference, student, *, threshold=None):
+        """Berechne Scores, kombiniere sie und baue die sortierte Synonymmatrix.
+
+        Der Threshold filtert nur Kandidaten; die vollständigen Rohmatrizen
+        bleiben für bestehende Aufrufer im Ergebnis erhalten.
+        """
+        if threshold is not None:
+            if (type(threshold) not in (float, int)
+                    or not math.isfinite(threshold)
+                    or not 0 <= threshold <= 1):
+                raise ValueError('threshold must be null or a finite number in [0, 1]')
+
+        result = self.compute_scores(reference, student)
+        reference = result['referenceElements']
+        student = result['studentElements']
+        shape = tuple(result['shape'])
+        matrices = result['scores']
+        valid = result['validPairs']
+        usable_pairs = result['usablePairs']
+        processed_labels = result['processedLabels']
         contributing = self.config['combiner']['methods']
         if self.config['combiner']['kind'] == 'variant':
             from .variants import REQUIRES

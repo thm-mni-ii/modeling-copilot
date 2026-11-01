@@ -107,3 +107,42 @@ def test_display_rounding_preserves_threshold_decisions():
     assert not engine.match(['Kunde'], ['Kund'], threshold=.79534)['synonymMatrix'][0]['matches']
     assert set(displayed[0]) == {'referenceElement', 'matches'}
     assert set(displayed[0]['matches'][0]) == {'submissionElement', 'scores', 'combinedScore'}
+
+
+@pytest.mark.parametrize('reference,student', [(['Kunde', ''], ['Kund', 'Kund', '']),
+                                            ([], ['Kunde']), (['Kunde'], [])])
+def test_raw_scores_match_service_scores_without_building_candidates(monkeypatch, reference, student):
+    import synonym_matching.engine as module
+
+    engine = MatchingEngine()
+    expected = engine.match(reference, student)
+
+    def unnecessary(*args, **kwargs):
+        raise AssertionError('Rohscores benötigen weder Kombination noch Kandidatenlisten')
+
+    monkeypatch.setattr(module, 'combine', unnecessary)
+    monkeypatch.setattr(module, 'build_candidates', unnecessary)
+    raw = engine.compute_scores(reference, student)
+    assert 'synonymMatrix' not in raw
+    assert 'combinedScores' not in raw
+    for name, matrix in raw['scores'].items():
+        assert matrix.shape == (len(reference), len(student))
+        assert matrix.tolist() == expected['scores'][name]
+    assert raw['processedLabels'] == expected['processedLabels']
+
+
+def test_engine_keeps_explicit_defaults_and_does_not_reset_random_generators(monkeypatch):
+    import random
+    import synonym_matching.methods as methods
+
+    python_state = random.getstate()
+    numpy_state = np.random.get_state()
+    monkeypatch.setitem(methods.METHODS, 'future_method', lambda left, right: None)
+    engine = MatchingEngine({'seed': 123})
+    assert list(engine.methods) == ['levenshtein', 'damerau_levenshtein',
+                                    'jaro_winkler', 'char_bigram', 'char_trigram']
+    assert random.getstate() == python_state
+    current = np.random.get_state()
+    assert current[0] == numpy_state[0]
+    assert np.array_equal(current[1], numpy_state[1])
+    assert current[2:] == numpy_state[2:]

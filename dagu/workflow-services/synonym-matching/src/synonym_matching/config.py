@@ -1,4 +1,4 @@
-"""Strict validation prevents unnoticed experimental typos."""
+"""Prüfe Konfigurationen, damit unbekannte Optionen nicht unbemerkt bleiben."""
 
 import math
 from copy import deepcopy

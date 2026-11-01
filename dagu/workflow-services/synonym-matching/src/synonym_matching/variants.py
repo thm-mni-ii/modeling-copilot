@@ -1,7 +1,7 @@
-"""Named experiments over reusable score matrices. No model loading or I/O here.
+"""Benannte Kombinationen wiederverwendbarer Score-Matrizen.
 
-Every function returns one matrix of the same shape. Base scores remain untouched.
-All variants are fixed combinations; no training is performed.
+Jede Funktion liefert eine Matrix gleicher Form; die Rohscores bleiben unverändert.
+Hier werden weder Modelle geladen noch Dateien gelesen oder Modelle trainiert.
 """
 
 import numpy as np
@@ -88,7 +88,6 @@ def maximum_fusion(scores):
 
 
 def geometric_fusion(scores):
-    # A zero component deliberately vetoes the geometric mean.
     """Berechne das geometrische Mittel; ein Nullscore wirkt als Veto."""
     return np.sqrt(string_ensemble(scores) * multilingual_only(scores))
 
@@ -100,10 +99,10 @@ def exact_match_fusion(scores):
 
 
 def context_aware(scores, *, penalty=0.5):
-    """Penalize row/column competitors without promoting weak absolute scores.
+    """Senke Scores gegenüber stärkeren Kandidaten derselben Aufgabe ab.
 
-    Competition is computed inside one task only. Ties incur no arbitrary ID-based
-    preference. No one-to-one assignment, softmax probability or label information.
+    Gleichstände werden nicht über IDs aufgelöst. Das ist keine 1:1-Zuordnung
+    und keine Wahrscheinlichkeit; zusätzliche Aufgabentexte werden nicht verwendet.
     """
     if type(penalty) not in (float, int) or not np.isfinite(penalty) or not 0 <= penalty <= 1:
         raise ValueError('penalty must be in [0,1]')

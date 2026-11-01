@@ -1,5 +1,13 @@
 """Fixture contracts and diagnostic reporting, not assertions of semantic perfection."""
-import importlib.util
+import os
+import subprocess
+import sys
+
+import numpy as np
+
+from research.build_model_cases import build
+from research import experiments
+from synonym_matching import MatchingEngine
 import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -8,15 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / 'research'
 
 
-def load(name):
-    spec = importlib.util.spec_from_file_location(name, EXAMPLES / f'{name}.py')
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def test_examples_match_graph_and_cover_all_requested_cases():
-    original, generated, payload = load('build_model_cases').build()
+    original, generated, payload = build()
     assert generated == json.loads((EXAMPLES / 'model-cases.json').read_text())
     assert payload == json.loads((ROOT / 'examples/order-management-input.json').read_text())
     assert {c['case_number'] for c in generated['cases']} == set(range(1, 35))
@@ -30,36 +31,45 @@ def test_examples_match_graph_and_cover_all_requested_cases():
             assert len({x['id'] for x in case[side]}) == len(case[side])
 
 
-def test_matrices_and_small_overview(tmp_path):
+def test_single_research_command_writes_json_and_rankings(tmp_path):
     data = json.loads((EXAMPLES / 'model-cases.json').read_text())
-    out = tmp_path / 'matrices.json'
-    assert load('check_model_cases').run(data, out) == []
-    results = json.loads(out.read_text())
-    assert {p.name for p in tmp_path.iterdir()} == {'matrices.json'}
-    assert all(set(r) == {'variant', 'case', 'title', 'synonymMatrix', 'metrics'} for r in results)
-    assert {r['case'] for r in results} == {c['id'] for c in data['cases']}
-    bank = next(r for r in results if r['case'] == 'case-20')
-    assert bank['synonymMatrix'][0]['matches'][0]['combinedScore'] == 1
-    assert next(r for r in results if r['case'] == 'case-28-both-empty')['synonymMatrix'] == []
-    assert bank['metrics']['fp'] == 1
+    data['cases'] = [case for case in data['cases'] if case['case_number'] in (20, 28)]
+    source = tmp_path / 'cases.json'
+    source.write_text(json.dumps(data))
+    output = tmp_path / 'results.json'
+    env = dict(os.environ, PYTHONPATH=str(ROOT / 'src'))
+    result = subprocess.run([sys.executable, '-m', 'research.check_model_cases',
+        '--data', str(source), '--output', str(output), '--preprocessing', 'normalize'],
+        cwd=ROOT, env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(output.read_text())
+    assert {p.name for p in tmp_path.iterdir()} == {'cases.json', 'results.json'}
+    assert 'Top 3' in result.stdout
+    assert 'threshold' in payload['rankings']
+    assert {r['case'] for r in payload['records']} == {c['id'] for c in data['cases']}
+    bank = next(r for r in payload['records']
+                if r['case'] == 'case-20' and r['experiment'] == 'fixed/exact_match')
+    assert bank['combinedScores'] == [[1.0]]
+    assert bank['decisions']['threshold']['metrics']['fp'] == 1
 
 
 def test_spanish_translation_explicit_and_other_variants_continue(tmp_path, monkeypatch):
-    runner = load('check_model_cases')
-    class FakeEngine:
-        def __init__(self, config):
-            self.methods = config['methods']
-        def match(self, refs, students):
-            assert 'translated_embedding' not in self.methods
-            return {'scores': {name: [[0.7]] for name in self.methods},
-                    'processedLabels': {name: {'reference': ['Rechnung'], 'student': ['Factura']} for name in self.methods}}
-    monkeypatch.setattr(runner, 'MatchingEngine', FakeEngine)
+    class FakeEmbeddingEngine(MatchingEngine):
+        def compute_scores(self, refs, students):
+            assert not set(self.methods) & {'translated_embedding', 'translated_string'}
+            if 'multilingual' in self.methods:
+                return {'scores': {'multilingual': np.array([[.7]])}, 'shape': [1, 1],
+                        'processedLabels': {'multilingual': {'reference': ['Rechnung'],
+                                                            'student': ['Factura']}}}
+            return super().compute_scores(refs, students)
+
+    monkeypatch.setattr(experiments, 'MatchingEngine', FakeEmbeddingEngine)
     data = json.loads((EXAMPLES / 'model-cases.json').read_text())
     data['cases'] = [c for c in data['cases'] if c['case_number'] == 11]
-    out = tmp_path / 'matrices.json'
-    assert runner.run(data, out, models=True) == []
-    results = json.loads(out.read_text())
-    translated = next(r for r in results if r['variant'] == 'translated_embedding')
-    assert translated['synonymMatrix'] is None
-    assert 'de/en' in translated['error']
-    assert next(r for r in results if r['variant'] == 'multilingual')['synonymMatrix']
+    out = tmp_path / 'run.json'
+    assert experiments.run_experiments(data, out, models=True, pipelines={'raw': []}) == []
+    results = json.loads(out.read_text())['records']
+    translated = next(r for r in results if r['experiment'] == 'fixed/translated_embedding')
+    assert translated['status'] == 'unavailable'
+    assert 'de/en' in translated['missing']['translated_embedding']['reason']
+    assert next(r for r in results if r['experiment'] == 'fixed/multilingual')['status'] == 'ok'

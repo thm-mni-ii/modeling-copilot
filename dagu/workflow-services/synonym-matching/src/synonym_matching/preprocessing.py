@@ -1,4 +1,4 @@
-"""Composable text transformations; pipelines apply functions in explicit order."""
+"""Kombinierbare Textvorbereitung mit ausdrücklich festgelegter Reihenfolge."""
 
 import re
 import unicodedata
@@ -67,7 +67,7 @@ def remove_stopwords(text, language=None):
     if not text.strip():
         return text
     nlp = _tokenizer(language)
-    # Deliberately includes negations: an ablation, not a recommended default.
+    # Enthält bewusst Negationen: für Ablationsstudien, nicht als Standard.
     kept_tokens = []
     for token in nlp(text):
         if token.is_space or token.text.lower() in nlp.Defaults.stop_words:
@@ -118,7 +118,7 @@ def split_compounds(text, language=None):
     return ' '.join(result)
 
 
-# Names are also used in reproducible JSON experiment configurations.
+# Diese Namen werden auch in gespeicherten Experimentkonfigurationen verwendet.
 STEPS = {
     'normalize': normalize,
     'split_identifiers': split_identifiers,
@@ -131,14 +131,14 @@ STEPS = {
 
 
 def apply_pipeline(text, steps, language=None):
-    """Apply any sequence of functions with signature (text, language=None)."""
+    """Wende Funktionen der Form (text, language=None) der Reihe nach an."""
     for step in steps:
         text = step(text, language=language)
     return text
 
 
 def build_pipeline(config=None):
-    """Accept ordered function/name lists or the existing Boolean configuration."""
+    """Akzeptiere geordnete Funktionen/Namen oder die bisherige Bool-Konfiguration."""
     if config is None:
         return [normalize]
     if isinstance(config, (list, tuple)):
@@ -159,7 +159,7 @@ def build_pipeline(config=None):
 
 
 class Preprocessor:
-    """Small cache around a function pipeline; no transformation logic here."""
+    """Verwaltet eine Verarbeitungskette und ihren Cache, ohne eigene Textumformung."""
     def __init__(self, config=None):
         """Erstelle die geordnete Verarbeitungskette und einen leeren Cache."""
         self.steps = build_pipeline(config)
