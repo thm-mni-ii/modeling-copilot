@@ -1,4 +1,4 @@
-"""Compare fixed methods on the 28 requested categories: matrices + one overview."""
+"""Compare fixed methods on the 28 requested categories: JSON matrices and terminal summary."""
 import argparse
 import json
 import time
@@ -20,13 +20,12 @@ STRINGS = ['levenshtein', 'damerau_levenshtein', 'jaro_winkler', 'char_bigram',
 
 
 def run(data, output, models=False, threshold=0.5, preprocessing=None, lexicons=False):
-    """Vergleiche Methoden auf denselben Fällen; schreibe Matrizen und Übersicht."""
+    """Vergleiche Methoden auf denselben Fällen; speichere JSON und zeige die Übersicht im Terminal."""
     if (type(threshold) not in (int, float)
             or not np.isfinite(threshold) or not 0 <= threshold <= 1):
         raise ValueError('threshold must be in [0,1]')
     output = Path(output)
-    overview = output.with_suffix('.md')
-    if output.exists() or overview.exists():
+    if output.exists():
         raise FileExistsError('choose a new output filename')
     output.parent.mkdir(parents=True, exist_ok=True)
     preprocessing = preprocessing if preprocessing is not None else ['normalize', 'lowercase']
@@ -47,7 +46,6 @@ def run(data, output, models=False, threshold=0.5, preprocessing=None, lexicons=
     records = []
     errors = []
     evaluations = {}
-    statuses = []
     # Zuerst Basisscores pro Fall berechnen, dann daraus Varianten ableiten.
     started = time.perf_counter()
     for case in data['cases']:
@@ -93,7 +91,6 @@ def run(data, output, models=False, threshold=0.5, preprocessing=None, lexicons=
             if missing:
                 messages = sorted({failed[method] for method in missing})
                 item.update(synonymMatrix=None, error='; '.join(messages))
-                statuses.append((case['id'], name, 'nicht ausgeführt'))
             else:
                 if name in variants:
                     scores = evaluate_variant(name, raw)
@@ -111,73 +108,18 @@ def run(data, output, models=False, threshold=0.5, preprocessing=None, lexicons=
                 )
                 item['synonymMatrix'] = format_synonym_matrix(rows)
                 result = evaluate_case(case, scores, threshold, eligible=eligible)
+                item['metrics'] = result
                 evaluations.setdefault(name, []).append(result)
-                status = 'leer, technisch geprüft' if not result['pairs'] else (
-                    'OK' if result['all_correct'] else f"FP {result['fp']}, FN {result['fn']}")
-                statuses.append((case['id'], name, status))
             records.append(item)
     output.write_text(json.dumps(records, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
-    write_overview(
-        output, data, evaluations, statuses, threshold, preprocessing,
-        time.perf_counter() - started, len(errors),
-    )
-
-    return errors
-
-
-def write_overview(output, data, evaluations, statuses, threshold,
-                   preprocessing, elapsed, error_count):
-    """Schreibe die kompakte Übersicht neben die JSON-Datei."""
-    overview = output.with_suffix('.md')
-    # Die Auswertung verwendet ungerundete Scores; nur JSON wird gerundet.
-    lines = ['# Vorläufiger Variantenvergleich', '',
-             f'Threshold für die Auswertung: {threshold}; Matrizen bleiben ungefiltert.',
-             f'Preprocessing: {preprocessing}. Seed: 42. Gesamtlaufzeit: {elapsed:.2f} s.',
-             'Basisscores werden pro Fall einmal berechnet und zwischen Varianten geteilt.',
-             'Synthetische Fälle, keine unabhängige Qualitätsbestätigung; '
-             'kein Training oder Tuning.',
-             'Bank mit verschiedenen Bedeutungen ist ohne Kontext nicht unterscheidbar.',
-             'Top-1 ist bei Einzelpaaren trivial; deshalb zusätzlich Graphfall 21 separat.', '',
-             '| Verfahren | Fälle mit Paaren | TP | FP | FN | Precision | Recall | F1 |',
-             '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |']
+    print(f'Threshold: {threshold}; Laufzeit: {time.perf_counter() - started:.2f}s')
     for name, results in evaluations.items():
-        m = summarize(results)
-        nonempty_cases = sum(result['pairs'] > 0 for result in results)
-        lines.append(
-            f"| {name} | {nonempty_cases} | {m['tp']} | {m['fp']} | {m['fn']} "
-            f"| {m['precision']:.3f} | {m['recall']:.3f} | {m['f1']:.3f} |"
-        )
-    lines += ['', '## Graphfall: Top-1', '']
-    graph = None
-    for case in data['cases']:
-        if case['case_number'] == 21:
-            graph = case
-            break
-    if graph:
-        # Derive this from the already computed, unrounded evaluation records.
-        for name in evaluations:
-            case_ids = [
-                case_id for case_id, variant, status in statuses
-                if variant == name and status != 'nicht ausgeführt'
-            ]
-            if graph['id'] in case_ids:
-                m = evaluations[name][case_ids.index(graph['id'])]
-                lines.append(f"- {name}: {m['top1']}/{m['queries']}")
-    lines += ['', '## Testfälle', '',
-              '| Fall | vollständig richtige Verfahren / ausgeführt | nicht ausgeführt |',
-              '| --- | ---: | ---: |']
-    for case in data['cases']:
-        states = [status for cid, _, status in statuses if cid == case['id']]
-        skipped = states.count('nicht ausgeführt')
-        correct = states.count('OK')
-        if 'leer, technisch geprüft' in states:
-            value = 'leer, technisch geprüft'
-        else:
-            value = f'{correct}/{len(states) - skipped}'
-        lines.append(f"| {case['id']}: {case['title']} | {value} | {skipped} |")
-    lines += ['', f'Technische Fehler: {error_count}. '
-              'Nicht unterstützte Sprachen stehen direkt in der Matrixdatei.']
-    overview.write_text('\n'.join(lines) + '\n')
+        stats = summarize(results)
+        print(f"{name}: P={stats['precision']:.3f} R={stats['recall']:.3f} "
+              f"F1={stats['f1']:.3f}; {len(results)} Fälle")
+    print('Unterschiedliche Abdeckung beachten; Gesamtwerte sind nicht direkt vergleichbar.')
+    print(f'Technische Fehler: {len(errors)}')
+    return errors
 
 
 def main():

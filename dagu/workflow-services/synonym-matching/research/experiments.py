@@ -1,7 +1,7 @@
 """Vergleiche feste Pipelines, ohne den Service oder seine API zu verändern.
 
 Ein JSON enthält Konfiguration, Rohscores, Entscheidungen und Metriken. Die
-Markdown-Datei ist die kurze Übersicht. Es wird nichts auf Testlabels trainiert.
+Terminalausgabe ist die kurze Übersicht. Es wird nichts auf Testlabels trainiert.
 """
 
 import hashlib
@@ -171,7 +171,7 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
     if not np.isfinite(threshold) or not 0 <= threshold <= 1:
         raise ValueError('threshold must be in [0,1]')
     output = Path(output)
-    if output.exists() or output.with_suffix('.md').exists():
+    if output.exists():
         raise FileExistsError('choose a new output filename')
     pipelines = PIPELINES if pipelines is None else pipelines
     if not pipelines or not data.get('cases'):
@@ -277,74 +277,11 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
                'score_statistics': score_statistics(feature_records),
                'dataset_sha256': hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(),
                'elapsed_seconds': time.perf_counter() - started}
+    from .rank_results import build_rankings, print_rankings
+    strategy = 'threshold' if 'threshold' in strategies else strategies[0]
+    rankings = build_rankings(payload, strategy)
+    payload['rankings'] = {strategy: rankings}
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
-    write_report(output.with_suffix('.md'), payload)
+    print_rankings(rankings)
     return errors
-
-
-def write_report(path, payload):
-    """Vergleiche nur auf identischen Fällen; zeige zusätzlich Abdeckung und Fehler."""
-    records = payload['records']
-    definitions = payload['definitions']
-    nonempty = {c['id'] for c in payload['dataset']['cases'] if c['reference'] and c['student']}
-    supported = {name: {r['case'] for r in records if r['experiment'] == name and r['status'] == 'ok'}
-                 for name in definitions}
-    common = nonempty.intersection(*supported.values())
-    hard = {c['id'] for c in payload['dataset']['cases']
-            if c['case_number'] in range(15, 21) or c['case_number'] == 27 or c.get('hard_negative')}
-    multi = {c['id'] for c in payload['dataset']['cases'] if len(c['student']) > 1}
-    lines = ['# Erweiterter Vergleich', '',
-             f"Fester Threshold: {payload['threshold']}; Seed: 42. Kein Tuning/Training.",
-             f'Gemeinsame nichtleere Fälle: {len(common)}. IDs: {sorted(common)}',
-             'Top-1 bezieht sich auf die unveränderte Score-Rangliste, nur bei mehreren Kandidaten.',
-             'MBM erhält Gleichstände; Hungarian erlaubt Nichtzuordnung und erzwingt höchstens 1:1.',
-             'Recall kann bei mehreren korrekten Alternativen durch 1:1 sinken: Annotationen sind nicht eindeutige Identitätszuordnungen.',
-             'Alle Rohscores, Entscheidungen und Metriken je Fall stehen im JSON.', '',
-             '| Pipeline | Zuordnung | Abdeckung | Precision | Recall | F1 | Top-1 | FP schwierig | s Features* | s Kombination+Zuordnung |',
-             '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |']
-    for name in definitions:
-        available = [r for r in records if r['experiment'] == name and r['status'] == 'ok']
-        rows = [r for r in available if r['case'] in common]
-        strategies = list(available[0]['decisions']) if available else []
-        for strategy in strategies:
-            metrics = summarize([r['decisions'][strategy]['metrics'] for r in rows])
-            top = summarize([r['decisions'][strategy]['metrics'] for r in rows if r['case'] in multi])
-            top1 = f"{top['top1'] / top['queries']:.3f}" if top['queries'] else 'n/a'
-            fp = sum(r['decisions'][strategy]['metrics']['fp'] for r in rows if r['case'] in hard)
-            seconds = sum(r['combine_seconds'] + r['decisions'][strategy]['seconds'] for r in rows)
-            feature_seconds = sum(r['feature_seconds'] for r in rows)
-            scores = f"{metrics['precision']:.3f} | {metrics['recall']:.3f} | {metrics['f1']:.3f}" if common else 'n/a | n/a | n/a'
-            lines.append(f'| {name} | {strategy} | {len(supported[name] & nonempty)} | {scores} | {top1} | {fp} | {feature_seconds:.4f} | {seconds:.4f} |')
-    # Ohne die rein deutsche Ressource bleiben Übersetzungen und Graphfall sichtbar.
-    core_names = [name for name in definitions
-                  if name.startswith(('fixed/', 'lowercase/'))
-                  and 'openthesaurus' not in definitions[name]['requires']]
-    if core_names:
-        core_cases = nonempty.intersection(*(supported[name] for name in core_names))
-        lines += ['', '## Kernvergleich auf gemeinsamer DE/EN-Abdeckung', '',
-                  f'Fälle: {sorted(core_cases)}. Nur Threshold-Auswahl; keine Gewichtsoptimierung.', '',
-                  '| Pipeline | Precision | Recall | F1 | Top-1 (mehrere Kandidaten) |',
-                  '| --- | ---: | ---: | ---: | ---: |']
-        for name in core_names:
-            rows = [r for r in records if r['experiment'] == name
-                    and r['status'] == 'ok' and r['case'] in core_cases]
-            stats = summarize([r['decisions']['threshold']['metrics'] for r in rows
-                               if 'threshold' in r['decisions']])
-            ranking = summarize([r['decisions']['threshold']['metrics'] for r in rows
-                                 if r['case'] in multi and 'threshold' in r['decisions']])
-            accuracy = ranking['top1'] / ranking['queries'] if ranking['queries'] else 0
-            lines.append(f"| {name} | {stats['precision']:.3f} | {stats['recall']:.3f} | {stats['f1']:.3f} | {accuracy:.3f} |")
-    lines += ['', '## Prüfung der Score-Skalen', '',
-              '| Methode/Preprocessing | n | Min | Max | Mittel | Nullanteil | Einsanteil | negative Rohscores |',
-              '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |']
-    for name, stats in payload['score_statistics'].items():
-        if name.endswith('/normalize,lowercase') or name.split('/')[0] not in STRING_METHODS:
-            lines.append(f"| {name} | {stats['n']} | {stats['min']:.3f} | {stats['max']:.3f} | {stats['mean']:.3f} | {stats['zero_fraction']:.3f} | {stats['one_fraction']:.3f} | {stats['negative_count']} |")
-    lines += ['', '*Featurezeiten werden zwischen Varianten geteilt; keine isolierten End-to-End-Zeiten.',
-              'Cosinus, Stringähnlichkeit und binäre Lexikonevidenz sind keine kalibrierten Wahrscheinlichkeiten.',
-              'Keine Min-Max-Normalisierung pro Testmatrix, keine Auswahl von Gewichten anhand der Testlabels.',
-              'Bei fehlenden Ressourcen wird keine Nullleistung erfunden; Abdeckung/Fehler im JSON prüfen.',
-              f"Technische Fehler: {len(payload['errors'])}. Gesamtlaufzeit: {payload['elapsed_seconds']:.2f} s.",
-              'Logistic Regression zurückgestellt: kein unabhängiger gruppierter Trainings-/Validierungs-/Testdatensatz vorhanden.']
-    path.write_text('\n'.join(lines) + '\n')

@@ -69,5 +69,7 @@ def test_run_stores_raw_features_once_and_api_unchanged(tmp_path):
     assert sum(d['name'] == 'exact_match' for d in run['definitions'].values()) == 1
     assert set(run['records'][0]['decisions']) == {'threshold', 'mutual_best', 'hungarian'}
     assert run['dataset'] == data
+    assert 'threshold' in run['rankings']
+    assert {p.name for p in tmp_path.iterdir()} == {'run.json'}
     with pytest.raises(FileExistsError):
         run_experiments(data, output)

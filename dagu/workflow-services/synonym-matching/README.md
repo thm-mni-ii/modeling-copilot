@@ -170,10 +170,9 @@ PYTHONPATH=src python -m research.check_model_cases --output results/vergleich.j
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python -m research.check_model_cases --models --output results/vergleich-modelle.json
 ```
 
-Nur zwei Dateien entstehen:
-
-- JSON: ungefilterte Synonymmatrizen je Einzelmethode und verfügbarer Variante.
-- Markdown: TP/FP/FN, Precision/Recall/F1, Graph-Top-1 und Ergebnis je Testfall.
+Es entsteht nur eine JSON-Datei: ungefilterte Synonymmatrizen und ungerundete
+Evaluationszählwerte je Methode und Fall. Precision, Recall und F1 erscheinen
+zusätzlich im Terminal. Es werden keine Markdown-Berichte erzeugt.
 
 `--models` aktiviert beide Embedding-Pfade und Kombinationen. Basisscores werden
 pro Fall einmal berechnet und wiederverwendet. Offline-Variablen verlangen bereits
@@ -206,6 +205,42 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 RUN_MODEL_TESTS=1 python -m pytest -m in
 
 Tests sichern Schnittstelle, IDs, Matrizen, Sonderfälle, Caching und Auswertung ab;
 sie behaupten keine perfekte semantische Trefferquote.
+
+## Top-3-Übersicht für die Forschung
+
+Die Terminalausgabe nennt die tatsächlichen Preprocessing-Schritte, danach die
+Einzelverfahren und deren Kombination, zum Beispiel
+`normalize_lowercase_split_compounds - 50% Mittel(Levenshtein + Jaro-Winkler + Zeichen-Trigramme) + 50% Mittel(Token-Jaccard + Token-Sort-Ratio)`.
+Bei Hybriden werden die getrennten Preprocessing-Pfade gekennzeichnet. Die JSON
+behält stabile Pipeline-IDs und enthält zusätzlich die lesbare `description`.
+
+Eine zusätzliche Top-3-Übersicht lässt sich ohne erneute Modellberechnung aus
+einem erweiterten Vergleichslauf erzeugen:
+
+```bash
+PYTHONPATH=src python -m research.rank_results --input results/vergleich-sonntag.json
+```
+
+Die Top 3 erscheinen direkt im Terminal und werden unter `rankings.threshold`
+in derselben Ergebnis-JSON ergänzt. Die bisherigen Rohscores und Ergebnisse
+bleiben erhalten. Es gibt keine zusätzliche Berichtsdatei und keine neue
+Modellberechnung. Neue erweiterte Läufe speichern und zeigen dieses Ranking
+bereits automatisch.
+
+Mit `--strategy mutual_best` oder `--strategy hungarian` werden entsprechende
+Rankings in derselben JSON ergänzt. Optional schreibt `--output neuer-name.json`
+eine vollständige JSON-Kopie; vorhandene andere Dateien werden nicht überschrieben.
+Gezeigt werden Top 3 je Testkategorie, Top 3 über alle auswertbaren Fälle bei
+vollständiger Abdeckung und ein separates Ranking auf gemeinsamer Fallmenge.
+
+Mit positiven Paaren wird nach Micro-F1, dann Precision, dann Recall sortiert.
+Reine Negativfälle werden nach korrekt abgelehnten Paaren bewertet. Leere Mengen
+und ausschließlich leere Labels bleiben technische Sonderfälle ohne Qualitätsrang.
+Gleichstände erhalten denselben Rang; die Tabelle zeigt höchstens drei Vertreter
+und nennt weitere Gleichstände. Laufzeiten werden gezeigt, entscheiden wegen
+geteilter Caches aber keine Gleichstände. Größere Matrizen beeinflussen Micro-F1
+stärker als einzelne Wortpaare. Dieses explorative Ranking ändert keinen
+Service-Standard und ersetzt keine unabhängige Evaluation auf echten Modelldaten.
 
 ## Zurückgestellt
 
@@ -299,7 +334,7 @@ nachträgliche Deduplizierung anhand zufällig gleicher Testergebnisse.
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONPATH=src python -m research.check_model_cases --extended --models --lexicons --output results/erweitert.json
 ```
 
-Der erweiterte Lauf erzeugt wieder nur JSON und Markdown. Anders als die normale
+Der erweiterte Lauf erzeugt eine JSON-Datei und eine Top-3-Ausgabe im Terminal. Anders als die normale
 Matrixansicht enthält dieses JSON auch ungerundete Rohscores, Auswahlmasken,
 Metriken, Dataset, Pipelineparameter, Seed, Modellrevisionen, Ressourcen-/Codehashes
 und Paketversionen. Bestehende Ergebnisse werden nicht überschrieben. Die CLI des
@@ -349,9 +384,9 @@ Unsere Annotationen erlauben mehrere korrekte Kandidaten: Ein Recall-Abfall durc
 **Auswertung:** Precision, Recall, F1, Top-1 und Laufzeit. Top-1 bewertet die
 Score-Rangliste bei mehreren Kandidaten und ändert sich nicht durch die spätere
 Zuordnung. Die Übersicht verwendet gemeinsame Fallmengen, damit fehlende
-Sprachunterstützung keine Variante bevorzugt. Ein zusätzlicher Kernvergleich ohne
-OpenThesaurus erhält die DE/EN-Fälle einschließlich Übersetzungen und Graphbeispiel.
-Alle Ergebnisse und Abdeckungsgrenzen je Fall bleiben im JSON.
+Sprachunterstützung keine Variante bevorzugt. Das Ranking mit vollständiger Abdeckung und das Ranking auf gemeinsamer
+Fallmenge werden getrennt gezeigt. Alle Ergebnisse und Abdeckungsgrenzen je Fall
+bleiben im JSON.
 
 Featurezeiten werden zwischen Kombinationen geteilt. Die Summe dieser Zeiten ist
 keine isolierte End-to-End-Messung; Erstladen und RAM-Cacheeffekte sind enthalten.

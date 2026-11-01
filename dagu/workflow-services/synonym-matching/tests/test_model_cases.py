@@ -35,13 +35,13 @@ def test_matrices_and_small_overview(tmp_path):
     out = tmp_path / 'matrices.json'
     assert load('check_model_cases').run(data, out) == []
     results = json.loads(out.read_text())
-    assert {p.name for p in tmp_path.iterdir()} == {'matrices.json', 'matrices.md'}
-    assert all(set(r) == {'variant', 'case', 'title', 'synonymMatrix'} for r in results)
+    assert {p.name for p in tmp_path.iterdir()} == {'matrices.json'}
+    assert all(set(r) == {'variant', 'case', 'title', 'synonymMatrix', 'metrics'} for r in results)
     assert {r['case'] for r in results} == {c['id'] for c in data['cases']}
     bank = next(r for r in results if r['case'] == 'case-20')
     assert bank['synonymMatrix'][0]['matches'][0]['combinedScore'] == 1
     assert next(r for r in results if r['case'] == 'case-28-both-empty')['synonymMatrix'] == []
-    assert 'case-20: Mehrdeutigkeit | 0/' in out.with_suffix('.md').read_text()
+    assert bank['metrics']['fp'] == 1
 
 
 def test_spanish_translation_explicit_and_other_variants_continue(tmp_path, monkeypatch):
