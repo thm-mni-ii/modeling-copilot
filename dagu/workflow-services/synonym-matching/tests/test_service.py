@@ -2,8 +2,9 @@ import numpy as np
 import pytest
 from synonym_matching import MatchingEngine
 from synonym_matching.combinations import combine
-from synonym_matching.methods import damerau_levenshtein, levenshtein, char_trigram, EmbeddingMethod
+from synonym_matching.methods import damerau_levenshtein, levenshtein, char_trigram, EmbeddingMethod, STRING_BASELINES
 from synonym_matching.preprocessing import Preprocessor
+from synonym_matching.config import DEFAULT_CONFIG, validate_config
 
 
 def test_matrix_orientation_ids_duplicates_and_threshold():
@@ -19,13 +20,13 @@ def test_matrix_orientation_ids_duplicates_and_threshold():
 
 @pytest.mark.parametrize('left,right,shape', [([], [], [0, 0]), ([], ['a'], [0, 1]), (['a'], [], [1, 0])])
 def test_empty_shapes(left, right, shape):
-    result = MatchingEngine().match(left, right)
+    result = MatchingEngine({'methods': STRING_BASELINES}).match(left, right)
     assert result['shape'] == shape
     assert result['combinedScores'] == ([[]] if shape == [1, 0] else [])
 
 
 def test_blank_labels_never_become_candidates_even_at_zero():
-    result = MatchingEngine().match([' ', ''], ['', 'x'], threshold=0)
+    result = MatchingEngine({'methods': STRING_BASELINES}).match([' ', ''], ['', 'x'], threshold=0)
     assert result['combinedScores'] == [[0, 0], [0, 0]]
     assert all(not row['matches'] for row in result['synonymMatrix'])
 
@@ -59,12 +60,12 @@ def test_bad_config(config):
 @pytest.mark.parametrize('threshold', [-1, 2, float('nan'), True, '0.5'])
 def test_bad_threshold(threshold):
     with pytest.raises(ValueError):
-        MatchingEngine().match(['x'], ['x'], threshold=threshold)
+        MatchingEngine({'methods': STRING_BASELINES}).match(['x'], ['x'], threshold=threshold)
 
 
 def test_duplicate_ids_rejected():
     with pytest.raises(ValueError, match='duplicate'):
-        MatchingEngine().match([{'id': 'x', 'label': 'a'}, {'id': 'x', 'label': 'b'}], [])
+        MatchingEngine({'methods': STRING_BASELINES}).match([{'id': 'x', 'label': 'a'}, {'id': 'x', 'label': 'b'}], [])
 
 
 def test_weighted_scores_and_cosine_clipping():
@@ -75,7 +76,7 @@ def test_weighted_scores_and_cosine_clipping():
 
 
 def test_ties_have_stable_order():
-    result = MatchingEngine().match(['a'], ['a', 'a'])
+    result = MatchingEngine({'methods': STRING_BASELINES}).match(['a'], ['a', 'a'])
     row = result['synonymMatrix'][0]
     assert [m['submissionElement']['id'] for m in row['matches']] == ['student:0', 'student:1']
 
@@ -98,7 +99,7 @@ def test_embedding_batches_unique_labels_and_reuses_cache(monkeypatch):
 
 def test_display_rounding_preserves_threshold_decisions():
     from synonym_matching.service import format_synonym_matrix
-    engine = MatchingEngine()
+    engine = MatchingEngine({'methods': STRING_BASELINES})
     result = engine.match(['Kunde'], ['Kund'], threshold=.79532)
     matrix = result['synonymMatrix']
     displayed = format_synonym_matrix(matrix)
@@ -114,7 +115,7 @@ def test_display_rounding_preserves_threshold_decisions():
 def test_raw_scores_match_service_scores_without_building_candidates(monkeypatch, reference, student):
     import synonym_matching.service as module
 
-    engine = MatchingEngine()
+    engine = MatchingEngine({'methods': STRING_BASELINES})
     expected = engine.match(reference, student)
 
     def unnecessary(*args, **kwargs):
@@ -139,10 +140,22 @@ def test_engine_keeps_explicit_defaults_and_does_not_reset_random_generators(mon
     numpy_state = np.random.get_state()
     monkeypatch.setitem(methods.METHODS, 'future_method', lambda left, right: None)
     engine = MatchingEngine({'seed': 123})
-    assert list(engine.methods) == ['levenshtein', 'damerau_levenshtein',
-                                    'jaro_winkler', 'char_bigram', 'char_trigram']
+    assert list(engine.methods) == ['levenshtein', 'jaro_winkler', 'char_trigram', 'multilingual']
     assert random.getstate() == python_state
     current = np.random.get_state()
     assert current[0] == numpy_state[0]
     assert np.array_equal(current[1], numpy_state[1])
     assert current[2:] == numpy_state[2:]
+
+
+def test_default_pipeline_and_explicit_method_override_are_independent():
+    config = validate_config()
+    assert config['methods'] == ['levenshtein', 'jaro_winkler', 'char_trigram', 'multilingual']
+    assert config['preprocessing'] == config['embedding_preprocessing'] == ['normalize']
+    assert config['combiner']['name'] == 'weighted_fusion'
+    assert config['combiner']['options']['embedding_weight'] == .5
+    config['methods'].append('test')
+    assert 'test' not in DEFAULT_CONFIG['methods']
+    custom = validate_config({'methods': ['levenshtein']})
+    assert custom['methods'] == ['levenshtein']
+    assert custom['combiner']['kind'] == 'mean'

@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 import jsonschema
 
+from synonym_matching.methods import STRING_BASELINES
+
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = ROOT / 'src/main.py'
 
@@ -16,8 +18,16 @@ def run(raw, env_input=None):
     return subprocess.run([sys.executable, str(MAIN)], input=raw, capture_output=True, text=True, env=env)
 
 
+def example_input():
+    # Schnittstellenprüfung ohne Modellgewichte; der echte Standard hat Integrationstests.
+    payload = json.loads((ROOT / 'examples/input.json').read_text())
+    payload['input']['config'] = {'methods': STRING_BASELINES,
+                                 'preprocessing': ['normalize', 'lowercase']}
+    return json.dumps(payload)
+
+
 def test_real_output_contract():
-    result = run((ROOT / 'examples/input.json').read_text())
+    result = run(example_input())
     assert result.returncode == 0, result.stderr
     assert len(result.stdout.splitlines()) == 1
     output = json.loads(result.stdout)
@@ -28,7 +38,7 @@ def test_real_output_contract():
 
 
 def test_environment_precedes_stdin():
-    result = run('invalid', (ROOT / 'examples/input.json').read_text())
+    result = run('invalid', example_input())
     assert result.returncode == 0, result.stderr
 
 

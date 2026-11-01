@@ -26,8 +26,8 @@ def test_pipeline_order_and_empty_pipeline():
 
 
 def test_named_pipeline_is_equivalent_to_legacy_configuration():
-    named = MatchingEngine({'preprocessing': ['normalize', 'lowercase']}).match([' Kunde '], ['KUND'])
-    legacy = MatchingEngine({'preprocessing': {'normalize': True, 'lowercase': True}}).match([' Kunde '], ['KUND'])
+    named = MatchingEngine({'methods': ['levenshtein'], 'preprocessing': ['normalize', 'lowercase']}).match([' Kunde '], ['KUND'])
+    legacy = MatchingEngine({'methods': ['levenshtein'], 'preprocessing': {'normalize': True, 'lowercase': True}}).match([' Kunde '], ['KUND'])
     assert named['scores'] == legacy['scores']
     assert named['combinedScores'] == legacy['combinedScores']
     assert named['processedLabels']['levenshtein'] == {'reference': ['kunde'], 'student': ['kund']}

@@ -139,8 +139,8 @@ METHODS = {
     'multilingual': multilingual_embedding,
     'translated_embedding': translated_embedding,
 }
-# Verfügbare Verfahren und sicherer Standard sind unabhängig voneinander.
-DEFAULT_METHODS = [
+# Die bisherige String-Baseline bleibt ausdrücklich auswählbar.
+STRING_BASELINES = [
     'levenshtein', 'damerau_levenshtein', 'jaro_winkler',
     'char_bigram', 'char_trigram',
 ]

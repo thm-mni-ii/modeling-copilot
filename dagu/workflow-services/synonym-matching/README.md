@@ -32,10 +32,39 @@ from synonym_matching import match
 result = match(["Kunde"], ["Kund"], config={"methods": ["levenshtein"]})
 ```
 
-Für diesen Python-Aufruf `PYTHONPATH=src` setzen. Ohne Konfiguration gelten
-Levenshtein, Damerau-Levenshtein, Jaro-Winkler, Zeichen-Bigramme und -Trigramme,
-Unicode-/Leerraumnormalisierung und der einfache Mittelwert. Embeddings und
-Lexika werden ausdrücklich über `config.methods` gewählt.
+Für diesen Python-Aufruf `PYTHONPATH=src` setzen. Ohne explizite Methodenauswahl gilt jetzt die vorläufige semantische Pipeline:
+
+```python
+# In src/synonym_matching/config.py als DEFAULT_CONFIG festgelegt:
+{
+    "methods": ["levenshtein", "jaro_winkler", "char_trigram", "multilingual"],
+    "preprocessing": ["normalize"],
+    "embedding_preprocessing": ["normalize"],
+    "combiner": {"kind": "variant", "name": "weighted_fusion",
+                 "options": {"embedding_weight": 0.5}},
+}
+```
+
+Combined Score = 50 % Mittel(Levenshtein, Jaro-Winkler, Zeichen-Trigramme)
++ 50 % multilinguales Embedding. Kein Lowercasing, keine Übersetzung, kein Lexikon.
+Der Modellpfad ist `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`.
+Damit funktioniert der Standard auch ohne explizite DE/EN-Sprachangaben.
+
+Auswahlgrundlage: `vergleich-vereinfacht.json`, Threshold 0,5, 35 auswertbare
+synthetische Szenarien mit voller Sprachabdeckung: Precision 0,714, Recall 0,745,
+F1 0,729 (14 FP, 12 FN). Diese Pipeline ist gemeinsam mit der Exakt-Regel vorne;
+die zusätzliche Regel wird für den ersten Lauf nicht benötigt. Die DE→EN-Variante
+mit F1 0,773 deckt nur 33 Szenarien ab und ist deshalb kein direkt vergleichbarer
+Gesamtsieger. Keine Aussage über geprüfte reale Schülerabgaben und kein Training.
+Die Umstellung erfolgt manuell; neue Forschungsläufe ändern DEFAULT_CONFIG nicht.
+
+Eine explizite Liste `config.methods` ersetzt die Pipeline vollständig; ohne
+expliziten `combiner` gilt dann wie bisher der einfache Mittelwert dieser Methoden.
+Die ursprünglichen fünf Stringverfahren bleiben als `STRING_BASELINES` in
+`methods.py` verfügbar. Der Threshold bleibt optional und wird nicht automatisch
+auf 0,5 gesetzt. Für dieselbe Filterung wie im Vergleich `input.threshold=0.5`
+übergeben. Ausgabeformat und IDs bleiben unverändert. Der Standard braucht jetzt
+das vorbereitete multilinguale Modell (im Docker-Image bereits enthalten).
 
 ## Schnittstelle
 
@@ -145,7 +174,7 @@ Einzelmethoden, Kombinationen, Gewichten und Preprocessing. Die Dictionaries
 verwenden dieselben `methods` und `combiner` wie der Service. Neue Kombinationen
 dort ergänzen; neue Rechenregeln in `src/synonym_matching/combinations.py`. Neue Similarity-Funktionen
 können zunächst in der Forschung erprobt und später in `methods.py` registriert
-werden. `DEFAULT_METHODS` bleibt unabhängig von neu registrierten Verfahren.
+werden. `DEFAULT_CONFIG` bleibt unabhängig von neu registrierten Verfahren.
 
 Die bestehenden 164 Konfigurationen vergleichen mit allen Ressourcen 38 Szenarien:
 28 ursprüngliche Kategorien und sechs zusätzliche schwierige Kontrastkategorien.
@@ -223,10 +252,10 @@ Der Aufrufer startet den Container mit dem oben beschriebenen JSON über stdin o
 prüft den Exitcode; Fehlerdetails stehen auf stderr. Es ist kein HTTP-Endpunkt
 nötig. Die IDs und Sprachangaben müssen aus den Modelllabels übernommen werden.
 
-Zum Testen eines semantischen Verfahrens kann der Aufrufer ausdrücklich
-`"config": {"methods": ["multilingual"]}` setzen. Der unveränderte Standard ist
-weiterhin die String-Baseline, keine automatisch ausgewählte beste Pipeline.
-Die später gewünschte Kombination lässt sich über dieselbe Konfiguration wählen.
+Ohne `input.config` verwendet der Container die oben dokumentierte 50:50-Pipeline.
+`"config": {"methods": ["multilingual"]}` wählt stattdessen nur das Embedding;
+`"config": {"methods": ["levenshtein"]}` nur die Stringmetrik.
+Explizite bisherige Konfigurationen behalten ihre Wirkung.
 
 Die öffentlichen Aufrufe `from synonym_matching import match, MatchingEngine`
 bleiben erhalten. Interne Importe aus `engine`, `variants` und `combiners` wurden

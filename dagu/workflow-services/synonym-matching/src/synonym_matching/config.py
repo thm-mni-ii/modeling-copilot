@@ -3,8 +3,18 @@
 import math
 from copy import deepcopy
 
-from .methods import DEFAULT_METHODS, EMBEDDING_MODELS, METHODS
+from .methods import EMBEDDING_MODELS, METHODS
 from .preprocessing import Preprocessor
+
+# Vorläufige Auswahl aus dem Vergleich auf allen 35 auswertbaren Szenarien.
+# Das String-Ensemble und das multilinguale Embedding erhalten je 50 Prozent.
+DEFAULT_CONFIG = {
+    'methods': ['levenshtein', 'jaro_winkler', 'char_trigram', 'multilingual'],
+    'preprocessing': ['normalize'],
+    'embedding_preprocessing': ['normalize'],
+    'combiner': {'kind': 'variant', 'name': 'weighted_fusion',
+                 'options': {'embedding_weight': 0.5}},
+}
 
 
 def validate_config(value=None):
@@ -19,7 +29,10 @@ def validate_config(value=None):
     unknown = set(config) - allowed_fields
     if unknown:
         raise ValueError(f"unknown config fields: {sorted(unknown)}")
-    methods = config.setdefault("methods", DEFAULT_METHODS.copy())
+    if 'methods' not in config:
+        for name, default in DEFAULT_CONFIG.items():
+            config.setdefault(name, deepcopy(default))
+    methods = config['methods']
     if (not isinstance(methods, list) or not methods
             or any(not isinstance(name, str) for name in methods)):
         raise ValueError("methods must be a nonempty list of method names")

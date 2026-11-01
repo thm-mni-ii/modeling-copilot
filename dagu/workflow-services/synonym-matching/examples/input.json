@@ -34,23 +34,6 @@
         }
       ]
     },
-    "threshold": 0.5,
-    "config": {
-      "methods": [
-        "levenshtein",
-        "damerau_levenshtein",
-        "jaro_winkler",
-        "char_bigram",
-        "char_trigram"
-      ],
-      "preprocessing": {
-        "normalize": true,
-        "lowercase": true
-      },
-      "combiner": {
-        "kind": "mean"
-      },
-      "seed": 42
-    }
+    "threshold": 0.5
   }
 }
