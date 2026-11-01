@@ -1,12 +1,47 @@
-"""Benannte Kombinationen wiederverwendbarer Score-Matrizen.
-
-Jede Funktion liefert eine Matrix gleicher Form; die Rohscores bleiben unverändert.
-Hier werden weder Modelle geladen noch Dateien gelesen oder Modelle trainiert.
-"""
+"""Kombiniere Einzelmatrizen mit festen Rechenregeln."""
 
 import numpy as np
 
-from .combiners import mean, maximum, weighted_mean
+
+def mean(matrices):
+    """Mittle die Matrizen elementweise mit gleichem Gewicht."""
+    return np.stack(list(matrices.values())).mean(axis=0)
+
+
+def maximum(matrices):
+    """Wähle an jeder Matrixposition den höchsten Score."""
+    return np.stack(list(matrices.values())).max(axis=0)
+
+
+def weighted_mean(matrices, *, weights):
+    """Mittle die Matrizen mit geprüften, nichtnegativen Gewichten."""
+    names = list(matrices)
+    if set(weights) != set(names):
+        raise ValueError("weights must specify exactly the selected methods")
+    w = np.array([weights[n] for n in names], dtype=float)
+    if not np.isfinite(w).all() or (w < 0).any() or w.sum() <= 0:
+        raise ValueError("weights must be finite, nonnegative and have positive sum")
+    return np.average(np.stack(list(matrices.values())), axis=0, weights=w)
+
+
+COMBINERS = {"mean": mean, "max": maximum, "weighted_mean": weighted_mean}
+
+
+def combine(matrices, config):
+    """Wähle Scores, begrenze Cosinuswerte und rufe die konfigurierte Kombination auf."""
+    names = config.get("methods", list(matrices))
+    if not names or len(set(names)) != len(names) or set(names) - matrices.keys():
+        raise ValueError("combiner methods must be a nonempty unique subset of computed methods")
+    values = {name: matrices[name] for name in names}
+    kind = config.get("kind", "mean")
+    if kind == "variant":
+        # Varianten wählen und begrenzen ihre Einzelwerte bereits über _select().
+        return evaluate_variant(config["name"], values, **config.get("options", {}))
+    if kind not in COMBINERS:
+        raise ValueError(f"unknown combiner: {kind}")
+    options = {key: value for key, value in config.items() if key not in {"kind", "methods"}}
+    return COMBINERS[kind](_select(values, names), **options)
+
 
 STRINGS = ('levenshtein', 'jaro_winkler', 'char_trigram')
 TOKENS = ('token_jaccard', 'token_sort_ratio')
@@ -55,7 +90,7 @@ def embedding_ensemble(scores):
 
 def string_multilingual(scores):
     """Mittle String-Ensemble und multilinguales Embedding."""
-    return mean({'strings': string_ensemble(scores), 'embedding': multilingual_only(scores)})
+    return weighted_fusion(scores, embedding_weight=0.5)
 
 
 def string_translation_embedding(scores):
@@ -95,7 +130,8 @@ def geometric_fusion(scores):
 def exact_match_fusion(scores):
     """Setze echte Textgleichheit auf 1, sonst verwende den Hybridscore."""
     base = string_multilingual(scores)
-    return np.where(np.asarray(scores['exact_match']) == 1, 1.0, base)
+    exact = _select(scores, ('exact_match',))['exact_match']
+    return np.where(exact == 1, 1.0, base)
 
 
 def context_aware(scores, *, penalty=0.5):

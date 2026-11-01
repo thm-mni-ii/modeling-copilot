@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from synonym_matching import MatchingEngine
-from synonym_matching.combiners import combine
+from synonym_matching.combinations import combine
 from synonym_matching.methods import damerau_levenshtein, levenshtein, char_trigram, EmbeddingMethod
 from synonym_matching.preprocessing import Preprocessor
 
@@ -97,7 +97,7 @@ def test_embedding_batches_unique_labels_and_reuses_cache(monkeypatch):
 
 
 def test_display_rounding_preserves_threshold_decisions():
-    from synonym_matching.engine import format_synonym_matrix
+    from synonym_matching.service import format_synonym_matrix
     engine = MatchingEngine()
     result = engine.match(['Kunde'], ['Kund'], threshold=.79532)
     matrix = result['synonymMatrix']
@@ -112,7 +112,7 @@ def test_display_rounding_preserves_threshold_decisions():
 @pytest.mark.parametrize('reference,student', [(['Kunde', ''], ['Kund', 'Kund', '']),
                                             ([], ['Kunde']), (['Kunde'], [])])
 def test_raw_scores_match_service_scores_without_building_candidates(monkeypatch, reference, student):
-    import synonym_matching.engine as module
+    import synonym_matching.service as module
 
     engine = MatchingEngine()
     expected = engine.match(reference, student)

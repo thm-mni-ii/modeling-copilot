@@ -4,7 +4,7 @@ import pytest
 from synonym_matching import MatchingEngine
 from synonym_matching.methods import METHODS, levenshtein, jaro_winkler, char_ngram
 from synonym_matching.preprocessing import apply_pipeline, normalize, lowercase, Preprocessor
-from synonym_matching.combiners import mean, maximum, weighted_mean
+from synonym_matching.combinations import mean, maximum, weighted_mean
 
 
 def test_functions_compose_without_engine():

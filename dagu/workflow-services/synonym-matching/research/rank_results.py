@@ -6,9 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from .evaluation import summarize
-
-
-from synonym_matching.variants import STRINGS, TOKENS
+from synonym_matching.combinations import STRINGS, TOKENS
 
 METHOD_NAMES = {
     'levenshtein': 'Levenshtein',
@@ -53,11 +51,21 @@ def describe_pipeline(spec):
         'exact_match_fusion': f'Exakt-Regel (bei Textgleichheit 1, sonst {hybrid})',
         'context_aware': f'Kandidatenkonkurrenz-Korrektur({hybrid}; penalty=0.5)',
     }
-    name = spec.get('function', spec.get('name', ''))
-    requires = spec.get('requires', [])
+    combiner = spec.get('combiner', {})
+    name = combiner.get('name', spec.get('function', spec.get('name', '')))
+    requires = spec.get('methods', spec.get('requires', []))
     if name == 'weighted_fusion':
-        weight = spec.get('options', {}).get('embedding_weight', .5)
+        weight = combiner.get('options', spec.get('options', {})).get('embedding_weight', .5)
         expression = f'{(1 - weight) * 100:g}% {strings} + {weight * 100:g}% {multi}'
+    elif combiner.get('kind') == 'weighted_mean':
+        weights = combiner['weights']
+        total = sum(weights.values())
+        expression = ' + '.join(f'{100 * weights[method] / total:g}% {expressions.get(method, method)}'
+                                for method in requires)
+    elif combiner.get('kind') in {'mean', 'max'}:
+        parts = [expressions.get(method, method) for method in requires]
+        expression = parts[0] if len(parts) == 1 else (mean(parts) if combiner['kind'] == 'mean'
+                                                      else 'Maximum(' + '; '.join(parts) + ')')
     elif spec.get('kind') == 'lexicon_string':
         expression = f'50% {METHOD_NAMES[requires[0]]} + 50% {strings}'
     elif spec.get('kind') == 'mean':

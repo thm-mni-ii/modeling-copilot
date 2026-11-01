@@ -3,8 +3,10 @@ import json
 import numpy as np
 import pytest
 
-from research.assignment import select_matches
-from research.experiments import configurations, combine_spec, run_experiments
+from research.evaluation import select_matches
+from research.compare import configurations, run_experiments
+from synonym_matching.combinations import combine
+from synonym_matching.config import validate_config
 from synonym_matching.preprocessing import split_compounds
 
 
@@ -39,12 +41,22 @@ def test_configurations_has_no_aliases_and_three_unique_weights():
     assert len(names) == len(set(names))
     assert not set(names) & {'translation_string', 'translation_monolingual',
                              'multilingual_only', 'string_multilingual', 'weighted_fusion'}
-    weights = [s['options']['embedding_weight'] for s in specs if 'options' in s]
+    weighted = [s for s in specs if s['combiner'].get('name') == 'weighted_fusion']
+    weights = [s['combiner']['options']['embedding_weight'] for s in weighted]
     assert sorted(weights) == [.25, .5, .75]
     raw = {n: np.full((1, 1), .2) for n in ('levenshtein', 'jaro_winkler', 'char_trigram')}
     raw['multilingual'] = np.full((1, 1), .8)
-    values = [float(combine_spec(s, raw)[0, 0]) for s in specs if 'options' in s]
+    values = [float(combine(raw, s['combiner'])[0, 0]) for s in weighted]
     assert sorted(values) == pytest.approx([.35, .5, .65])
+
+
+def test_research_configurations_use_service_methods_and_combiners():
+    for spec in configurations(True, True).values():
+        config = {key: spec[key] for key in ('methods', 'preprocessing',
+                                           'embedding_preprocessing', 'combiner')}
+        validated = validate_config(config)
+        assert validated['methods'] == spec['methods']
+        assert validated['combiner']['kind'] == spec['combiner']['kind']
 
 
 def test_compounds_uses_lexicon_and_keeps_other_languages(monkeypatch):

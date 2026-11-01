@@ -6,8 +6,7 @@ Combined Score heraus. Der Service verarbeitet extrahierte Labels, kein Graph-XM
 ## Zwei Ausführungspfade
 
 - **Service:** `src/main.py` → `synonym_matching.service.match()` → Engine.
-- **Forschung:** `research/check_model_cases.py` startet genau einen Vergleichslauf
-  aus `research/experiments.py`. Beide verwenden denselben Matching-Kern.
+- **Forschung:** `research/compare.py` enthält die Konfigurationsliste und führt sie aus. Beide verwenden denselben Matching-Kern.
 
 Der Service importiert keine Forschungsmodule. Docker enthält nur den Service,
 Schemas und Vorbereitungsskripte. Forschungsergebnisse verändern den Standard nicht.
@@ -62,15 +61,40 @@ absteigend sortiert; Gleichstände behalten die Eingabereihenfolge. Keine
 Doppelte Labels mit unterschiedlichen IDs bleiben erhalten; doppelte IDs innerhalb
 einer Seite sind ungültig. Erst die Ausgabe rundet Scores auf vier Stellen.
 
+## Wo ändere ich was?
+
+```text
+src/main.py                      JSON einlesen und ausgeben
+src/synonym_matching/
+  service.py                     Matching-Ablauf und öffentlicher match()-Aufruf
+  methods.py                     einzelne Similarity-Verfahren und Modellladen
+  preprocessing.py               Textvorbereitung
+  combinations.py                alle Kombinationen und Gewichtungen
+  config.py                      Eingaben der Matching-Konfiguration prüfen
+  translation.py, lexicons.py     Übersetzungs- und Lexikonzugriff
+  cache.py                       Ergebnisse pro Label wiederverwenden
+research/
+  compare.py                     Konfigurationen festlegen und vergleichen
+  evaluation.py                  Zuordnung und Metriken
+  rank_results.py                Top 3 berechnen und lesbar ausgeben
+  build_model_cases.py            Testdaten erzeugen
+  model-cases.json                Testdaten mit erwarteten Zuordnungen
+```
+
+`MatchingEngine` bleibt als wiederverwendbares Objekt erhalten, damit Modelle und
+berechnete Embeddings nicht für jedes Paar neu geladen werden. Es gibt keine
+weiteren Runner-Klassen oder ein Plugin-Framework. Der Serviceausgang enthält nur
+die Synonymmatrix, der Forschungslauf speichert seine vollständigen Ergebnisse.
+
 ## Verfahren und Modelle
 
 - `methods.py`: String-/Tokenvergleiche, Exact Match, Wortreihenfolge,
   übersetzte Strings, Embeddings und Lexikonadapter.
 - `preprocessing.py`: `normalize`, `lowercase`, `split_identifiers`, `lemmatize`,
   `stem`, `remove_stopwords`, `split_compounds`. Geordnete Liste, `[]` für Rohtexte.
-- `combiners.py` und `variants.py`: Mean, Max, Weighted Mean sowie feste
+- `combinations.py`: Mean, Max, Weighted Mean sowie feste
   Kombinationen und Regeln. `config.combiner` wählt die Kombination.
-- `engine.py`: `compute_scores()` liefert ungerundete NumPy-Matrizen;
+- `service.py`: `compute_scores()` liefert ungerundete NumPy-Matrizen;
   `match()` ergänzt Kombination und Kandidatenlisten. Keine globalen Seed-Änderungen.
 - `cache.py`, `translation.py`, `lexicons.py`: Wiederverwendung pro Label und Engine.
 
@@ -105,7 +129,7 @@ Stopword Removal kann Negation entfernen. Beide sind bewusst Ablationen.
 
 ```bash
 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
-.venv/bin/python -m research.check_model_cases \
+.venv/bin/python -m research.compare \
   --models --lexicons --output results/vergleich.json
 ```
 
@@ -115,10 +139,11 @@ Ohne `--models`/`--lexicons` werden nur die übrigen Verfahren verglichen.
 Preprocessing-Vergleiche. Das frühere `--extended` wird noch akzeptiert, hat aber
 keine Wirkung mehr: Es gibt keinen zweiten Vergleichsmodus.
 
-**Änderungen an Experimenten:** In `research/experiments.py` stehen `PIPELINES`
+**Änderungen an Experimenten:** In `research/compare.py` stehen `PIPELINES`
 und `configurations()`. Letzteres erzeugt die flache Konfigurationsliste aus
-Einzelmethoden, Kombinationen, Gewichten und Preprocessing. Neue Kombinationen
-dort ergänzen; neue Rechenregeln in `combine_spec()`. Neue Similarity-Funktionen
+Einzelmethoden, Kombinationen, Gewichten und Preprocessing. Die Dictionaries
+verwenden dieselben `methods` und `combiner` wie der Service. Neue Kombinationen
+dort ergänzen; neue Rechenregeln in `src/synonym_matching/combinations.py`. Neue Similarity-Funktionen
 können zunächst in der Forschung erprobt und später in `methods.py` registriert
 werden. `DEFAULT_METHODS` bleibt unabhängig von neu registrierten Verfahren.
 
@@ -129,7 +154,7 @@ Testdaten mit erwarteten Paarzuordnungen stehen in `research/model-cases.json`;
 und synthetischen Varianten. `examples/order-management-input.json` ist eine
 Serviceeingabe mit Labels dieses Modells. Reale geprüfte Schülerabgaben fehlen.
 
-Ein Lauf speichert **eine JSON**, keine Markdown-Berichte: Dataset, Konfigurationen,
+Ein Lauf speichert **eine JSON** (Formatversion 2), keine Markdown-Berichte: Dataset, Konfigurationen,
 Rohscores, kombinierte Matrizen, Entscheidungen, Precision/Recall/F1, Top-1,
 Laufzeiten, Seed 42, Modellrevisionen, Ressourcen-/Codehashes und Paketversionen.
 Bestehende Dateien werden nicht überschrieben. Nicht unterstützte Sprachen werden
@@ -190,3 +215,21 @@ Lexikonquellen: [WordNet/NLTK](https://www.nltk.org/howto/wordnet.html),
 [WordNet-Lizenz](https://wordnet.princeton.edu/license-and-commercial-use),
 [OpenThesaurus](https://www.openthesaurus.de/about/download/api).
 OpenThesaurus bietet CC BY-SA 4.0 oder LGPL; Lizenzhinweise werden mit heruntergeladen.
+
+## Übergabe für die Anbindung
+
+Der Aufrufer startet den Container mit dem oben beschriebenen JSON über stdin oder
+`TEMPLATE_INPUT`. Er liest genau ein Objekt mit `synonymMatrix` aus stdout und
+prüft den Exitcode; Fehlerdetails stehen auf stderr. Es ist kein HTTP-Endpunkt
+nötig. Die IDs und Sprachangaben müssen aus den Modelllabels übernommen werden.
+
+Zum Testen eines semantischen Verfahrens kann der Aufrufer ausdrücklich
+`"config": {"methods": ["multilingual"]}` setzen. Der unveränderte Standard ist
+weiterhin die String-Baseline, keine automatisch ausgewählte beste Pipeline.
+Die später gewünschte Kombination lässt sich über dieselbe Konfiguration wählen.
+
+Die öffentlichen Aufrufe `from synonym_matching import match, MatchingEngine`
+bleiben erhalten. Interne Importe aus `engine`, `variants` und `combiners` wurden
+auf `service` bzw. `combinations` zusammengeführt. Der neue Forschungsbefehl ist
+`python -m research.compare`; ältere Ergebnis-JSONs bleiben mit `rank_results`
+auswertbar. Die Dagu-Datenübergabe ergänzt der aufrufende Dienst.

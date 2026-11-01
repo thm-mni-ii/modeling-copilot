@@ -72,7 +72,7 @@ def _validate_combiner(combiner, methods):
         allowed.add("weights")
     elif kind == "variant":
         allowed |= {"name", "options"}
-        from .variants import VARIANTS
+        from .combinations import VARIANTS
         if combiner.get("name") not in VARIANTS:
             raise ValueError("unknown variant")
         if not isinstance(combiner.get("options", {}), dict):
@@ -88,7 +88,7 @@ def _validate_combiner(combiner, methods):
     if len(set(selected)) != len(selected) or set(selected) - set(methods):
         raise ValueError("combiner methods must be a unique subset of methods")
     if kind == "variant":
-        from .variants import REQUIRES
+        from .combinations import REQUIRES
         if set(REQUIRES[combiner["name"]]) - set(selected):
             raise ValueError("variant requires additional base methods")
     if kind == "weighted_mean":

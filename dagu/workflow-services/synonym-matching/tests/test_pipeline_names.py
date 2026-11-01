@@ -1,4 +1,4 @@
-from research.experiments import configurations
+from research.compare import configurations
 from research.rank_results import describe_pipeline
 
 

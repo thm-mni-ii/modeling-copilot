@@ -4,6 +4,7 @@ Ein JSON enthält Konfiguration, Rohscores, Entscheidungen und Metriken. Die
 Terminalausgabe ist die kurze Übersicht. Es wird nichts auf Testlabels trainiert.
 """
 
+import argparse
 import hashlib
 import importlib.metadata
 import json
@@ -14,11 +15,10 @@ from pathlib import Path
 
 import numpy as np
 
-from .assignment import select_matches
-from synonym_matching.engine import MatchingEngine, nonempty_pairs
-from .evaluation import evaluate_case, summarize
+from synonym_matching.service import MatchingEngine
+from .evaluation import evaluate_case, select_matches
 from synonym_matching.lexicons import DATA_DIR
-from synonym_matching.variants import REQUIRES, evaluate_variant
+from synonym_matching.combinations import REQUIRES, combine
 
 PIPELINES = {
     'raw': [],
@@ -48,53 +48,42 @@ def configurations(models=False, lexicons=False, pipelines=None):
         methods += ['multilingual', 'translated_embedding', 'translated_string']
     if lexicons:
         methods += ['wordnet', 'openthesaurus']
-    specs = [{'name': name, 'kind': 'single', 'requires': [name]} for name in methods]
+    specs = [{'name': name, 'methods': [name], 'combiner': {'kind': 'mean'}} for name in methods]
     for name, requires in REQUIRES.items():
         if name not in ALIASES and set(requires) <= set(methods):
-            specs.append({'name': name, 'kind': 'variant', 'requires': list(requires)})
+            specs.append({'name': name, 'methods': list(requires),
+                          'combiner': {'kind': 'variant', 'name': name}})
     if models:
         for embedding_weight in (.25, .5, .75):
             string_weight = 1 - embedding_weight
             specs.append({
                 'name': f'string_multi_{int(string_weight * 100)}_{int(embedding_weight * 100)}',
-                'kind': 'variant', 'function': 'weighted_fusion',
-                'requires': list(REQUIRES['weighted_fusion']),
-                'options': {'embedding_weight': embedding_weight},
+                'methods': list(REQUIRES['weighted_fusion']),
+                'combiner': {'kind': 'variant', 'name': 'weighted_fusion',
+                             'options': {'embedding_weight': embedding_weight}},
             })
     if lexicons:
         for lexicon in ('wordnet', 'openthesaurus'):
-            specs.append({'name': lexicon + '_string', 'kind': 'lexicon_string',
-                          'requires': [lexicon] + list(REQUIRES['string_ensemble'])})
+            strings = list(REQUIRES['string_ensemble'])
+            specs.append({'name': lexicon + '_string', 'methods': [lexicon] + strings,
+                          'combiner': {'kind': 'weighted_mean',
+                                       'weights': {lexicon: .5, **{n: .5 / len(strings) for n in strings}}}})
             if models:
-                specs.append({'name': lexicon + '_multilingual', 'kind': 'mean',
-                              'requires': [lexicon, 'multilingual']})
-        specs.append({'name': 'wordnet_openthesaurus', 'kind': 'mean',
-                      'requires': ['wordnet', 'openthesaurus']})
+                specs.append({'name': lexicon + '_multilingual', 'methods': [lexicon, 'multilingual'],
+                              'combiner': {'kind': 'mean'}})
+        specs.append({'name': 'wordnet_openthesaurus', 'methods': ['wordnet', 'openthesaurus'],
+                      'combiner': {'kind': 'mean'}})
     # Jede Zeile beschreibt genau einen Versuch. Hier neue Kombinationen ergänzen.
     pipelines = PIPELINES if pipelines is None else pipelines
     result = {}
     for spec in specs:
-        uses_strings = bool(set(spec['requires']) & set(STRING_METHODS))
+        uses_strings = bool(set(spec['methods']) & set(STRING_METHODS))
         preprocessing = pipelines if uses_strings else {'fixed': ['normalize']}
         for name, steps in preprocessing.items():
             result[name + '/' + spec['name']] = {
                 **spec, 'preprocessing': steps, 'embedding_preprocessing': ['normalize'],
             }
     return result
-
-
-def combine_spec(spec, raw):
-    """Begrenze Scores wie im Service; Lexikon-Hybride gewichten beide Seiten gleich."""
-    selected = {name: np.clip(raw[name], 0, 1) for name in spec['requires']}
-    if spec['kind'] == 'single':
-        return selected[spec['requires'][0]]
-    if spec['kind'] == 'variant':
-        return evaluate_variant(spec.get('function', spec['name']), selected,
-                                **spec.get('options', {}))
-    if spec['kind'] == 'lexicon_string':
-        lexical = selected[spec['requires'][0]]
-        return (lexical + evaluate_variant('string_ensemble', selected)) / 2
-    return np.mean(list(selected.values()), axis=0)
 
 
 def unsupported(method, steps, case):
@@ -176,6 +165,49 @@ def score_statistics(features):
     return result
 
 
+def calculate_features(cases, definitions):
+    """Berechne jede Methode/Preprocessing-Kombination pro Testfall genau einmal."""
+    tasks = {}
+    for config in definitions.values():
+        for method in config['methods']:
+            steps = config['preprocessing'] if method in STRING_METHODS else ['normalize']
+            tasks[method, tuple(steps)] = steps
+    features, engines, errors = {}, {}, []
+    translator = None
+    for key, steps in tasks.items():
+        method = key[0]
+        engine = None
+        for case in cases:
+            reason = unsupported(method, steps, case)
+            if reason:
+                features[key, case['id']] = {'status': 'unsupported', 'reason': reason}
+                continue
+            try:
+                if engine is None:
+                    engine = MatchingEngine({'methods': [method], 'preprocessing': steps})
+                    engines[key] = engine
+                    if method in {'wordnet', 'translated_string', 'translated_embedding'}:
+                        translator = translator or engine.translator
+                        engine.translator = translator
+                        if method == 'translated_embedding':
+                            engine.backends[method].translator = translator
+                started = time.perf_counter()
+                result = engine.compute_scores(case['reference'], case['student'])
+                seconds = time.perf_counter() - started
+                texts = result['processedLabels'][method]
+                features[key, case['id']] = {
+                    'status': 'ok', 'scores': result['scores'][method].tolist(),
+                    'shape': result['shape'], 'seconds': seconds, 'processedLabels': texts,
+                    'eligible': (result['validPairs'] & result['usablePairs'][method]).tolist(),
+                }
+            except Exception as error:
+                reason = f'{type(error).__name__}: {error}'
+                features[key, case['id']] = {'status': 'error', 'reason': reason}
+                errors.append({'method': method, 'preprocessing': steps,
+                               'case': case['id'], 'reason': reason})
+    return features, engines, errors
+
+
 def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
                     pipelines=None, strategies=STRATEGIES):
     """Berechne gemeinsame Features einmal; vergleiche alle Varianten ohne Tuning."""
@@ -196,52 +228,16 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
     random.seed(42)
     np.random.seed(42)
     definitions = configurations(models, lexicons, pipelines)
-    engines, features, errors = {}, {}, []
-    records = []
-    translator = None
     started = time.perf_counter()
-
-    def feature(method, steps, case):
-        """Cache-Schlüssel enthält die tatsächlich wirksame Verarbeitungskette."""
-        nonlocal translator
-        key = (method, tuple(steps))
-        cache_key = (key, case['id'])
-        if cache_key in features:
-            return features[cache_key]
-        reason = unsupported(method, steps, case)
-        if reason:
-            item = {'status': 'unsupported', 'reason': reason}
-        else:
-            try:
-                if key not in engines:
-                    engines[key] = MatchingEngine({'methods': [method],
-                                                   'preprocessing': steps})
-                    # Nur ein Übersetzer für alle übersetzenden Verfahren.
-                    if method in {'wordnet', 'translated_string', 'translated_embedding'}:
-                        if translator is None:
-                            translator = engines[key].translator
-                        engines[key].translator = translator
-                        if method == 'translated_embedding':
-                            engines[key].backends[method].translator = translator
-                t0 = time.perf_counter()
-                result = engines[key].compute_scores(case['reference'], case['student'])
-                seconds = time.perf_counter() - t0
-                texts = result['processedLabels'][method]
-                item = {'status': 'ok', 'scores': result['scores'][method].tolist(),
-                        'shape': result['shape'], 'seconds': seconds,
-                        'processedLabels': texts,
-                        'eligible': nonempty_pairs(texts['reference'], texts['student']).tolist()}
-            except Exception as error:
-                item = {'status': 'error', 'reason': f'{type(error).__name__}: {error}'}
-                errors.append({'method': method, 'preprocessing': steps,
-                               'case': case['id'], 'reason': item['reason']})
-        features[cache_key] = item
-        return item
+    features, engines, errors = calculate_features(data['cases'], definitions)
+    records = []
 
     for identifier, spec in definitions.items():
         for case in data['cases']:
-            parts = {name: feature(name, spec['preprocessing'] if name in STRING_METHODS
-                                   else ['normalize'], case) for name in spec['requires']}
+            parts = {}
+            for name in spec['methods']:
+                steps = spec['preprocessing'] if name in STRING_METHODS else ['normalize']
+                parts[name] = features[((name, tuple(steps)), case['id'])]
             base = {'experiment': identifier, 'case': case['id']}
             missing = {n: p for n, p in parts.items() if p['status'] != 'ok'}
             if missing:
@@ -251,10 +247,8 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
             raw = {n: np.asarray(p['scores']).reshape(shape) for n, p in parts.items()}
             eligible = np.logical_or.reduce([
                 np.asarray(p['eligible'], dtype=bool).reshape(shape) for p in parts.values()])
-            eligible &= nonempty_pairs([e['label'] for e in case['reference']],
-                                       [e['label'] for e in case['student']])
             t0 = time.perf_counter()
-            scores = combine_spec(spec, raw)
+            scores = combine(raw, spec['combiner'])
             combine_seconds = time.perf_counter() - t0
             decisions = {}
             for strategy in strategies:
@@ -275,7 +269,7 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
     for ((method, steps), case_id), item in features.items():
         feature_records.append({'method': method, 'preprocessing': list(steps),
                                 'case': case_id, **item})
-    payload = {'version': 1, 'seed': 42, 'threshold': threshold,
+    payload = {'version': 2, 'seed': 42, 'threshold': threshold,
                'score_policy': 'raw cosine [-1,1]; combinations clip to [0,1]; no calibration',
                'timing_policy': ('sequential CPU; shared cached raw features; load time included on first use; '
                                  'feature time excludes candidate construction and JSON conversion'),
@@ -292,3 +286,28 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
     print_rankings(rankings)
     return errors
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--data', type=Path, default=Path(__file__).with_name('model-cases.json'))
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--models', action='store_true', help='Embedding- und Übersetzungsverfahren')
+    parser.add_argument('--lexicons', action='store_true', help='WordNet und OpenThesaurus')
+    parser.add_argument('--threshold', type=float, default=.5)
+    parser.add_argument('--preprocessing', nargs='*', default=None,
+                        help='Nur diese Schritte vergleichen; ohne Angabe alle Ablationen')
+    parser.add_argument('--extended', action='store_true', help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    pipelines = None if args.preprocessing is None else {'custom': args.preprocessing}
+    errors = run_experiments(
+        json.loads(args.data.read_text()), args.output,
+        models=args.models, lexicons=args.lexicons, threshold=args.threshold,
+        pipelines=pipelines,
+    )
+    print(f'Gespeichert: {args.output}; technische Fehler: {len(errors)}')
+    return int(bool(errors))
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

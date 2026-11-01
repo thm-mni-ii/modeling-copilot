@@ -6,7 +6,7 @@ import sys
 import numpy as np
 
 from research.build_model_cases import build
-from research import experiments
+from research import compare as experiments
 from synonym_matching import MatchingEngine
 import json
 from pathlib import Path
@@ -38,7 +38,7 @@ def test_single_research_command_writes_json_and_rankings(tmp_path):
     source.write_text(json.dumps(data))
     output = tmp_path / 'results.json'
     env = dict(os.environ, PYTHONPATH=str(ROOT / 'src'))
-    result = subprocess.run([sys.executable, '-m', 'research.check_model_cases',
+    result = subprocess.run([sys.executable, '-m', 'research.compare',
         '--data', str(source), '--output', str(output), '--preprocessing', 'normalize'],
         cwd=ROOT, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -59,6 +59,8 @@ def test_spanish_translation_explicit_and_other_variants_continue(tmp_path, monk
             assert not set(self.methods) & {'translated_embedding', 'translated_string'}
             if 'multilingual' in self.methods:
                 return {'scores': {'multilingual': np.array([[.7]])}, 'shape': [1, 1],
+                        'validPairs': np.ones((1, 1), dtype=bool),
+                        'usablePairs': {'multilingual': np.ones((1, 1), dtype=bool)},
                         'processedLabels': {'multilingual': {'reference': ['Rechnung'],
                                                             'student': ['Factura']}}}
             return super().compute_scores(refs, students)

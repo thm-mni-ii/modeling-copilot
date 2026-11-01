@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from synonym_matching import MatchingEngine
-from synonym_matching.variants import VARIANTS, REQUIRES, evaluate_variant
+from synonym_matching.combinations import VARIANTS, REQUIRES, combine, evaluate_variant
 from synonym_matching.methods import token_jaccard, token_sort_ratio, word_order
 from synonym_matching.preprocessing import remove_stopwords, stem
 
@@ -29,6 +29,20 @@ def test_every_variant_returns_a_matrix_without_changing_inputs(name):
 def test_active_catalog():
     assert len(VARIANTS) == 15
     assert VARIANTS.keys() == REQUIRES.keys()
+
+
+@pytest.mark.parametrize('name', list(VARIANTS))
+def test_combination_entry_points_apply_same_clipping_without_mutating_raw_scores(name):
+    scores = {method: np.array([[-.4, .8]]) for method in REQUIRES[name]}
+    if 'exact_match' in scores:
+        scores['exact_match'] = np.array([[0., 1.]])
+    before = {method: values.copy() for method, values in scores.items()}
+    clipped = {method: np.clip(values, 0, 1) for method, values in scores.items()}
+    expected = evaluate_variant(name, clipped)
+    np.testing.assert_allclose(combine(scores, {'kind': 'variant', 'name': name}), expected)
+    np.testing.assert_allclose(evaluate_variant(name, scores), expected)
+    for method, values in scores.items():
+        np.testing.assert_array_equal(values, before[method])
 
 
 def test_token_order_is_not_a_set_score():

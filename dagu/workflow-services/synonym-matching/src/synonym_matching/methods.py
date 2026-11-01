@@ -8,6 +8,7 @@ from rapidfuzz.fuzz import token_sort_ratio as _token_sort_ratio
 
 from .preprocessing import Preprocessor
 from .translation import Translator
+from .combinations import string_ensemble
 
 
 def _pairwise(left, right, score):
@@ -104,7 +105,11 @@ def exact_match(left, right):
 
 def translated_string(left, right):
     """Mittle String-Scores für die bereits ins Englische übersetzten Texte."""
-    return (levenshtein(left, right) + jaro_winkler(left, right) + char_trigram(left, right)) / 3
+    return string_ensemble({
+        'levenshtein': levenshtein(left, right),
+        'jaro_winkler': jaro_winkler(left, right),
+        'char_trigram': char_trigram(left, right),
+    })
 
 
 def wordnet(left, right, *, backend):
