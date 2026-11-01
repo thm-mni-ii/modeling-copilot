@@ -616,7 +616,7 @@
       "connectionType": "association",
       "connectable": false,
       "allowLooseEnds": false,
-      "allowLabelEdit": false,
+      "allowLabelEdit": true,
       "style": {
         "shape": "connector",
         "strokeColor": "#000000",
@@ -631,18 +631,20 @@
         "verticalAlign": "middle",
         "labelPosition": "center",
         "fontColor": "#000000",
-        "fontSize": 10
+        "fontSize": 10,
+        "noEdgeStyle": true,
+        "labelBackgroundColor": "#ffffff"
       },
       "additionalLabels": [
         {
           "type": "cardinality",
           "text": "mc",
           "geometry": {
-            "x": 0.6,
+            "x": 0.75,
             "y": 0,
             "relative": true,
-            "offsetX": 0,
-            "offsetY": -16,
+            "offsetX": -20,
+            "offsetY": -15,
             "width": 40,
             "height": 20
           },
@@ -651,38 +653,17 @@
             "fontColor": "#000000",
             "shape": "label",
             "align": "center",
-            "verticalAlign": "middle"
+            "verticalAlign": "middle",
+            "labelBackgroundColor": "#ffffff"
           },
           "connectable": false,
           "allowLabelEdit": true,
           "id": "Label 1"
-        },
-        {
-          "type": "role",
-          "text": "",
-          "geometry": {
-            "x": -0.6,
-            "y": 0,
-            "relative": true,
-            "offsetX": 0,
-            "offsetY": -12,
-            "width": 40,
-            "height": 20
-          },
-          "style": {
-            "fontSize": 12,
-            "fontColor": "#000000",
-            "shape": "label",
-            "align": "center",
-            "verticalAlign": "middle"
-          },
-          "connectable": false,
-          "allowLabelEdit": true,
-          "id": "Label 2"
         }
       ],
       "labelOffset": {
-        "y": 0
+        "y": 5,
+        "x": 0
       }
     },
     {
@@ -707,7 +688,8 @@
         "verticalAlign": "middle",
         "labelPosition": "center",
         "fontColor": "#000000",
-        "fontSize": 10
+        "fontSize": 10,
+        "noEdgeStyle": true
       },
       "additionalLabels": []
     },
@@ -733,7 +715,8 @@
         "verticalAlign": "middle",
         "labelPosition": "center",
         "fontColor": "#000000",
-        "fontSize": 10
+        "fontSize": 10,
+        "noEdgeStyle": true
       },
       "additionalLabels": []
     }
@@ -849,9 +832,11 @@
           {
             "sourceType": "erm-entity",
             "targetType": "erm-aggregation",
-            "state": "forbidden",
+            "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "association"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -961,9 +946,11 @@
           {
             "sourceType": "erm-weak-entity",
             "targetType": "erm-aggregation",
-            "state": "forbidden",
+            "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "association"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -973,9 +960,11 @@
           {
             "sourceType": "erm-relationship",
             "targetType": "erm-entity",
-            "state": "forbidden",
+            "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "association"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -985,9 +974,11 @@
           {
             "sourceType": "erm-relationship",
             "targetType": "erm-weak-entity",
-            "state": "forbidden",
+            "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "association"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -1069,9 +1060,11 @@
           {
             "sourceType": "erm-relationship",
             "targetType": "erm-aggregation",
-            "state": "forbidden",
+            "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "association"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -1081,9 +1074,11 @@
           {
             "sourceType": "erm-weak-relationship",
             "targetType": "erm-entity",
-            "state": "forbidden",
+            "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "association"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -1093,9 +1088,11 @@
           {
             "sourceType": "erm-weak-relationship",
             "targetType": "erm-weak-entity",
-            "state": "forbidden",
+            "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "association"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -1177,9 +1174,11 @@
           {
             "sourceType": "erm-weak-relationship",
             "targetType": "erm-aggregation",
-            "state": "forbidden",
+            "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "association"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -1643,9 +1642,11 @@
           {
             "sourceType": "erm-aggregation",
             "targetType": "erm-entity",
-            "state": "forbidden",
+            "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "association"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -1655,9 +1656,11 @@
           {
             "sourceType": "erm-aggregation",
             "targetType": "erm-weak-entity",
-            "state": "forbidden",
+            "state": "allowed",
             "refinement": {
-              "connectionTypes": [],
+              "connectionTypes": [
+                "association"
+              ],
               "cardinality": {
                 "min": 0,
                 "max": null
@@ -1753,7 +1756,131 @@
             }
           }
         ],
-        "incoming": []
+        "incoming": [
+          {
+            "elementType": "erm-relationship",
+            "direction": "both",
+            "connectionTypes": [
+              "association"
+            ],
+            "cardinality": {
+              "min": 2,
+              "max": null
+            },
+            "messageTemplate": "A relationship needs at least two participants."
+          },
+          {
+            "elementType": "erm-weak-relationship",
+            "direction": "both",
+            "connectionTypes": [
+              "association"
+            ],
+            "cardinality": {
+              "min": 2,
+              "max": null
+            },
+            "messageTemplate": "A weak relationship needs at least two participants."
+          },
+          {
+            "elementType": "erm-aggregation",
+            "direction": "both",
+            "connectionTypes": [
+              "association"
+            ],
+            "neighborTypes": [
+              "erm-entity",
+              "erm-weak-entity"
+            ],
+            "cardinality": {
+              "min": 2,
+              "max": null
+            },
+            "messageTemplate": "An aggregation needs at least two participants."
+          },
+          {
+            "elementType": "erm-isa",
+            "connectionTypes": [
+              "generalization"
+            ],
+            "cardinality": {
+              "min": 1,
+              "max": null
+            },
+            "messageTemplate": "An is_a needs at least one subtype."
+          },
+          {
+            "elementType": "erm-isa",
+            "direction": "outgoing",
+            "connectionTypes": [
+              "generalization"
+            ],
+            "cardinality": {
+              "min": 1,
+              "max": 1
+            },
+            "messageTemplate": "An is_a needs exactly one supertype."
+          },
+          {
+            "elementType": "erm-weak-entity",
+            "direction": "both",
+            "connectionTypes": [
+              "association"
+            ],
+            "neighborTypes": [
+              "erm-weak-relationship"
+            ],
+            "cardinality": {
+              "min": 1,
+              "max": null
+            },
+            "messageTemplate": "A weak entity needs a weak relationship to the entity it depends on."
+          },
+          {
+            "elementType": "erm-attribute",
+            "direction": "outgoing",
+            "connectionTypes": [
+              "attribute"
+            ],
+            "cardinality": {
+              "min": 1,
+              "max": 1
+            },
+            "messageTemplate": "An attribute needs exactly one owner."
+          },
+          {
+            "elementType": "erm-key-attribute",
+            "direction": "outgoing",
+            "connectionTypes": [
+              "attribute"
+            ],
+            "cardinality": {
+              "min": 1,
+              "max": 1
+            },
+            "messageTemplate": "A key attribute needs exactly one owner."
+          },
+          {
+            "elementType": "erm-multivalued-attribute",
+            "direction": "outgoing",
+            "connectionTypes": [
+              "attribute"
+            ],
+            "cardinality": {
+              "min": 1,
+              "max": 1
+            },
+            "messageTemplate": "A multivalued attribute needs exactly one owner."
+          }
+        ]
+      }
+    },
+    {
+      "ruleType": "acyclic",
+      "config": {
+        "messageTemplate": "The connection {source} -> {target} would close a cycle in the generalization hierarchy.",
+        "connectionTypes": [
+          "generalization"
+        ]
       }
     }
   ],
