@@ -2,7 +2,7 @@ import { InternalEvent, Multiplicity, type Cell, type Graph } from '@maxgraph/co
 import type { DiagramSyntax } from '@/model/Syntax'
 import type { DiagramElement } from '@/model/Element'
 import type { DiagramConnection } from '@/model/Connection'
-import { connectionErrors, elementConnectionErrors, type ConnectionRuleContext } from './connectionRules'
+import { connectionErrors, connectionEndpointErrors, elementConnectionErrors, type ConnectionRuleContext } from './connectionRules'
 import { clearValidationWarningOverlays, setValidationPassActive } from '@/utils/graphValidationRuntime'
 
 export type ValidationCheckType = 'ElementCheck' | 'ConnectionCheck' | 'MultiplicityCheck'
@@ -52,16 +52,17 @@ export class DiagramValidationRule {
 }
 
 class ConnectionMultiplicity extends Multiplicity {
-  constructor(private readonly context: ConnectionRuleContext) {
+  constructor(private readonly context: ConnectionRuleContext, private readonly endpointsOnly = false) {
     super(true, '*', null, null, 0, Number.MAX_VALUE, [], '', '', true)
   }
 
   override check(_graph: Graph, edge: Cell, source: Cell, target: Cell): string | null {
-    const errors = connectionErrors(this.context, edge, source, target)
+    const errors = this.endpointsOnly ? connectionEndpointErrors(this.context, edge, source, target) : connectionErrors(this.context, edge, source, target)
     return errors.length ? errors.join('\n') + '\n' : null
   }
 
   checkTerminalCardinality(cell: Cell): string | null {
+    if (this.endpointsOnly) return null
     const errors = elementConnectionErrors(this.context, cell)
     return errors.length ? errors.join('\n') + '\n' : null
   }
@@ -150,21 +151,23 @@ export class DiagramValidator {
   }
 }
 
-export const buildValidationRulesFromSyntax = (rules: DiagramSyntax[] | null | undefined, elements: DiagramElement[] = [], connections: DiagramConnection[] = []): DiagramValidationRule[] => {
-  if (!rules || rules.length === 0) {
-    return []
-  }
-
-  const multiplicities: ConnectionMultiplicity[] = []
-
-  for (const rule of rules) {
-    if (rule.ruleType !== 'multiplicity') continue
-
-    multiplicities.push(new ConnectionMultiplicity({ config: rule.config, elements, connections }))
-  }
-
-  const validationRules: DiagramValidationRule[] = multiplicities.length > 0 ? [new MultiplicityValidationRule(multiplicities)] : []
-  // The cycle check itself runs in MyCustomGraph.validateEdge; the entry only keeps live validation on
-  if (rules.some((rule) => rule.ruleType === 'acyclic')) validationRules.push(new DiagramValidationRule('ConnectionCheck'))
-  return validationRules
+export interface ValidationLanguage {
+  syntax: DiagramSyntax[]
+  elements: DiagramElement[]
+  connections: DiagramConnection[]
 }
+
+export const buildValidationRulesForLanguages = (languages: ValidationLanguage[]): DiagramValidationRule[] => {
+  const elements = languages.flatMap((language) => language.elements)
+  const connections = languages.flatMap((language) => language.connections)
+  const multiplicities = [new ConnectionMultiplicity({ config: { relations: [], messageTemplate: '' }, elements, connections }, true)]
+  for (const language of languages) {
+    for (const rule of language.syntax) {
+      if (rule.ruleType === 'multiplicity') multiplicities.push(new ConnectionMultiplicity({ config: rule.config, elements, connections, scopeElementTypes: language.elements.map((element) => element.type) }))
+    }
+  }
+  return [new MultiplicityValidationRule(multiplicities)]
+}
+
+export const buildValidationRulesFromSyntax = (rules: DiagramSyntax[] | null | undefined, elements: DiagramElement[] = [], connections: DiagramConnection[] = []): DiagramValidationRule[] =>
+  buildValidationRulesForLanguages([{ syntax: rules ?? [], elements, connections }])

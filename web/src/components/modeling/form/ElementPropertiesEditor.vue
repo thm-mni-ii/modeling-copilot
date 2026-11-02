@@ -323,13 +323,13 @@
       </v-expansion-panel>
 
       <!-- Collapse / Zusammenklappen -->
-      <v-expansion-panel>
+      <v-expansion-panel v-if="!isChild && diagramElementData">
         <v-expansion-panel-title>
           <v-icon class="mr-2">mdi-folder-open-outline</v-icon>
           Collapse
         </v-expansion-panel-title>
         <v-expansion-panel-text>
-          <CollapseSettings :element="localElement" @update="emitUpdate" />
+          <CollapseSettings :element="diagramElementData" @update="emitUpdate" />
         </v-expansion-panel-text>
       </v-expansion-panel>
 

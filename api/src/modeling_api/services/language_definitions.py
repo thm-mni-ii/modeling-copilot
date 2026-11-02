@@ -3,11 +3,11 @@
 from copy import deepcopy
 
 
-def normalize_connection_types(data: dict) -> dict:
+def normalize_connection_types(data: dict, inherited_connections: list[dict] | None = None) -> dict:
     """Resolve former rule aliases without modifying a stored language release."""
     result = deepcopy(data)
     aliases: dict[str, list[str]] = {}
-    for connection in result.get("connections", []):
+    for connection in [*(inherited_connections or []), *result.get("connections", [])]:
         identifier = connection.get("type")
         previous = connection.get("connectionType") or identifier
         if isinstance(identifier, str) and isinstance(previous, str):

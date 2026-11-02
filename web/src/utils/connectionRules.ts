@@ -5,19 +5,23 @@ import type { EdgeCardinality, MultiplicityCardinality, MultiplicityConfig, Mult
 import { DEFAULT_CONNECTION_MESSAGE_TEMPLATES, resolveQuantityMessage } from './syntaxMessages'
 import { elementTypeOf, endpointId, matchesEndpoint, pointId, pointLabel, pointsOf } from './connectionPoints'
 
-export interface ConnectionRuleContext {
-  config: MultiplicityConfig
+export interface ConnectionEndpointContext {
   elements: DiagramElement[]
   connections: DiagramConnection[]
 }
 
+export interface ConnectionRuleContext extends ConnectionEndpointContext {
+  config: MultiplicityConfig
+  scopeElementTypes?: string[]
+}
+
 export const connectionTypeOf = (edge: Cell): string => (edge as any).connectionId ?? ''
-const connectionOf = (context: ConnectionRuleContext, edge: Cell) => context.connections.find((c) => c.type === (edge as any).connectionId)
-const isUndirected = (context: ConnectionRuleContext, edge: Cell) => {
+const connectionOf = (context: ConnectionEndpointContext, edge: Cell) => context.connections.find((c) => c.type === (edge as any).connectionId)
+const isUndirected = (context: ConnectionEndpointContext, edge: Cell) => {
   const definition = connectionOf(context, edge)
   return definition ? definition.undirected === true : (edge as any).connectionUndirected === true
 }
-const pointsFor = (context: ConnectionRuleContext, cell: Cell) => context.elements.find((e) => e.type === elementTypeOf(cell))?.anchorPoints ?? pointsOf(cell)
+const pointsFor = (context: ConnectionEndpointContext, cell: Cell) => context.elements.find((e) => e.type === elementTypeOf(cell))?.anchorPoints ?? pointsOf(cell)
 const selectedType = (types: string[] | undefined, edge: Cell) => !types?.length || types.includes(connectionTypeOf(edge))
 const outside = (count: number, bounds: MultiplicityCardinality, minimum: boolean) => (minimum && count < bounds.min) || (bounds.max !== null && count > bounds.max)
 
@@ -86,6 +90,7 @@ const buckets = (context: ConnectionRuleContext, rule: EdgeCardinality, cell: Ce
 const limitErrors = (context: ConnectionRuleContext, cell: Cell, candidate?: { edge: Cell; source: Cell; target: Cell }, minimum = false): string[] => {
   const errors: string[] = []
   for (const rule of context.config.incoming ?? []) {
+    if (!rule.elementType && context.scopeElementTypes && !context.scopeElementTypes.includes(elementTypeOf(cell) ?? '')) continue
     if (rule.elementType && rule.elementType !== elementTypeOf(cell)) continue
     for (const bucket of buckets(context, rule, cell)) {
       const count = incidentEdges(cell).filter((edge) => {
@@ -119,18 +124,10 @@ const renderRelationMessage = (context: ConnectionRuleContext, relation: Effecti
 }
 
 /** One decision path for dragging, reconnecting, graph validation and suggestions. Minima are checked separately. */
-export const connectionErrors = (context: ConnectionRuleContext, edge: Cell, source: Cell, target: Cell): string[] => {
+export const connectionEndpointErrors = (context: ConnectionEndpointContext, edge: Cell, source: Cell, target: Cell): string[] => {
   if (!elementTypeOf(source) || !elementTypeOf(target) || (source as any).cellRole === 'feedback' || (target as any).cellRole === 'feedback') return []
   const errors: string[] = []
-  const definition = connectionOf(context, edge)
-  if (source === target && !definition?.allowLoops) errors.push('Self-connections are not allowed.')
-  const applicable = orientations(context, edge, source, target).flatMap(([from, to, forward]) => effectiveRelations(context.config).filter((r) => r.sourceType === elementTypeOf(from) && r.targetType === elementTypeOf(to)).map((relation) => ({ relation, from, to, forward })))
-  if (applicable.some(({ relation }) => relation.state === 'forbidden') || (!applicable.length && context.config.defaultState === 'forbidden')) return [renderMessage(context.config.forbiddenMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.forbiddenMessageTemplate, source, target, edge)]
-  const allowed = applicable.filter(({ relation }) => relation.state === 'allowed' && selectedType(relation.refinement.connectionTypes, edge))
-  if (applicable.length && !allowed.length) return [renderMessage(context.config.connectionTypeMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.connectionTypeMessageTemplate, source, target, edge)]
-
-  const endpointAllowed = !allowed.length || allowed.some(({ relation, from, to, forward }) => endpointMatch(context, relation, edge, from, to, forward))
-  if (!endpointAllowed) errors.push(renderMessage(context.config.endpointMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.endpointMessageTemplate, source, target, edge))
+  if (source === target && !connectionOf(context, edge)?.allowLoops) errors.push('Self-connections are not allowed.')
   for (const [cell, sourceEnd] of [[source, true], [target, false]] as const) {
     const points = pointsFor(context, cell)
     const id = endpointId(edge, sourceEnd, cell, points)
@@ -142,6 +139,21 @@ export const connectionErrors = (context: ConnectionRuleContext, edge: Cell, sou
     if (element?.docking === 'anchors' && points.length && !id) errors.push(`${element.type} requires a connection point.`)
     if (!isUndirected(context, edge) && point?.role && point.role !== 'bidirectional' && (point.role === 'output') !== sourceEnd) errors.push(`${pointLabel(point)} does not allow ${sourceEnd ? 'outgoing' : 'incoming'} connections.`)
   }
+
+  return [...new Set(errors)]
+}
+
+export const connectionErrors = (context: ConnectionRuleContext, edge: Cell, source: Cell, target: Cell): string[] => {
+  if (!elementTypeOf(source) || !elementTypeOf(target) || (source as any).cellRole === 'feedback' || (target as any).cellRole === 'feedback') return []
+  const errors: string[] = []
+  const applicable = orientations(context, edge, source, target).flatMap(([from, to, forward]) => effectiveRelations(context.config).filter((r) => r.sourceType === elementTypeOf(from) && r.targetType === elementTypeOf(to)).map((relation) => ({ relation, from, to, forward })))
+  const inScope = !context.scopeElementTypes || [source, target].every((cell) => context.scopeElementTypes!.includes(elementTypeOf(cell) ?? ''))
+  if (applicable.some(({ relation }) => relation.state === 'forbidden') || (!applicable.length && inScope && context.config.defaultState === 'forbidden')) return [renderMessage(context.config.forbiddenMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.forbiddenMessageTemplate, source, target, edge)]
+  const allowed = applicable.filter(({ relation }) => relation.state === 'allowed' && selectedType(relation.refinement.connectionTypes, edge))
+  if (applicable.length && !allowed.length) return [renderMessage(context.config.connectionTypeMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.connectionTypeMessageTemplate, source, target, edge)]
+
+  const endpointAllowed = !allowed.length || allowed.some(({ relation, from, to, forward }) => endpointMatch(context, relation, edge, from, to, forward))
+  if (!endpointAllowed) errors.push(renderMessage(context.config.endpointMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.endpointMessageTemplate, source, target, edge))
 
   for (const { relation, from, to, forward } of allowed) {
     if (relation.routed && !endpointMatch(context, relation, edge, from, to, forward)) continue

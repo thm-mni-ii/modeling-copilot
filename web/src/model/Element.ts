@@ -74,13 +74,12 @@ interface BaseElement<TChild> {
   style: ElementStyle
   children: TChild[]
   connectable?: boolean // Optional mit Default false für ChildElements
-  // Collapse-Konfiguration
-  collapsible?: boolean // Ob das Element zusammenklappbar ist
-  collapsed?: CollapsedAppearance // Darstellung im zusammengeklappten Zustand
   allowLabelEdit?: boolean // Ob das Label im Canvas bearbeitet werden darf (Standard: true)
 }
 
 export interface DiagramElement extends BaseElement<ChildElement> {
+  collapsible?: boolean
+  collapsed?: CollapsedAppearance
   x: number
   y: number
   width: number

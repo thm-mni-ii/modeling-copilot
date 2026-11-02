@@ -2,4 +2,6 @@
 !requirements.txt
 !src/
 !src/**
+!scripts/
+!scripts/*.py
 **/__pycache__/**

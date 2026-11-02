@@ -176,7 +176,7 @@ import type { DiagramElement } from '@/model/Element'
 import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connection'
 import type { DiagramSyntax } from '@/model/Syntax'
 import type { CanvasWindowDefinition, CanvasWindowPatch } from '@/model/CanvasWindow'
-import { buildValidationRulesFromSyntax, DiagramValidator } from '@/utils/multiplicity'
+import { buildValidationRulesForLanguages, DiagramValidator, type ValidationLanguage } from '@/utils/multiplicity'
 import { constraintStyle, elementTypeOf, pointId } from '@/utils/connectionPoints'
 import ConnectionSuggestions from './ConnectionSuggestions.vue'
 import { buildContainmentFromSyntax, canContain, type ContainmentMap } from '@/utils/containment'
@@ -227,8 +227,8 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
 // Containment rules of the syntax, read by MyCustomGraph.isValidDropTarget
 let containment: ContainmentMap = new Map()
 
-// Acyclic rule, read by MyCustomGraph.validateEdge; null = cycles allowed
-let acyclic: AcyclicSettings | null = null
+// Cycle rules of every language, read by the native graph validation hooks.
+let acyclic: AcyclicSettings[] = []
 
 class MyCustomGraph extends Graph {
   constructor(container: HTMLElement, model?: GraphDataModel, plugins?: GraphPluginConstructor[]) {
@@ -371,32 +371,31 @@ class MyCustomGraph extends Graph {
     return isValidationPassActive(this) ? error : null
   }
 
-  // Native validateEdge (called from getEdgeValidationError): an edge must not close a cycle
+  // Extend native validation with every active language's cycle rules.
   override validateEdge = (edge: Cell, source: Cell, target: Cell): string | null => {
-    if (acyclic?.mode !== 'forbid' || source.isEdge() || target.isEdge() || !closesCycle(edge, source, target, acyclic.connectionTypes, acyclic.ignoreDirection)) return super.validateEdge(edge, source, target)
-    return renderAcyclicMessage(acyclic.message, source, target)
+    const errors = [super.validateEdge(edge, source, target)]
+    if (!source.isEdge() && !target.isEdge()) {
+      for (const settings of acyclic) {
+        if (settings.mode === 'forbid' && closesCycle(edge, source, target, settings.connectionTypes, settings.ignoreDirection, settings.scopeConnectionTypes)) errors.push(renderAcyclicMessage(settings.message, source, target))
+      }
+    }
+    return errors.filter(Boolean).join('') || null
   }
 
-  /**
-   * Native validateCell (ValidationMixin.js:117, called from validateGraph for every cell and the root):
-   * every marks elements of the chosen types without a cycle, any reports at the root if the diagram has no cycle.
-   * Blocking is not possible because a cycle emerges edge by edge.
-   */
   override validateCell = (cell: Cell, context: CellState): string | null => {
-    const base = super.validateCell(cell, context)
-    if (!acyclic || acyclic.mode === 'forbid') return base
-    const isElement = (candidate: Cell) => candidate.isVertex() && candidate.isConnectable() && !!(candidate as any).diagramElementType
-    const required = acyclic.elementTypes
-    let error: string | null = null
-    if (acyclic.mode === 'every' && isElement(cell) && (required.length === 0 || required.includes((cell as any).diagramElementType)) && !isOnCycle(cell, acyclic)) {
-      error = renderCycleRequiredMessage(acyclic.message, cell)
+    const errors = [super.validateCell(cell, context)]
+    const isElement = (candidate: Cell) => candidate.isVertex() && candidate.isConnectable() && !!elementTypeOf(candidate)
+    for (const settings of acyclic) {
+      const inScope = (candidate: Cell) => !settings.scopeElementTypes || settings.scopeElementTypes.includes(elementTypeOf(candidate) ?? '')
+      if (settings.mode === 'every' && isElement(cell) && inScope(cell) && (!settings.elementTypes.length || settings.elementTypes.includes(elementTypeOf(cell)!)) && !isOnCycle(cell, settings)) {
+        errors.push(renderCycleRequiredMessage(settings.message, cell))
+      }
+      if (settings.mode === 'any' && cell === this.getDataModel().getRoot()) {
+        const hasCycle = Object.values(this.getDataModel().cells ?? {}).some((candidate) => isElement(candidate) && inScope(candidate) && isOnCycle(candidate, settings))
+        if (!hasCycle) errors.push(renderCycleRequiredMessage(settings.message))
+      }
     }
-    if (acyclic.mode === 'any' && cell === this.getDataModel().getRoot()) {
-      const settings = acyclic
-      const hasCycle = Object.values(this.getDataModel().cells ?? {}).some((candidate) => isElement(candidate) && isOnCycle(candidate, settings))
-      if (!hasCycle) error = renderCycleRequiredMessage(acyclic.message)
-    }
-    return base || error ? `${base ?? ''}${error ?? ''}` : null
+    return errors.filter(Boolean).join('') || null
   }
 
   private overlayAddedCallback?: (cell: Cell, overlay: CellOverlay) => void
@@ -461,7 +460,7 @@ const props = withDefaults(
     connectionGroups?: DiagramConnectionGroup[]
     connectionPreferences?: JsonObject
     languageSyntax?: DiagramSyntax[]
-    languages?: SidebarLanguage[]
+    languages?: (SidebarLanguage & Partial<ValidationLanguage>)[]
     autonomyMode?: AutonomyMode
     connectionPreviewAllowed?: boolean
     lockAutonomyMode?: boolean
@@ -649,9 +648,12 @@ const applyValidationRulesToGraph = () => {
 }
 
 const rebuildValidationRules = (rules?: DiagramSyntax[]) => {
-  containment = buildContainmentFromSyntax(rules)
-  acyclic = buildAcyclicFromSyntax(rules)
-  const validationRules = buildValidationRulesFromSyntax(rules ?? [], sidebarLanguages.value.flatMap((language) => language.elements), languageConnections.value)
+  const languages: ValidationLanguage[] = props.languages?.length && props.languages.every((language) => language.syntax !== undefined && language.connections !== undefined)
+    ? props.languages.map((language) => ({ syntax: language.syntax!, elements: language.elements, connections: language.connections! }))
+    : [{ syntax: rules ?? [], elements: sidebarLanguages.value.flatMap((language) => language.elements), connections: languageConnections.value }]
+  containment = buildContainmentFromSyntax(languages.flatMap((language) => language.syntax))
+  acyclic = languages.flatMap((language) => buildAcyclicFromSyntax(language.syntax, { elementTypes: language.elements.map((element) => element.type), connectionTypes: language.connections.map((connection) => connection.type) }))
+  const validationRules = buildValidationRulesForLanguages(languages)
   diagramValidator.addRules(validationRules)
   applyValidationRulesToGraph()
 }

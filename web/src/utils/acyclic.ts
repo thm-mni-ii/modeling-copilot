@@ -19,15 +19,17 @@ export interface AcyclicSettings {
   /** Empty = every element must lie on a cycle for every */
   elementTypes: string[]
   ignoreDirection: boolean
+  scopeConnectionTypes?: string[]
+  scopeElementTypes?: string[]
 }
 
-/** Settings of the cycle rule; null = cycles allowed. */
-export const buildAcyclicFromSyntax = (rules: DiagramSyntax[] | null | undefined): AcyclicSettings | null => {
-  const rule = rules?.find((entry) => entry.ruleType === 'acyclic')
-  if (rule?.ruleType !== 'acyclic') return null
-  const mode = rule.config.mode ?? 'forbid'
-  return { mode, message: rule.config.messageTemplate.trim() || DEFAULT_CYCLE_MESSAGE_TEMPLATES[mode], connectionTypes: rule.config.connectionTypes ?? [], elementTypes: rule.config.elementTypes ?? [], ignoreDirection: rule.config.ignoreDirection ?? false }
-}
+/** All cycle rules, optionally restricted to their language's default types. */
+export const buildAcyclicFromSyntax = (rules: DiagramSyntax[] | null | undefined, scope?: { elementTypes: string[]; connectionTypes: string[] }): AcyclicSettings[] =>
+  (rules ?? []).flatMap((rule) => {
+    if (rule.ruleType !== 'acyclic') return []
+    const mode = rule.config.mode ?? 'forbid'
+    return [{ mode, message: rule.config.messageTemplate.trim() || DEFAULT_CYCLE_MESSAGE_TEMPLATES[mode], connectionTypes: rule.config.connectionTypes ?? [], elementTypes: rule.config.elementTypes ?? [], ignoreDirection: rule.config.ignoreDirection ?? false, scopeConnectionTypes: rule.config.connectionTypes?.length ? undefined : scope?.connectionTypes, scopeElementTypes: scope?.elementTypes }]
+  })
 
 /** Fills {source}/{target} with the element types; the line break separates messages as with the multiplicities. */
 export const renderAcyclicMessage = (template: string, source: Cell, target: Cell): string => {
@@ -43,8 +45,8 @@ export const renderCycleRequiredMessage = (template: string, element?: Cell): st
  * Directed via outgoing edges, with ignoreDirection via all edges.
  * Only edges of the chosen connection types count. "Allow Loops" of the connection decides loops on the same element.
  */
-export const closesCycle = (edge: Cell | null, source: Cell, target: Cell, connectionTypes: string[] = [], ignoreDirection = false): boolean => {
-  const counts = (candidate: Cell | null) => connectionTypes.length === 0 || connectionTypes.includes(getConnectionType(candidate) ?? '')
+export const closesCycle = (edge: Cell | null, source: Cell, target: Cell, connectionTypes: string[] = [], ignoreDirection = false, scopeConnectionTypes?: string[]): boolean => {
+  const counts = (candidate: Cell | null) => (!connectionTypes.length || connectionTypes.includes(getConnectionType(candidate) ?? '')) && (!scopeConnectionTypes || scopeConnectionTypes.includes(getConnectionType(candidate) ?? ''))
   if (source === target || !counts(edge)) return false
 
   const visited = new Set<Cell>()
@@ -76,7 +78,7 @@ export const isOnCycle = (cell: Cell, settings: AcyclicSettings): boolean => {
     const from = edge?.getTerminal(true)
     const to = edge?.getTerminal(false)
     const neighbor = from === cell ? to : settings.ignoreDirection && to === cell ? from : null
-    if (edge && neighbor && !neighbor.isEdge() && closesCycle(edge, cell, neighbor, settings.connectionTypes, settings.ignoreDirection)) return true
+    if (edge && neighbor && !neighbor.isEdge() && closesCycle(edge, cell, neighbor, settings.connectionTypes, settings.ignoreDirection, settings.scopeConnectionTypes)) return true
   }
   return false
 }
