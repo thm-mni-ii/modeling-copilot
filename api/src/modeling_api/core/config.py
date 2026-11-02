@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     oidc_client_id: str = "modeling-copilot"  # Provider-ID der App im FBS
     oidc_client_secret: str = ""  # Secret der App (CONFIDENTIAL)
 
+    # Dienst-Identität gegenüber Collab-Kit (CK): Die API prägt eigene Tokens, CK prüft sie
+    # mit dem öffentlichen Schlüssel. Issuer, Algorithmus und Kennung müssen zu CK passen
+    # (SERVICE_*), die Kennung beginnt mit "service-". Leer = Teilen ist ausgeschaltet.
+    ck_base_url: str = "http://localhost:24202"
+    service_issuer: str = ""
+    service_algorithm: str = ""  # RS…, PS… oder ES…
+    service_actor: str = ""
+    service_private_key: str = ""  # PEM, auch einzeilig mit \n
+
     # Sonstiges
     docs_enabled: bool = True  # Swagger unter /docs anzeigen
     cors_origins: str = "http://localhost:5173"  # kommagetrennte Liste

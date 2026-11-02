@@ -178,6 +178,22 @@ spec:
                   key: OIDC_CLIENT_SECRET
                   # Optional, so the API also starts before the secret exists.
                   optional: true
+            # Own tokens for collab-kit; blank means sharing is off. Issuer, algorithm and
+            # actor must match collab-kit above, the private key goes into the secret.
+            - name: CK_BASE_URL
+              value: http://collab-kit:24202
+            - name: SERVICE_ISSUER
+              value: ''
+            - name: SERVICE_ALGORITHM
+              value: ''
+            - name: SERVICE_ACTOR
+              value: ''
+            - name: SERVICE_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: modeling-copilot-api-secrets
+                  key: SERVICE_PRIVATE_KEY
+                  optional: true
           envFrom:
             - configMapRef:
                 name: modeling-copilot-config
@@ -473,7 +489,7 @@ spec:
       containers:
         - name: collab-kit
           # Fixed version; an update means changing the tag here and in docker-compose.yaml.
-          image: ghcr.io/thm-mni-ii/collab-kit:v0.6.1
+          image: ghcr.io/thm-mni-ii/collab-kit:v0.6.2
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -507,6 +523,17 @@ spec:
               value: globalRole
             - name: TOP_VALUES
               value: ADMIN,MODERATOR
+            # The api signs its own tokens; only its public key lies here, blank means no
+            # service. With all four set, collab-kit creates the group "services" with every
+            # right for SERVICE_ACTOR on each start. Values must match the api below.
+            - name: SERVICE_ISSUER
+              value: ''
+            - name: SERVICE_ALGORITHM
+              value: ''
+            - name: SERVICE_PUBLIC_KEY
+              value: ''
+            - name: SERVICE_ACTOR
+              value: ''
           envFrom:
             - configMapRef:
                 name: collab-kit-config

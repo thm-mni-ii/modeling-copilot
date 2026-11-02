@@ -38,6 +38,13 @@ services:
       DOCS_ENABLED: "true"
       CORS_ORIGINS: http://localhost:5173
       DAGU_BASE_URL: http://dagu:8080
+      # Own tokens for collab-kit, signed with the private key from the git-ignored
+      # .env; the issuer and actor must match the collab-kit service below.
+      CK_BASE_URL: http://collab-kit:24202
+      SERVICE_ISSUER: ${SERVICE_ISSUER:-}
+      SERVICE_ALGORITHM: ${SERVICE_ALGORITHM:-}
+      SERVICE_ACTOR: ${SERVICE_ACTOR:-}
+      SERVICE_PRIVATE_KEY: ${SERVICE_PRIVATE_KEY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -93,7 +100,7 @@ services:
     restart: unless-stopped
 
   collab-kit:
-    image: ghcr.io/thm-mni-ii/collab-kit:v0.6.1
+    image: ghcr.io/thm-mni-ii/collab-kit:v0.6.2
     ports:
       - "127.0.0.1:24202:24202"
     environment:
@@ -107,6 +114,13 @@ services:
       TOP_CLAIM: globalRole
       TOP_VALUES: ADMIN,MODERATOR
       ALLOWED_ORIGINS: http://localhost:8085
+      # The api signs its own tokens; only its public key lies here. All four come from
+      # the git-ignored .env; blank means no service. With them collab-kit creates the
+      # group "services" with every right for SERVICE_ACTOR on each start.
+      SERVICE_ISSUER: ${SERVICE_ISSUER:-}
+      SERVICE_ALGORITHM: ${SERVICE_ALGORITHM:-}
+      SERVICE_PUBLIC_KEY: ${SERVICE_PUBLIC_KEY:-}
+      SERVICE_ACTOR: ${SERVICE_ACTOR:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
