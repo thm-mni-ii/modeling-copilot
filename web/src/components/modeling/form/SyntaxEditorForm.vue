@@ -1,6 +1,8 @@
 <template>
   <div class="syntax-editor-form">
-    <MultiplicityForm v-if="rule.ruleType === 'multiplicity'" :config="rule.config" :element-options="elementOptions" :connection-options="connectionOptions" @update="updateAll" />
+    <MultiplicityForm v-if="rule.ruleType === 'multiplicity'" :config="rule.config" :element-options="elementOptions" :connection-options="connectionOptions" @update="updateAll">
+      <slot />
+    </MultiplicityForm>
   </div>
 </template>
 

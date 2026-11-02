@@ -3,6 +3,7 @@
     <!-- Grundeinstellungen -->
     <v-text-field v-model="connection.label" label="Name" variant="outlined" density="compact" class="mb-3" hint="Connection identifier in the language definition." persistent-hint @input="triggerUpdate" />
     <v-text-field v-model="connection.type" label="Connection Type" variant="outlined" density="compact" class="mb-4" hint="Technical type used for imports and rules." persistent-hint @input="triggerUpdate" />
+    <v-switch v-model="connection.undirected" label="Undirected connection" hint="Swapping the ends preserves the meaning. Input/output roles do not restrict this connection." persistent-hint color="primary" density="compact" class="mb-4" @update:model-value="triggerUpdate" />
 
     <!-- Einstellungsumfang -->
     <section class="mb-4">

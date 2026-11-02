@@ -8,8 +8,7 @@ import type { ApiId } from '@/services/api/types/common'
 import type { Language, LanguageVersion, LanguageVersionKind, LanguageVersionInfo } from '@/services/api/types/language'
 import { cloneFeedbackCanvasConfig, createDefaultTargetOverlays, ensureFeedbackTargets } from '@/utils/feedbackConfig'
 import { notifyError } from '@/composables/useNotifications'
-
-const DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE = 'The Connection {source} -> {target} with Connection type {connection} violates the cardinality ({min}..{max}).'
+import { DEFAULT_CONNECTION_MESSAGE_TEMPLATES, DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE } from '@/utils/syntaxMessages'
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
@@ -218,7 +217,7 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
 
     const rule: MultiplicityRule = {
       ruleType: 'multiplicity',
-      config: { messageTemplate: DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE, relations: [] }
+      config: { messageTemplate: DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE, ...DEFAULT_CONNECTION_MESSAGE_TEMPLATES, relations: [], defaultState: 'forbidden' }
     }
     definition.value.syntax.push(rule)
     return rule

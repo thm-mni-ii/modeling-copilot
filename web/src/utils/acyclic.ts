@@ -2,7 +2,7 @@ import type { Cell } from '@maxgraph/core'
 import type { CycleMode, DiagramSyntax } from '@/model/Syntax'
 import { getConnectionType } from '@/utils/multiplicity'
 
-export const DEFAULT_ACYCLIC_MESSAGE_TEMPLATE = 'The connection {source} -> {target} would close a cycle.'
+export const DEFAULT_ACYCLIC_MESSAGE_TEMPLATE = 'The connection {source} -> {target} would close a forbidden cycle.'
 
 /** Default message per mode; {element} = element type for every */
 export const DEFAULT_CYCLE_MESSAGE_TEMPLATES: Record<CycleMode, string> = {
@@ -58,7 +58,7 @@ export const closesCycle = (edge: Cell | null, source: Cell, target: Cell, conne
 
     for (let index = 0; index < cell.getEdgeCount(); index += 1) {
       const next = cell.getEdgeAt(index)
-      if (!next || next === edge || !counts(next)) continue
+      if (!next || next === edge || next === (edge as any)?.replacesEdge || !counts(next)) continue
       const from = next.getTerminal(true)
       const to = next.getTerminal(false)
       const neighbor = from === cell ? to : ignoreDirection && to === cell ? from : null

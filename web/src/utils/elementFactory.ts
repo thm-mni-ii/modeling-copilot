@@ -3,6 +3,7 @@ import type { CellStyle, Graph } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
 import type { DiagramElement } from '@/model/Element'
 import { registerElementShapes } from './shapeRegistry'
+import { pointId } from './connectionPoints'
 
 /**
  * Erstellt eine MaxGraph Cell aus einer DiagramElement-Definition
@@ -67,7 +68,7 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
 
   // 3. Anchor Points als Connection Constraints hinzufügen
   if (element.anchorPoints && element.anchorPoints.length > 0) {
-    const constraints = element.anchorPoints.map((point: { x: number; y: number }) => new ConnectionConstraint(new Point(point.x, point.y), false))
+    const constraints = element.anchorPoints.map((point) => new ConnectionConstraint(new Point(point.x, point.y), false, pointId(point)))
     ;(geometry as any).constraints = constraints
   }
 
@@ -87,6 +88,8 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
   ;(cell as any).allowLabelEdit = element.allowLabelEdit !== false
   if (element.docking) (cell as any).docking = element.docking
   ;(cell as any).diagramElementType = element.type
+  // Keep point IDs out of maxGraph's global XML object-ID index: every instance shares them.
+  ;(cell as any).connectionPointsJson = JSON.stringify(element.anchorPoints)
   ;(cell as any).diagramAttributes = {
     type: element.type,
     label: element.defaultLabel

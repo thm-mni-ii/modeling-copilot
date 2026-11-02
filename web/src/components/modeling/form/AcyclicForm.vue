@@ -48,13 +48,13 @@
       </template>
 
       <v-textarea
-        :model-value="rule.config.messageTemplate"
+        :model-value="rule.config.messageTemplate?.trim() ? rule.config.messageTemplate : DEFAULT_CYCLE_MESSAGE_TEMPLATES[rule.config.mode ?? 'forbid']"
         rows="2"
         density="compact"
         variant="outlined"
         label="Error Message Template"
         auto-grow
-        :hint="(rule.config.mode ?? 'forbid') === 'forbid' ? 'Use placeholders such as {source}, {target}' : 'Use the placeholder {element}'"
+        :hint="(rule.config.mode ?? 'forbid') === 'forbid' ? 'Use placeholders such as {source}, {target}' : rule.config.mode === 'every' ? 'Use the placeholder {element}. Empty restores the standard message.' : 'Diagram-wide message; no placeholders. Empty restores the standard message.'"
         persistent-hint
         class="mt-3"
         @update:model-value="(value: string) => setConfigField('messageTemplate', value ?? '')"

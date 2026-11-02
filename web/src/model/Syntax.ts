@@ -6,9 +6,32 @@ export interface MultiplicityCardinality {
 }
 
 export interface MultiplicityRefinement {
+  messageTemplate?: string
   /** Leeres Array = alle Verbindungstypen erlaubt */
   connectionTypes: string[]
   cardinality: MultiplicityCardinality
+  targetCardinality?: MultiplicityCardinality
+  pairCardinality?: MultiplicityCardinality
+  /** Alternatives; selectors within one pair must both match. Empty = all points/outline. */
+  endpoints?: { source: EndpointSelector; target: EndpointSelector }[]
+  /** Individual mode: each route has its own connection types and limits; the fields above are ignored while routes exist. */
+  routes?: MultiplicityRoute[]
+}
+
+export interface MultiplicityRoute {
+  messageTemplate?: string
+  name?: string
+  source: EndpointSelector
+  target: EndpointSelector
+  connectionTypes: string[]
+  cardinality: MultiplicityCardinality
+  targetCardinality?: MultiplicityCardinality
+  pairCardinality?: MultiplicityCardinality
+}
+
+export interface EndpointSelector {
+  pointIds?: string[]
+  groups?: string[]
 }
 
 export interface MultiplicityRelation {
@@ -33,9 +56,17 @@ export interface EdgeCardinality {
   cardinality: MultiplicityCardinality
   /** Empty = template of the rule */
   messageTemplate?: string
+  /** Default: element. Point limits apply to each selected point, group limits to each group together. */
+  countScope?: 'element' | 'point' | 'group'
+  endpoints?: EndpointSelector
 }
 
 export interface MultiplicityConfig {
+  forbiddenMessageTemplate?: string
+  connectionTypeMessageTemplate?: string
+  endpointMessageTemplate?: string
+  /** Default for matrix cells without an explicit relation. */
+  defaultState?: MultiplicityRelationState
   messageTemplate: string
   relations: MultiplicityRelation[]
   /** Edge rules per element; the name stays so stored languages remain valid */

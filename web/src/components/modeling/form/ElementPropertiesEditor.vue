@@ -156,6 +156,9 @@
                 <tr>
                   <th style="width: 48px"></th>
                   <th style="width: 64px">#</th>
+                  <th>Name</th>
+                  <th>Groups</th>
+                  <th>Role</th>
                   <th>X (0-1)</th>
                   <th>Y (0-1)</th>
                 </tr>
@@ -166,6 +169,9 @@
                     <v-checkbox-btn :model-value="selectedAnchorRows.includes(index)" @update:model-value="updateAnchorRowSelection(index, Boolean($event))" />
                   </td>
                   <td>{{ index + 1 }}</td>
+                  <td><v-text-field v-model="point.name" :placeholder="`Point ${index + 1}`" density="compact" variant="underlined" hide-details @update:model-value="emitUpdate" /></td>
+                  <td><v-combobox v-model="point.groups" :items="anchorGroupOptions" multiple chips closable-chips density="compact" variant="underlined" hide-details @update:model-value="emitUpdate" /></td>
+                  <td><v-select v-model="point.role" :items="['bidirectional', 'input', 'output']" placeholder="bidirectional" density="compact" variant="underlined" hide-details @update:model-value="emitUpdate" /></td>
                   <td>
                     <v-text-field v-model.number="point.x" variant="underlined" density="compact" type="number" step="0.1" min="0" max="1" hide-details @input="emitUpdate" />
                   </td>
@@ -361,6 +367,7 @@
 import { computed, ref, toRef, watch } from 'vue'
 import type { DiagramElement, ChildElement, ElementStyle } from '@/model/Element'
 import { generateEvenlyDistributedAnchorPoints } from '@/utils/anchorPointGenerator'
+import { ensurePointIds } from '@/utils/connectionPoints'
 import CollapseSettings from './CollapseSettings.vue'
 import ColorPickerField from './ColorPickerField.vue'
 
@@ -394,6 +401,7 @@ function isChildElement(el: DiagramElement | ChildElement): el is ChildElement {
 }
 
 const diagramElementData = computed(() => (isDiagramElement(localElement.value) ? localElement.value : null))
+const anchorGroupOptions = computed(() => [...new Set(diagramElementData.value?.anchorPoints.flatMap((p) => p.groups ?? []) ?? [])])
 const childElementData = computed(() => (isChildElement(localElement.value) ? localElement.value : null))
 
 const shapeTypes = [
@@ -569,7 +577,10 @@ function generateAnchorPoints() {
 
   autoAnchorCount.value = generated.length
 
-  localElement.value.anchorPoints = generated
+  localElement.value.anchorPoints = generated.map((point) => {
+    const existing = localElement.value && isDiagramElement(localElement.value) ? localElement.value.anchorPoints.find((p) => Math.abs(p.x - point.x) < 0.000001 && Math.abs(p.y - point.y) < 0.000001) : undefined
+    return existing ? { ...existing, ...point } : { ...point, id: globalThis.crypto.randomUUID() }
+  })
   selectedAnchorRows.value = []
   emitUpdate()
 }
@@ -609,6 +620,7 @@ watch(
       if (!Array.isArray(newVal.anchorPoints)) {
         newVal.anchorPoints = []
       }
+      ensurePointIds(newVal.anchorPoints)
 
       if (newVal.resizable === undefined) {
         newVal.resizable = true
@@ -700,7 +712,7 @@ function addAnchorPoint() {
   if (!Array.isArray(localElement.value.anchorPoints)) {
     localElement.value.anchorPoints = []
   }
-  localElement.value.anchorPoints.push({ x: 0.5, y: 0.5 })
+  localElement.value.anchorPoints.push({ id: globalThis.crypto.randomUUID(), x: 0.5, y: 0.5 })
   emitUpdate()
 }
 

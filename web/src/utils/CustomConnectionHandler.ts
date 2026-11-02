@@ -6,6 +6,7 @@ import { applyConnectionAdditionalLabels, applyConnectionLabelOffset } from '@/u
 import { createConnectionStyle } from '@/utils/elementFactory'
 import { getGraphValidationMode, setValidationPassActive, shouldBlockInteractiveValidation } from '@/utils/graphValidationRuntime'
 import { isTruthyFlag } from '@/utils/flagUtils'
+import { constraintStyle } from '@/utils/connectionPoints'
 
 /** Distance in pixels within which an edge end is held on the outline with "Free on Outline". */
 const OUTLINE_SNAP_DISTANCE = 10
@@ -40,6 +41,7 @@ export class AnchorConstraintHandler extends ConstraintHandler {
 }
 
 export class CustomConnectionHandler extends ConnectionHandler {
+  private sourcePointChosen = false
   private selectedConnection: DiagramConnection | null = null
   private feedbackConnection: DiagramConnection | null = null
   private feedbackConnectionByElementId = new Map<string, DiagramConnection>()
@@ -147,7 +149,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
     // Over the start element itself the start anchor stays, otherwise it falls back to the target anchor
     // and maxGraph discards the loop (checkConstraints in ConnectionHandler.mouseUp)
     const overSource = this.constraintHandler.currentFocus?.cell === this.previous?.cell
-    if (pt != null && this.previous != null && !overSource && !isOutlineDocking(this.previous.cell)) {
+    if (pt != null && this.previous != null && !overSource && !this.sourcePointChosen && !isOutlineDocking(this.previous.cell)) {
       const constraints = this.graph.getAllConnectionConstraints(this.previous, true)
       let nearestConstraint: ConnectionConstraint | null = null
       let bestDist: number | null = null
@@ -171,6 +173,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
     }
 
     super.updateEdgeState(pt, constraint)
+    if (this.previous?.cell && this.constraintHandler.currentFocus?.cell) this.error = this.validateConnection(this.previous.cell, this.constraintHandler.currentFocus.cell)
   }
 
   setSelectedConnection(connection: DiagramConnection | null) {
@@ -231,6 +234,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
     const edge = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', null, null, style)
     ;(edge as any).connectionId = effectiveConnection.type
     ;(edge as any).connectionType = effectiveConnection.connectionType ?? effectiveConnection.type
+    ;(edge as any).connectionUndirected = effectiveConnection.undirected === true
     // ConnectionHandler.connect copies the geometry of this edge to the new one, hence the label offset here already
     applyConnectionLabelOffset(edge, effectiveConnection.labelOffset)
 
@@ -274,12 +278,13 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return super.validateConnection(source, target)
     }
 
-    const style = createConnectionStyle(effectiveConnection)
+    const style = { ...createConnectionStyle(effectiveConnection), ...constraintStyle(this.sourceConstraint, true), ...constraintStyle(this.constraintHandler.currentConstraint, false) }
     const probeEdge = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', source, target, style)
     probeEdge.setTerminal(source, true)
     probeEdge.setTerminal(target, false)
     ;(probeEdge as any).connectionId = effectiveConnection.type
     ;(probeEdge as any).connectionType = effectiveConnection.connectionType ?? effectiveConnection.type
+    ;(probeEdge as any).connectionUndirected = effectiveConnection.undirected === true
 
     return this.graph.getEdgeValidationError(probeEdge, source, target)
   }
@@ -331,6 +336,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
         edge.setConnectable(true)
         ;(edge as any).connectionId = connectionId
         ;(edge as any).connectionType = effectiveConnection.connectionType ?? connectionId
+        ;(edge as any).connectionUndirected = effectiveConnection.undirected === true
         ;(edge as any).connectionStyle = connectionStyle
         ;(edge as any).connectionLabelOffset = effectiveConnection.labelOffset
 
@@ -355,6 +361,12 @@ export class CustomConnectionHandler extends ConnectionHandler {
 
   override mouseDown(sender: any, me: InternalMouseEvent): void {
     super.mouseDown(sender, me)
+    if (this.first) this.sourcePointChosen = Boolean(this.sourceConstraint?.name)
+  }
+
+  override reset(): void {
+    this.sourcePointChosen = false
+    super.reset()
   }
 
   override mouseUp(sender: any, me: InternalMouseEvent): void {

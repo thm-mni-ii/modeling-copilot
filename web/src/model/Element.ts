@@ -47,6 +47,10 @@ export interface ElementStyle {
 }
 
 export interface AnchorPoint {
+  id?: string
+  name?: string
+  groups?: string[]
+  role?: 'input' | 'output' | 'bidirectional'
   x: number
   y: number
 }

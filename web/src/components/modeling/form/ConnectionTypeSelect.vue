@@ -22,7 +22,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
-import type { DiagramConnection } from '@/model/DiagramLanguage'
 import ConnectionPreviewItem from '@/components/modeling/canvas/ConnectionPreviewItem.vue'
 
 interface Props {
@@ -42,20 +41,16 @@ defineEmits<{
 
 const store = useDiagramLanguages()
 
-const connectionMap = computed(() => {
-  const map: Record<string, DiagramConnection> = {}
-  const connections = store.definition?.connections ?? []
-  connections.forEach((connection) => {
-    map[connection.type] = connection
-  })
-  return map
-})
+const connections = computed(() => store.definition?.connections ?? [])
 
-const getConnectionByType = (type?: string) => (type ? connectionMap.value[type] : undefined)
+const getConnectionByType = (type?: string) => {
+  if (!type) return undefined
+  return connections.value.find((connection) => connection.type === type) ?? connections.value.find((connection) => connection.connectionType === type)
+}
 
 const formatConnectionLabel = (type?: string) => {
   if (!type) return 'Connection'
-  const connection = getConnectionByType(type)
+  const connection = connections.value.find((item) => item.type === type)
   return connection?.label || type
 }
 </script>

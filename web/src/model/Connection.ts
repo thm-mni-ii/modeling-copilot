@@ -23,6 +23,7 @@ export interface DiagramConnection {
   label: string // Anzeigename fuer UI (z.B. "Vererbung")
   defaultLabel?: string // Optionales Standard-Label fuer neue Instanzen im Graph
   connectionType?: string // Semantischer Typ (z.B. "inheritance", "association")
+  undirected?: boolean // Swapping the two ends does not change the connection's meaning
   style: CellStyle
   connectable?: boolean
   allowLooseEnds?: boolean // Whether an end may stay unconnected (default: true)

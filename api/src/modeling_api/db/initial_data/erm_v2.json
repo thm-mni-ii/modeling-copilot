@@ -702,7 +702,7 @@
     {
       "ruleType": "multiplicity",
       "config": {
-        "messageTemplate": "The connection {source} -> {target} ({connection}) violates the cardinality ({min}..{max}).",
+        "messageTemplate": "Allowed connections {source} -> {target} ({connection}): {min}..{max}.",
         "relations": [
           {
             "sourceType": "erm-entity",
@@ -1854,7 +1854,7 @@
     {
       "ruleType": "acyclic",
       "config": {
-        "messageTemplate": "The connection {source} -> {target} would close a cycle in the generalization hierarchy.",
+        "messageTemplate": "The connection {source} -> {target} would create a forbidden generalization cycle.",
         "connectionTypes": [
           "generalization"
         ]

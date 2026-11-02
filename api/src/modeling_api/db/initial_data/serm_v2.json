@@ -523,7 +523,7 @@
     {
       "ruleType": "multiplicity",
       "config": {
-        "messageTemplate": "The connection {source} -> {target} ({connection}) violates the cardinality ({min}..{max}).",
+        "messageTemplate": "Allowed connections {source} -> {target} ({connection}): {min}..{max}.",
         "relations": [
           {
             "sourceType": "serm-entity",
@@ -904,7 +904,7 @@
     {
       "ruleType": "acyclic",
       "config": {
-        "messageTemplate": "The connection {source} -> {target} would close a cycle."
+        "messageTemplate": "The connection {source} -> {target} would close a forbidden cycle."
       }
     }
   ],
