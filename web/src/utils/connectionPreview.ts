@@ -31,11 +31,32 @@ const markPreviewEdge = (edge: Cell, connection: DiagramConnection, previewStyle
 
 const dashedStyle: PreviewStyle = (base) => ({ ...base, dashed: true, dashPattern: base.dashPattern ?? '6 4' })
 
-const applyPoints = (edge: any, points?: { x: number; y: number }[]) => {
-  if (!points || points.length === 0) return
-  const geometry = edge.getGeometry()
-  if (!geometry) return
-  geometry.points = points.map((pt) => new Point(pt.x, pt.y))
+/** Waypoints belong only to the live preview graph, never to the language. */
+export const addPreviewWaypoint = (graph: Graph): void => {
+  const selected = graph.getSelectionCell()
+  const edge = selected && isPreviewEdge(selected) ? selected : graph.getChildEdges().find(isPreviewEdge)
+  if (!edge?.geometry) return
+  const state = graph.view.getState(edge)
+  const start = state?.absolutePoints?.[0]
+  const end = state?.absolutePoints?.at(-1)
+  if (!start || !end) return
+  const geometry = edge.geometry.clone()
+  const x = (start.x + end.x) / (2 * graph.view.scale) - graph.view.translate.x
+  const y = (start.y + end.y) / (2 * graph.view.scale) - graph.view.translate.y + 40
+  geometry.points = [...(geometry.points ?? []), new Point(x, y)]
+  graph.getDataModel().setGeometry(edge, geometry)
+  graph.setSelectionCell(edge)
+}
+
+export const clearPreviewWaypoints = (graph: Graph): void => {
+  graph.batchUpdate(() => {
+    for (const edge of graph.getChildEdges().filter(isPreviewEdge)) {
+      if (!edge.geometry) continue
+      const geometry = edge.geometry.clone()
+      geometry.points = null
+      graph.getDataModel().setGeometry(edge, geometry)
+    }
+  })
 }
 
 export const clearConnectionPreview = (graph: Graph): void => {
@@ -112,7 +133,6 @@ export const renderSimpleConnectionPreview = (graph: Graph, connection: DiagramC
     markPreviewEdge(edge, connection, cloneStyle, true)
 
     applyConnectionLabelOffset(edge, connection.labelOffset)
-    applyPoints(edge, connection.points)
     applyConnectionAdditionalLabels(graph, edge, connection)
 
     graph.clearSelection()
@@ -232,7 +252,6 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
 
     markPreviewEdge(requestEdge, connection, cloneStyle, true)
     applyConnectionLabelOffset(requestEdge, connection.labelOffset)
-    applyPoints(requestEdge, connection.points)
     applyConnectionAdditionalLabels(graph, requestEdge, connection)
 
     const forwardEdge = graph.insertEdge({

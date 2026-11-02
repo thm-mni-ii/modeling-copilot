@@ -104,7 +104,7 @@
                 <v-btn value="individual" prepend-icon="mdi-call-split">Individual routes</v-btn>
               </v-btn-toggle>
               <p class="text-caption text-medium-emphasis mb-4">
-                {{ isIndividual(activeRelation) ? 'Every route has its own connection points, connection types and limits. A connection must match one route.' : 'One set of rules for all connections between these elements, optionally bound to one route of connection points.' }}
+                {{ isIndividual(activeRelation) ? 'Every route has its own connection points, connection types and limits. A connection must match one route.' : 'Shared connection types and limits, optionally restricted to alternative point combinations.' }}
               </p>
 
               <RouteRuleFields
@@ -112,14 +112,14 @@
                 :rule="activeRelation.refinement"
                 :source="activeRelation.refinement.endpoints?.[0]?.source ?? {}"
                 :target="activeRelation.refinement.endpoints?.[0]?.target ?? {}"
+                :endpoint-pairs="activeRelation.refinement.endpoints ?? []"
                 :source-type="activeRelation.sourceType"
                 :target-type="activeRelation.targetType"
                 :connection-options="connectionOptions"
                 :message-template="messageTemplate"
                 :disabled="!hasLanguageVersion"
                 @patch="patchBase"
-                @update:source="setBaseSelector('source', $event)"
-                @update:target="setBaseSelector('target', $event)"
+                @update:endpoint-pairs="patchBase({ endpoints: $event })"
               />
 
               <template v-else>
@@ -287,13 +287,6 @@ const setMode = (value: unknown) => {
 }
 const patchBase = (values: Partial<MultiplicityRefinement>) => {
   if (activeRelation.value) Object.assign(activeRelation.value.refinement, values)
-  update()
-}
-const setBaseSelector = (end: 'source' | 'target', selector: EndpointSelector) => {
-  const ref = activeRelation.value?.refinement
-  if (!ref) return
-  const pair = { source: ref.endpoints?.[0]?.source ?? emptySelector(), target: ref.endpoints?.[0]?.target ?? emptySelector(), [end]: selector }
-  ref.endpoints = [pair]
   update()
 }
 const patchRoute = (index: number, values: Partial<MultiplicityRoute>) => {

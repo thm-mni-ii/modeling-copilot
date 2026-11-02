@@ -451,12 +451,13 @@ async def _seed_sample_solution(sample_model: dict, created_at: datetime) -> Non
     await db.model_versions.update_one(
         {"_id": sample_version["id"]},
         {
-            "$set": {
+            "$setOnInsert": {
                 "releaseName": sample_version["releaseName"],
                 "description": sample_version["description"],
                 "data": sample_version["data"],
+                "createdAt": created_at,
+                **model_version_on_insert,
             },
-            "$setOnInsert": {"createdAt": created_at, **model_version_on_insert},
         },
         upsert=True,
     )

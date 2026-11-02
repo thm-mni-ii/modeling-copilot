@@ -91,7 +91,9 @@ export function formatText(graph: Graph, format: TextFormat): void {
 export function protectHtmlLabels(graph: Graph): void {
   const getLabel = graph.getLabel.bind(graph)
   graph.getLabel = (cell?: Cell | null) => {
-    const label = getLabel(cell)
+    const alternative = cell?.isCollapsed() ? (cell as any).collapsedConfig?.label : undefined
+    const showAlternative = typeof alternative === 'string' && alternative.length > 0 && cell && graph.isLabelsVisible() && !graph.getCurrentCellStyle(cell).noLabel
+    const label = showAlternative ? alternative : getLabel(cell)
     return label === null ? null : sanitizeLabelHtml(label)
   }
 

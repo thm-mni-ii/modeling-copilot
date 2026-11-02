@@ -26,6 +26,11 @@
           </v-card-title>
           <v-divider />
           <v-card-text>
+            <div v-if="selectedConnection" class="d-flex flex-wrap ga-2 mb-2">
+              <v-btn size="small" variant="tonal" @click="addWaypoint">Add preview waypoint</v-btn>
+              <v-btn size="small" variant="text" @click="clearWaypoints">Clear preview waypoints</v-btn>
+              <span class="text-caption">Drag waypoints on the selected line. Preview only; not saved.</span>
+            </div>
             <div class="preview-canvas">
               <DrawingCanvas ref="drawingCanvasRef" :show-elements="previewSidebarVisible" :model="canvasModel" :preview-connection="selectedConnection" :preview-mode="previewMode" :language-connections="connections" :language-elements="elements" :language-syntax="languageSyntaxForCanvas" />
             </div>
@@ -47,7 +52,7 @@ import EditorEntityList from './EditorEntityList.vue'
 import BasicEditorForm from '../form/BasicEditorForm.vue'
 import ConnectionEditorForm from '../form/ConnectionEditorForm.vue'
 import type { DiagramConnection } from '@/model/DiagramLanguage'
-import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, type ConnectionPreviewMode } from '@/utils/connectionPreview'
+import { addPreviewWaypoint, clearPreviewWaypoints, clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, type ConnectionPreviewMode } from '@/utils/connectionPreview'
 
 // Props
 const store = useDiagramLanguages()
@@ -153,6 +158,15 @@ const renderConnectionPreview = () => {
   }
 
   renderSimpleConnectionPreview(graphInstance, connection)
+}
+
+const addWaypoint = () => {
+  const graph = getPreviewGraph()
+  if (graph) addPreviewWaypoint(graph)
+}
+const clearWaypoints = () => {
+  const graph = getPreviewGraph()
+  if (graph) clearPreviewWaypoints(graph)
 }
 
 const debouncedStoreUpdate = () => {

@@ -3,10 +3,18 @@
     <div>
       <div class="text-subtitle-2 mb-1">Route: connection points</div>
       <p class="text-caption text-medium-emphasis mb-2">Where the connection may start ({{ sourceType }}) and end ({{ targetType }}). Empty = any point.</p>
-      <div class="route-grid">
-        <ConnectionPointSelector :model-value="source" :element="sourceElement" :label="`${sourceType} start points`" :disabled="disabled" @update:model-value="emit('update:source', $event)" />
-        <ConnectionPointSelector :model-value="target" :element="targetElement" :label="`${targetType} end points`" :disabled="disabled" @update:model-value="emit('update:target', $event)" />
+      <div v-for="(pair, index) in visiblePairs" :key="index" class="mb-3">
+        <div v-if="endpointPairs !== undefined && (endpointPairs.length || visiblePairs.length > 1)" class="d-flex align-center justify-space-between mb-2">
+          <span class="text-subtitle-2">Point combination {{ index + 1 }}</span>
+          <v-btn icon="mdi-delete" variant="text" size="small" :disabled="disabled" aria-label="Remove point combination" @click="removePair(index)" />
+        </div>
+        <div class="route-grid">
+          <ConnectionPointSelector :model-value="pair.source" :element="sourceElement" :label="`${sourceType} start points`" :disabled="disabled" @update:model-value="setSelector(index, 'source', $event)" />
+          <ConnectionPointSelector :model-value="pair.target" :element="targetElement" :label="`${targetType} end points`" :disabled="disabled" @update:model-value="setSelector(index, 'target', $event)" />
+        </div>
       </div>
+      <v-btn v-if="endpointPairs !== undefined" variant="tonal" prepend-icon="mdi-plus" size="small" :disabled="disabled" @click="emit('update:endpointPairs', [...visiblePairs, { source: {}, target: {} }])">Add point combination</v-btn>
+      <p v-if="visiblePairs.length > 1" class="text-caption text-medium-emphasis mt-2 mb-0">A connection must match one complete source and target combination.</p>
     </div>
     <div class="route-grid">
       <ConnectionTypeSelect
@@ -59,8 +67,17 @@ export interface RouteRuleValues {
   pairCardinality?: MultiplicityCardinality
 }
 
-const props = defineProps<{ rule: RouteRuleValues; source: EndpointSelector; target: EndpointSelector; sourceType: string; targetType: string; connectionOptions: string[]; messageTemplate?: string; disabled?: boolean }>()
-const emit = defineEmits<{ patch: [values: Partial<RouteRuleValues>]; 'update:source': [value: EndpointSelector]; 'update:target': [value: EndpointSelector] }>()
+type EndpointPair = { source: EndpointSelector; target: EndpointSelector }
+const props = defineProps<{ rule: RouteRuleValues; source: EndpointSelector; target: EndpointSelector; endpointPairs?: EndpointPair[]; sourceType: string; targetType: string; connectionOptions: string[]; messageTemplate?: string; disabled?: boolean }>()
+const emit = defineEmits<{ patch: [values: Partial<RouteRuleValues>]; 'update:source': [value: EndpointSelector]; 'update:target': [value: EndpointSelector]; 'update:endpointPairs': [value: EndpointPair[]] }>()
+const visiblePairs = computed(() => props.endpointPairs?.length ? props.endpointPairs : [{ source: props.source, target: props.target }])
+const setSelector = (index: number, end: 'source' | 'target', value: EndpointSelector) => {
+  if (props.endpointPairs !== undefined) {
+    emit('update:endpointPairs', visiblePairs.value.map((pair, i) => i === index ? { ...pair, [end]: value } : pair))
+  } else if (end === 'source') emit('update:source', value)
+  else emit('update:target', value)
+}
+const removePair = (index: number) => emit('update:endpointPairs', visiblePairs.value.filter((_, i) => i !== index))
 const store = useDiagramLanguages()
 const elements = computed(() => store.definition?.elements ?? [])
 const sourceElement = computed(() => elements.value.find((e) => e.type === props.sourceType))

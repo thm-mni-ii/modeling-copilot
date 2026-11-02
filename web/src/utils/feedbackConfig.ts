@@ -120,7 +120,6 @@ export const createDefaultFeedbackCanvasConnection = (): DiagramConnection => ({
     endFill: true,
     align: 'center',
     verticalAlign: 'middle',
-    labelPosition: 'center',
     fontColor: '#9e9e9e',
     fontSize: 9
   },

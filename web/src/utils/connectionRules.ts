@@ -45,7 +45,7 @@ const endpointMatch = (context: ConnectionRuleContext, relation: MultiplicityRel
   !relation.refinement.endpoints?.length || relation.refinement.endpoints.some((pair) => matchesEndpoint(pair.source, endpointId(edge, forward, from, pointsFor(context, from)), pointsFor(context, from)) && matchesEndpoint(pair.target, endpointId(edge, !forward, to, pointsFor(context, to)), pointsFor(context, to)))
 
 const orientationMatches = (context: ConnectionRuleContext, relation: EffectiveRelation, edge: Cell, from: Cell, to: Cell, forward: boolean): boolean =>
-  elementTypeOf(from) === relation.sourceType && elementTypeOf(to) === relation.targetType && (!relation.routed || endpointMatch(context, relation, edge, from, to, forward))
+  elementTypeOf(from) === relation.sourceType && elementTypeOf(to) === relation.targetType && endpointMatch(context, relation, edge, from, to, forward)
 
 const matchesRelation = (context: ConnectionRuleContext, relation: EffectiveRelation, edge: Cell, source: Cell, target: Cell): boolean => {
   return selectedType(relation.refinement.connectionTypes, edge) && orientations(context, edge, source, target).some(([from, to, forward]) => orientationMatches(context, relation, edge, from, to, forward))

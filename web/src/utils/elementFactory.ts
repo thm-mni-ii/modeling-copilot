@@ -25,6 +25,8 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
   const baseStyle: Record<string, any> = {
     shape: element.renderMode === 'swimlane' ? 'swimlane' : element.predefinedShape ?? 'rectangle',
     ...style, // Alle Style-Eigenschaften aus Definition übernehmen
+    movable: element.movable ?? true,
+    resizable: element.resizable ?? true,
     // Defaults für fehlende Werte
     strokeColor: style.strokeColor ?? 'black',
     fillColor: style.fillColor ?? '#f5f5f5',
@@ -132,6 +134,7 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
  */
 export function addCellToGraph(graph: Graph, cell: Cell, element: DiagramElement, parent: any): void {
   const addChildRecursive = (parentCell: Cell, child: any): void => {
+    registerElementShapes(child)
     const childGeometry = new Geometry(child.position.x, child.position.y, child.position.width, child.position.height)
     childGeometry.relative = child.position.relative
 
@@ -142,7 +145,7 @@ export function addCellToGraph(graph: Graph, cell: Cell, element: DiagramElement
 
     const childStyle: any = {
       ...child.style,
-      shape: child.renderMode === 'swimlane' ? 'swimlane' : child.predefinedShape || 'label'
+      shape: child.renderMode === 'canvas2d' ? child.type : child.renderMode === 'swimlane' ? 'swimlane' : child.predefinedShape || 'label'
     }
 
     const childCell = new Cell(child.defaultLabel, childGeometry, childStyle)

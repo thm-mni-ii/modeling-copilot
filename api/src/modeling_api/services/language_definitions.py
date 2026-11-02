@@ -20,6 +20,8 @@ def normalize_connection_types(data: dict) -> dict:
         elif isinstance(value, dict):
             if "type" in value and "style" in value:
                 value.pop("connectionType", None)
+                if "renderMode" not in value:
+                    value.pop("points", None)
             for key, item in value.items():
                 if syntax and key == "connectionTypes" and isinstance(item, list):
                     value[key] = list(dict.fromkeys(

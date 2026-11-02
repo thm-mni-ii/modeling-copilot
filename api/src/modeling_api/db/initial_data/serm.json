@@ -322,6 +322,7 @@
       "type": "serm-0-1",
       "label": "(0,1)",
       "defaultLabel": "",
+      "connectionType": "0-1",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -365,6 +366,7 @@
       "type": "serm-0-n",
       "label": "(0,*)",
       "defaultLabel": "",
+      "connectionType": "0-n",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -408,6 +410,7 @@
       "type": "serm-1-1",
       "label": "(1,1)",
       "defaultLabel": "",
+      "connectionType": "1-1",
       "connectable": true,
       "style": {
         "shape": "doubleLine",
@@ -452,6 +455,7 @@
       "type": "serm-1-n",
       "label": "(1,*)",
       "defaultLabel": "",
+      "connectionType": "1-n",
       "connectable": true,
       "style": {
         "shape": "doubleLine",
@@ -1103,6 +1107,7 @@
             "type": "__feedback_note_link___1",
             "label": "Feedback Connection",
             "defaultLabel": "",
+            "connectionType": "feedback-note",
             "connectable": false,
             "style": {
               "shape": "connector",

@@ -76,6 +76,7 @@
           <ColorPickerField v-model="localElement.style.fontColor" label="Font Color" class="mb-3" @update:model-value="emitUpdate" />
 
           <v-text-field v-model="localElement.style.fontFamily" label="Font Family" variant="outlined" density="compact" class="mb-3" @input="emitUpdate" />
+          <v-select v-model="localElement.style.whiteSpace" :items="[{ title: 'Wrap text', value: 'wrap' }, { title: 'Single line', value: 'nowrap' }]" label="Text Wrapping" placeholder="Single line" persistent-placeholder variant="outlined" density="compact" class="mb-3" @update:model-value="emitUpdate" />
 
           <v-row>
             <v-col cols="6">
@@ -195,7 +196,7 @@
           Behavior
         </v-expansion-panel-title>
         <v-expansion-panel-text>
-          <v-checkbox v-model="diagramElementData.connectable" label="Allow Connections" density="compact" @update:model-value="emitUpdate" />
+          <v-checkbox v-model="connectable" label="Allow Connections" density="compact" @update:model-value="emitUpdate" />
           <v-checkbox v-model="diagramElementData.resizable" label="Resizable" density="compact" @update:model-value="emitUpdate" />
           <v-checkbox v-model="diagramElementData.movable" label="Movable" density="compact" @update:model-value="emitUpdate" />
         </v-expansion-panel-text>
@@ -208,7 +209,7 @@
           Behavior
         </v-expansion-panel-title>
         <v-expansion-panel-text>
-          <v-checkbox v-model="childElementData.connectable" label="Allow Connections" density="compact" @update:model-value="emitUpdate" />
+          <v-checkbox v-model="connectable" label="Allow Connections" density="compact" @update:model-value="emitUpdate" />
         </v-expansion-panel-text>
       </v-expansion-panel>
 
@@ -403,6 +404,10 @@ function isChildElement(el: DiagramElement | ChildElement): el is ChildElement {
 const diagramElementData = computed(() => (isDiagramElement(localElement.value) ? localElement.value : null))
 const anchorGroupOptions = computed(() => [...new Set(diagramElementData.value?.anchorPoints.flatMap((p) => p.groups ?? []) ?? [])])
 const childElementData = computed(() => (isChildElement(localElement.value) ? localElement.value : null))
+const connectable = computed({
+  get: () => localElement.value.connectable ?? isDiagramElement(localElement.value),
+  set: (value: boolean | null) => { localElement.value.connectable = value ?? false }
+})
 
 const shapeTypes = [
   { title: 'Canvas2D Shape', value: 'canvas2d' },
@@ -631,10 +636,6 @@ watch(
       }
     }
 
-    if (newVal.connectable === undefined) {
-      newVal.connectable = true
-    }
-
     if (newVal.allowLabelEdit === undefined) {
       newVal.allowLabelEdit = true
     }
@@ -740,7 +741,7 @@ function createDefaultChild(index: number): ChildElement {
       verticalAlign: 'middle'
     },
     children: [],
-    connectable: true,
+    connectable: false,
     allowLabelEdit: true
   }
 }

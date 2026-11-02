@@ -33,7 +33,6 @@ export interface DiagramConnection {
     x?: number
     y?: number
   }
-  points?: { x: number; y: number }[]
   additionalLabels?: ConnectionLabelCell[]
 }
 

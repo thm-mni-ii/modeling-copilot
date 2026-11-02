@@ -628,7 +628,6 @@
         "endFill": true,
         "align": "center",
         "verticalAlign": "middle",
-        "labelPosition": "center",
         "fontColor": "#000000",
         "fontSize": 10,
         "noEdgeStyle": true,
@@ -661,7 +660,6 @@
         "endFill": true,
         "align": "center",
         "verticalAlign": "middle",
-        "labelPosition": "center",
         "fontColor": "#000000",
         "fontSize": 10,
         "noEdgeStyle": true
@@ -687,7 +685,6 @@
         "endFill": true,
         "align": "center",
         "verticalAlign": "middle",
-        "labelPosition": "center",
         "fontColor": "#000000",
         "fontSize": 10,
         "noEdgeStyle": true
@@ -2503,7 +2500,6 @@
               "endFill": true,
               "align": "center",
               "verticalAlign": "middle",
-              "labelPosition": "center",
               "fontColor": "#9e9e9e",
               "fontSize": 9
             },
