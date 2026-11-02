@@ -406,12 +406,14 @@ async def _seed_example(name: str, created_at: datetime) -> None:
         await db.task_version.update_one(
             {"_id": version["id"]},
             {
-                "$set": {
+                # Existing models and task edits depend on this immutable release.
+                "$setOnInsert": {
                     "releaseName": version["releaseName"],
                     "description": version["description"],
                     "data": version["data"],
+                    "createdAt": created_at,
+                    **version_on_insert,
                 },
-                "$setOnInsert": {"createdAt": created_at, **version_on_insert},
             },
             upsert=True,
         )

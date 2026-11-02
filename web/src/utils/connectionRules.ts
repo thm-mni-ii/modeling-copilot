@@ -42,7 +42,7 @@ export const effectiveRelations = (config: MultiplicityConfig): EffectiveRelatio
   })
 
 const endpointMatch = (context: ConnectionRuleContext, relation: MultiplicityRelation, edge: Cell, from: Cell, to: Cell, forward: boolean): boolean =>
-  !relation.refinement.endpoints?.length || relation.refinement.endpoints.some((pair) => matchesEndpoint(pair.source, endpointId(edge, forward, from), pointsFor(context, from)) && matchesEndpoint(pair.target, endpointId(edge, !forward, to), pointsFor(context, to)))
+  !relation.refinement.endpoints?.length || relation.refinement.endpoints.some((pair) => matchesEndpoint(pair.source, endpointId(edge, forward, from, pointsFor(context, from)), pointsFor(context, from)) && matchesEndpoint(pair.target, endpointId(edge, !forward, to, pointsFor(context, to)), pointsFor(context, to)))
 
 const orientationMatches = (context: ConnectionRuleContext, relation: EffectiveRelation, edge: Cell, from: Cell, to: Cell, forward: boolean): boolean =>
   elementTypeOf(from) === relation.sourceType && elementTypeOf(to) === relation.targetType && (!relation.routed || endpointMatch(context, relation, edge, from, to, forward))
@@ -70,7 +70,7 @@ const matchingEndIds = (context: ConnectionRuleContext, rule: EdgeCardinality, e
     if (terminal !== cell) continue
     if (!isUndirected(context, edge) && direction !== 'both' && (direction === 'outgoing') !== sourceEnd) continue
     if (rule.neighborTypes?.length && !rule.neighborTypes.includes(elementTypeOf(neighbor) ?? '')) continue
-    const id = endpointId(edge, sourceEnd, cell)
+    const id = endpointId(edge, sourceEnd, cell, pointsFor(context, cell))
     if (matchesEndpoint(rule.endpoints, id, pointsFor(context, cell))) result.push(id)
   }
   return result
@@ -132,13 +132,14 @@ export const connectionErrors = (context: ConnectionRuleContext, edge: Cell, sou
   const endpointAllowed = !allowed.length || allowed.some(({ relation, from, to, forward }) => endpointMatch(context, relation, edge, from, to, forward))
   if (!endpointAllowed) errors.push(renderMessage(context.config.endpointMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.endpointMessageTemplate, source, target, edge))
   for (const [cell, sourceEnd] of [[source, true], [target, false]] as const) {
-    const id = endpointId(edge, sourceEnd, cell)
     const points = pointsFor(context, cell)
+    const id = endpointId(edge, sourceEnd, cell, points)
     const point = points.find((p) => pointId(p) === id)
     if (id && !point) errors.push(`The connection point on ${elementTypeOf(cell)} no longer exists.`)
     const element = context.elements.find((e) => e.type === elementTypeOf(cell))
     if (element?.connectable === false) errors.push(`${element.type} does not allow connections.`)
-    if (element && element.docking !== 'outline' && points.length && !id) errors.push(`${element.type} requires a connection point.`)
+    // Older language versions allowed outline connections without an explicit docking mode.
+    if (element?.docking === 'anchors' && points.length && !id) errors.push(`${element.type} requires a connection point.`)
     if (!isUndirected(context, edge) && point?.role && point.role !== 'bidirectional' && (point.role === 'output') !== sourceEnd) errors.push(`${pointLabel(point)} does not allow ${sourceEnd ? 'outgoing' : 'incoming'} connections.`)
   }
 

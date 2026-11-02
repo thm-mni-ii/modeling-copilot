@@ -21,14 +21,14 @@ export const pointsOf = (cell: Cell | null): AnchorPoint[] => {
   catch { return [] }
 }
 
-export const endpointId = (edge: Cell, source: boolean, terminal: Cell | null): string | null => {
+export const endpointId = (edge: Cell, source: boolean, terminal: Cell | null, points = pointsOf(terminal)): string | null => {
   const style = edge.getStyle() as Record<string, unknown>
   const id = style[source ? 'exitPointId' : 'entryPointId']
   if (typeof id === 'string' && id) return id
   const x = style[source ? 'exitX' : 'entryX']
   const y = style[source ? 'exitY' : 'entryY']
   if (x == null || y == null) return null
-  const point = pointsOf(terminal).find((p) => Math.abs(p.x - Number(x)) < 0.000001 && Math.abs(p.y - Number(y)) < 0.000001)
+  const point = points.find((p) => Math.abs(p.x - Number(x)) < 0.000001 && Math.abs(p.y - Number(y)) < 0.000001)
   return point ? pointId(point) : null
 }
 
