@@ -20,6 +20,7 @@ from modeling_api.routes import (
     languages,
     models,
     server_time,
+    share,
     tasks,
 )
 
@@ -75,6 +76,7 @@ api.include_router(models.router)
 api.include_router(feedback.router)
 api.include_router(evaluations.router)
 api.include_router(server_time.router)
+api.include_router(share.router)
 app.include_router(api)
 
 

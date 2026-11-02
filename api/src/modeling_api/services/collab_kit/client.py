@@ -5,11 +5,12 @@ Antworten gibt der Client unverändert als JSON zurück.
 """
 
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
 from modeling_api.core.config import settings
-from modeling_api.core.errors import ApiError
+from modeling_api.core.errors import ApiError, not_found
 from modeling_api.services.collab_kit.token import service_token
 
 # Nur für Tests: ein anderer Transport statt des Netzwerks.
@@ -26,6 +27,9 @@ async def _request(method: str, path: str, body: dict[str, Any] | None = None) -
             )
     except httpx.HTTPError as error:
         raise ApiError(503, "CK_UNAVAILABLE", "Collab-Kit is currently unavailable.") from error
+    # Ein unbekanntes Objekt (Raum, Gruppe) ist für den Aufrufer ebenfalls unbekannt.
+    if response.status_code == 404:
+        raise not_found()
     if not response.is_success:
         # CK antwortet bei Fehlern mit {"error": "..."}.
         try:
@@ -72,7 +76,8 @@ async def add_member(group_id: str, actor_id: str) -> dict:
 
 
 async def remove_member(group_id: str, actor_id: str) -> dict:
-    return await _request("DELETE", f"/groups/{group_id}/members/{actor_id}")
+    # Die Kennung stammt aus Tokens; kodiert, damit kein Zeichen den Pfad ändert.
+    return await _request("DELETE", f"/groups/{group_id}/members/{quote(actor_id, safe='')}")
 
 
 async def set_grant(
@@ -83,6 +88,11 @@ async def set_grant(
     if room_id is not None:
         body["scope"] = {"kind": "room", "id": room_id}
     return await _request("PUT", "/grants", body)
+
+
+async def list_grants(room_id: str) -> list[dict]:
+    """Die Grants, die an genau diesem Raum liegen."""
+    return await _request("GET", f"/grants?scopeKind=room&scopeId={room_id}")
 
 
 async def create_workpiece(workpiece: dict[str, Any]) -> dict:

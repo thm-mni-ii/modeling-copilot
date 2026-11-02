@@ -4,7 +4,8 @@ Die settings des Raums kann der Host ändern (er hat dort `manage`), die der Gru
 Deshalb gilt der Raum nur als Hinweis: Die Gruppen, die er nennt, müssen sich selbst als
 Gruppen dieses Raums ausweisen. Sonst könnte ein Host die ID einer fremden Gruppe eintragen.
 
-Raum:   {"share": {"open": true, "workpieceId": "…", "groups": {"hosts": "…", "visitors": "…"}}}
+Raum:   {"share": {"open": true, "workpieceId": "…", "groups": {"hosts": "…", "visitors": "…"},
+                   "before": {"rights": […], "anonymous": false} (nur während der Sperre)}}
 Gruppe: {"share": {"role": "hosts" | "visitors", "roomId": "…", "ownerId": "…" (nur hosts)}}
 """
 
@@ -54,6 +55,8 @@ async def read(room_id: str) -> dict[str, Any]:
     if not share or room["createdBy"] != settings.service_actor:
         raise not_found()
     groups = share.get("groups") if isinstance(share.get("groups"), dict) else {}
+    if not {HOSTS, VISITORS} <= groups.keys():
+        raise ApiError(409, "SHARE_INVALID", "The share of this room is inconsistent.")
     for role, group_id in groups.items():
         belongs = _share_of((await client.get_group(group_id))["settings"])
         if belongs.get("role") != role or belongs.get("roomId") != room_id:
@@ -63,11 +66,13 @@ async def read(room_id: str) -> dict[str, Any]:
         "open": share.get("open") is True,
         "workpieceId": share.get("workpieceId"),
         "groups": groups,
+        # Die Rechte der Besucher vor der Sperre, solange der Raum gesperrt ist.
+        "before": share.get("before") if isinstance(share.get("before"), dict) else None,
     }
 
 
 async def save(room_id: str, **fields: Any) -> None:
-    """Setzt `open`, `workpieceId` oder `groups` und lässt alle anderen settings des Raums stehen."""
+    """Setzt `open`, `workpieceId`, `groups` oder `before` und lässt alle anderen settings des Raums stehen."""
     room = await client.get_room(room_id)
     current = room["settings"] if isinstance(room["settings"], dict) else {}
     await client.update_room_settings(
