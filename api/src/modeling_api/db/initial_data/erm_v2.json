@@ -612,7 +612,7 @@
     {
       "type": "erm-association",
       "label": "Association",
-      "defaultLabel": "",
+      "defaultLabel": "mc",
       "connectionType": "association",
       "connectable": false,
       "allowLooseEnds": false,
@@ -633,34 +633,11 @@
         "fontColor": "#000000",
         "fontSize": 10,
         "noEdgeStyle": true,
-        "labelBackgroundColor": "#ffffff"
+        "labelBackgroundColor": "#ffffff",
+        "labelPadding": 1,
+        "noLabel": false
       },
-      "additionalLabels": [
-        {
-          "type": "cardinality",
-          "text": "mc",
-          "geometry": {
-            "x": 0.75,
-            "y": 0,
-            "relative": true,
-            "offsetX": -20,
-            "offsetY": -15,
-            "width": 40,
-            "height": 20
-          },
-          "style": {
-            "fontSize": 12,
-            "fontColor": "#000000",
-            "shape": "label",
-            "align": "center",
-            "verticalAlign": "middle",
-            "labelBackgroundColor": "#ffffff"
-          },
-          "connectable": false,
-          "allowLabelEdit": true,
-          "id": "Label 1"
-        }
-      ],
+      "additionalLabels": [],
       "labelOffset": {
         "y": 5,
         "x": 0
