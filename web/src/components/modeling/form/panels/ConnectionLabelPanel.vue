@@ -106,6 +106,10 @@
       </FieldWithIndicator>
 
       <FieldWithIndicator :config="{ minComplexity: 'expert' }">
+        <v-text-field v-model.number="localStyle.labelPadding" label="Label Padding" variant="outlined" density="compact" type="number" min="0" step="1" suffix="px" hint="Space between the label text and the edge of its background." persistent-hint class="mb-4" @update:model-value="emit('update')" />
+      </FieldWithIndicator>
+
+      <FieldWithIndicator :config="{ minComplexity: 'expert' }">
         <ColorPickerField v-model="localStyle.labelBorderColor" label="Label Border" hint="Border color around the label." class="mb-4" @update:model-value="emit('update')" />
       </FieldWithIndicator>
 

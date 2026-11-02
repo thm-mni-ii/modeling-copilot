@@ -147,7 +147,7 @@ import { alignHorizontal, alignVertical } from '@/utils/alignCells'
 import { clearValidationWarningOverlays, getGraphValidationMode, isValidationPassActive, setGraphValidationMode } from '@/utils/graphValidationRuntime'
 import { createCellFromElement } from '@/utils/elementFactory'
 import { registerElementShapes } from '@/utils/shapeRegistry'
-import { editorHtmlToLabel, formatText, labelToEditorHtml, protectHtmlLabels, type TextFormat } from '@/utils/htmlLabels'
+import { editorHtmlToLabel, enableLabelPadding, formatText, labelToEditorHtml, protectHtmlLabels, type TextFormat } from '@/utils/htmlLabels'
 import GraphSettings from './GraphSettings.vue'
 import CanvasWindowHost from './CanvasWindowHost.vue'
 import CanvasToolbar from '@/components/modeling/controls/CanvasToolbar.vue'
@@ -1062,6 +1062,7 @@ const initGraph = () => {
   graph.value.setAllowNegativeCoordinates(false)
   graph.value.setHtmlLabels(true)
   protectHtmlLabels(graph.value)
+  enableLabelPadding(graph.value)
   graph.value.border = 20
 
   undoManagerApi?.destroy()
