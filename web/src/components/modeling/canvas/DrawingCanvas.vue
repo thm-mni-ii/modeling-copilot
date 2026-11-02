@@ -363,7 +363,7 @@ class MyCustomGraph extends Graph {
     const connection = edge ? this.getConnectionOf(edge) : undefined
     const blockedLoop = !!source && source === target && connection?.allowLoops !== true
     const blockedLooseEnd = edge && !isPreviewEdge(edge) && connection?.allowLooseEnds === false && (!source || !target)
-    const error = blockedLooseEnd ? 'This connection must be attached at both ends.\n' : blockedLoop ? `The Connection ${connection?.connectionType ?? connection?.type ?? '-'} may not connect ${(source as any).diagramElementType ?? '-'} to itself.\n` : super.getEdgeValidationError(edge, source, target)
+    const error = blockedLooseEnd ? 'This connection must be attached at both ends.\n' : blockedLoop ? `The Connection ${connection?.type ?? '-'} may not connect ${(source as any).diagramElementType ?? '-'} to itself.\n` : super.getEdgeValidationError(edge, source, target)
     const mode = getGraphValidationMode(this)
     if (mode === 'preventive') {
       return error
@@ -1305,7 +1305,7 @@ const feedbackShapes = computed(() =>
           if (feedbackCell) {
             ;(feedbackCell as any).feedbackElementId = entry.id
             ;(feedbackCell as any).feedbackConnectionId = entry.connection.type
-            ;(feedbackCell as any).feedbackConnectionType = entry.connection.connectionType ?? entry.connection.type
+            ;(feedbackCell as any).feedbackConnectionType = entry.connection.type
             ;(feedbackCell as any).lockToLayer = activeFeedbackRules.value.preventContainerDrop ? 1 : 0
             ;(feedbackCell as any).cellRole = 'feedback'
             ;(feedbackCell as any).canvasRole = 'feedback'
@@ -1401,7 +1401,6 @@ const selectConnectionByType = (languageId: string, connectionType: string): boo
   const parentCell = modelLayerCell.value ?? graphInstance.getDefaultParent()
   const edges = parentCell.filterDescendants((cell) => cell.isEdge())
   const matchingEdge = edges.find((edge) => (edge as any).connectionId === connectionType)
-    ?? edges.find((edge) => (edge as any).connectionType === connectionType)
   if (!matchingEdge) return false
 
   graphInstance.setSelectionCell(matchingEdge)

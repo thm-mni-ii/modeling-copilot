@@ -87,7 +87,6 @@ const addNewConnection = () => {
     type: `connection_${Date.now()}`,
     label: 'New Connection',
     defaultLabel: '',
-    connectionType: 'association',
     style: {
       shape: 'connector',
       strokeColor: '#000000',

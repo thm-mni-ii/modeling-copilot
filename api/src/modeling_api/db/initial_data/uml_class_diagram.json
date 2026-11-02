@@ -328,7 +328,6 @@
       "type": "uml-inheritance",
       "label": "Inheritance",
       "defaultLabel": "",
-      "connectionType": "inheritance",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -352,7 +351,6 @@
       "type": "uml-realization",
       "label": "Realization",
       "defaultLabel": "",
-      "connectionType": "realization",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -377,7 +375,6 @@
       "type": "uml-association",
       "label": "Association",
       "defaultLabel": "",
-      "connectionType": "association",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -401,7 +398,6 @@
       "type": "uml-directed-association",
       "label": "Directed Association",
       "defaultLabel": "",
-      "connectionType": "directed-association",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -425,7 +421,6 @@
       "type": "uml-aggregation",
       "label": "Aggregation",
       "defaultLabel": "",
-      "connectionType": "aggregation",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -449,7 +444,6 @@
       "type": "uml-composition",
       "label": "Composition",
       "defaultLabel": "",
-      "connectionType": "composition",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -473,7 +467,6 @@
       "type": "uml-dependency",
       "label": "Dependency",
       "defaultLabel": "<<use>>",
-      "connectionType": "dependency",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -498,7 +491,6 @@
       "type": "uml-note-link",
       "label": "Note Connection",
       "defaultLabel": "",
-      "connectionType": "note",
       "connectable": false,
       "style": {
         "shape": "connector",
@@ -531,12 +523,12 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "inheritance",
-                "association",
-                "directed-association",
-                "aggregation",
-                "composition",
-                "dependency"
+                "uml-inheritance",
+                "uml-association",
+                "uml-directed-association",
+                "uml-aggregation",
+                "uml-composition",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -547,12 +539,12 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "inheritance",
-                "association",
-                "directed-association",
-                "aggregation",
-                "composition",
-                "dependency"
+                "uml-inheritance",
+                "uml-association",
+                "uml-directed-association",
+                "uml-aggregation",
+                "uml-composition",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -563,10 +555,10 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "realization",
-                "association",
-                "directed-association",
-                "dependency"
+                "uml-realization",
+                "uml-association",
+                "uml-directed-association",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -577,9 +569,9 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association",
-                "directed-association",
-                "dependency"
+                "uml-association",
+                "uml-directed-association",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -589,7 +581,7 @@
             "targetType": "uml-note",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": ["note"],
+              "connectionTypes": ["uml-note-link"],
               "cardinality": { "min": 0, "max": null }
             }
           },
@@ -617,11 +609,11 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association",
-                "directed-association",
-                "aggregation",
-                "composition",
-                "dependency"
+                "uml-association",
+                "uml-directed-association",
+                "uml-aggregation",
+                "uml-composition",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -632,12 +624,12 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "inheritance",
-                "association",
-                "directed-association",
-                "aggregation",
-                "composition",
-                "dependency"
+                "uml-inheritance",
+                "uml-association",
+                "uml-directed-association",
+                "uml-aggregation",
+                "uml-composition",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -648,10 +640,10 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "realization",
-                "association",
-                "directed-association",
-                "dependency"
+                "uml-realization",
+                "uml-association",
+                "uml-directed-association",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -662,9 +654,9 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association",
-                "directed-association",
-                "dependency"
+                "uml-association",
+                "uml-directed-association",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -674,7 +666,7 @@
             "targetType": "uml-note",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": ["note"],
+              "connectionTypes": ["uml-note-link"],
               "cardinality": { "min": 0, "max": null }
             }
           },
@@ -702,10 +694,10 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "inheritance",
-                "association",
-                "directed-association",
-                "dependency"
+                "uml-inheritance",
+                "uml-association",
+                "uml-directed-association",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -716,9 +708,9 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association",
-                "directed-association",
-                "dependency"
+                "uml-association",
+                "uml-directed-association",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -729,9 +721,9 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association",
-                "directed-association",
-                "dependency"
+                "uml-association",
+                "uml-directed-association",
+                "uml-dependency"
               ],
               "cardinality": { "min": 0, "max": null }
             }
@@ -741,7 +733,7 @@
             "targetType": "uml-enum",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": ["dependency"],
+              "connectionTypes": ["uml-dependency"],
               "cardinality": { "min": 0, "max": null }
             }
           },
@@ -750,7 +742,7 @@
             "targetType": "uml-note",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": ["note"],
+              "connectionTypes": ["uml-note-link"],
               "cardinality": { "min": 0, "max": null }
             }
           },
@@ -777,7 +769,7 @@
             "targetType": "uml-class",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": ["association", "dependency"],
+              "connectionTypes": ["uml-association", "uml-dependency"],
               "cardinality": { "min": 0, "max": null }
             }
           },
@@ -786,7 +778,7 @@
             "targetType": "uml-abstract-class",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": ["association", "dependency"],
+              "connectionTypes": ["uml-association", "uml-dependency"],
               "cardinality": { "min": 0, "max": null }
             }
           },
@@ -795,7 +787,7 @@
             "targetType": "uml-interface",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": ["dependency"],
+              "connectionTypes": ["uml-dependency"],
               "cardinality": { "min": 0, "max": null }
             }
           },
@@ -804,7 +796,7 @@
             "targetType": "uml-enum",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": ["association", "dependency"],
+              "connectionTypes": ["uml-association", "uml-dependency"],
               "cardinality": { "min": 0, "max": null }
             }
           },
@@ -813,7 +805,7 @@
             "targetType": "uml-note",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": ["note"],
+              "connectionTypes": ["uml-note-link"],
               "cardinality": { "min": 0, "max": null }
             }
           },
@@ -840,7 +832,7 @@
             "targetType": "uml-package",
             "state": "allowed",
             "refinement": {
-              "connectionTypes": ["dependency"],
+              "connectionTypes": ["uml-dependency"],
               "cardinality": { "min": 0, "max": null }
             }
           },

@@ -35,11 +35,6 @@ const combineErrors = (first: string | null, second: string | null): string | nu
 export const getConnectionType = (edge: Cell | null): string | null => {
   if (!edge) return null
 
-  const semanticType = (edge as any).connectionType
-  if (typeof semanticType === 'string' && semanticType.length > 0) {
-    return semanticType
-  }
-
   const connectionId = (edge as any).connectionId
   if (typeof connectionId === 'string' && connectionId.length > 0) {
     return connectionId

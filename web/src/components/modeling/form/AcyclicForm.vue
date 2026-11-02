@@ -104,8 +104,8 @@ const setMode = (selected: string) => {
   store.setAcyclicRule(config)
 }
 
-// As in SyntaxEditorForm: semantic type of the connection, otherwise its type
-const connectionOptions = computed(() => [...new Set((store.definition?.connections ?? []).map((connection) => connection.connectionType || connection.type))])
+// Use the same connection identifiers as the syntax rules.
+const connectionOptions = computed(() => [...new Set((store.definition?.connections ?? []).map((connection) => connection.type))])
 
 // Only connectable elements can be on a cycle
 const elementOptions = computed(() => (store.definition?.elements ?? []).filter((element) => element.connectable).map((element) => element.type))

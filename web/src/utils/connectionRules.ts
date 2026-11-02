@@ -11,7 +11,7 @@ export interface ConnectionRuleContext {
   connections: DiagramConnection[]
 }
 
-export const connectionTypeOf = (edge: Cell): string => (edge as any).connectionType ?? (edge as any).connectionId ?? ''
+export const connectionTypeOf = (edge: Cell): string => (edge as any).connectionId ?? ''
 const connectionOf = (context: ConnectionRuleContext, edge: Cell) => context.connections.find((c) => c.type === (edge as any).connectionId)
 const isUndirected = (context: ConnectionRuleContext, edge: Cell) => {
   const definition = connectionOf(context, edge)
@@ -195,7 +195,7 @@ export const connectionConfigErrors = (context: ConnectionRuleContext): string[]
     for (const id of selector?.pointIds ?? []) if (!points.some((p) => pointId(p) === id)) errors.push(`${label}: connection point ${id} no longer exists.`)
     for (const group of selector?.groups ?? []) if (!points.some((p) => p.groups?.includes(group))) errors.push(`${label}: connection point group ${group} no longer exists.`)
   }
-  const knownTypes = new Set(context.connections.map((c) => c.connectionType ?? c.type))
+  const knownTypes = new Set(context.connections.map((c) => c.type))
   const checkTypes = (types: string[] | undefined, label: string) => { for (const type of types ?? []) if (!knownTypes.has(type)) errors.push(`${label}: connection type ${type} no longer exists.`) }
   for (const r of effectiveRelations(context.config)) {
     if (r.state !== 'allowed') continue
@@ -205,7 +205,7 @@ export const connectionConfigErrors = (context: ConnectionRuleContext): string[]
     checkTypes(r.refinement.connectionTypes, label)
     for (const pair of r.refinement.endpoints ?? []) { checkSelector(pair.source, r.sourceType, label); checkSelector(pair.target, r.targetType, label) }
     const opposite = context.config.relations.find((other) => other.sourceType === r.targetType && other.targetType === r.sourceType && other.state === 'forbidden')
-    if (opposite && context.connections.some((c) => c.undirected && (!r.refinement.connectionTypes.length || r.refinement.connectionTypes.includes(c.connectionType ?? c.type)))) errors.push(`${label}: an undirected connection conflicts with the forbidden reverse combination.`)
+    if (opposite && context.connections.some((c) => c.undirected && (!r.refinement.connectionTypes.length || r.refinement.connectionTypes.includes(c.type)))) errors.push(`${label}: an undirected connection conflicts with the forbidden reverse combination.`)
     for (const rule of context.config.incoming ?? []) {
       if (rule.countScope && rule.countScope !== 'element') continue
       if (rule.endpoints?.pointIds?.length || rule.endpoints?.groups?.length || rule.neighborTypes?.length) continue

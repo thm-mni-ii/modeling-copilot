@@ -22,7 +22,6 @@ export interface DiagramConnection {
   type: string // Typ-Identifikator (z.B. "uml-inheritance") - entspricht maxGraph's Typ-Konzept
   label: string // Anzeigename fuer UI (z.B. "Vererbung")
   defaultLabel?: string // Optionales Standard-Label fuer neue Instanzen im Graph
-  connectionType?: string // Semantischer Typ (z.B. "inheritance", "association")
   undirected?: boolean // Swapping the two ends does not change the connection's meaning
   style: CellStyle
   connectable?: boolean

@@ -15,6 +15,7 @@ from modeling_api.core.auth import User
 from modeling_api.core.errors import ApiError, not_found
 from modeling_api.db.client import db
 from modeling_api.db.store import Document, get_or_404, insert, list_page, save_version, to_api, utcnow
+from modeling_api.services.language_definitions import normalize_connection_types
 from modeling_api.schemas.languages import (
     CreateLanguage,
     CreateLanguageVersion,
@@ -143,7 +144,7 @@ async def create_language(body: CreateLanguage, user: User) -> Document:
                 "releaseName": "Initial release",
                 "description": None,
                 "includedLanguageVersions": parent_version.get("includedLanguageVersions", []),
-                "data": parent_version["data"],
+                "data": normalize_connection_types(parent_version["data"]),
             },
         )
     except Exception:
@@ -189,6 +190,7 @@ async def get_version(language_id: UUID, version_id: UUID) -> Document:
     )
     if version is None:
         raise not_found()
+    version["data"] = normalize_connection_types(version["data"])
     return to_api(version)
 
 
@@ -200,6 +202,7 @@ async def create_version(
         raise not_found()
     await check_language_refs(body.included_language_versions)
     fields = body.model_dump(mode="json", by_alias=True, exclude={"base_version_id"})
+    fields["data"] = normalize_connection_types(fields["data"])
     return await save_version(
         db.languages,
         db.language_versions,

@@ -428,7 +428,6 @@
       "type": "erm-association",
       "label": "Association",
       "defaultLabel": "",
-      "connectionType": "association",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -502,7 +501,6 @@
       "type": "erm-attribute-link",
       "label": "Attribute Link",
       "defaultLabel": "",
-      "connectionType": "attribute",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -526,7 +524,6 @@
       "type": "erm-generalization",
       "label": "Generalization",
       "defaultLabel": "",
-      "connectionType": "generalization",
       "connectable": true,
       "style": {
         "shape": "connector",
@@ -583,7 +580,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association"
+                "erm-association"
               ],
               "cardinality": {
                 "min": 0,
@@ -597,7 +594,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association"
+                "erm-association"
               ],
               "cardinality": {
                 "min": 0,
@@ -647,7 +644,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "generalization"
+                "erm-generalization"
               ],
               "cardinality": {
                 "min": 0,
@@ -697,7 +694,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association"
+                "erm-association"
               ],
               "cardinality": {
                 "min": 0,
@@ -711,7 +708,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association"
+                "erm-association"
               ],
               "cardinality": {
                 "min": 0,
@@ -1001,7 +998,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "attribute"
+                "erm-attribute-link"
               ],
               "cardinality": {
                 "min": 0,
@@ -1015,7 +1012,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "attribute"
+                "erm-attribute-link"
               ],
               "cardinality": {
                 "min": 0,
@@ -1029,7 +1026,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "attribute"
+                "erm-attribute-link"
               ],
               "cardinality": {
                 "min": 0,
@@ -1043,7 +1040,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "attribute"
+                "erm-attribute-link"
               ],
               "cardinality": {
                 "min": 0,
@@ -1105,7 +1102,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "attribute"
+                "erm-attribute-link"
               ],
               "cardinality": {
                 "min": 0,
@@ -1119,7 +1116,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "attribute"
+                "erm-attribute-link"
               ],
               "cardinality": {
                 "min": 0,
@@ -1133,7 +1130,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "attribute"
+                "erm-attribute-link"
               ],
               "cardinality": {
                 "min": 0,
@@ -1231,7 +1228,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "attribute"
+                "erm-attribute-link"
               ],
               "cardinality": {
                 "min": 0,
@@ -1245,7 +1242,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "attribute"
+                "erm-attribute-link"
               ],
               "cardinality": {
                 "min": 0,
@@ -1331,7 +1328,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "attribute"
+                "erm-attribute-link"
               ],
               "cardinality": {
                 "min": 0,
@@ -1345,7 +1342,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "generalization"
+                "erm-generalization"
               ],
               "cardinality": {
                 "min": 0,
@@ -1479,7 +1476,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association"
+                "erm-association"
               ],
               "cardinality": {
                 "min": 0,
@@ -1493,7 +1490,7 @@
             "state": "allowed",
             "refinement": {
               "connectionTypes": [
-                "association"
+                "erm-association"
               ],
               "cardinality": {
                 "min": 0,
@@ -2196,7 +2193,6 @@
             "type": "__feedback_note_link___1",
             "label": "Feedback Connection",
             "defaultLabel": "",
-            "connectionType": "feedback-note",
             "connectable": false,
             "style": {
               "shape": "connector",

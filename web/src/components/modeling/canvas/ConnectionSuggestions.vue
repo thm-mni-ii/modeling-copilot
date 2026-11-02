@@ -288,7 +288,7 @@ const candidatesFor = (target: Target, firstOnly = false): Candidate[] => {
         const edge = props.graph.createEdge(null, '', connection.defaultLabel ?? '', from, to, { ...createConnectionStyle(connection), ...endpointStyle(fromPoint, true), ...endpointStyle(toPoint, false) })
         edge.setTerminal(from, true)
         edge.setTerminal(to, false)
-        Object.assign(edge, { connectionId: connection.type, connectionType: connection.connectionType ?? connection.type, connectionUndirected: connection.undirected === true })
+        Object.assign(edge, { connectionId: connection.type, connectionUndirected: connection.undirected === true })
         const candidate = { key: JSON.stringify([connection.type, outgoing]), connection, edge, source: from, target: to, fromPoint, toPoint, outgoing, score: pointScore(selectedStartPoint.value, selectedDirection.value) + pointScore(otherPoint, selectedDirection.value, true) }
         if (validate(candidate) === null) {
           candidates.push(candidate)

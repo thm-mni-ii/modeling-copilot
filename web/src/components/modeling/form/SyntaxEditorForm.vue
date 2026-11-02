@@ -31,7 +31,7 @@ const elementOptions = computed(() => {
 
 const connectionOptions = computed(() => {
   const connections = store.definition?.connections || []
-  return [...new Set(connections.map((conn) => conn.connectionType || conn.type))]
+  return [...new Set(connections.map((conn) => conn.type))]
 })
 
 const updateAll = () => {

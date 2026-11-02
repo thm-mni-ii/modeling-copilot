@@ -45,7 +45,7 @@ const connections = computed(() => store.definition?.connections ?? [])
 
 const getConnectionByType = (type?: string) => {
   if (!type) return undefined
-  return connections.value.find((connection) => connection.type === type) ?? connections.value.find((connection) => connection.connectionType === type)
+  return connections.value.find((connection) => connection.type === type)
 }
 
 const formatConnectionLabel = (type?: string) => {

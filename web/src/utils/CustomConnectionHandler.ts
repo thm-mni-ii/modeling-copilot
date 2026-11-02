@@ -97,12 +97,10 @@ export class CustomConnectionHandler extends ConnectionHandler {
     const roleFromStyle = style?.cellRole
     const roleFromCell = (cell as any).cellRole ?? (cell as any).canvasRole
     const connectionId = (cell as any).connectionId
-    const connectionType = (cell as any).connectionType
     const configuredFeedbackConnectionId = this.feedbackConnection?.type
-    const configuredFeedbackConnectionType = this.feedbackConnection?.connectionType ?? this.feedbackConnection?.type
-    const isConfiguredType = (connectionId && this.feedbackConnectionByType.has(connectionId)) || (connectionType && this.feedbackConnectionByType.has(connectionType))
+    const isConfiguredType = connectionId && this.feedbackConnectionByType.has(connectionId)
 
-    return roleFromStyle === 'feedback' || roleFromCell === 'feedback' || (configuredFeedbackConnectionId ? connectionId === configuredFeedbackConnectionId : false) || (configuredFeedbackConnectionType ? connectionType === configuredFeedbackConnectionType : false) || Boolean(isConfiguredType) || connectionId === '__feedback_note_link__' || connectionType === 'feedback-note'
+    return roleFromStyle === 'feedback' || roleFromCell === 'feedback' || (configuredFeedbackConnectionId ? connectionId === configuredFeedbackConnectionId : false) || Boolean(isConfiguredType) || connectionId === '__feedback_note_link__'
   }
 
   private isFeedbackEntity(cell: Cell | null): boolean {
@@ -196,10 +194,6 @@ export class CustomConnectionHandler extends ConnectionHandler {
       if (connection.type) {
         this.feedbackConnectionByType.set(connection.type, connection)
       }
-      const semanticType = connection.connectionType ?? connection.type
-      if (semanticType) {
-        this.feedbackConnectionByType.set(semanticType, connection)
-      }
     }
 
     if (!this.feedbackConnection && entries.length > 0) {
@@ -233,7 +227,6 @@ export class CustomConnectionHandler extends ConnectionHandler {
     const style = createConnectionStyle(effectiveConnection)
     const edge = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', null, null, style)
     ;(edge as any).connectionId = effectiveConnection.type
-    ;(edge as any).connectionType = effectiveConnection.connectionType ?? effectiveConnection.type
     ;(edge as any).connectionUndirected = effectiveConnection.undirected === true
     // ConnectionHandler.connect copies the geometry of this edge to the new one, hence the label offset here already
     applyConnectionLabelOffset(edge, effectiveConnection.labelOffset)
@@ -283,7 +276,6 @@ export class CustomConnectionHandler extends ConnectionHandler {
     probeEdge.setTerminal(source, true)
     probeEdge.setTerminal(target, false)
     ;(probeEdge as any).connectionId = effectiveConnection.type
-    ;(probeEdge as any).connectionType = effectiveConnection.connectionType ?? effectiveConnection.type
     ;(probeEdge as any).connectionUndirected = effectiveConnection.undirected === true
 
     return this.graph.getEdgeValidationError(probeEdge, source, target)
@@ -335,7 +327,6 @@ export class CustomConnectionHandler extends ConnectionHandler {
       if (edge) {
         edge.setConnectable(true)
         ;(edge as any).connectionId = connectionId
-        ;(edge as any).connectionType = effectiveConnection.connectionType ?? connectionId
         ;(edge as any).connectionUndirected = effectiveConnection.undirected === true
         ;(edge as any).connectionStyle = connectionStyle
         ;(edge as any).connectionLabelOffset = effectiveConnection.labelOffset
