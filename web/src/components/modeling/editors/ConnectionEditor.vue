@@ -69,7 +69,7 @@ const selectedConnection = computed<DiagramConnection | undefined>(() => {
 })
 
 // Methods
-// Die Vorschau übernimmt Änderungen selbst (DrawingCanvas beobachtet previewConnection)
+// The preview applies changes itself (DrawingCanvas watches previewConnection)
 const updateAll = () => {
   debouncedStoreUpdate()
 }
@@ -163,7 +163,7 @@ const debouncedStoreUpdate = () => {
 }
 
 // Watchers
-// Neu aufbauen bei anderer Verbindung; Modus und Einstellungen übernimmt DrawingCanvas
+// Rebuild for a different connection; DrawingCanvas applies mode and settings
 watch(selectedConnectionIndex, () => renderConnectionPreview(), { immediate: true })
 
 // Lifecycle

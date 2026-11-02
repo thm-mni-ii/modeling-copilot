@@ -20,7 +20,7 @@
       <template v-for="section in typeSections" :key="section.field">
         <p class="text-body-2 text-medium-emphasis mt-3 mb-2">{{ section.text }} <strong>All</strong> = {{ section.all }}; otherwise only the checked types.</p>
 
-        <!-- Gleiche Darstellung wie die Allowed Connection Refinement: All oder ausgewählte Typen -->
+        <!-- Same layout as the Allowed Connection Refinement: all or selected types -->
         <v-sheet class="matrix-wrapper elevation-1 rounded-lg bg-white" border>
           <v-table density="compact" class="cycle-matrix">
             <thead>
@@ -82,7 +82,7 @@ const modeOptions: { value: CycleMode | 'off'; label: string }[] = [
 
 type CycleConfig = AcyclicRule['config']
 
-// Standardwerte entfernen das Feld, damit Umstellen und Zurückstellen den gespeicherten Stand ergibt
+// Defaults remove the field, so switching and switching back restores the stored state
 const setConfigField = <K extends keyof CycleConfig>(field: K, value: CycleConfig[K] | undefined) => {
   if (!rule.value) return
   const config = { ...rule.value.config }
@@ -91,7 +91,7 @@ const setConfigField = <K extends keyof CycleConfig>(field: K, value: CycleConfi
   store.setAcyclicRule(config)
 }
 
-// Eine unveränderte Standardmeldung wechselt mit dem Modus, eine eigene bleibt
+// An unchanged default message follows the mode, a custom one stays
 const setMode = (selected: string) => {
   const value = selected as CycleMode | 'off'
   if (value === 'off') return store.setAcyclicRule(null)
@@ -104,15 +104,15 @@ const setMode = (selected: string) => {
   store.setAcyclicRule(config)
 }
 
-// Wie in SyntaxEditorForm: semantischer Typ der Verbindung, sonst ihr Typ
+// As in SyntaxEditorForm: semantic type of the connection, otherwise its type
 const connectionOptions = computed(() => [...new Set((store.definition?.connections ?? []).map((connection) => connection.connectionType || connection.type))])
 
-// Nur verbindbare Elemente können auf einem Zyklus liegen
+// Only connectable elements can be on a cycle
 const elementOptions = computed(() => (store.definition?.elements ?? []).filter((element) => element.connectable).map((element) => element.type))
 
 type TypeField = 'connectionTypes' | 'elementTypes'
 
-// Verbindungstypen gelten für alle Modi, die Elementauswahl nur für every
+// Connection types apply to all modes, the element selection only to every
 const typeSections = computed(() => {
   const sections: { field: TypeField; text: string; all: string; options: string[] }[] = [{ field: 'connectionTypes', text: 'Connections that count for a cycle.', all: 'every Connection', options: connectionOptions.value }]
   if (rule.value?.config.mode === 'every') sections.push({ field: 'elementTypes', text: 'Elements that must be part of a cycle.', all: 'every Element', options: elementOptions.value })
@@ -123,14 +123,14 @@ const selectedTypes = (field: TypeField): string[] => rule.value?.config[field] 
 
 const setTypes = (field: TypeField, types: string[]) => setConfigField(field, types.length > 0 ? types : undefined)
 
-// Reihenfolge der Sprache, damit Aus- und wieder Einschalten den gespeicherten Stand ergibt
+// Language order, so switching off and on again restores the stored state
 const toggleType = (section: { field: TypeField; options: string[] }, type: string) => {
   const types = selectedTypes(section.field)
   const next = types.includes(type) ? types.filter((entry) => entry !== type) : [...types, type]
   setTypes(section.field, [...section.options.filter((entry) => next.includes(entry)), ...next.filter((entry) => !section.options.includes(entry))])
 }
 
-// Ohne Auswahl zählen alle Typen (getönt), sonst nur die gewählten
+// Without a selection all types count (tinted), otherwise only the chosen ones
 const cellStyle = (field: TypeField, type: string) => {
   const types = selectedTypes(field)
   if (types.length === 0) return { color: 'primary', variant: 'tonal' as const }

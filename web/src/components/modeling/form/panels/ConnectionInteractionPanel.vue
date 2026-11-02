@@ -62,7 +62,7 @@ const allowLooseEndsValue = computed({
   }
 })
 
-// Standard (aus) entfernt das Feld, damit Umstellen und Zurückstellen den gespeicherten Stand ergibt
+// Default (off) removes the field, so switching and switching back restores the stored state
 const allowLoopsValue = computed({
   get: () => props.connection.allowLoops ?? false,
   set: (value: boolean) => {

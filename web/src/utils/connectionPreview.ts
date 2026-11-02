@@ -10,17 +10,17 @@ type EdgeStyle = CellStyle & Record<string, any>
 
 const cloneStyle = (style: EdgeStyle): EdgeStyle => ({ ...style })
 
-/** Leitet den Style einer Vorschau-Kante aus dem Style der Verbindung ab. */
+/** Derives the style of a preview edge from the style of the connection. */
 type PreviewStyle = (base: EdgeStyle) => EdgeStyle
 
 type PreviewCell = Cell & {
   previewStyle?: PreviewStyle
-  // Trägt Label, Label-Versatz und Zusatzlabels der Verbindung
+  // Carries label, label offset and additional labels of the connection
   previewLabel?: boolean
   previewSummary?: boolean
 }
 
-/** Kante der Verbindungsvorschau im Editor (dort darf man sie frei verformen). */
+/** Edge of the connection preview in the editor (where it can be freely deformed). */
 export const isPreviewEdge = (cell: Cell): boolean => Boolean((cell as PreviewCell).previewStyle)
 
 const markPreviewEdge = (edge: Cell, connection: DiagramConnection, previewStyle: PreviewStyle = cloneStyle, previewLabel = false): void => {
@@ -43,9 +43,9 @@ export const clearConnectionPreview = (graph: Graph): void => {
 }
 
 /**
- * Übernimmt geänderte Einstellungen in die vorhandene Vorschau, ohne sie neu aufzubauen.
- * So bleiben verschobene Elemente und Knickpunkte erhalten.
- * @returns false, wenn es noch keine Vorschau gibt und sie neu aufgebaut werden muss
+ * Applies changed settings to the existing preview without rebuilding it.
+ * This keeps moved elements and bend points.
+ * @returns false if there is no preview yet and it has to be rebuilt
  */
 export const updateConnectionPreview = (graph: Graph, connection: DiagramConnection): boolean => {
   const cells = graph.getChildCells() as PreviewCell[]

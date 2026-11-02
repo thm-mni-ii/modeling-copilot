@@ -9,7 +9,7 @@
 
     <v-alert v-if="containerTypes.length === 0" type="info" variant="tonal"> The language has no containers (Elements or Children with the Swimlane renderer). </v-alert>
 
-    <!-- Gleiche Darstellung wie die Allowed Connection Refinement: All oder ausgewählte Typen -->
+    <!-- Same layout as the Allowed Connection Refinement: all or selected types -->
     <v-sheet v-else class="matrix-wrapper elevation-1 rounded-lg bg-white" border>
       <v-table density="compact" class="containment-matrix">
         <thead>
@@ -52,7 +52,7 @@ const store = useDiagramLanguages()
 
 const elementOptions = computed(() => (store.definition?.elements ?? []).map((element) => element.type))
 
-// Alle Container der Sprache, auch Children wie die Attributliste eines SERM-E-Typs
+// All containers of the language, including children such as the attribute list of a SERM entity
 const containerTypes = computed(() => {
   const types = new Set<string>()
   const collect = (element: DiagramElement | ChildElement) => {
@@ -69,14 +69,14 @@ const allowedTypes = (containerType: string): string[] => {
   return rule.config.relations.find((relation) => relation.containerType === containerType)?.childTypes ?? []
 }
 
-// Reihenfolge der Elemente der Sprache, damit Aus- und wieder Einschalten den gespeicherten Stand ergibt
+// Order of the language elements, so switching off and on again restores the stored state
 const toggleChildType = (containerType: string, elementType: string) => {
   const types = allowedTypes(containerType)
   const next = types.includes(elementType) ? types.filter((entry) => entry !== elementType) : [...types, elementType]
   store.setContainmentChildTypes(containerType, [...elementOptions.value.filter((entry) => next.includes(entry)), ...next.filter((entry) => !elementOptions.value.includes(entry))])
 }
 
-// Ohne Auswahl nimmt der Container alles auf (getönt), sonst nur die gewählten Typen
+// Without a selection the container accepts everything (tinted), otherwise only the chosen types
 const cellStyle = (containerType: string, elementType: string) => {
   const types = allowedTypes(containerType)
   if (types.length === 0) return { color: 'primary', variant: 'tonal' as const }

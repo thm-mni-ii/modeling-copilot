@@ -7,15 +7,15 @@ import { createConnectionStyle } from '@/utils/elementFactory'
 import { getGraphValidationMode, setValidationPassActive, shouldBlockInteractiveValidation } from '@/utils/graphValidationRuntime'
 import { isTruthyFlag } from '@/utils/flagUtils'
 
-/** Abstand in Pixeln, in dem ein Kantenende bei "Free on Outline" am Rand festgehalten wird. */
+/** Distance in pixels within which an edge end is held on the outline with "Free on Outline". */
 const OUTLINE_SNAP_DISTANCE = 10
 
-/** Elemente mit "Free on Outline" (docking = 'outline'); sonst rasten Kanten am nächsten Ankerpunkt ein. */
+/** Elements with "Free on Outline" (docking = 'outline'); otherwise edges snap to the nearest anchor point. */
 export const isOutlineDocking = (cell: Cell | null | undefined): boolean => (cell as any)?.docking === 'outline'
 
-/** Andockpunkte für neue Kanten (ConnectionHandler) und das Umhängen von Kantenenden (EdgeHandler). */
+/** Docking points for new edges (ConnectionHandler) and for reconnecting edge ends (EdgeHandler). */
 export class AnchorConstraintHandler extends ConstraintHandler {
-  // Ziel und Umhängen rasten am nächsten Anker ein, bei freiem Andocken nur an direkt getroffenen
+  // Target and reconnecting snap to the nearest anchor; with free docking only to directly hit ones
   override intersects(icon: ImageShape, rectangle: Rectangle, source: boolean, existingEdge: boolean): boolean {
     const hit = mathUtils.intersects(icon.bounds!, rectangle)
     return isOutlineDocking(this.currentFocus?.cell) ? hit : !source || existingEdge || hit
@@ -25,7 +25,7 @@ export class AnchorConstraintHandler extends ConstraintHandler {
     super.update(me, source, existingEdge, point)
     const focus = this.currentFocus
     if (this.currentConstraint || !focus || !isOutlineDocking(focus.cell) || (source && !existingEdge)) return
-    // Freies Andocken: nahe am Rand bleibt das Ende dort fest, weiter innen dockt es frei an der zugewandten Seite an
+    // Free docking: near the outline the end stays fixed there, further inside it docks freely on the facing side
     const mouse = new Point(me.getGraphX(), me.getGraphY())
     const outlinePoint = this.graph.view.getPerimeterPoint(focus, mouse, false)
     if (!outlinePoint || Math.hypot(outlinePoint.x - mouse.x, outlinePoint.y - mouse.y) > OUTLINE_SNAP_DISTANCE) return
@@ -33,7 +33,7 @@ export class AnchorConstraintHandler extends ConstraintHandler {
     this.currentPoint = outlinePoint
   }
 
-  // Keine Ankerpunkte auf Kanten, an die nicht angedockt werden darf
+  // No anchor points on edges that must not be docked onto
   override isStateIgnored(state: CellState): boolean {
     return !this.graph.isValidSource(state.cell)
   }
@@ -138,14 +138,14 @@ export class CustomConnectionHandler extends ConnectionHandler {
     return new AnchorConstraintHandler(this.graph)
   }
 
-  // Über die Graph-Prüfung, damit nicht andockbare Kanten auch im freien Modus gesperrt sind
+  // Via the graph check, so edges that must not be docked onto are blocked in free mode too
   override isConnectableCell(cell: Cell): boolean {
     return this.graph.isValidSource(cell)
   }
 
   override updateEdgeState(pt: Point, constraint: ConnectionConstraint | null): void {
-    // Über dem Startelement selbst bleibt der Startanker stehen, sonst fällt er auf den Zielanker
-    // und maxGraph verwirft die Schleife (checkConstraints in ConnectionHandler.mouseUp)
+    // Over the start element itself the start anchor stays, otherwise it falls back to the target anchor
+    // and maxGraph discards the loop (checkConstraints in ConnectionHandler.mouseUp)
     const overSource = this.constraintHandler.currentFocus?.cell === this.previous?.cell
     if (pt != null && this.previous != null && !overSource && !isOutlineDocking(this.previous.cell)) {
       const constraints = this.graph.getAllConnectionConstraints(this.previous, true)
@@ -231,7 +231,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
     const edge = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', null, null, style)
     ;(edge as any).connectionId = effectiveConnection.type
     ;(edge as any).connectionType = effectiveConnection.connectionType ?? effectiveConnection.type
-    // ConnectionHandler.connect übernimmt die Geometrie dieser Kante für die neue, daher schon hier der Label-Versatz
+    // ConnectionHandler.connect copies the geometry of this edge to the new one, hence the label offset here already
     applyConnectionLabelOffset(edge, effectiveConnection.labelOffset)
 
     return new CellState(this.graph.view, edge, this.graph.getCellStyle(edge))
@@ -316,7 +316,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return null as unknown as Cell
     }
 
-    // Ohne "Allow Loose Ends" entsteht keine Kante mit offenem Ende, in jedem Modus
+    // Without "Allow Loose Ends" no edge with an open end is created, in every mode
     if (effectiveConnection?.allowLooseEnds === false && (!sourceCell || !targetCell)) {
       return null as unknown as Cell
     }

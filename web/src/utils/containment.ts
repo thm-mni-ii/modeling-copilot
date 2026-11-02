@@ -1,7 +1,7 @@
 import type { Cell } from '@maxgraph/core'
 import type { DiagramSyntax } from '@/model/Syntax'
 
-/** Erlaubte Elementtypen je Container-Typ aus allen Containment-Regeln. */
+/** Allowed element types per container type from all containment rules. */
 export type ContainmentMap = Map<string, Set<string>>
 
 export const buildContainmentFromSyntax = (rules: DiagramSyntax[] | null | undefined): ContainmentMap => {
@@ -20,7 +20,7 @@ export const buildContainmentFromSyntax = (rules: DiagramSyntax[] | null | undef
   return containment
 }
 
-/** Prüft, ob alle Zellen in den Container dürfen; ungeregelte Container nehmen alles auf. */
+/** Checks whether all cells may go into the container; unregulated containers accept everything. */
 export const canContain = (containment: ContainmentMap, container: Cell, cells: Cell[]): boolean => {
   const allowed = containment.get((container as any).diagramElementType)
   if (!allowed) return true

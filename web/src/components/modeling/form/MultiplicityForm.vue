@@ -168,7 +168,7 @@
                   <v-btn icon="mdi-delete-outline" variant="text" size="small" :disabled="!hasLanguageVersion" @click="removeEdgeRule(index)" />
                 </td>
               </tr>
-              <!-- Eigene Meldung aufgeklappt unter der Regel, damit die Zeile schmal bleibt -->
+              <!-- Custom message expanded below the rule to keep the row narrow -->
               <tr v-if="openEdgeRuleMessages.has(index)">
                 <td class="refinement-cell text-left" :colspan="connectionOptions.length + 7">
                   <v-text-field :model-value="entry.messageTemplate ?? ''" label="Error Message for this rule" placeholder="Empty = Error Message Template below" density="compact" variant="outlined" hide-details class="edge-message" :disabled="!hasLanguageVersion" @update:model-value="(value: string) => setEdgeRuleField(entry, 'messageTemplate', value)" />
@@ -283,11 +283,11 @@ const cycleRelationState = (source: string, target: string) => {
   emitUpdate()
 }
 
-// Auswahl der Verbindungstypen für Refinement und Kantenregeln; leere Liste = alle Typen
+// Choice of connection types for refinement and edge rules; empty list = all types
 const toggledConnectionTypes = (types: string[], connectionType: string): string[] => {
   if (types.length === 0) return [connectionType]
   const next = types.includes(connectionType) ? types.filter((entry) => entry !== connectionType) : [...types, connectionType]
-  // Reihenfolge der Sprache, damit Aus- und wieder Einschalten den gespeicherten Stand ergibt; unbekannte Typen bleiben hinten
+  // Language order, so switching off and on again restores the stored state; unknown types stay at the end
   return [...connectionOptions.value.filter((entry) => next.includes(entry)), ...next.filter((entry) => !connectionOptions.value.includes(entry))]
 }
 
@@ -354,7 +354,7 @@ const sortedRelations = computed(() => {
 
 const allowedRelations = computed(() => sortedRelations.value.filter((relation) => relation.state === 'allowed'))
 
-// Kantenregeln liegen weiter unter config.incoming, damit gespeicherte Sprachen gültig bleiben
+// Edge rules stay under config.incoming so stored languages remain valid
 const edgeRules = computed(() => props.config.incoming ?? [])
 
 const edgeDirections: { value: EdgeDirection; label: string }[] = [
@@ -368,7 +368,7 @@ const addEdgeRule = () => {
   emitUpdate()
 }
 
-// Zeilen mit aufgeklappter eigener Meldung
+// Rows with an expanded custom message
 const openEdgeRuleMessages = ref(new Set<number>())
 
 const toggleEdgeRuleMessage = (index: number) => {
@@ -383,7 +383,7 @@ const removeEdgeRule = (index: number) => {
   emitUpdate()
 }
 
-// Standardwerte entfernen das Feld, damit Umstellen und Zurückstellen den gespeicherten Stand ergibt
+// Defaults remove the field, so switching and switching back restores the stored state
 const setEdgeRuleField = <K extends keyof EdgeCardinality>(entry: EdgeCardinality, field: K, value: EdgeCardinality[K]) => {
   const isDefault = (field === 'direction' && value === 'incoming') || (field === 'messageTemplate' && value === '') || (Array.isArray(value) && value.length === 0)
   if (isDefault) Reflect.deleteProperty(entry, field)
@@ -395,7 +395,7 @@ const setEdgeRuleMin = (entry: EdgeCardinality, value: string) => {
   setEdgeRuleField(entry, 'cardinality', { min: Math.max(0, Number.parseInt(value, 10) || 0), max: entry.cardinality.max })
 }
 
-// Leeres Feld = unbegrenzt (*); max < min wird am Feld markiert statt beim Tippen korrigiert
+// Empty field = unlimited (*); max < min is marked on the field instead of being corrected while typing
 const setEdgeRuleMax = (entry: EdgeCardinality, value: string) => {
   const parsed = Number.parseInt(value, 10)
   setEdgeRuleField(entry, 'cardinality', { min: entry.cardinality.min, max: Number.isNaN(parsed) ? null : Math.max(0, parsed) })

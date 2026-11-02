@@ -213,7 +213,7 @@ class DiagramMultiplicity extends Multiplicity {
   }
 }
 
-// Kanten eines Elements über das native Multiplicity: source = ausgehend, validNeighbors = Elementtypen am anderen Ende
+// Edges of an element via the native Multiplicity: source = outgoing, validNeighbors = element types at the other end
 class DiagramEdgeMultiplicity extends Multiplicity {
   readonly entry: EdgeCardinality
 
@@ -230,14 +230,14 @@ class DiagramEdgeMultiplicity extends Multiplicity {
     return this.entry.direction ?? 'incoming'
   }
 
-  // Ohne Elementtyp gilt die Regel für jede verbindbare Zelle mit eigenem Typ, nicht für Kinder wie die SERM-Attributliste
+  // Without an element type the rule applies to every connectable cell with its own type, not to children such as the SERM attribute list
   private matchesElement(cell: Cell): boolean {
     const typedCell = findTypedCell(cell)
     if (!typedCell) return false
     return this.entry.elementType ? getElementType(typedCell) === this.entry.elementType : typedCell === cell && cell.isConnectable()
   }
 
-  // Terminals werden übergeben, weil die gerade gezogene Kante noch keine hat
+  // Terminals are passed in because the edge being dragged has none yet
   private matchesEdge(edge: Cell, source: Cell | null, target: Cell | null, cell: Cell): boolean {
     if (!source || !target) return false
     const isSource = source === cell
@@ -271,7 +271,7 @@ class DiagramEdgeMultiplicity extends Multiplicity {
     return `${fillTemplate(this.messageTemplate, { source: incoming ? neighbors : elementType, target: incoming ? elementType : neighbors, connection, min, max: asMaxLabel(max) })}\n`
   }
 
-  // Natives check zählt alle Kanten und vergleicht den Typ per value === type, daher eigene Zählung mit Filtern
+  // Native check counts all edges and compares the type via value === type, hence an own count with filters
   override check(_graph: Graph, edge: Cell, source: Cell, target: Cell): string | null {
     const { max } = this.entry.cardinality
     if (max === null) return null
@@ -309,7 +309,7 @@ export class DiagramValidator {
   private runValidationPass(graph: PatchedGraph): string | null {
     setValidationPassActive(graph, true)
     try {
-      // Natives setCellWarning (OverlaysMixin.js:80) hängt je Lauf ein weiteres Overlay an; alte Warnungen vorher entfernen
+      // Native setCellWarning (OverlaysMixin.js:80) attaches another overlay per run; remove old warnings first
       clearValidationWarningOverlays(graph)
       return graph.validateGraph()
     } finally {
@@ -395,7 +395,7 @@ export const buildValidationRulesFromSyntax = (rules: DiagramSyntax[] | null | u
   }
 
   const validationRules: DiagramValidationRule[] = multiplicities.length > 0 ? [new MultiplicityValidationRule(multiplicities)] : []
-  // Die Zyklus-Prüfung selbst läuft in MyCustomGraph.validateEdge; der Eintrag hält nur die Live-Validierung an
+  // The cycle check itself runs in MyCustomGraph.validateEdge; the entry only keeps live validation on
   if (rules.some((rule) => rule.ruleType === 'acyclic')) validationRules.push(new DiagramValidationRule('ConnectionCheck'))
   return validationRules
 }

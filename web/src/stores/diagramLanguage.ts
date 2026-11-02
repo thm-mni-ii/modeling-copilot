@@ -189,22 +189,22 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
     if (definition.value) definition.value.syntax = definition.value.syntax.filter((rule) => rule.ruleType !== 'multiplicity')
   }
 
-  /** Setzt die erlaubten Typen eines Containers; eine leere Liste hebt die Einschränkung auf. */
+  /** Sets the allowed types of a container; an empty list lifts the restriction. */
   const setContainmentChildTypes = (containerType: string, childTypes: string[]) => {
     if (!definition.value) return
     const syntax = definition.value.syntax
     const current = syntax.find((entry): entry is ContainmentRule => entry.ruleType === 'containment')?.config.relations ?? []
-    // Relation und Regel bleiben an ihrem Platz, damit Umstellen und Zurückstellen den gespeicherten Stand ergibt
+    // Relation and rule keep their place, so switching and switching back restores the stored state
     const exists = current.some((relation) => relation.containerType === containerType)
     const relations = childTypes.length === 0 ? current.filter((relation) => relation.containerType !== containerType) : exists ? current.map((relation) => (relation.containerType === containerType ? { containerType, childTypes } : relation)) : [...current, { containerType, childTypes }]
 
     if (relations.length === 0) definition.value.syntax = syntax.filter((entry) => entry.ruleType !== 'containment')
     else if (syntax.some((entry) => entry.ruleType === 'containment')) addSyntaxToLanguage({ ruleType: 'containment', config: { relations } })
-    // Neue Regel direkt nach der Multiplicity-Regel, wie in den Seeds
+    // New rule right after the multiplicity rule, as in the seeds
     else syntax.splice(syntax.findIndex((entry) => entry.ruleType === 'multiplicity') + 1, 0, { ruleType: 'containment', config: { relations } })
   }
 
-  /** Setzt die Acyclic-Regel; null entfernt sie, Zyklen sind dann erlaubt. */
+  /** Sets the acyclic rule; null removes it, cycles are then allowed. */
   const setAcyclicRule = (config: AcyclicRule['config'] | null) => {
     if (!definition.value) return
     if (config !== null) addSyntaxToLanguage({ ruleType: 'acyclic', config })

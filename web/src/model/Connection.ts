@@ -25,9 +25,9 @@ export interface DiagramConnection {
   connectionType?: string // Semantischer Typ (z.B. "inheritance", "association")
   style: CellStyle
   connectable?: boolean
-  allowLooseEnds?: boolean // Ob ein Ende unverbunden bleiben darf (Standard: true)
-  allowLoops?: boolean // Ob beide Enden am selben Element hängen dürfen, z.B. ein Verweis auf das Elternobjekt (Standard: false)
-  allowLabelEdit?: boolean // Ob das Hauptlabel im Canvas bearbeitet werden darf (Standard: true)
+  allowLooseEnds?: boolean // Whether an end may stay unconnected (default: true)
+  allowLoops?: boolean // Whether both ends may attach to the same element, e.g. a reference to the parent object (default: false)
+  allowLabelEdit?: boolean // Whether the main label may be edited on the canvas (default: true)
   // Position des Haupt-Labels: x relativ entlang der Kante (-1 Start, 0 Mitte, 1 Ende), y in Pixeln, positiv nach oben
   labelOffset?: {
     x?: number

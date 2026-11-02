@@ -5,7 +5,7 @@ export const createPreviewGraph = (container: HTMLDivElement): Graph => {
   container.innerHTML = ''
 
   const graph = new Graph(container)
-  // Gleiche Standard-Linienführung wie im Canvas (DrawingCanvas.vue)
+  // Same default edge routing as in the canvas (DrawingCanvas.vue)
   graph.getStylesheet().getDefaultEdgeStyle().edgeStyle = EdgeStyle.OrthConnector
   graph.setEnabled(false)
   graph.setPanning(false)

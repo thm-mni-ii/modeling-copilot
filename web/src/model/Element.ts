@@ -51,7 +51,7 @@ export interface AnchorPoint {
   y: number
 }
 
-// Wohin Kanten auf dem Element einrasten: am nächsten Ankerpunkt oder frei am Rand
+// Where edges snap onto the element: the nearest anchor point or freely on the outline
 export type ConnectionDocking = 'anchors' | 'outline'
 
 export interface CollapsedAppearance {
@@ -82,7 +82,7 @@ export interface DiagramElement extends BaseElement<ChildElement> {
   width: number
   height: number
   anchorPoints: AnchorPoint[]
-  docking?: ConnectionDocking // Standard: 'anchors'
+  docking?: ConnectionDocking // Default: 'anchors'
   resizable: boolean
   movable: boolean
   connectable: boolean // Überschreibt das optionale connectable von BaseElement

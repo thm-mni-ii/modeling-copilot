@@ -4,7 +4,7 @@ import { getConnectionType } from '@/utils/multiplicity'
 
 export const DEFAULT_ACYCLIC_MESSAGE_TEMPLATE = 'The connection {source} -> {target} would close a cycle.'
 
-/** Standardmeldung je Modus; {element} = Elementtyp bei every */
+/** Default message per mode; {element} = element type for every */
 export const DEFAULT_CYCLE_MESSAGE_TEMPLATES: Record<CycleMode, string> = {
   forbid: DEFAULT_ACYCLIC_MESSAGE_TEMPLATE,
   every: '{element} must be part of a cycle.',
@@ -14,14 +14,14 @@ export const DEFAULT_CYCLE_MESSAGE_TEMPLATES: Record<CycleMode, string> = {
 export interface AcyclicSettings {
   mode: CycleMode
   message: string
-  /** Leer = alle Verbindungstypen zählen für den Zyklus */
+  /** Empty = all connection types count for the cycle */
   connectionTypes: string[]
-  /** Leer = jedes Element muss bei every auf einem Zyklus liegen */
+  /** Empty = every element must lie on a cycle for every */
   elementTypes: string[]
   ignoreDirection: boolean
 }
 
-/** Einstellungen der Zyklus-Regel; null = Zyklen erlaubt. */
+/** Settings of the cycle rule; null = cycles allowed. */
 export const buildAcyclicFromSyntax = (rules: DiagramSyntax[] | null | undefined): AcyclicSettings | null => {
   const rule = rules?.find((entry) => entry.ruleType === 'acyclic')
   if (rule?.ruleType !== 'acyclic') return null
@@ -29,19 +29,19 @@ export const buildAcyclicFromSyntax = (rules: DiagramSyntax[] | null | undefined
   return { mode, message: rule.config.messageTemplate.trim() || DEFAULT_CYCLE_MESSAGE_TEMPLATES[mode], connectionTypes: rule.config.connectionTypes ?? [], elementTypes: rule.config.elementTypes ?? [], ignoreDirection: rule.config.ignoreDirection ?? false }
 }
 
-/** Füllt {source}/{target} mit den Elementtypen; der Zeilenumbruch trennt Meldungen wie bei den Multiplicities. */
+/** Fills {source}/{target} with the element types; the line break separates messages as with the multiplicities. */
 export const renderAcyclicMessage = (template: string, source: Cell, target: Cell): string => {
   const typeOf = (cell: Cell): string => (cell as any).diagramElementType ?? '-'
   return `${template.split('{source}').join(typeOf(source)).split('{target}').join(typeOf(target))}\n`
 }
 
-/** Füllt {element} mit dem Elementtyp, für every und any. */
+/** Fills {element} with the element type, for every and any. */
 export const renderCycleRequiredMessage = (template: string, element?: Cell): string => `${template.split('{element}').join((element as any)?.diagramElementType ?? '-')}\n`
 
 /**
- * Prüft, ob das Ziel zur Quelle zurückführt; die geprüfte Kante selbst zählt nicht mit.
- * Gerichtet über ausgehende Kanten, mit ignoreDirection über alle Kanten.
- * Es zählen nur Kanten der gewählten Verbindungstypen. Schleifen am selben Element entscheidet "Allow Loops" der Verbindung.
+ * Checks whether the target leads back to the source; the edge being checked does not count.
+ * Directed via outgoing edges, with ignoreDirection via all edges.
+ * Only edges of the chosen connection types count. "Allow Loops" of the connection decides loops on the same element.
  */
 export const closesCycle = (edge: Cell | null, source: Cell, target: Cell, connectionTypes: string[] = [], ignoreDirection = false): boolean => {
   const counts = (candidate: Cell | null) => connectionTypes.length === 0 || connectionTypes.includes(getConnectionType(candidate) ?? '')
@@ -69,7 +69,7 @@ export const closesCycle = (edge: Cell | null, source: Cell, target: Cell, conne
   return false
 }
 
-/** Liegt das Element auf einem Zyklus? Eine seiner Kanten muss über einen anderen Weg zu ihm zurückführen. */
+/** Does the element lie on a cycle? One of its edges must lead back to it by another path. */
 export const isOnCycle = (cell: Cell, settings: AcyclicSettings): boolean => {
   for (let index = 0; index < cell.getEdgeCount(); index += 1) {
     const edge = cell.getEdgeAt(index)

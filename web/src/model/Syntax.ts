@@ -20,25 +20,25 @@ export interface MultiplicityRelation {
 
 export type EdgeDirection = 'incoming' | 'outgoing' | 'both'
 
-/** Zahl der Kanten eines Elements in einer Richtung; leere Felder passen auf alles */
+/** Number of edges of an element in one direction; empty fields match everything */
 export interface EdgeCardinality {
-  /** Leer = jedes Element */
+  /** Empty = any element */
   elementType: string
-  /** Ohne Angabe eingehend; both = egal, welches Kantenende am Element hängt */
+  /** Defaults to incoming; both = either edge end may be at the element */
   direction?: EdgeDirection
-  /** Leer = alle Verbindungstypen */
+  /** Empty = all connection types */
   connectionTypes?: string[]
-  /** Elementtypen am anderen Kantenende; leer = alle */
+  /** Element types at the other edge end; empty = all */
   neighborTypes?: string[]
   cardinality: MultiplicityCardinality
-  /** Leer = Template der Regel */
+  /** Empty = template of the rule */
   messageTemplate?: string
 }
 
 export interface MultiplicityConfig {
   messageTemplate: string
   relations: MultiplicityRelation[]
-  /** Kantenregeln pro Element; der Name bleibt, damit gespeicherte Sprachen gültig bleiben */
+  /** Edge rules per element; the name stays so stored languages remain valid */
   incoming?: EdgeCardinality[]
 }
 
@@ -47,7 +47,7 @@ export interface MultiplicityRule {
   config: MultiplicityConfig
 }
 
-/** Ein Container nimmt nur die genannten Elementtypen auf; Container ohne Eintrag nehmen alles auf. */
+/** A container accepts only the listed element types; containers without an entry accept everything. */
 export interface ContainmentRelation {
   containerType: string
   childTypes: string[]
@@ -60,21 +60,21 @@ export interface ContainmentRule {
   }
 }
 
-/** forbid = keine Verbindung darf einen Zyklus schließen; every = jedes Element liegt auf einem Zyklus; any = mindestens ein Zyklus im Diagramm */
+/** forbid = no connection may close a cycle; every = every element lies on a cycle; any = at least one cycle in the diagram */
 export type CycleMode = 'forbid' | 'every' | 'any'
 
-/** Zyklus-Regel; ohne Regel sind Zyklen erlaubt. Der Name bleibt, damit gespeicherte Sprachen gültig bleiben. */
+/** Cycle rule; without a rule cycles are allowed. The name stays so stored languages remain valid. */
 export interface AcyclicRule {
   ruleType: 'acyclic'
   config: {
     messageTemplate: string
-    /** Nur diese Verbindungstypen zählen für den Zyklus; leer = alle */
+    /** Only these connection types count for the cycle; empty = all */
     connectionTypes?: string[]
-    /** Ohne Angabe forbid */
+    /** Defaults to forbid */
     mode?: CycleMode
-    /** Nur bei every: diese Elementtypen müssen auf einem Zyklus liegen; leer = alle */
+    /** Only for every: these element types must lie on a cycle; empty = all */
     elementTypes?: string[]
-    /** Zyklen unabhängig von der Kantenrichtung, z.B. Leitungen im Schaltplan */
+    /** Cycles regardless of edge direction, e.g. wires in a circuit diagram */
     ignoreDirection?: boolean
   }
 }

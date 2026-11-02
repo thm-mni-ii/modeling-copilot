@@ -83,7 +83,7 @@
               <slot name="canvas-top-right" />
             </div>
 
-            <!-- Meldungen ohne eigene Zelle (validateCell der Wurzel), z.B. "mindestens ein Zyklus" -->
+            <!-- Messages without a cell of their own (validateCell of the root), e.g. "at least one cycle" -->
             <v-alert v-if="diagramWarnings.length" type="warning" variant="tonal" density="compact" class="canvas-diagram-warnings" @pointerdown.stop>
               <div v-for="message in diagramWarnings" :key="message">{{ message }}</div>
             </v-alert>
@@ -210,16 +210,16 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
   }
 }
 
-// Containment-Regeln der Syntax, gelesen von MyCustomGraph.isValidDropTarget
+// Containment rules of the syntax, read by MyCustomGraph.isValidDropTarget
 let containment: ContainmentMap = new Map()
 
-// Acyclic-Regel, gelesen von MyCustomGraph.validateEdge; null = Zyklen erlaubt
+// Acyclic rule, read by MyCustomGraph.validateEdge; null = cycles allowed
 let acyclic: AcyclicSettings | null = null
 
 class MyCustomGraph extends Graph {
   constructor(container: HTMLElement, model?: GraphDataModel, plugins?: GraphPluginConstructor[]) {
     super(container, model, plugins)
-    // Schleifen entscheidet getEdgeValidationError pro Verbindung statt global
+    // getEdgeValidationError decides loops per connection instead of globally
     this.setAllowLoops(true)
     this.overlayAddedCallback = undefined
     this.overlayRemovedCallback = undefined
@@ -260,7 +260,7 @@ class MyCustomGraph extends Graph {
   }
 
   override isCellEditable = (cell: Cell) => {
-    // Kanten: "Label Editable on Canvas" der Verbindung, Elemente und Zusatzlabels: ihr eigenes allowLabelEdit
+    // Edges: "Label Editable on Canvas" of the connection; elements and additional labels: their own allowLabelEdit
     const allow = cell.isEdge() ? this.getConnectionOf(cell)?.allowLabelEdit : (cell as any).allowLabelEdit
 
     if (allow === false) {
@@ -273,16 +273,16 @@ class MyCustomGraph extends Graph {
   }
 
   /**
-   * Nur Container nehmen Elemente auf, und nur die Typen, die die Containment-Regel erlaubt.
-   * MaxGraph akzeptiert sonst jede Zelle mit Kindern, z.B. einen SERM-E-Typ wegen seiner Attributliste.
+   * Only containers accept elements, and only the types the containment rule allows.
+   * MaxGraph would otherwise accept any cell with children, e.g. a SERM entity because of its attribute list.
    */
   override isValidDropTarget = (cell: Cell, cells?: Cell[]): boolean => {
     return !!cell && !cell.isEdge() && (this.isSwimlane(cell) || isContainerSectionTarget(cell)) && canContain(containment, cell, cells ?? [])
   }
 
   /**
-   * Kanten nehmen nur Verbindungen an, wenn ihre Verbindung "Connectable Line" erlaubt.
-   * setConnectableEdges(true) gilt sonst für alle Kanten jeder Sprache.
+   * Edges only accept connections if their connection allows "Connectable Line".
+   * setConnectableEdges(true) would otherwise apply to all edges of every language.
    */
   override isValidSource = (cell: Cell | null): boolean => {
     if (cell?.isEdge() && this.getConnectionOf(cell)?.connectable === false) return false
@@ -291,24 +291,24 @@ class MyCustomGraph extends Graph {
 
   getConnectionOf = (edge: Cell) => languageConnections.value.find((c) => c.type === (edge as any).connectionId)
 
-  // Ohne "Allow Loose Ends" bleibt eine Kante an beiden Enden verbunden; die Vorschau im Editor bleibt frei verformbar
+  // Without "Allow Loose Ends" an edge stays connected at both ends; the editor preview stays freely deformable
   allowsLooseEnds = (edge: Cell) => isPreviewEdge(edge) || this.getConnectionOf(edge)?.allowLooseEnds !== false
 
-  // Verschieben der ganzen Kante löst ihre Enden nur, wenn lose Enden erlaubt sind
+  // Moving the whole edge only detaches its ends if loose ends are allowed
   override disconnectGraph = (cells: Cell[]) => {
     super.disconnectGraph(cells.filter((cell) => !cell.isEdge() || this.allowsLooseEnds(cell)))
   }
 
   /**
-   * Umhängen von Kantenenden rastet wie neue Kanten ein (Connection Docking des Elements).
-   * outline = false: maxGraph setzt es fest auf true und legt das Ende sonst an die Mausposition, auch mitten ins Element.
+   * Reconnecting edge ends snaps like new edges (Connection Docking of the element).
+   * outline = false: maxGraph hardcodes it to true and would otherwise place the end at the mouse position, even inside the element.
    */
   override createEdgeHandler = (state: CellState, edgeStyle: EdgeStyleFunction | null) => {
     const handler = super.createEdgeHandler(state, edgeStyle)
     handler.constraintHandler.onDestroy()
     handler.constraintHandler = new AnchorConstraintHandler(this)
     handler.outline = false
-    // Ein Ende ins Leere ziehen springt ohne "Allow Loose Ends" zurück
+    // Dragging an end into empty space snaps back without "Allow Loose Ends"
     const changeTerminalPoint = handler.changeTerminalPoint.bind(handler)
     handler.changeTerminalPoint = (edge, point, isSource, clone) => (this.allowsLooseEnds(edge) ? changeTerminalPoint(edge, point, isSource, clone) : edge)
     return handler
@@ -319,10 +319,10 @@ class MyCustomGraph extends Graph {
   }
 
   override getEdgeValidationError = (edge: Cell | null, source: Cell | null, target: Cell | null): string | null => {
-    // Nicht andockbare Kanten sperren in jedem Modus, auch beim Umhängen eines Kantenendes
+    // Edges that must not be docked onto block in every mode, also when reconnecting an edge end
     if ((source?.isEdge() && !this.isValidSource(source)) || (target?.isEdge() && !this.isValidTarget(target))) return ''
-    // Wie die native allowLoops-Prüfung (ValidationMixin.js:35), aber pro Verbindung: "Allow Loops" (Standard: gesperrt).
-    // Mit Meldung statt '', weil ConnectionHandler.mouseUp einen leeren Fehler als gültig behandelt
+    // Like the native allowLoops check (ValidationMixin.js:35), but per connection: "Allow Loops" (default: blocked).
+    // With a message instead of '', because ConnectionHandler.mouseUp treats an empty error as valid
     const connection = edge ? this.getConnectionOf(edge) : undefined
     const blockedLoop = !!source && source === target && connection?.allowLoops !== true
     const error = blockedLoop ? `The Connection ${connection?.connectionType ?? connection?.type ?? '-'} may not connect ${(source as any).diagramElementType ?? '-'} to itself.\n` : super.getEdgeValidationError(edge, source, target)
@@ -333,16 +333,16 @@ class MyCustomGraph extends Graph {
     return isValidationPassActive(this) ? error : null
   }
 
-  // Natives validateEdge (aufgerufen aus getEdgeValidationError): Kante darf keinen Zyklus schließen
+  // Native validateEdge (called from getEdgeValidationError): an edge must not close a cycle
   override validateEdge = (edge: Cell, source: Cell, target: Cell): string | null => {
     if (acyclic?.mode !== 'forbid' || source.isEdge() || target.isEdge() || !closesCycle(edge, source, target, acyclic.connectionTypes, acyclic.ignoreDirection)) return super.validateEdge(edge, source, target)
     return renderAcyclicMessage(acyclic.message, source, target)
   }
 
   /**
-   * Natives validateCell (ValidationMixin.js:117, aufgerufen aus validateGraph für jede Zelle und die Wurzel):
-   * every markiert Elemente der gewählten Typen ohne Zyklus, any meldet an der Wurzel, wenn das Diagramm keinen Zyklus hat.
-   * Blockieren geht nicht, weil ein Zyklus Kante für Kante entsteht.
+   * Native validateCell (ValidationMixin.js:117, called from validateGraph for every cell and the root):
+   * every marks elements of the chosen types without a cycle, any reports at the root if the diagram has no cycle.
+   * Blocking is not possible because a cycle emerges edge by edge.
    */
   override validateCell = (cell: Cell, context: CellState): string | null => {
     const base = super.validateCell(cell, context)
@@ -563,7 +563,7 @@ const overlayEntries = computed(() => props.overlays ?? [])
 const { overlayTooltip, overlayTooltipAnchorStyle, registerGraph, cleanup: cleanupCanvasOverlays } = useCanvasOverlays(graphWrapper, overlayEntries)
 // Zentraler Validator für alle Diagramm-Regeln
 const diagramValidator = new DiagramValidator()
-// Meldungen der Validierung für das ganze Diagramm, angezeigt als Hinweis über der Zeichenfläche
+// Validation messages for the whole diagram, shown as a notice above the canvas
 const diagramWarnings = ref<string[]>([])
 
 const normalizeErrorLines = (rawMessage: string): string[] =>
@@ -906,8 +906,8 @@ onUnmounted(() => {
   graph.value = undefined
 })
 
-// Watch für previewConnection (nur für Preview-Modus): Änderungen in die bestehende Vorschau übernehmen,
-// damit verschobene Elemente an ihrem Platz bleiben. Neu aufgebaut wird nur ohne vorhandene Vorschau.
+// Watch for previewConnection (preview mode only): apply changes to the existing preview,
+// so moved elements stay in place. It is only rebuilt when there is no preview yet.
 watch(
   () => props.previewConnection,
   (newConn) => {
