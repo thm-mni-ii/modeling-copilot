@@ -14,6 +14,12 @@ const SEND_EVERY_MS = 50
 
 const ARROW = '<svg width="14" height="18" viewBox="0 0 14 18" style="display:block"><path d="M1 1 L1 15 L5 11.5 L8 17 L10.5 16 L7.5 10.5 L13 10.5 Z" stroke="#fff" stroke-width="1" /></svg>'
 
+/** Black or white text, whichever reads better on the color. */
+const textOn = (color: string) => {
+  const [red, green, blue] = [1, 3, 5].map((at) => parseInt(color.slice(at, at + 2), 16) / 255).map((value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue > 0.35 ? '#1a1a1a' : '#ffffff'
+}
+
 /** Sends where the pointer is on the canvas and shows the pointers of the others above it. */
 export const startCursors = (graph: Graph, session: Session, colorOf: (id: string) => string, nameOf: (person: { id: string; name?: string }) => string, shows: (id: string) => boolean) => {
   const { container, view } = graph
@@ -67,7 +73,10 @@ export const startCursors = (graph: Graph, session: Session, colorOf: (id: strin
     if (pointer.dataset.color !== color) {
       pointer.dataset.color = color
       pointer.querySelector('path')?.setAttribute('fill', color)
-      if (label) label.style.background = color
+      if (label) {
+        label.style.background = color
+        label.style.color = textOn(color)
+      }
     }
     return pointer
   }

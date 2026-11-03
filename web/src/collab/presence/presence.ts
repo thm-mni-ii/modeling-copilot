@@ -28,8 +28,9 @@ interface PresenceState {
 
 /** The host is the only one in red, so the presenter is known at a glance. */
 const HOST_COLOR = '#cf5c58'
-// Sixteen colors that tell apart well, none of them red, which is the host's.
-const PALETTE = ['#1e88e5', '#43a047', '#8e24aa', '#fb8c00', '#00897b', '#6d4c41', '#3949ab', '#00acc1', '#f9a825', '#5e35b1', '#7cb342', '#039be5', '#c0ca33', '#ab47bc', '#26a69a', '#8d6e63']
+// Sixteen colors measured to tell apart well (CIEDE2000, also for red-green color blindness), none of them red, which is the host's.
+// The first ones lie farthest apart, so the first people in a room get the most distinct colors.
+const PALETTE = ['#c29ed7', '#214b25', '#ee9813', '#0e26dc', '#12c19f', '#652f55', '#715c00', '#6e83b7', '#1d8a85', '#8f4ef1', '#6f5d8d', '#f657f2', '#194b78', '#8605a8', '#41a8ba', '#2da0fb']
 
 const hostId = () => currentShare.value?.hostId ?? ''
 
