@@ -2,7 +2,7 @@ import { watch } from 'vue'
 import { CellHighlight, InternalEvent, type Graph } from '@maxgraph/core'
 import { isPseudonym } from '@/collab/kit/collabKit'
 import type { Session } from '@/collab/kit/collabKitV1'
-import { announcedRights, currentShare, hostPresenting, presenting, settingsLoaded, shareSettings } from '@/collab/sharing/shareModel'
+import { announcedRights, currentShare, hostPresenting, personColors, presenting, settingsLoaded, shareSettings } from '@/collab/sharing/shareModel'
 import { startCursors } from './cursors'
 
 /** One person at the workpiece, once however many tabs they have open. */
@@ -23,27 +23,42 @@ interface PresenceState {
   readOnly?: boolean
   presenting?: boolean
   visitors?: { edit: boolean; comment: boolean; anonymous: boolean }
+  colors?: Record<string, string>
 }
 
 /** The host is the only one in red, so the presenter is known at a glance. */
 const HOST_COLOR = '#cf5c58'
-const COLORS = ['#1e88e5', '#43a047', '#8e24aa', '#fb8c00', '#00897b', '#6d4c41', '#3949ab', '#00acc1', '#f9a825', '#5e35b1']
+// Sixteen colors that tell apart well, none of them red, which is the host's.
+const PALETTE = ['#1e88e5', '#43a047', '#8e24aa', '#fb8c00', '#00897b', '#6d4c41', '#3949ab', '#00acc1', '#f9a825', '#5e35b1', '#7cb342', '#039be5', '#c0ca33', '#ab47bc', '#26a69a', '#8d6e63']
 
 const hostId = () => currentShare.value?.hostId ?? ''
 
-/** The same color for the same person on every screen. */
-const colorOf = (id: string) => (id !== '' && id === hostId() ? HOST_COLOR : COLORS[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % COLORS.length])
+/** The host's color, else what the host handed out; without the host a hash, so a person still has the same color on every screen. */
+const colorOf = (id: string) => (id !== '' && id === hostId() ? HOST_COLOR : personColors.value[id] ?? PALETTE[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length])
+
+/** The color worn by the fewest of those present; the first on a tie, so the choice is always the same. */
+const leastUsed = (assigned: Record<string, string>, present: Set<string>) => {
+  const counts = new Map(PALETTE.map((color) => [color, 0]))
+  for (const [id, color] of Object.entries(assigned)) if (present.has(id)) counts.set(color, (counts.get(color) ?? 0) + 1)
+  return PALETTE.reduce((best, color) => ((counts.get(color) ?? 0) < (counts.get(best) ?? 0) ? color : best))
+}
 
 /** The name collab-kit has from the token; a pseudonym shows as it is, a token without a name shows the ID. */
 const nameOf = (person: { id: string; name?: string }) => person.name ?? (isPseudonym(person.id) ? person.id : `Person ${person.id}`)
 
-/** What every client announces of itself, beside the person the library puts in. */
+/** Whether the host presents. */
 const presenterActive = (session: Session) => session.presence.people().some((person) => person.id === hostId() && person.clients.some(({ state }) => (state as PresenceState).presenting === true))
 
 /** What the host announced for the visitors; none while the host is not there or has not read the settings yet. */
 const announcedBy = (session: Session) => {
   const host = session.presence.people().find((person) => person.id === hostId())
   return host?.clients.map(({ state }) => (state as PresenceState).visitors).find((visitors) => visitors !== undefined) ?? null
+}
+
+/** The colors the host handed out; none while the host is not there. */
+const colorsBy = (session: Session) => {
+  const host = session.presence.people().find((person) => person.id === hostId())
+  return host?.clients.map(({ state }) => (state as PresenceState).colors).find((colors) => colors !== undefined) ?? null
 }
 
 /** Whether the cursor and selection of a person show: all do, until the host presents, then only the host's. */
@@ -71,7 +86,23 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   const sendHostState = () => {
     if (stopped || !currentShare.value?.privateModelId) return
     const { edit, comment, anonymous } = shareSettings
-    session.presence.set({ presenting: presenting.value, ...(settingsLoaded.value ? { visitors: { edit, comment, anonymous } } : {}) })
+    session.presence.set({ presenting: presenting.value, colors: personColors.value, ...(settingsLoaded.value ? { visitors: { edit, comment, anonymous } } : {}) })
+  }
+
+  // Only the host hands out colors; each newcomer gets the one worn by the fewest of those present.
+  const assignColors = (people: { id: string }[]) => {
+    if (!currentShare.value?.privateModelId) return
+    const present = new Set(people.map(({ id }) => id))
+    const next = { ...personColors.value }
+    let changed = false
+    for (const { id } of people) {
+      if (id === hostId() || next[id]) continue
+      next[id] = leastUsed(next, present)
+      changed = true
+    }
+    if (!changed) return
+    personColors.value = next
+    sendHostState()
   }
 
   // Frames are drawn in the view only, so they never reach the model and are never synced.
@@ -102,7 +133,9 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     const people = session.presence.people()
     hostPresenting.value = presenterActive(session)
     announcedRights.value = announcedBy(session)
-    const seen = JSON.stringify(people.map(({ id, name, clients }) => [id, name, clients.map(({ clientId, state }) => [clientId, (state as PresenceState).selection, (state as PresenceState).readOnly, (state as PresenceState).presenting, JSON.stringify((state as PresenceState).visitors)])]))
+    if (currentShare.value?.privateModelId) assignColors(people)
+    else personColors.value = colorsBy(session) ?? {}
+    const seen = JSON.stringify([people.map(({ id, name, clients }) => [id, name, clients.map(({ clientId, state }) => [clientId, (state as PresenceState).selection, (state as PresenceState).readOnly, (state as PresenceState).presenting, (state as PresenceState).visitors])]), personColors.value])
     if (seen === shown) return
     shown = seen
     const list = people.map((person) => ({
@@ -145,6 +178,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     stopPresentingWatch()
     stopAnonymityWatch()
     announcedRights.value = null
+    personColors.value = {}
     hostPresenting.value = false
     selectionModel.removeListener(sendSelection)
     model.removeListener(redrawLater)

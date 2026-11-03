@@ -110,6 +110,9 @@ export const hostPresenting = ref(false)
 /** What the visitor may do here, as the session and CK tell it; the host may do everything. `locked` is the host leaving. */
 export const visitorRights = reactive({ edit: false, comment: false, locked: false })
 
+/** Which color each person has: the host hands them out and announces them, the visitors read them from the host's presence. */
+export const personColors = ref<Record<string, string>>({})
+
 /** What the host announced through presence for the visitors, which comes at once; CK tells it only after a reconnect, `speak` never. */
 export const announcedRights = ref<{ edit: boolean; comment: boolean; anonymous: boolean } | null>(null)
 
@@ -274,6 +277,7 @@ const leaveLinked = async (router: Router, model: Model | null) => {
   current.value = null
   settingsLoaded.value = false
   presenting.value = false
+  personColors.value = {}
   hostClosed.value = false
   await router.replace('/')
   if (linkedModelId) await httpClient.delete(`/v1/models/${linkedModelId}`)

@@ -48,15 +48,13 @@ export const startCursors = (graph: Graph, session: Session, colorOf: (id: strin
   const pointerFor = (clientId: number, id: string, name: string) => {
     let pointer = pointers.get(clientId)
     if (!pointer) {
-      const color = colorOf(id)
       pointer = document.createElement('div')
       pointer.style.cssText = 'position:absolute;left:0;top:0;will-change:transform'
       pointer.innerHTML = ARROW
-      pointer.querySelector('path')?.setAttribute('fill', color)
       // An anonymous person shows as the arrow alone; its color tells them apart, and the list names the pseudonym.
       if (!isPseudonym(id)) {
         const label = document.createElement('span')
-        label.style.cssText = `position:absolute;left:12px;top:14px;padding:1px 6px;border-radius:4px;background:${color};color:#fff;font-size:11px;white-space:nowrap`
+        label.style.cssText = 'position:absolute;left:12px;top:14px;padding:1px 6px;border-radius:4px;color:#fff;font-size:11px;white-space:nowrap'
         pointer.appendChild(label)
       }
       layer.appendChild(pointer)
@@ -64,6 +62,13 @@ export const startCursors = (graph: Graph, session: Session, colorOf: (id: strin
     }
     const label = pointer.querySelector('span')
     if (label && label.textContent !== name) label.textContent = name
+    // The color may come after the pointer, as the host hands it out, so it is set on every draw.
+    const color = colorOf(id)
+    if (pointer.dataset.color !== color) {
+      pointer.dataset.color = color
+      pointer.querySelector('path')?.setAttribute('fill', color)
+      if (label) label.style.background = color
+    }
     return pointer
   }
 
