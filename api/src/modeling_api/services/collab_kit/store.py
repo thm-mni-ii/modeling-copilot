@@ -4,7 +4,8 @@ Die settings des Raums kann der Host ändern (er hat dort `manage`), die der Gru
 Deshalb gilt der Raum nur als Hinweis: Die Gruppen, die er nennt, müssen sich selbst als
 Gruppen dieses Raums ausweisen. Sonst könnte ein Host die ID einer fremden Gruppe eintragen.
 
-Raum:   {"share": {"open": true, "workpieceId": "…", "groups": {"hosts": "…", "visitors": "…"},
+Raum:   {"share": {"open": true, "joinable": true, "workpieceId": "…",
+                   "groups": {"hosts": "…", "visitors": "…"},
                    "before": {"rights": […], "anonymous": false} (nur während der Sperre)}}
 Gruppe: {"share": {"role": "hosts" | "visitors", "roomId": "…", "ownerId": "…" (nur hosts)}}
 """
@@ -64,6 +65,8 @@ async def read(room_id: str) -> dict[str, Any]:
     return {
         "roomId": room_id,
         "open": share.get("open") is True,
+        # Ob der Link für Neue gilt; ohne Angabe ja, so bleiben bestehende Räume beitrittsfähig.
+        "joinable": share.get("joinable") is not False,
         "workpieceId": share.get("workpieceId"),
         "groups": groups,
         # Die Rechte der Besucher vor der Sperre, solange der Raum gesperrt ist.
@@ -72,7 +75,7 @@ async def read(room_id: str) -> dict[str, Any]:
 
 
 async def save(room_id: str, **fields: Any) -> None:
-    """Setzt `open`, `workpieceId`, `groups` oder `before` und lässt alle anderen settings des Raums stehen."""
+    """Setzt `open`, `joinable`, `workpieceId`, `groups` oder `before` und lässt alle anderen settings des Raums stehen."""
     room = await client.get_room(room_id)
     current = room["settings"] if isinstance(room["settings"], dict) else {}
     await client.update_room_settings(

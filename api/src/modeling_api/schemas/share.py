@@ -43,6 +43,14 @@ class SetOpen(ApiSchema):
     )
 
 
+class SetJoinable(ApiSchema):
+    """Whether new visitors may still join through the link."""
+
+    joinable: bool = Field(
+        description="False closes the link for new visitors; those already in stay."
+    )
+
+
 class SharedRoom(ApiSchema):
     """The room and the workpiece the host shares in."""
 

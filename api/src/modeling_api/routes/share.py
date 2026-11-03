@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Response
 
 from modeling_api.routes.deps import CurrentUser
-from modeling_api.schemas.share import JoinedRoom, JoinRoom, SetOpen, ShareModel, SharedRoom
+from modeling_api.schemas.share import JoinedRoom, JoinRoom, SetJoinable, SetOpen, ShareModel, SharedRoom
 from modeling_api.services.collab_kit import share as service
 
 router = APIRouter(prefix="/share", tags=["Share"])
@@ -56,6 +56,19 @@ async def join_room(body: JoinRoom, user: CurrentUser) -> JoinedRoom:
 )
 async def set_open(body: SetOpen, user: CurrentUser) -> None:
     await service.set_open(user.id, body.open)
+
+
+@router.put(
+    "/joinable",
+    summary="Close or open the link for new visitors",
+    description=(
+        "Closed, no one new can join through the link. Visitors already in stay, and so do their "
+        "rights. Only the host of the room may call this."
+    ),
+    status_code=204,
+)
+async def set_joinable(body: SetJoinable, user: CurrentUser) -> None:
+    await service.set_joinable(user.id, body.joinable)
 
 
 @router.post(

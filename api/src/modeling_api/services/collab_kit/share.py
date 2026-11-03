@@ -40,8 +40,8 @@ async def _create_room(host_id: str, name: str) -> dict[str, Any]:
 async def join(user_id: str, room_id: str) -> tuple[str, str]:
     """Nimmt den Nutzer als Besucher auf und gibt Werkstück und Rolle zurück ("host" oder "visitor").
 
-    Wer schon drin ist, wird nicht noch einmal eingetragen. In einem geschlossenen Raum gibt es
-    für niemanden etwas zu öffnen.
+    Wer schon drin ist, wird nicht noch einmal eingetragen und kommt auch durch, wenn der Host den
+    Link für Neue gesperrt hat. In einem geschlossenen Raum gibt es für niemanden etwas zu öffnen.
     """
     current = await store.read(room_id)
     if not current["open"] or not current["workpieceId"]:
@@ -50,8 +50,11 @@ async def join(user_id: str, room_id: str) -> tuple[str, str]:
     visitors = await client.get_group(current["groups"][store.VISITORS])
     if user_id in hosts["members"]:
         return current["workpieceId"], "host"
-    if user_id not in visitors["members"]:
-        await client.add_member(visitors["_id"], user_id)
+    if user_id in visitors["members"]:
+        return current["workpieceId"], "visitor"
+    if not current["joinable"]:
+        raise ApiError(403, "SHARE_CLOSED", "The host has closed the link for new visitors.")
+    await client.add_member(visitors["_id"], user_id)
     return current["workpieceId"], "visitor"
 
 
@@ -88,7 +91,7 @@ async def share(
     workpiece = await client.create_workpiece(
         {"name": name, "roomId": room_id, "contract": contract, "units": units}
     )
-    await store.save(room_id, open=True, workpieceId=workpiece["_id"])
+    await store.save(room_id, open=True, joinable=True, workpieceId=workpiece["_id"])
     return room_id, workpiece["_id"], True
 
 
@@ -132,6 +135,14 @@ async def set_open(host_id: str, open_: bool) -> None:
             visitors, _restored(current["before"]), room_id, current["before"].get("anonymous") is True
         )
     await store.save(room_id, open=True, before=None)
+
+
+async def set_joinable(host_id: str, joinable: bool) -> None:
+    """Schließt den Link für Neue oder öffnet ihn wieder; wer schon drin ist, bleibt, Rechte bleiben."""
+    current = await _own_share(host_id)
+    if not current["workpieceId"]:
+        raise ApiError(409, "SHARE_CLOSED", "The host is not sharing in this room.")
+    await store.save(current["roomId"], joinable=joinable)
 
 
 async def close(host_id: str) -> None:

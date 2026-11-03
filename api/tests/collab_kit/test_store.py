@@ -64,6 +64,7 @@ def test_read_returns_the_share_when_the_groups_vouch_for_it(ck):
     assert share == {
         "roomId": "R",
         "open": True,
+        "joinable": True,
         "workpieceId": None,
         "groups": {"hosts": "G1", "visitors": "G2"},
         "before": None,

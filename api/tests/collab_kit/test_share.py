@@ -239,3 +239,53 @@ def test_only_the_host_may_lock_open_or_close(ck):
             with pytest.raises(ApiError) as error:
                 asyncio.run(call(user))
             assert error.value.status == 404
+
+
+def test_nobody_new_joins_while_the_link_is_closed(ck):
+    _, groups, _, _ = ck
+    room_id = start()
+    asyncio.run(share.set_joinable("42", False))
+
+    with pytest.raises(ApiError) as error:
+        asyncio.run(share.join("99", room_id))
+    assert error.value.code == "SHARE_CLOSED" and members_of(groups, "visitors") == []
+
+
+def test_members_and_the_host_still_pass_while_the_link_is_closed(ck):
+    room_id = start()
+    asyncio.run(share.join("99", room_id))
+    asyncio.run(share.set_joinable("42", False))
+
+    assert asyncio.run(share.join("99", room_id))[1] == "visitor"
+    assert asyncio.run(share.join("42", room_id))[1] == "host"
+
+
+def test_closing_the_link_changes_no_rights_and_only_the_host_may_do_it(ck):
+    rooms, groups, grants, _ = ck
+    room_id = start()
+    before = dict(visitor_grant(grants, groups))
+
+    asyncio.run(share.set_joinable("42", False))
+
+    shared = rooms[room_id]["settings"]["share"]
+    assert shared["joinable"] is False and shared["open"] is True and shared.get("before") is None
+    assert visitor_grant(grants, groups) == before
+    for user in ("99", "stranger"):
+        with pytest.raises(ApiError) as error:
+            asyncio.run(share.set_joinable(user, True))
+        assert error.value.status == 404
+    asyncio.run(share.close("42"))
+    with pytest.raises(ApiError) as error:
+        asyncio.run(share.set_joinable("42", True))
+    assert error.value.status == 409
+
+
+def test_a_new_share_opens_the_link_again(ck):
+    rooms, _, _, _ = ck
+    room_id = start()
+    asyncio.run(share.set_joinable("42", False))
+    asyncio.run(share.close("42"))
+
+    start()
+
+    assert rooms[room_id]["settings"]["share"]["joinable"] is True
