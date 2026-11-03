@@ -75,6 +75,11 @@ const router = createRouter({
       component: () => import('@/collab/rooms/ViewCollab.vue')
     },
     {
+      path: '/modeling/share/:roomId',
+      name: 'Join',
+      component: () => import('@/collab/sharing/ViewJoin.vue')
+    },
+    {
       path: '/404',
       name: 'View404Page',
       component: () => import('../views/View404Page.vue')
@@ -87,7 +92,7 @@ const router = createRouter({
 })
 
 // Everything outside this list requires ADMIN, including direct URL navigation.
-const nonAdminPages = ['LearningPathRuns', 'Login', 'Home', 'Models', 'Modeling', 'View404Page']
+const nonAdminPages = ['LearningPathRuns', 'Login', 'Home', 'Models', 'Modeling', 'Join', 'View404Page']
 
 router.beforeEach(async (to) => {
   if (!isEmbedded && isFeedbacksystemCallback()) {

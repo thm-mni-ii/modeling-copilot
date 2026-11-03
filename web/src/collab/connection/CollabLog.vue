@@ -15,7 +15,7 @@
 import { ref } from 'vue'
 
 // Kept beside the component, so it stays closed while another sidebar tab is shown.
-const open = ref(true)
+const open = ref(false)
 </script>
 
 <script setup lang="ts">

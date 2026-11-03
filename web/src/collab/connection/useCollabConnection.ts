@@ -12,6 +12,7 @@ import { showConflicts } from '@/collab/editing/conflicts'
 import { bindGraph } from '@/collab/editing/graphBinding'
 import { LANGUAGES_KEY, languagesChange, type ModelUnit } from '@/collab/storage/modelUnits'
 import { CELLS_MAP, linkOf } from '@/collab/storage/workpiece'
+import { watchShare } from '@/collab/sharing/watchShare'
 import { openWorkpiece } from './openWorkpiece'
 import { startPresence, type Person } from '@/collab/presence/presence'
 
@@ -32,6 +33,7 @@ const editorGraph = shallowRef<Graph>()
 let unbind: (() => void) | null = null
 let stopPresence: (() => void) | null = null
 let stopConflicts: (() => void) | null = null
+let stopShare: (() => void) | null = null
 let session: Session<ModelUnit> | null = null
 let lastLiveStatus = ''
 let lastOnline = ''
@@ -53,6 +55,8 @@ const closeSession = () => {
   stopPresence = null
   stopConflicts?.()
   stopConflicts = null
+  stopShare?.()
+  stopShare = null
   session?.close()
   session = null
   holdSession(null)
@@ -129,6 +133,7 @@ const connect = async (id: string) => {
   )
   unbind = bindGraph(graph, opened, log)
   stopConflicts = showConflicts(graph, opened, log)
+  stopShare = watchShare(opened)
   lastOnline = ''
   stopPresence = startPresence(graph, opened, (list, clients) => {
     people.value = list

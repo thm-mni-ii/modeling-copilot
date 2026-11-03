@@ -61,7 +61,7 @@ const emit = defineEmits<{
 const baseTabs: SidebarTabItem[] = [
   { value: 'feedback', icon: 'mdi-comment-text-multiple-outline', label: 'Feedback' },
   { value: 'persistence', icon: 'mdi-import', label: 'Import/Export' },
-  { value: 'sync', icon: 'mdi-sync', label: 'Sync' },
+  { value: 'sync', icon: 'mdi-sync', label: 'Collab' },
   { value: 'languages', icon: 'mdi-bookshelf', label: 'Languages' }
 ]
 const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, { value: 'evaluations', icon: 'mdi-chart-timeline-variant', label: 'Auswertungen' }, ...baseTabs] : baseTabs))
