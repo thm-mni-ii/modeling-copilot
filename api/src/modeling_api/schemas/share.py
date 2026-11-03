@@ -33,6 +33,7 @@ class JoinedRoom(ApiSchema):
     room_id: str
     workpiece_id: str
     role: Literal["host", "visitor"] = Field(description="Whether the user is the host of the room.")
+    host_id: str = Field(description="The ID of the host, so visitors can tell whose cursor is whose.")
 
 
 class SetOpen(ApiSchema):
@@ -56,6 +57,7 @@ class SharedRoom(ApiSchema):
 
     room_id: str
     workpiece_id: str
+    host_id: str = Field(description="The ID of the host, the user who shares.")
     created: bool = Field(
         description="False if the host was already sharing and this is the workpiece in use."
     )

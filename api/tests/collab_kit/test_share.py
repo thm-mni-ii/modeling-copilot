@@ -135,9 +135,9 @@ def test_a_visitor_joins_once_and_the_host_stays_out_of_the_visitors(ck):
     _, groups, _, _ = ck
     room_id, workpiece_id, _ = asyncio.run(share.share("42", anonymous=False, edit=True, comment=True, **ARGS))
 
-    assert asyncio.run(share.join("99", room_id)) == (workpiece_id, "visitor")
-    assert asyncio.run(share.join("99", room_id)) == (workpiece_id, "visitor")
-    assert asyncio.run(share.join("42", room_id)) == (workpiece_id, "host")
+    assert asyncio.run(share.join("99", room_id)) == (workpiece_id, "visitor", "42")
+    assert asyncio.run(share.join("99", room_id)) == (workpiece_id, "visitor", "42")
+    assert asyncio.run(share.join("42", room_id)) == (workpiece_id, "host", "42")
     assert members_of(groups, "visitors") == ["99"]
 
 

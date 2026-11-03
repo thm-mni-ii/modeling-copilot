@@ -37,8 +37,8 @@ async def _create_room(host_id: str, name: str) -> dict[str, Any]:
     return {"roomId": room_id, "open": False, "workpieceId": None, "groups": groups}
 
 
-async def join(user_id: str, room_id: str) -> tuple[str, str]:
-    """Nimmt den Nutzer als Besucher auf und gibt Werkstück und Rolle zurück ("host" oder "visitor").
+async def join(user_id: str, room_id: str) -> tuple[str, str, str]:
+    """Nimmt den Nutzer als Besucher auf und gibt Werkstück, Rolle ("host" oder "visitor") und die ID des Hosts zurück.
 
     Wer schon drin ist, wird nicht noch einmal eingetragen und kommt auch durch, wenn der Host den
     Link für Neue gesperrt hat. In einem geschlossenen Raum gibt es für niemanden etwas zu öffnen.
@@ -49,13 +49,13 @@ async def join(user_id: str, room_id: str) -> tuple[str, str]:
     hosts = await client.get_group(current["groups"][store.HOSTS])
     visitors = await client.get_group(current["groups"][store.VISITORS])
     if user_id in hosts["members"]:
-        return current["workpieceId"], "host"
+        return current["workpieceId"], "host", current["hostId"]
     if user_id in visitors["members"]:
-        return current["workpieceId"], "visitor"
+        return current["workpieceId"], "visitor", current["hostId"]
     if not current["joinable"]:
         raise ApiError(403, "SHARE_CLOSED", "The host has closed the link for new visitors.")
     await client.add_member(visitors["_id"], user_id)
-    return current["workpieceId"], "visitor"
+    return current["workpieceId"], "visitor", current["hostId"]
 
 
 async def share(

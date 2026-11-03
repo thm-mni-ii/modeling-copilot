@@ -26,7 +26,7 @@ async def share_model(body: ShareModel, user: CurrentUser, response: Response) -
         user.id, body.name, body.contract, body.units, body.anonymous, body.edit, body.comment
     )
     response.status_code = 201 if created else 200
-    return SharedRoom(room_id=room_id, workpiece_id=workpiece_id, created=created)
+    return SharedRoom(room_id=room_id, workpiece_id=workpiece_id, host_id=user.id, created=created)
 
 
 @router.post(
@@ -40,8 +40,8 @@ async def share_model(body: ShareModel, user: CurrentUser, response: Response) -
     response_description="The workpiece to open and the role of the user.",
 )
 async def join_room(body: JoinRoom, user: CurrentUser) -> JoinedRoom:
-    workpiece_id, role = await service.join(user.id, body.room_id)
-    return JoinedRoom(room_id=body.room_id, workpiece_id=workpiece_id, role=role)
+    workpiece_id, role, host_id = await service.join(user.id, body.room_id)
+    return JoinedRoom(room_id=body.room_id, workpiece_id=workpiece_id, role=role, host_id=host_id)
 
 
 @router.put(

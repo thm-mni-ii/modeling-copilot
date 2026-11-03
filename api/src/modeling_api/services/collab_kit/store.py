@@ -58,10 +58,13 @@ async def read(room_id: str) -> dict[str, Any]:
     groups = share.get("groups") if isinstance(share.get("groups"), dict) else {}
     if not {HOSTS, VISITORS} <= groups.keys():
         raise ApiError(409, "SHARE_INVALID", "The share of this room is inconsistent.")
+    host_id = None
     for role, group_id in groups.items():
         belongs = _share_of((await client.get_group(group_id))["settings"])
         if belongs.get("role") != role or belongs.get("roomId") != room_id:
             raise ApiError(409, "SHARE_INVALID", "The share of this room is inconsistent.")
+        if role == HOSTS:
+            host_id = belongs.get("ownerId")
     return {
         "roomId": room_id,
         "open": share.get("open") is True,
@@ -69,6 +72,8 @@ async def read(room_id: str) -> dict[str, Any]:
         "joinable": share.get("joinable") is not False,
         "workpieceId": share.get("workpieceId"),
         "groups": groups,
+        # Wem der Raum gehört; die Besucher kennen den Host sonst nicht, die Gruppe können sie nicht lesen.
+        "hostId": host_id,
         # Die Rechte der Besucher vor der Sperre, solange der Raum gesperrt ist.
         "before": share.get("before") if isinstance(share.get("before"), dict) else None,
     }
