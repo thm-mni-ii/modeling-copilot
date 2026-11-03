@@ -11,8 +11,8 @@ metadata:
   namespace: modeling-copilot
 data:
   MONGODB_DATABASE: modeling
-  DOCS_ENABLED: "false"
-  CORS_ORIGINS: ""
+  DOCS_ENABLED: 'false'
+  CORS_ORIGINS: ''
 
 ---
 apiVersion: v1
@@ -371,7 +371,18 @@ spec:
         # A secret volume cannot set the owner, so the key is copied with owner and mode.
         - name: keyfile
           image: mongo:4.4.29
-          command: ["install", "-m", "400", "-o", "999", "-g", "999", "/secret/keyfile", "/keyfile/"]
+          command:
+            [
+              'install',
+              '-m',
+              '400',
+              '-o',
+              '999',
+              '-g',
+              '999',
+              '/secret/keyfile',
+              '/keyfile/',
+            ]
           volumeMounts:
             - name: secret
               mountPath: /secret
@@ -384,7 +395,14 @@ spec:
           image: mongo:4.4.29
           imagePullPolicy: IfNotPresent
           # Collab-Kit needs transactions, and those need a replica set.
-          args: ["--replSet", "rs0", "--bind_ip_all", "--keyFile", "/keyfile/keyfile"]
+          args:
+            [
+              '--replSet',
+              'rs0',
+              '--bind_ip_all',
+              '--keyFile',
+              '/keyfile/keyfile',
+            ]
           ports:
             - name: mongodb
               containerPort: 27017
@@ -489,7 +507,7 @@ spec:
       containers:
         - name: collab-kit
           # Fixed version; an update means changing the tag here and in docker-compose.yaml.
-          image: ghcr.io/thm-mni-ii/collab-kit:v0.6.2
+          image: ghcr.io/thm-mni-ii/collab-kit:v0.6.3
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
