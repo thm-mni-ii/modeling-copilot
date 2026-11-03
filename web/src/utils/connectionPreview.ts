@@ -34,11 +34,12 @@ const dashedStyle: PreviewStyle = (base) => ({ ...base, dashed: true, dashPatter
 /** Waypoints belong only to the live preview graph, never to the language. */
 export const addPreviewWaypoint = (graph: Graph): void => {
   const selected = graph.getSelectionCell()
-  const edge = selected && isPreviewEdge(selected) ? selected : graph.getChildEdges().find(isPreviewEdge)
+  const edge = selected && isPreviewEdge(selected) ? selected : graph.getChildEdges(graph.getDefaultParent()).find(isPreviewEdge)
   if (!edge?.geometry) return
   const state = graph.view.getState(edge)
-  const start = state?.absolutePoints?.[0]
-  const end = state?.absolutePoints?.at(-1)
+  const points = state?.absolutePoints
+  const start = points?.[0]
+  const end = points?.[points.length - 1]
   if (!start || !end) return
   const geometry = edge.geometry.clone()
   const x = (start.x + end.x) / (2 * graph.view.scale) - graph.view.translate.x
@@ -50,7 +51,7 @@ export const addPreviewWaypoint = (graph: Graph): void => {
 
 export const clearPreviewWaypoints = (graph: Graph): void => {
   graph.batchUpdate(() => {
-    for (const edge of graph.getChildEdges().filter(isPreviewEdge)) {
+    for (const edge of graph.getChildEdges(graph.getDefaultParent()).filter(isPreviewEdge)) {
       if (!edge.geometry) continue
       const geometry = edge.geometry.clone()
       geometry.points = null
