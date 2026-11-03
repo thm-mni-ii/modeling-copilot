@@ -56,6 +56,32 @@ questionnaire service without importing migration implementations.
    necessary. It creates new releases and moves the current language pointer;
    historical language releases, task references and learner models stay pinned.
    Archived languages and newer canonical admin releases are preserved.
+3. `versions/v02_seminar_management/migration.py` adds the annotated task
+   “Seminarverwaltung – SERM” to “Grafische Datenmodellierung”, directly after
+   “Hilfe bei Datenmodellierungsaufgaben”. The task pins SERM 2.0 from
+   `01_connection_rule_aliases`.
+   Existing steps and personal progress are
+   preserved. Preview is read-only; retries reuse fixed task, release and step
+   IDs and reject conflicting content.
+4. `versions/v03_update_survey/migration.py` publishes shortened task
+   completion questionnaires for Bestellabwicklung and Seminarverwaltung with
+   simplified support choices. The questions about the help button, pirate
+   prompts and study incentives move to a required “Abschluss: Studienteilnahme”
+   station directly after Seminarverwaltung. Existing questionnaire releases
+   and submitted answers are preserved; new sessions use the new releases.
+   The seminar completion also asks whether the task could have been solved
+   without support, followed by a ranking of the support sources actually used.
+   Learners may instead say that none is dispensable or that they cannot judge.
+   Sorting is skipped when fewer than two sources were selected.
+
+5. `versions/v04_maintenance_management/migration.py` adds the annotated task
+   “Wartungsverwaltung – SERM” between Seminarverwaltung (station 5) and the
+   final study questionnaire (previously station 6). It pins the same SERM 2.0
+   release and reuses the integrated seminar completion questionnaire.
+   Only object types are annotated; learners determine attributes, keys and
+   cardinalities themselves. Multiple executions by the same technician on
+   the same maintenance order remain distinct. Preview is read-only; fixed
+   identities and conflict checks allow retries without overwriting edits.
 
 `schema_migrations` records each step as `running`, `failed`, or `completed`.
 The API refuses startup until all registered steps have completed. Repeated starts skip

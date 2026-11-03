@@ -3,7 +3,7 @@ import type { ApiPage } from '@/services/api/types/common'
 
 export type SurveyMode = 'use' | 'preview' | 'test'
 export interface SurveyQuestion {
-  type: 'comment' | 'radiogroup' | 'checkbox' | 'rating' | 'matrix'
+  type: 'comment' | 'radiogroup' | 'checkbox' | 'rating' | 'matrix' | 'ranking'
   name: string
   title: string
   description?: string
@@ -14,6 +14,8 @@ export interface SurveyQuestion {
   choices?: string[]
   exclusiveChoices?: string[]
   choiceLabels?: Record<string, string>
+  choicesFromQuestion?: string
+  choicesFromQuestionMode?: 'selected'
   rows?: string[]
   columns?: string[]
   isAllRowRequired?: boolean

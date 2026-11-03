@@ -24,4 +24,19 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v01_connection_rule_aliases.migration",
         (BASELINE_ID,),
     ),
+    Migration(
+        "02_seminar_management",
+        "modeling_api.db.migrations.versions.v02_seminar_management.migration",
+        (LANGUAGE_UPGRADE_ID,),
+    ),
+    Migration(
+        "03_update_survey",
+        "modeling_api.db.migrations.versions.v03_update_survey.migration",
+        ("02_seminar_management",),
+    ),
+    Migration(
+        "04_maintenance_management",
+        "modeling_api.db.migrations.versions.v04_maintenance_management.migration",
+        ("03_update_survey",),
+    ),
 )

@@ -20,7 +20,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, shallowRef, ref, watch } from 'vue'
-import { Model } from 'survey-core'
+import { Model, QuestionRankingModel, QuestionRatingModel, QuestionRadiogroupModel } from 'survey-core'
 import { SurveyComponent } from 'survey-vue3-ui'
 import 'survey-core/survey-core.css'
 import 'survey-core/i18n/german'
@@ -163,8 +163,12 @@ async function load() {
       delete question.page
       delete question.exclusiveChoices
       delete question.visibleWhen
-      const notEqual = question.visibleIf?.match(/^\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} != /)
+      const notEqual = question.visibleIf?.match(/^\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} (?:!=|notcontains) /)
       if (notEqual) question.visibleIf = `(${question.visibleIf}) and {${notEqual[1]}} notempty`
+      if (q.type === 'ranking' && q.choicesFromQuestion) {
+        const multipleChoices = `{${q.choicesFromQuestion}.length} >= 2`
+        question.visibleIf = question.visibleIf ? `(${question.visibleIf}) and (${multipleChoices})` : multipleChoices
+      }
       return { ...question, ...(q.type === 'rating' ? { displayMode: 'buttons', rateDescriptionLocation: 'bottom' } : {}), ...(q.choices ? { choices: q.choices.map(value => ({ value, text: q.choiceLabels?.[value] ?? value, isExclusive: q.exclusiveChoices?.includes(value) ?? false })) } : {}) }
     }
     const { elements, pages, ...settings } = survey.definition
@@ -173,6 +177,21 @@ async function load() {
       ? { ...settings, pages: pages.filter(page => elements.some(q => q.page === page.name)).map(page => ({ ...page, elements: elements.filter(q => q.page === page.name).map(displayQuestion) })), showProgressBar: 'top', progressBarType: 'pages' }
       : { ...settings, elements: elements.map(displayQuestion) }
     const instance = new Model({ ...displayedDefinition, widthMode: 'responsive', title: pulse || activity?.helpRequestId ? '' : survey.title, ...(pulse || activity?.helpRequestId ? { completeText: activity?.helpPhase === 'action' ? 'Hilfe auswählen' : 'Weiter' } : {}), ...(props.completeText ? { completeText: props.completeText } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
+    for (const question of instance.getAllQuestions()) {
+      if (question instanceof QuestionRankingModel) {
+        // Show positions before an answer exists without pre-filling a ranking.
+        question.getNumberByIndex = (index: number) => String(index + 1)
+      }
+    }
+    instance.onUpdateQuestionCssClasses.add((_sender, { question, cssClasses }) => {
+      if (question instanceof QuestionRatingModel && question.visibleRateValues.length === 5) {
+        cssClasses.mainRoot += ' survey-rating-five'
+      }
+      if (question instanceof QuestionRadiogroupModel && question.choices.length >= 5 &&
+        question.choices.slice(0, 5).every((choice, index) => String(choice.value) === String(index + 1) && choice.text === String(index + 1))) {
+        cssClasses.mainRoot += ' survey-radio-scale'
+      }
+    })
     if (props.questionPerPage || activity?.helpRequestId && activity.helpPhase === 'reflection') {
       instance.questionsOnPageMode = 'questionPerPage'
       instance.pageNextText = 'Weiter'
@@ -245,6 +264,78 @@ onBeforeUnmount(() => {
 <style scoped>
 .survey-renderer { width: 100%; min-width: 0; }
 :deep(.sd-rating fieldset) { flex-wrap: wrap; }
+:deep(.survey-rating-five .sd-rating.sd-rating--labels-bottom fieldset) {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px clamp(4px, 2vw, 24px);
+  width: min(100%, 40rem);
+  box-sizing: border-box;
+  padding-bottom: 0;
+}
+:deep(.survey-rating-five .sd-rating--labels-bottom .sd-rating__item) {
+  grid-row: 1;
+  justify-self: center;
+  min-width: 0;
+  max-width: 100%;
+}
+:deep(.survey-rating-five .sd-rating.sd-rating--labels-bottom fieldset .sd-rating__min-text),
+:deep(.survey-rating-five .sd-rating.sd-rating--labels-bottom fieldset .sd-rating__max-text) {
+  position: static;
+  grid-row: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+:deep(.survey-rating-five .sd-rating--labels-bottom .sd-rating__min-text) { grid-column: 1 / 3; }
+:deep(.survey-rating-five .sd-rating--labels-bottom .sd-rating__max-text) {
+  grid-column: 4 / -1;
+  text-align: right;
+}
+:deep(.survey-radio-scale .sd-selectbase) {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px clamp(4px, 2vw, 24px);
+  width: min(100%, 40rem);
+  min-width: 0;
+}
+:deep(.survey-radio-scale .sd-item:nth-of-type(-n+5)) {
+  width: min(100%, var(--sjs2-size-x600, 48px));
+  min-width: 0;
+  justify-self: center;
+  padding: 0;
+  margin: 0;
+}
+:deep(.survey-radio-scale .sd-item:nth-of-type(-n+5) .sd-selectbase__label) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 100%;
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  border: 0;
+  box-shadow: var(--sjs2-border-effect-surface-default, inset 0 0 0 1px #ddd);
+  border-radius: 50%;
+}
+:deep(.survey-radio-scale .sd-item:nth-of-type(-n+5) .sd-item__decorator) { display: none; }
+:deep(.survey-radio-scale .sd-item:nth-of-type(-n+5) .sd-item__control-label) {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+}
+:deep(.survey-radio-scale .sd-item:nth-of-type(-n+5) .sd-selectbase__label:has(input:checked)) {
+  background: var(--sjs2-color-bg-brand-primary, #19b394);
+  box-shadow: none;
+}
+:deep(.survey-radio-scale .sd-item:nth-of-type(-n+5) .sd-selectbase__label:has(input:checked) .sd-item__control-label) {
+  color: var(--sjs2-color-fg-brand-on-primary, #fff);
+  font-weight: 600;
+}
+:deep(.survey-radio-scale .sd-item:nth-of-type(-n+5) .sd-selectbase__label:has(input:focus-visible)) {
+  outline: 2px solid var(--sjs2-color-bg-brand-primary, #19b394);
+  outline-offset: 3px;
+}
+:deep(.survey-radio-scale .sd-item:nth-of-type(n+6)) { grid-column: 1 / -1; }
 .survey-introduction {
   line-height: 1.6;
   white-space: pre-line;
