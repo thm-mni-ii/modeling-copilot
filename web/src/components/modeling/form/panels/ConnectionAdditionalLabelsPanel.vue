@@ -142,6 +142,9 @@
             <FieldWithIndicator :config="{ minComplexity: 'advanced' }">
               <ColorPickerField v-model="label.style.labelBackgroundColor" label="Background Color" hint="Optional background behind the additional label." @update:model-value="triggerUpdate" />
             </FieldWithIndicator>
+            <FieldWithIndicator :config="{ minComplexity: 'advanced' }">
+              <v-text-field v-model.number="label.style.labelPadding" label="Label Padding" variant="outlined" density="compact" type="number" min="0" step="1" suffix="px" hint="Space between the label text and the edge of its background." persistent-hint class="mt-2" @update:model-value="triggerUpdate" />
+            </FieldWithIndicator>
           </div>
 
           <div class="mb-4">

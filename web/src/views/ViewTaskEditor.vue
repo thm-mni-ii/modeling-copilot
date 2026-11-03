@@ -68,7 +68,7 @@
             </div>
             <div class="task-behavior-field">
               <span id="task-modeling-behavior-label" class="task-setting-field__label">Modeling behavior</span>
-              <AutonomyControls :mode="autonomyMode" @update:mode="autonomyMode = $event" />
+              <AutonomyControls :mode="autonomyMode" :connection-preview-allowed="connectionPreviewAllowed" @update:mode="autonomyMode = $event" @update:connection-preview-allowed="connectionPreviewAllowed = $event" />
             </div>
             <div class="task-setting-field">
               <span id="task-sample-solutions-label" class="task-setting-field__label">Sample solution releases</span>
@@ -157,6 +157,7 @@ const saving = ref(false)
 const titleModel = ref('')
 const contentModel = ref('')
 const autonomyMode = ref<AutonomyMode>('free')
+const connectionPreviewAllowed = ref(true)
 const selectedLanguageKeys = ref<string[]>([])
 const selectedSolutionKeys = ref<string[]>([])
 const selectedEvaluationWorkflow = ref<string | null>(null)
@@ -253,6 +254,7 @@ const resetEditor = () => {
   currentVersion.value = null
   contentModel.value = '<p></p>'
   autonomyMode.value = 'free'
+  connectionPreviewAllowed.value = true
   selectedLanguageKeys.value = []
   selectedSolutionKeys.value = []
   selectedEvaluationWorkflow.value = null
@@ -264,6 +266,7 @@ const loadVersion = async (versionId: string | null) => {
   selectedVersionId.value = version.id
   contentModel.value = version.data.contentHtml
   autonomyMode.value = version.data.autonomyMode
+  connectionPreviewAllowed.value = version.data.connectionPreviewAllowed ?? true
   selectedLanguageKeys.value = version.workspaceLanguages.map((item) => versionReferenceKey(item.languageId, item.versionId))
   selectedSolutionKeys.value = version.data.sampleSolutions.map((item) => versionReferenceKey(item.modelId, item.versionId))
   selectedEvaluationWorkflow.value = version.data.evaluationWorkflows?.[0] ?? null
@@ -326,7 +329,7 @@ const saveVersion = async (kind: TaskVersionKind) => {
         kind,
         ...(kind === 'release' ? { releaseName: releaseName.value.trim(), description: releaseDescription.value.trim() || null } : {}),
         workspaceLanguages: workspaceLanguages(),
-        data: { contentHtml: contentModel.value, autonomyMode: autonomyMode.value, sampleSolutions: sampleSolutions(), evaluationWorkflows: selectedEvaluationWorkflow.value ? [selectedEvaluationWorkflow.value] : [] }
+        data: { contentHtml: contentModel.value, autonomyMode: autonomyMode.value, connectionPreviewAllowed: connectionPreviewAllowed.value, sampleSolutions: sampleSolutions(), evaluationWorkflows: selectedEvaluationWorkflow.value ? [selectedEvaluationWorkflow.value] : [] }
       })
     ).data
     currentTask.value = (await taskService.get(currentTask.value.id)).data

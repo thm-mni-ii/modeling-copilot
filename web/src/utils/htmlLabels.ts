@@ -1,4 +1,4 @@
-import { constants, type Cell, type Graph, type TooltipHandler } from '@maxgraph/core'
+import { constants, TextShape, type Cell, type CellState, type Graph, type TooltipHandler } from '@maxgraph/core'
 
 /** Formatierungen, die in HTML-Labels als Tag erhalten bleiben (nur ohne Attribute). */
 const ALLOWED_TAGS = ['b', 'strong', 'i', 'em', 'u', 'br', 'div']
@@ -91,7 +91,9 @@ export function formatText(graph: Graph, format: TextFormat): void {
 export function protectHtmlLabels(graph: Graph): void {
   const getLabel = graph.getLabel.bind(graph)
   graph.getLabel = (cell?: Cell | null) => {
-    const label = getLabel(cell)
+    const alternative = cell?.isCollapsed() ? (cell as any).collapsedConfig?.label : undefined
+    const showAlternative = typeof alternative === 'string' && alternative.length > 0 && cell && graph.isLabelsVisible() && !graph.getCurrentCellStyle(cell).noLabel
+    const label = showAlternative ? alternative : getLabel(cell)
     return label === null ? null : sanitizeLabelHtml(label)
   }
 
@@ -103,4 +105,27 @@ export function protectHtmlLabels(graph: Graph): void {
       return typeof tooltip === 'string' ? sanitizeLabelHtml(tooltip) : tooltip
     }
   }
+}
+
+/** maxGraph reads the style `labelPadding` but never draws it; here it grows the label background. */
+class PaddedTextShape extends TextShape {
+  // apply() skips labelPadding, so refresh it on every style change
+  override apply(state: CellState): void {
+    super.apply(state)
+    this.labelPadding = Number(this.style?.labelPadding) || 0
+  }
+
+  override createSvgCanvas() {
+    const canvas = super.createSvgCanvas()
+    if (canvas && this.labelPadding > 0) {
+      const getTextCss = canvas.getTextCss.bind(canvas)
+      canvas.getTextCss = () => `${getTextCss()}padding: ${this.labelPadding}px; `
+    }
+    return canvas
+  }
+}
+
+/** Draws the style `labelPadding` (px) on all labels of the graph. */
+export function enableLabelPadding(graph: Graph): void {
+  graph.cellRenderer.defaultTextShape = PaddedTextShape
 }

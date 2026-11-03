@@ -5,7 +5,10 @@
       <v-col cols="8" class="pr-2 editor-col">
         <div class="scroll-column">
           <BasicEditorForm type="syntax" :selected-item="selectedRule">
-            <SyntaxEditorForm v-if="selectedRule" :selected-rule="selectedRule" @update="updateAll" />
+            <SyntaxEditorForm v-if="selectedRule" :selected-rule="selectedRule" @update="updateAll">
+              <ContainmentForm />
+              <AcyclicForm />
+            </SyntaxEditorForm>
           </BasicEditorForm>
         </div>
       </v-col>
@@ -13,18 +16,19 @@
       <!-- Canvas Vorschau (rechts) -->
       <v-col cols="4" class="pl-2 preview-column">
         <v-card class="preview-card">
-          <v-card-title class="py-2 d-flex align-center">
+          <v-card-title class="py-2 d-flex align-center flex-wrap ga-2">
             <v-btn icon="mdi-dock-left" size="small" variant="text" :title="previewSidebarVisible ? 'Hide element palette' : 'Show element palette'" :aria-label="previewSidebarVisible ? 'Hide element palette' : 'Show element palette'" :aria-expanded="previewSidebarVisible" @click="previewSidebarVisible = !previewSidebarVisible" />
             <span class="text-h6">Preview</span>
             <v-spacer />
             <AutonomyControls :mode="autonomyMode" @update:mode="autonomyMode = $event" />
+            <ConnectionPreviewControl v-model="connectionPreview" />
           </v-card-title>
 
           <v-divider />
 
           <v-card-text>
             <div class="preview-canvas">
-              <DrawingCanvas ref="drawingCanvasRef" :show-elements="previewSidebarVisible" :model="canvasModel" :language-elements="languageElementsForCanvas" :language-connections="languageConnectionsForCanvas" :language-syntax="syntaxRules" :autonomy-mode="autonomyMode" />
+              <DrawingCanvas ref="drawingCanvasRef" v-model:autonomy-mode="autonomyMode" :show-elements="previewSidebarVisible" :model="canvasModel" :language-elements="languageElementsForCanvas" :language-connections="languageConnectionsForCanvas" :language-syntax="syntaxRules" />
             </div>
 
             <v-alert v-if="!selectedRule" type="info" variant="tonal" class="mt-3"> Select a Syntax definition to see a preview </v-alert>
@@ -39,11 +43,16 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
 import AutonomyControls from '@/components/modeling/controls/AutonomyControls.vue'
+import ConnectionPreviewControl from '@/components/modeling/controls/ConnectionPreviewControl.vue'
+import { useConnectionPreviewPreference } from '@/composables/useConnectionPreviewPreference'
 import type { AutonomyMode } from '@/model/Autonomy'
 import BasicEditorForm from '../form/BasicEditorForm.vue'
 import type { GraphDataModel } from '@maxgraph/core'
 import SyntaxEditorForm from '../form/SyntaxEditorForm.vue'
-import type { DiagramSyntax } from '@/model/DiagramLanguage'
+import ContainmentForm from '../form/ContainmentForm.vue'
+import AcyclicForm from '../form/AcyclicForm.vue'
+import type { MultiplicityRule } from '@/model/Syntax'
+import { DEFAULT_CONNECTION_MESSAGE_TEMPLATES, DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE } from '@/utils/syntaxMessages'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 
 // Props
@@ -56,10 +65,11 @@ const drawingCanvasRef = ref()
 const previewSidebarVisible = ref(false)
 
 const autonomyMode = ref<AutonomyMode>('free')
+const connectionPreview = useConnectionPreviewPreference()
 
 // Computed
 const syntaxRules = computed(() => store.definition?.syntax || [])
-const selectedRule = computed<DiagramSyntax | undefined>(() => syntaxRules.value.find((rule) => rule.ruleType === 'multiplicity'))
+const selectedRule = computed(() => syntaxRules.value.find((rule): rule is MultiplicityRule => rule.ruleType === 'multiplicity'))
 const languageElementsForCanvas = computed(() => store.definition?.elements ?? [])
 const languageConnectionsForCanvas = computed(() => store.definition?.connections ?? [])
 
@@ -71,7 +81,9 @@ const ensureMultiplicityRule = () => {
     ruleType: 'multiplicity',
     config: {
       relations: [],
-      messageTemplate: ''
+      defaultState: 'forbidden',
+      messageTemplate: DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE,
+      ...DEFAULT_CONNECTION_MESSAGE_TEMPLATES
     }
   })
 }

@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "surveys": [
+    {
+      "id": "93a9adb2-8b10-5fff-b953-ef9e72d36084",
+      "versionId": "e6173334-37d3-5bf6-b5cd-cdab1adb31ca",
+      "title": "Example: Start questionnaire (demonstration only)",
+      "definition": {
+        "elements": [
+          {
+            "type": "rating",
+            "name": "experience",
+            "title": "How familiar are you with class diagrams?",
+            "isRequired": true,
+            "isAllRowRequired": false,
+            "rateMin": 1,
+            "rateMax": 5
+          },
+          {
+            "type": "comment",
+            "name": "comment",
+            "title": "Additional comments (optional)",
+            "isRequired": false,
+            "isAllRowRequired": false,
+            "rateMin": 1,
+            "rateMax": 5
+          }
+        ],
+        "pages": [],
+        "showQuestionNumbers": "on"
+      },
+      "versionNumber": 1
+    },
+    {
+      "id": "f4349d85-cfd6-5690-8aff-2fd7cc42715b",
+      "versionId": "52f21b5b-74fc-5573-818d-7c87d9e282a9",
+      "title": "Example: Reflection on task 1 (demonstration only)",
+      "definition": {
+        "elements": [
+          {
+            "type": "rating",
+            "name": "experience",
+            "title": "How clear was the modeling task?",
+            "isRequired": true,
+            "isAllRowRequired": false,
+            "rateMin": 1,
+            "rateMax": 5
+          },
+          {
+            "type": "comment",
+            "name": "comment",
+            "title": "Additional comments (optional)",
+            "isRequired": false,
+            "isAllRowRequired": false,
+            "rateMin": 1,
+            "rateMax": 5
+          }
+        ],
+        "pages": [],
+        "showQuestionNumbers": "on"
+      },
+      "versionNumber": 1
+    },
+    {
+      "id": "3e4b65e6-e6f8-5909-b02b-3fe3580fdd76",
+      "versionId": "4304bed8-1c33-5c0d-bde3-4e62d49911fa",
+      "title": "Example: Closing questionnaire (demonstration only)",
+      "definition": {
+        "elements": [
+          {
+            "type": "rating",
+            "name": "experience",
+            "title": "How helpful was this learning path?",
+            "isRequired": true,
+            "isAllRowRequired": false,
+            "rateMin": 1,
+            "rateMax": 5
+          },
+          {
+            "type": "comment",
+            "name": "comment",
+            "title": "Additional comments (optional)",
+            "isRequired": false,
+            "isAllRowRequired": false,
+            "rateMin": 1,
+            "rateMax": 5
+          }
+        ],
+        "pages": [],
+        "showQuestionNumbers": "on"
+      },
+      "versionNumber": 1
+    },
+    {
+      "id": "9d75caa6-85ba-5c53-978b-eafb6c15e554",
+      "versionId": "0754c198-1281-5696-bc06-561448fe0ae7",
+      "title": "Example: RANDOM_UNDERSTAND (demonstration only)",
+      "definition": {
+        "elements": [
+          {
+            "type": "radiogroup",
+            "name": "random_understand",
+            "title": "Wie gut verstehst du gerade, was du bei dieser Aufgabe tun sollst?",
+            "isRequired": true,
+            "choices": [
+              "1 – gar nicht",
+              "2",
+              "3",
+              "4",
+              "5 – sehr gut",
+              "Kann ich gerade nicht einschätzen"
+            ],
+            "isAllRowRequired": false,
+            "rateMin": 1,
+            "rateMax": 5
+          }
+        ],
+        "pages": [],
+        "showQuestionNumbers": "on"
+      },
+      "versionNumber": 1
+    },
+    {
+      "id": "3469207b-ec86-57d4-9329-a53414d54fb8",
+      "versionId": "685f8220-2590-538d-b042-8a654a519320",
+      "title": "Example: RANDOM_NEED (demonstration only)",
+      "definition": {
+        "elements": [
+          {
+            "type": "radiogroup",
+            "name": "random_need",
+            "title": "Wie stark brauchst du gerade Unterstützung, um diese Aufgabe zu bearbeiten?",
+            "isRequired": true,
+            "choices": [
+              "1 – gar nicht",
+              "2",
+              "3",
+              "4",
+              "5 – sehr stark",
+              "Kann ich gerade nicht einschätzen"
+            ],
+            "isAllRowRequired": false,
+            "rateMin": 1,
+            "rateMax": 5
+          }
+        ],
+        "pages": [],
+        "showQuestionNumbers": "on"
+      },
+      "versionNumber": 1
+    }
+  ]
+}

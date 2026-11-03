@@ -26,10 +26,16 @@
           </v-card-title>
           <v-divider />
           <v-card-text>
+            <div v-if="selectedConnection" class="d-flex flex-wrap ga-2 mb-2">
+              <v-btn size="small" variant="tonal" @click="addWaypoint">Add preview waypoint</v-btn>
+              <v-btn size="small" variant="text" @click="clearWaypoints">Clear preview waypoints</v-btn>
+              <span class="text-caption">Drag waypoints on the selected line. Preview only; not saved.</span>
+            </div>
             <div class="preview-canvas">
               <DrawingCanvas ref="drawingCanvasRef" :show-elements="previewSidebarVisible" :model="canvasModel" :preview-connection="selectedConnection" :preview-mode="previewMode" :language-connections="connections" :language-elements="elements" :language-syntax="languageSyntaxForCanvas" />
             </div>
             <v-alert v-if="!selectedConnection" type="info" variant="tonal" class="mt-3"> Select a Connection to see a preview </v-alert>
+            <v-alert v-else-if="selectedConnection.allowLooseEnds === false" type="info" variant="tonal" density="comfortable" class="mt-3 flex-0-0"> Loose ends are allowed in the preview. On the canvas, this connection always stays connected. </v-alert>
           </v-card-text>
         </v-card>
       </v-col>
@@ -46,7 +52,7 @@ import EditorEntityList from './EditorEntityList.vue'
 import BasicEditorForm from '../form/BasicEditorForm.vue'
 import ConnectionEditorForm from '../form/ConnectionEditorForm.vue'
 import type { DiagramConnection } from '@/model/DiagramLanguage'
-import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, type ConnectionPreviewMode } from '@/utils/connectionPreview'
+import { addPreviewWaypoint, clearPreviewWaypoints, clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, type ConnectionPreviewMode } from '@/utils/connectionPreview'
 
 // Props
 const store = useDiagramLanguages()
@@ -68,9 +74,8 @@ const selectedConnection = computed<DiagramConnection | undefined>(() => {
 })
 
 // Methods
+// The preview applies changes itself (DrawingCanvas watches previewConnection)
 const updateAll = () => {
-  // Update-Logik für die Vorschau (analog zu ElementEditor)
-  debouncedUpdate()
   debouncedStoreUpdate()
 }
 const selectConnection = (connectionIndex: number) => {
@@ -87,7 +92,6 @@ const addNewConnection = () => {
     type: `connection_${Date.now()}`,
     label: 'New Connection',
     defaultLabel: '',
-    connectionType: 'association',
     style: {
       shape: 'connector',
       strokeColor: '#000000',
@@ -156,15 +160,13 @@ const renderConnectionPreview = () => {
   renderSimpleConnectionPreview(graphInstance, connection)
 }
 
-// Debounced Update für Vorschau und Store
-let updateTimeout: number | null = null
-const debouncedUpdate = () => {
-  if (updateTimeout) {
-    clearTimeout(updateTimeout)
-  }
-  updateTimeout = setTimeout(() => {
-    renderConnectionPreview()
-  }, 150)
+const addWaypoint = () => {
+  const graph = getPreviewGraph()
+  if (graph) addPreviewWaypoint(graph)
+}
+const clearWaypoints = () => {
+  const graph = getPreviewGraph()
+  if (graph) clearPreviewWaypoints(graph)
 }
 
 const debouncedStoreUpdate = () => {
@@ -174,26 +176,8 @@ const debouncedStoreUpdate = () => {
 }
 
 // Watchers
-watch(
-  selectedConnection,
-  (newConn) => {
-    if (newConn) {
-      renderConnectionPreview()
-      debouncedUpdate()
-    } else {
-      renderConnectionPreview()
-    }
-  },
-  { immediate: true, deep: true }
-)
-
-watch(
-  previewMode,
-  () => {
-    renderConnectionPreview()
-  },
-  { immediate: true }
-)
+// Rebuild for a different connection; DrawingCanvas applies mode and settings
+watch(selectedConnectionIndex, () => renderConnectionPreview(), { immediate: true })
 
 // Lifecycle
 onMounted(() => {
