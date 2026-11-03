@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "surveys": [
+    {
+      "id": "f176b183-5c24-5796-a0a7-4e22f167b871",
+      "versionId": "b297fa40-7a80-5df0-bdbb-e389cde80d14",
+      "title": "Impuls: Aufgabenverständnis",
+      "definition": {
+        "elements": [
+          {
+            "type": "radiogroup",
+            "name": "understanding",
+            "title": "Wie gut verstehst du gerade, was du bei dieser Aufgabe tun sollst?",
+            "isRequired": true,
+            "choices": [
+              "1 – gar nicht",
+              "2",
+              "3",
+              "4",
+              "5 – sehr gut",
+              "Kann ich gerade nicht einschätzen"
+            ],
+            "isAllRowRequired": false,
+            "rateMin": 1,
+            "rateMax": 5
+          }
+        ],
+        "pages": [],
+        "showQuestionNumbers": "on"
+      },
+      "versionNumber": 1
+    },
+    {
+      "id": "a5d1c481-1020-5573-9b20-0fbbd81b05ab",
+      "versionId": "546eaed3-11a0-5ff6-8c92-49ce58338523",
+      "title": "Impuls: Unterstützungsbedarf",
+      "definition": {
+        "elements": [
+          {
+            "type": "radiogroup",
+            "name": "support_need",
+            "title": "Wie stark brauchst du gerade Unterstützung, um diese Aufgabe zu bearbeiten?",
+            "isRequired": true,
+            "choices": [
+              "1 – gar nicht",
+              "2",
+              "3",
+              "4",
+              "5 – sehr stark",
+              "Kann ich gerade nicht einschätzen"
+            ],
+            "isAllRowRequired": false,
+            "rateMin": 1,
+            "rateMax": 5
+          }
+        ],
+        "pages": [],
+        "showQuestionNumbers": "on"
+      },
+      "versionNumber": 1
+    }
+  ]
+}

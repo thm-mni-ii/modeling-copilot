@@ -122,6 +122,9 @@ metadata:
   namespace: modeling-copilot
 spec:
   replicas: 1
+  # Stop the old API before the new image applies database migrations.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: modeling-copilot

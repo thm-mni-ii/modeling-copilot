@@ -5,15 +5,11 @@ from pymongo.errors import DuplicateKeyError
 from modeling_api.db.client import db
 from modeling_api.db.store import utcnow
 
-BASELINE_ID = "00_initial_data"
-LANGUAGE_UPGRADE_ID = "01_connection_rule_aliases"
-
-
 async def require_completed(*migration_ids):
     for migration_id in migration_ids:
         record = await db.schema_migrations.find_one({"_id": migration_id})
         if not record or record.get("status") != "completed":
-            raise RuntimeError(f"Migration {migration_id} must complete first; run the numbered scripts in api/scripts with --apply.")
+            raise RuntimeError(f"Migration {migration_id} must complete first; run api/scripts/run_migrations.py with --apply.")
 
 
 async def run_migration(migration_id, action):

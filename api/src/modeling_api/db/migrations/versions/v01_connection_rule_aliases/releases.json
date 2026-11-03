@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "languages": [
+    {
+      "languageId": "b20cd790-923c-4c79-b308-e154cdad331b",
+      "initialVersionId": "4dc5862b-2138-48dc-bf3a-c36dbe80dcb8",
+      "filename": "erm_v2.json"
+    },
+    {
+      "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+      "initialVersionId": "6f4031c2-8fd1-402c-9a33-50deb8901496",
+      "filename": "serm_v2.json"
+    }
+  ]
+}
