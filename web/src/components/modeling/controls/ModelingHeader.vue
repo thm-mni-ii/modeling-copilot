@@ -1,27 +1,30 @@
 <template>
   <header class="modeling-header">
-    <ModelingToolbarGroup title="Model" class="modeling-header__identity">
-      <div class="modeling-header__identity-actions">
-        <span class="modeling-header__name" :title="modelName">{{ modelName }}</span>
-        <v-btn icon="mdi-pencil-outline" size="x-small" variant="text" aria-label="Change model name" @click="openRename" />
+    <div class="modeling-header__main">
+      <ModelingToolbarGroup title="Model" class="modeling-header__identity">
+        <div class="modeling-header__identity-actions">
+          <span class="modeling-header__name" :title="modelName">{{ modelName }}</span>
+          <v-btn icon="mdi-pencil-outline" size="x-small" variant="text" aria-label="Change model name" @click="openRename" />
+        </div>
+      </ModelingToolbarGroup>
+
+      <ModelingToolbarGroup title="Save" class="modeling-header__save-group">
+        <v-btn-group size="small" density="compact" variant="outlined">
+          <v-btn :icon="saveIcon" :color="saveColor" :loading="workspace.syncState === 'saving'" :title="`${stateLabel} — Save model`" @click="saveCheckpoint" />
+          <v-btn icon="mdi-tag-plus-outline" color="medium-gray" :disabled="!workspace.canRelease" :title="workspace.canRelease ? 'Release version' : 'Save the latest checkpoint before releasing'" @click="openRelease" />
+          <v-btn icon="mdi-timeline-clock-outline" :color="workspace.pendingPatches.length ? 'warning' : 'medium-gray'" :disabled="!workspace.model" title="Version timeline" aria-label="Open version timeline" @click="timelineDialog = true" />
+          <slot name="save-tools" />
+        </v-btn-group>
+      </ModelingToolbarGroup>
+
+      <div class="modeling-header__tools">
+        <slot name="controls" />
       </div>
-    </ModelingToolbarGroup>
-
-    <ModelingToolbarGroup title="Save" class="modeling-header__save-group">
-      <v-btn-group size="small" density="compact" variant="outlined">
-        <v-btn :icon="saveIcon" :color="saveColor" :loading="workspace.syncState === 'saving'" :title="`${stateLabel} — Save model`" @click="saveCheckpoint" />
-        <v-btn icon="mdi-tag-plus-outline" color="medium-gray" :disabled="!workspace.canRelease" :title="workspace.canRelease ? 'Release version' : 'Save the latest checkpoint before releasing'" @click="openRelease" />
-        <v-btn icon="mdi-timeline-clock-outline" :color="workspace.pendingPatches.length ? 'warning' : 'medium-gray'" :disabled="!workspace.model" title="Version timeline" aria-label="Open version timeline" @click="timelineDialog = true" />
-        <slot name="save-tools" />
-      </v-btn-group>
-    </ModelingToolbarGroup>
-
-    <div class="modeling-header__tools">
-      <slot name="controls" />
     </div>
-    <div class="modeling-header__spacer" />
-    <div class="modeling-header__autonomy"><slot name="autonomy" /></div>
-    <div class="modeling-header__sidebar-toggle"><slot name="sidebar-toggle" /></div>
+    <div class="modeling-header__right">
+      <slot name="autonomy" />
+      <slot name="sidebar-toggle" />
+    </div>
 
     <v-dialog v-model="renameDialog" max-width="460">
       <v-card>
@@ -131,7 +134,7 @@ const saveName = async () => {
 <style scoped>
 .modeling-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
   min-height: 48px;
   padding: 4px 12px;
@@ -139,6 +142,41 @@ const saveName = async () => {
   border: 1px solid rgba(var(--v-theme-outline), 0.14);
   border-radius: 4px;
   flex-wrap: wrap;
+}
+
+.modeling-header__main {
+  display: contents;
+}
+
+.modeling-header__right {
+  display: flex;
+  align-items: center;
+  align-self: flex-end;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-left: auto;
+  order: 99;
+}
+
+.modeling-header__right :deep(.canvas-mode-controls) {
+  order: 0;
+  margin-left: 0;
+}
+
+.modeling-header__right :deep(.v-btn-group) {
+  height: 32px;
+  border-radius: 4px;
+}
+
+.modeling-header__right :deep(.v-btn-group .v-btn) {
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
+}
+
+.modeling-header__right :deep(.v-btn-group .v-icon) {
+  font-size: 20px;
 }
 
 .modeling-header__identity {
@@ -151,10 +189,8 @@ const saveName = async () => {
 }
 
 .modeling-header__tools,
-.modeling-header__sidebar-toggle,
-.modeling-header__autonomy {
-  display: flex;
-  align-items: center;
+.modeling-header__tools :deep(.canvas-toolbar) {
+  display: contents;
 }
 
 .modeling-header__name {
@@ -178,18 +214,5 @@ const saveName = async () => {
 
 .modeling-header__identity-actions > .v-btn {
   flex-shrink: 0;
-}
-
-.modeling-header__spacer {
-  flex: 1;
-}
-
-@media (max-width: 900px) {
-  .modeling-header__spacer {
-    display: none;
-  }
-  .modeling-header__autonomy {
-    margin-left: auto;
-  }
 }
 </style>

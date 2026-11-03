@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "systemOwnerId": "",
+  "learningPathIds": {
+    "orderManagement": "5eff2fa9-17c4-4bd5-b44e-fc98bc05f325",
+    "entry": "b7affb3a-fcbb-509a-8ec1-b4c8a7381d0d"
+  },
+  "languages": [
+    {
+      "id": "a7fb2523-f7a0-4d23-b476-72882454b9e8",
+      "versionId": "51cd9919-36b9-42d9-861d-8c619a2ac6d5",
+      "name": "UML Class Diagram",
+      "filename": "uml_class_diagram.json"
+    },
+    {
+      "id": "b20cd790-923c-4c79-b308-e154cdad331b",
+      "versionId": "4dc5862b-2138-48dc-bf3a-c36dbe80dcb8",
+      "name": "ERM",
+      "filename": "erm.json"
+    },
+    {
+      "id": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+      "versionId": "6f4031c2-8fd1-402c-9a33-50deb8901496",
+      "name": "SERM",
+      "filename": "serm.json"
+    }
+  ],
+  "examples": [
+    "order_management",
+    "order_processing",
+    "course_planning"
+  ],
+  "entryCourse": {
+    "questionnaire": {
+      "id": "0e4e52a5-44d2-53b9-8ea9-c3dbec77a716",
+      "filename": "entry_questionnaire.json",
+      "releaseNumber": 4
+    },
+    "completion": {
+      "id": "a4d7b24f-d026-5132-bcf0-184014c82719",
+      "filename": "task_completion_questionnaire.json",
+      "releaseNumber": 5
+    },
+    "attitudes": {
+      "id": "7fdec40a-7ca0-5a36-8795-216b9ae735b3",
+      "filename": "help_attitudes_questionnaire.json"
+    },
+    "taskStepId": "0bf60cf9-3a90-5b1c-a94b-20fbf5651680",
+    "sermStepId": "af07e262-acbb-5402-b1ad-53afdd5be68b",
+    "attitudesStepId": "d39da402-aaa6-59e3-92e1-69aa0ff1e64d",
+    "taskId": "32c2bb0f-6298-4fe7-8380-b63e4fa0ed91",
+    "sermTaskId": "a9365611-715b-4903-968f-b390ce2f68cf"
+  }
+}

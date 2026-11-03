@@ -51,6 +51,12 @@ docker compose up -d --build
 The API is available at <http://localhost:8000>. Swagger UI is available at
 <http://localhost:8000/docs> while API documentation is enabled.
 
+The API image runs pending database migrations before starting Uvicorn. This
+initializes empty databases and upgrades existing databases from `main` using
+the same ordered scripts. Completed migrations are skipped on subsequent starts.
+See [Database setup and releases](docs/database-migrations.md) for previews,
+production deployment, and recovery.
+
 Useful Docker commands:
 
 ```sh
@@ -80,6 +86,9 @@ py -3.13 -m venv api/.venv
 api/.venv/Scripts/python.exe -m pip install -r api/requirements.txt
 docker compose up -d mongo
 api/.venv/Scripts/Activate.ps1
+$env:PYTHONPATH = "api/src"
+$env:MONGODB_URI = "mongodb://admin:admin@localhost:27222/?authSource=admin"
+python api/scripts/run_migrations.py --apply
 uvicorn modeling_api.main:app --app-dir api/src --reload
 ```
 

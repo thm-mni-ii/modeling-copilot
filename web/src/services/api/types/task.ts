@@ -29,6 +29,8 @@ export interface UpdateTask {
 export interface TaskData {
   contentHtml: string
   autonomyMode: AutonomyMode
+  /** Whether participants may enable Connection Preview. Defaults to true. */
+  connectionPreviewAllowed?: boolean
   sampleSolutions: ModelVersionReference[]
   evaluationWorkflows: string[]
 }

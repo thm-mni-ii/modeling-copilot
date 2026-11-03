@@ -2,6 +2,7 @@ import { Graph, Point, Cell, FitPlugin } from '@maxgraph/core'
 import type { CellStyle } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
 import { applyConnectionAdditionalLabels, applyConnectionLabelOffset } from './connectionLabelHelpers'
+import { createConnectionStyle } from './elementFactory'
 
 export type ConnectionPreviewMode = 'simple' | 'scenario' | 'routing'
 
@@ -9,15 +10,88 @@ type EdgeStyle = CellStyle & Record<string, any>
 
 const cloneStyle = (style: EdgeStyle): EdgeStyle => ({ ...style })
 
-const applyPoints = (edge: any, points?: { x: number; y: number }[]) => {
-  if (!points || points.length === 0) return
-  const geometry = edge.getGeometry()
-  if (!geometry) return
-  geometry.points = points.map((pt) => new Point(pt.x, pt.y))
+/** Derives the style of a preview edge from the style of the connection. */
+type PreviewStyle = (base: EdgeStyle) => EdgeStyle
+
+type PreviewCell = Cell & {
+  previewStyle?: PreviewStyle
+  // Carries label, label offset and additional labels of the connection
+  previewLabel?: boolean
+  previewSummary?: boolean
+}
+
+/** Edge of the connection preview in the editor (where it can be freely deformed). */
+export const isPreviewEdge = (cell: Cell): boolean => Boolean((cell as PreviewCell).previewStyle)
+
+const markPreviewEdge = (edge: Cell, connection: DiagramConnection, previewStyle: PreviewStyle = cloneStyle, previewLabel = false): void => {
+  ;(edge as any).connectionId = connection.type
+  ;(edge as PreviewCell).previewStyle = previewStyle
+  ;(edge as PreviewCell).previewLabel = previewLabel
+}
+
+const dashedStyle: PreviewStyle = (base) => ({ ...base, dashed: true, dashPattern: base.dashPattern ?? '6 4' })
+
+/** Waypoints belong only to the live preview graph, never to the language. */
+export const addPreviewWaypoint = (graph: Graph): void => {
+  const selected = graph.getSelectionCell()
+  const edge = selected && isPreviewEdge(selected) ? selected : graph.getChildEdges(graph.getDefaultParent()).find(isPreviewEdge)
+  if (!edge?.geometry) return
+  const state = graph.view.getState(edge)
+  const points = state?.absolutePoints
+  const start = points?.[0]
+  const end = points?.[points.length - 1]
+  if (!start || !end) return
+  const geometry = edge.geometry.clone()
+  const x = (start.x + end.x) / (2 * graph.view.scale) - graph.view.translate.x
+  const y = (start.y + end.y) / (2 * graph.view.scale) - graph.view.translate.y + 40
+  geometry.points = [...(geometry.points ?? []), new Point(x, y)]
+  graph.getDataModel().setGeometry(edge, geometry)
+  graph.setSelectionCell(edge)
+}
+
+export const clearPreviewWaypoints = (graph: Graph): void => {
+  graph.batchUpdate(() => {
+    for (const edge of graph.getChildEdges(graph.getDefaultParent()).filter(isPreviewEdge)) {
+      if (!edge.geometry) continue
+      const geometry = edge.geometry.clone()
+      geometry.points = null
+      graph.getDataModel().setGeometry(edge, geometry)
+    }
+  })
 }
 
 export const clearConnectionPreview = (graph: Graph): void => {
   graph.removeCells(graph.getChildCells())
+}
+
+/**
+ * Applies changed settings to the existing preview without rebuilding it.
+ * This keeps moved elements and bend points.
+ * @returns false if there is no preview yet and it has to be rebuilt
+ */
+export const updateConnectionPreview = (graph: Graph, connection: DiagramConnection): boolean => {
+  const cells = graph.getChildCells() as PreviewCell[]
+  const edges = cells.filter((cell) => cell.previewStyle)
+  if (edges.length === 0) return false
+
+  const model = graph.getDataModel()
+  model.beginUpdate()
+  try {
+    for (const edge of edges) {
+      model.setStyle(edge, edge.previewStyle!(createConnectionStyle(connection)))
+      if (!edge.previewLabel) continue
+
+      model.setValue(edge, connection.defaultLabel ?? '')
+      applyConnectionLabelOffset(edge, connection.labelOffset)
+      applyConnectionAdditionalLabels(graph, edge, connection)
+    }
+
+    cells.filter((cell) => cell.previewSummary).forEach((note) => model.setValue(note, describeScenario(createConnectionStyle(connection))))
+  } finally {
+    model.endUpdate()
+  }
+
+  return true
 }
 
 export const renderSimpleConnectionPreview = (graph: Graph, connection: DiagramConnection): Cell | null => {
@@ -27,7 +101,7 @@ export const renderSimpleConnectionPreview = (graph: Graph, connection: DiagramC
 
   graph.getDataModel().beginUpdate()
   try {
-    const style = cloneStyle(connection.style)
+    const style = createConnectionStyle(connection)
 
     const source = graph.insertVertex({
       parent,
@@ -57,9 +131,9 @@ export const renderSimpleConnectionPreview = (graph: Graph, connection: DiagramC
       style
     })
     createdEdge = edge ?? null
+    markPreviewEdge(edge, connection, cloneStyle, true)
 
     applyConnectionLabelOffset(edge, connection.labelOffset)
-    applyPoints(edge, connection.points)
     applyConnectionAdditionalLabels(graph, edge, connection)
 
     graph.clearSelection()
@@ -91,6 +165,8 @@ const createActorVertex = (graph: Graph, parent: any, { x, y, label, fill }: { x
   })
 }
 
+const describeScenario = (style: EdgeStyle): string => `Sample Scenario\n\n• Entry: Client sends a request\n• Gateway forwards and responds\n• Service publishes an event\n\nProperties:\n• ${describeStyleSummary(style)}`
+
 const describeStyleSummary = (style: EdgeStyle): string => {
   const fragments: string[] = []
 
@@ -110,13 +186,15 @@ const describeStyleSummary = (style: EdgeStyle): string => {
   return fragments.join('\n• ')
 }
 
+const feedbackStyle: PreviewStyle = (base) => ({ ...base, curved: true, startArrow: base.startArrow ?? 'open', endArrow: base.endArrow ?? 'classic' })
+
 export const renderScenarioConnectionPreview = (graph: Graph, connection: DiagramConnection): void => {
   clearConnectionPreview(graph)
   const parent = graph.getDefaultParent()
 
   graph.getDataModel().beginUpdate()
   try {
-    const baseStyle = cloneStyle(connection.style)
+    const baseStyle = createConnectionStyle(connection)
 
     const client = createActorVertex(graph, parent, {
       x: 40,
@@ -148,7 +226,7 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
 
     const note = graph.insertVertex({
       parent,
-      value: `Sample Scenario\n\n• Entry: Client sends a request\n• Gateway forwards and responds\n• Service publishes an event\n\nProperties:\n• ${describeStyleSummary(baseStyle)}`,
+      value: describeScenario(baseStyle),
       x: 40,
       y: 220,
       width: 200,
@@ -163,7 +241,7 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
       }
     })
 
-    void note
+    ;(note as PreviewCell).previewSummary = true
 
     const requestEdge = graph.insertEdge({
       parent,
@@ -173,8 +251,8 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
       style: cloneStyle(baseStyle)
     })
 
+    markPreviewEdge(requestEdge, connection, cloneStyle, true)
     applyConnectionLabelOffset(requestEdge, connection.labelOffset)
-    applyPoints(requestEdge, connection.points)
     applyConnectionAdditionalLabels(graph, requestEdge, connection)
 
     const forwardEdge = graph.insertEdge({
@@ -185,6 +263,7 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
       style: cloneStyle(baseStyle)
     })
 
+    markPreviewEdge(forwardEdge, connection)
     const forwardGeometry = forwardEdge.getGeometry()
     if (forwardGeometry) {
       forwardGeometry.points = [new Point(gateway.geometry!.x + gateway.geometry!.width + 30, gateway.geometry!.y + gateway.geometry!.height + 10)]
@@ -195,27 +274,18 @@ export const renderScenarioConnectionPreview = (graph: Graph, connection: Diagra
       source: service,
       target: eventBus,
       value: 'Domain Event',
-      style: cloneStyle({
-        ...baseStyle,
-        dashed: true,
-        dashPattern: baseStyle.dashPattern ?? '6 4'
-      })
+      style: dashedStyle(baseStyle)
     })
-
-    void eventEdge
+    markPreviewEdge(eventEdge, connection, dashedStyle)
 
     const feedbackEdge = graph.insertEdge({
       parent,
       source: eventBus,
       target: client,
       value: 'Notification',
-      style: cloneStyle({
-        ...baseStyle,
-        curved: true,
-        startArrow: baseStyle.startArrow ?? 'open',
-        endArrow: baseStyle.endArrow ?? 'classic'
-      })
+      style: feedbackStyle(baseStyle)
     })
+    markPreviewEdge(feedbackEdge, connection, feedbackStyle)
 
     const feedbackGeometry = feedbackEdge.getGeometry()
     if (feedbackGeometry) {
@@ -241,7 +311,7 @@ export const renderRoutingConnectionPreview = (graph: Graph, connection: Diagram
 
   graph.getDataModel().beginUpdate()
   try {
-    const baseStyle = cloneStyle(connection.style)
+    const baseStyle = createConnectionStyle(connection)
 
     // Create a complex layout with obstacles to demonstrate routing algorithms
     // This layout will show different paths depending on the routing algorithm chosen
@@ -413,6 +483,7 @@ export const renderRoutingConnectionPreview = (graph: Graph, connection: Diagram
       style: cloneStyle(baseStyle)
     })
 
+    markPreviewEdge(edge1, connection, cloneStyle, true)
     applyConnectionLabelOffset(edge1, connection.labelOffset)
     applyConnectionAdditionalLabels(graph, edge1, connection)
 
@@ -458,11 +529,7 @@ export const renderRoutingConnectionPreview = (graph: Graph, connection: Diagram
       source: leftNode,
       target: rightNode,
       value: '',
-      style: cloneStyle({
-        ...baseStyle,
-        dashed: true,
-        dashPattern: baseStyle.dashPattern ?? '6 4'
-      })
+      style: dashedStyle(baseStyle)
     })
 
     // Edge 7: Diagonal connection (Top-Left to Bottom-Right) - shows routing difference clearly
@@ -517,15 +584,8 @@ export const renderRoutingConnectionPreview = (graph: Graph, connection: Diagram
     // Select the first edge to highlight the current style
     graph.clearSelection()
 
-    // Suppress unused variable warnings
-    void edge2
-    void edge3
-    void edge4
-    void edge5
-    void edge6
-    void edge7
-    void edge8
-    void edge9
+    markPreviewEdge(edge6, connection, dashedStyle)
+    ;[edge2, edge3, edge4, edge5, edge7, edge8, edge9].forEach((edge) => markPreviewEdge(edge, connection))
   } finally {
     graph.getDataModel().endUpdate()
   }

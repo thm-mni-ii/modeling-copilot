@@ -32,6 +32,7 @@
       :language-syntax="syntax"
       :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? 'free'"
       :lock-autonomy-mode="Boolean(workspace.taskVersion)"
+      :connection-preview-allowed="workspace.taskVersion?.data.connectionPreviewAllowed ?? true"
       :canvas-windows="taskWindows"
       :task-active="Boolean(workspace.taskReference)"
       :task-edit="workspace.taskEdit"

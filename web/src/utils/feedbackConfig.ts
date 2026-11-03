@@ -106,7 +106,6 @@ export const createDefaultFeedbackCanvasConnection = (): DiagramConnection => ({
   type: '__feedback_note_link__',
   label: 'Feedback Connection',
   defaultLabel: '',
-  connectionType: 'feedback-note',
   connectable: false,
   style: {
     shape: 'connector',
@@ -121,7 +120,6 @@ export const createDefaultFeedbackCanvasConnection = (): DiagramConnection => ({
     endFill: true,
     align: 'center',
     verticalAlign: 'middle',
-    labelPosition: 'center',
     fontColor: '#9e9e9e',
     fontSize: 9
   },

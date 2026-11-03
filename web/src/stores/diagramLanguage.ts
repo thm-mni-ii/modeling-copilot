@@ -2,14 +2,13 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { DiagramConnection, DiagramElement, DiagramLanguage, DiagramSyntax } from '@/model/DiagramLanguage'
 import type { FeedbackCanvasConfig, FeedbackTargetOverlays, FeedbackTargetType } from '@/model/Feedback'
-import type { MultiplicityRelation, MultiplicityRelationState, MultiplicityRule } from '@/model/Syntax'
+import type { AcyclicRule, ContainmentRule, MultiplicityRelation, MultiplicityRelationState, MultiplicityRule } from '@/model/Syntax'
 import languageService from '@/services/language/language.service'
 import type { ApiId } from '@/services/api/types/common'
 import type { Language, LanguageVersion, LanguageVersionKind, LanguageVersionInfo } from '@/services/api/types/language'
 import { cloneFeedbackCanvasConfig, createDefaultTargetOverlays, ensureFeedbackTargets } from '@/utils/feedbackConfig'
 import { notifyError } from '@/composables/useNotifications'
-
-const DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE = 'The Connection {source} -> {target} with Connection type {connection} violates the cardinality ({min}..{max}).'
+import { DEFAULT_CONNECTION_MESSAGE_TEMPLATES, DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE } from '@/utils/syntaxMessages'
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
@@ -189,6 +188,28 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
     if (definition.value) definition.value.syntax = definition.value.syntax.filter((rule) => rule.ruleType !== 'multiplicity')
   }
 
+  /** Sets the allowed types of a container; an empty list lifts the restriction. */
+  const setContainmentChildTypes = (containerType: string, childTypes: string[]) => {
+    if (!definition.value) return
+    const syntax = definition.value.syntax
+    const current = syntax.find((entry): entry is ContainmentRule => entry.ruleType === 'containment')?.config.relations ?? []
+    // Relation and rule keep their place, so switching and switching back restores the stored state
+    const exists = current.some((relation) => relation.containerType === containerType)
+    const relations = childTypes.length === 0 ? current.filter((relation) => relation.containerType !== containerType) : exists ? current.map((relation) => (relation.containerType === containerType ? { containerType, childTypes } : relation)) : [...current, { containerType, childTypes }]
+
+    if (relations.length === 0) definition.value.syntax = syntax.filter((entry) => entry.ruleType !== 'containment')
+    else if (syntax.some((entry) => entry.ruleType === 'containment')) addSyntaxToLanguage({ ruleType: 'containment', config: { relations } })
+    // New rule right after the multiplicity rule, as in the seeds
+    else syntax.splice(syntax.findIndex((entry) => entry.ruleType === 'multiplicity') + 1, 0, { ruleType: 'containment', config: { relations } })
+  }
+
+  /** Sets the acyclic rule; null removes it, cycles are then allowed. */
+  const setAcyclicRule = (config: AcyclicRule['config'] | null) => {
+    if (!definition.value) return
+    if (config !== null) addSyntaxToLanguage({ ruleType: 'acyclic', config })
+    else definition.value.syntax = definition.value.syntax.filter((entry) => entry.ruleType !== 'acyclic')
+  }
+
   const getMultiplicityRuleForLanguage = () => {
     if (!definition.value) return undefined
     const existing = definition.value.syntax.find((rule): rule is MultiplicityRule => rule.ruleType === 'multiplicity')
@@ -196,7 +217,7 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
 
     const rule: MultiplicityRule = {
       ruleType: 'multiplicity',
-      config: { messageTemplate: DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE, relations: [] }
+      config: { messageTemplate: DEFAULT_MULTIPLICITY_MESSAGE_TEMPLATE, ...DEFAULT_CONNECTION_MESSAGE_TEMPLATES, relations: [], defaultState: 'forbidden' }
     }
     definition.value.syntax.push(rule)
     return rule
@@ -248,6 +269,8 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
     updateSyntaxInLanguage,
     removeSyntaxFromLanguage,
     getMultiplicityRuleForLanguage,
-    setMultiplicityRelationState
+    setMultiplicityRelationState,
+    setContainmentChildTypes,
+    setAcyclicRule
   }
 })

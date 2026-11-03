@@ -10,7 +10,7 @@ from modeling_api.core.auth import get_user
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ErrorResponse, register_error_handlers
 from modeling_api.db.client import client, create_indexes, db
-from modeling_api.db.initial_data import seed_initial_data
+from modeling_api.db.migrations import require_current
 from modeling_api.routes import (
     learning_paths,
     surveys,
@@ -28,7 +28,7 @@ from modeling_api.routes import (
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await create_indexes()
-    await seed_initial_data()
+    await require_current()
     yield
     await client.close()
 
