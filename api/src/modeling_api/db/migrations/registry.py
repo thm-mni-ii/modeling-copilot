@@ -54,4 +54,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v07_model_activity_tracking.migration",
         ("06_private_task_catalog",),
     ),
+    Migration(
+        "08_public_case_studies",
+        "modeling_api.db.migrations.versions.v08_public_case_studies.migration",
+        ("07_model_activity_tracking",),
+    ),
 )

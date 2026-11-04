@@ -112,6 +112,26 @@ questionnaire service without importing migration implementations.
    sessions and their related interactions. It does not backfill data or modify model
    and task histories; see [Model activity tracking](model-activity-tracking.md).
 
+9. `versions/v08_public_case_studies/migration.py` publishes the ten case studies
+   from pages 5-14 of `02_1_hausübung.pdf` (first database homework, winter semester
+   2026/2027): Einzelhandel, Paketversand, Mühle, Ticketverkauf, Pflegedienst,
+   Bauunternehmen, Messeverwaltung, Hundeschule, Escaperoom and Abfallwirtschaft.
+   Names use `F<number> – <designation>` (F1 through F10). Each public task has an immutable 1.0 release,
+   the complete case-study text and control questions, SERM 2.0 as its required
+   modeling language, and informative feedback as its default autonomy mode.
+   The extracted content and fixed IDs live in
+   `versions/v08_public_case_studies/case_studies.json`. Preview is read-only;
+   conflicting IDs stop the migration before content is inserted. Retries reuse
+   matching documents; completed migrations preserve subsequent administrator
+   changes. Existing tasks and learning paths remain unchanged.
+
+   Verification on 2026-11-04 compared all ten extracted texts and 49 control
+   questions with the PDF and validated their task/release schemas. An isolated
+   MongoDB 4.4.29 run verified the prerequisite chain, read-only preview, missing
+   language and conflicting-ID failures, retry after a partially inserted release,
+   public access for non-admin users, informative feedback, and preservation of
+   existing data and later administrator edits. No live database was changed.
+
 `schema_migrations` records each step as `running`, `failed`, or `completed`.
 The API refuses startup until all registered steps have completed. Repeated starts skip
 completed steps. Concurrent claims fail instead of executing a step twice.
