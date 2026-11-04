@@ -105,6 +105,13 @@ questionnaire service without importing migration implementations.
    without writing. The completed record prevents later starts from deleting
    new task edits.
 
+7. `versions/v06_private_task_catalog/migration.py` makes all current tasks private
+   in the shared catalog without changing task contents or historical releases.
+
+8. `versions/v07_model_activity_tracking/migration.py` creates indexes for editor
+   sessions and their related interactions. It does not backfill data or modify model
+   and task histories; see [Model activity tracking](model-activity-tracking.md).
+
 `schema_migrations` records each step as `running`, `failed`, or `completed`.
 The API refuses startup until all registered steps have completed. Repeated starts skip
 completed steps. Concurrent claims fail instead of executing a step twice.

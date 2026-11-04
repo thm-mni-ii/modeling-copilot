@@ -141,6 +141,7 @@ import PulseSurveyPirate from '@/components/learningPaths/PulseSurveyPirate.vue'
 import LearningPathHelp from '@/components/learningPaths/LearningPathHelp.vue'
 import HelpRequestFlow from '@/components/learningPaths/HelpRequestFlow.vue'
 import { usePulseSurvey } from '@/composables/usePulseSurvey'
+import { useModelActivity } from '@/composables/useModelActivity'
 
 interface Props {
   modelId?: string
@@ -150,6 +151,8 @@ const emit = defineEmits<{ 'learning-path-model': [modelId: string | null] }>()
 const router = useRouter()
 const route = useRoute()
 const workspace = useModelWorkspaceStore()
+const activityReady = ref(false)
+useModelActivity(activityReady)
 const selectedTaskEditIds = ref<string[]>([])
 const selectTaskEdits = (ids: string[]) => {
   const selected = [...new Set(ids)]
@@ -458,6 +461,7 @@ onMounted(async () => {
     notifyError('The model could not be loaded.')
   } finally {
     loading.value = false
+    activityReady.value = !pathLoadFailed.value
   }
 })
 </script>
