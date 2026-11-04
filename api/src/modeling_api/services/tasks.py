@@ -201,6 +201,9 @@ async def get_version(task_id: UUID, version_id: UUID, user: User) -> Document:
     )
     if version is None or (version.get("kind") != "release" and not user.is_admin):
         raise not_found()
+    from modeling_api.services.task_documents import task_document
+
+    version["data"]["contentDocument"] = version["data"].get("contentDocument") or task_document(version["data"].get("contentHtml", ""))
     return to_api(version)
 
 
@@ -335,6 +338,9 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
     await _validate_sample_solutions(body, user)
     await _validate_evaluation_workflows(body)
     fields = body.model_dump(mode="json", by_alias=True, exclude={"base_version_id"})
+    from modeling_api.services.task_documents import task_document
+
+    fields["data"]["contentDocument"] = task_document(body.data.content_html)
     result = await save_version(
         db.task,
         db.task_version,
