@@ -39,4 +39,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v04_maintenance_management.migration",
         ("03_update_survey",),
     ),
+    Migration(
+        "05_task_edit_history",
+        "modeling_api.db.migrations.versions.v05_task_edit_history.migration",
+        ("04_maintenance_management",),
+    ),
 )
