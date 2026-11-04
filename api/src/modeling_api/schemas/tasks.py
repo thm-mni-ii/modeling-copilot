@@ -94,7 +94,7 @@ class TaskData(ApiSchema):
         description="Modeling assistance mode enforced for models created from the task.",
     )
     connection_preview_allowed: bool = Field(
-        default=True,
+        default=False,
         description="Whether participants may enable Connection Preview for this task.",
     )
     sample_solutions: list[ModelVersionReference] = Field(

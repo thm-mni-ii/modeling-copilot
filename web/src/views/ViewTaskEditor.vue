@@ -157,7 +157,7 @@ const saving = ref(false)
 const titleModel = ref('')
 const contentModel = ref('')
 const autonomyMode = ref<AutonomyMode>('free')
-const connectionPreviewAllowed = ref(true)
+const connectionPreviewAllowed = ref(false)
 const selectedLanguageKeys = ref<string[]>([])
 const selectedSolutionKeys = ref<string[]>([])
 const selectedEvaluationWorkflow = ref<string | null>(null)
@@ -254,7 +254,7 @@ const resetEditor = () => {
   currentVersion.value = null
   contentModel.value = '<p></p>'
   autonomyMode.value = 'free'
-  connectionPreviewAllowed.value = true
+  connectionPreviewAllowed.value = false
   selectedLanguageKeys.value = []
   selectedSolutionKeys.value = []
   selectedEvaluationWorkflow.value = null
@@ -266,7 +266,7 @@ const loadVersion = async (versionId: string | null) => {
   selectedVersionId.value = version.id
   contentModel.value = version.data.contentHtml
   autonomyMode.value = version.data.autonomyMode
-  connectionPreviewAllowed.value = version.data.connectionPreviewAllowed ?? true
+  connectionPreviewAllowed.value = version.data.connectionPreviewAllowed ?? false
   selectedLanguageKeys.value = version.workspaceLanguages.map((item) => versionReferenceKey(item.languageId, item.versionId))
   selectedSolutionKeys.value = version.data.sampleSolutions.map((item) => versionReferenceKey(item.modelId, item.versionId))
   selectedEvaluationWorkflow.value = version.data.evaluationWorkflows?.[0] ?? null

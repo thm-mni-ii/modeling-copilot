@@ -34,7 +34,7 @@
         <template #autonomy>
           <div class="canvas-mode-controls">
             <AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" />
-            <ConnectionPreviewControl :model-value="connectionPreviewEnabled" :allowed="props.connectionPreviewAllowed" @update:model-value="connectionPreview = $event" />
+            <ConnectionPreviewControl v-if="props.connectionPreviewAllowed" :model-value="connectionPreviewEnabled" :allowed="props.connectionPreviewAllowed" @update:model-value="connectionPreview = $event" />
           </div>
         </template>
       </ModelingHeader>
@@ -63,7 +63,7 @@
         />
         <div class="canvas-mode-controls">
           <AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" />
-          <ConnectionPreviewControl :model-value="connectionPreviewEnabled" :allowed="props.connectionPreviewAllowed" @update:model-value="connectionPreview = $event" />
+          <ConnectionPreviewControl v-if="props.connectionPreviewAllowed" :model-value="connectionPreviewEnabled" :allowed="props.connectionPreviewAllowed" @update:model-value="connectionPreview = $event" />
         </div>
       </div>
 
@@ -493,7 +493,7 @@ const props = withDefaults(
     languageSyntax: undefined,
     languages: undefined,
     autonomyMode: 'free',
-    connectionPreviewAllowed: true,
+    connectionPreviewAllowed: false,
     lockAutonomyMode: false,
     taskActive: false,
     taskEdit: null,
