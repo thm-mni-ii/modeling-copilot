@@ -12,7 +12,7 @@ import { notifyError } from '@/composables/useNotifications'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabKitApi, ManagementOpen, Room } from '@/collab/kit/collabKitV1'
 import { newWorkpiece, UML_CLASS_DIAGRAM } from '@/collab/storage/workpiece'
-import { TASK_FORMAT, taskLinkOf } from '@/collab/converters/taskLink'
+import { TASK_FORMAT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
 const ck = shallowRef<CollabKitApi>()

@@ -5,7 +5,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { keydownHandler } from '@tiptap/pm/keymap'
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import type { SharedText, TextDelta, TextPosition } from '@/collab/kit/collabKitV1'
-import { changeOf, charsOfDelta, charsOfDoc, docOfChars, indexAt, posAt } from '@/collab/converters/notes'
+import { changeOf, charsOfDelta, charsOfDoc, docOfChars, indexAt, posAt } from '@/collab/converters/task/notes'
 
 const KEYS = new PluginKey('sharedNotesKeys')
 

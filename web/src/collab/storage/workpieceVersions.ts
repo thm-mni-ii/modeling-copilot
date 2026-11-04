@@ -5,7 +5,7 @@ import { createModelPatch } from '@/utils/modelPatches'
 import { loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabEvent, CollabKitApi, Workpiece } from '@/collab/kit/collabKitV1'
 import { liveSession } from '@/collab/kit/liveSession'
-import { languagesIn, xmlOf, type ModelUnit } from './modelUnits'
+import { languagesIn, xmlOf, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { CELLS_MAP, languagesOf, linkOf } from './workpiece'
 
 /** The version methods of model.service for a model shared through a workpiece, in the shapes of the API. */

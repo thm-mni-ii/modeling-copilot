@@ -12,8 +12,8 @@ import { createModelPatch } from '@/utils/modelPatches'
 import { loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabKitApi, Right } from '@/collab/kit/collabKitV1'
 import { openWorkpiece } from '@/collab/connection/openWorkpiece'
-import { splitModel } from '@/collab/storage/modelCells'
-import { LANGUAGES_KEY, type ModelUnit } from '@/collab/storage/modelUnits'
+import { splitModel } from '@/collab/converters/model/modelCells'
+import { LANGUAGES_KEY, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { CELLS_MAP, newWorkpiece } from '@/collab/storage/workpiece'
 
 /** What the host answers in the dialog before the link; visitors always see. */

@@ -33,9 +33,9 @@ import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import type { Session } from '@/collab/kit/collabKitV1'
-import { bindNotes, notesExtensions } from '@/collab/editing/notesBinding'
-import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/converters/marks'
-import { MARKS_MAP, NOTES_TEXT, taskLinkOf } from '@/collab/converters/taskLink'
+import { bindNotes, notesExtensions } from '@/collab/worksheet/notesBinding'
+import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/converters/task/marks'
+import { MARKS_MAP, NOTES_TEXT, taskLinkOf } from '@/collab/converters/task/taskLink'
 
 /**
  * The task shared along with a model of a room: its text fixed in a CK task, the marks on it as

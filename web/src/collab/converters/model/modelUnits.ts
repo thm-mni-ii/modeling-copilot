@@ -1,7 +1,7 @@
 import type { WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { UnitChange, Workpiece } from '@/collab/kit/collabKitV1'
 import { joinModel, type SharedCell } from './modelCells'
-import { languagesOf } from './workpiece'
+import { languagesOf } from '@/collab/storage/workpiece'
 
 /** The languages of the model, as one unit beside the cells. */
 export const LANGUAGES_KEY = '@languages'

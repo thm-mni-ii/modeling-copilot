@@ -136,7 +136,7 @@ import PulseSurveyPirate from '@/components/learningPaths/PulseSurveyPirate.vue'
 import LearningPathHelp from '@/components/learningPaths/LearningPathHelp.vue'
 import HelpRequestFlow from '@/components/learningPaths/HelpRequestFlow.vue'
 import { usePulseSurvey } from '@/composables/usePulseSurvey'
-import SharedTask from '@/collab/sharing/SharedTask.vue'
+import SharedTask from '@/collab/worksheet/SharedTask.vue'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
 interface Props {
