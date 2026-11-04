@@ -7,7 +7,7 @@ from uuid import UUID
 from modeling_api.core.auth import User
 from modeling_api.core.errors import ApiError, not_found
 from modeling_api.db.client import db
-from modeling_api.db.store import Document, insert, list_page, save_version, to_api, utcnow
+from modeling_api.db.store import Document, insert, list_page, save_version, sort_stages, to_api, utcnow
 from modeling_api.schemas.tasks import CreateTask, CreateTaskVersion, UpdateTask
 from modeling_api.services.languages import check_language_refs
 from modeling_api.services.learning_path_access import accessible_task_releases
@@ -73,7 +73,7 @@ async def list_tasks(
     cursor = await db.task.aggregate(
         [
             {"$match": filters},
-            {"$sort": {"name": 1, "_id": 1}},
+            *sort_stages("name", descending=False, identifier_desc=False),
             {"$skip": skip},
             {"$limit": limit},
             {

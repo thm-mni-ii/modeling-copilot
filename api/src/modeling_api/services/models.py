@@ -12,6 +12,7 @@ from modeling_api.db.store import (
     insert,
     list_page,
     save_version,
+    sort_stages,
     to_api,
     utcnow,
 )
@@ -60,7 +61,7 @@ async def list_models(
             {
                 "$facet": {
                     "items": [
-                        {"$sort": {sort: -1 if order != "asc" else 1, "_id": -1}},
+                        *sort_stages(sort, descending=order != "asc"),
                         {"$skip": skip},
                         {"$limit": limit},
                         {

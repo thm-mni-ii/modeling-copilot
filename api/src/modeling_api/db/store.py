@@ -46,6 +46,34 @@ async def insert(collection: AsyncCollection, fields: Document) -> Document:
     return to_api(document)
 
 
+def sort_stages(field: str, *, descending: bool = True, identifier_desc: bool = True) -> list[Document]:
+    """Sort names naturally without changing query or lookup equality semantics."""
+    direction = -1 if descending else 1
+    identifiers = -1 if identifier_desc else 1
+    if field != "name":
+        return [{"$sort": {field: direction, "_id": identifiers}}]
+
+    # Names have at most 256 characters. Equal-width digit runs sort numerically,
+    # including numbers too large for MongoDB's numeric types and leading zeros.
+    key = "_naturalNameSortKey"
+    return [
+        {"$set": {key: {"$reduce": {
+            "input": {"$regexFindAll": {"input": {"$ifNull": ["$name", ""]}, "regex": "[0-9]+|[^0-9]+"}},
+            "initialValue": "",
+            "in": {"$concat": ["$$value", {"$cond": [
+                {"$regexMatch": {"input": "$$this.match", "regex": "^[0-9]"}},
+                {"$concat": [
+                    {"$substrCP": ["0" * 256, 0, {"$subtract": [256, {"$strLenCP": "$$this.match"}]}]},
+                    "$$this.match",
+                ]},
+                "$$this.match",
+            ]}]},
+        }}}},
+        {"$sort": {key: direction, "_id": identifiers}},
+        {"$unset": key},
+    ]
+
+
 async def list_page(
     collection: AsyncCollection,
     filters: Document,
@@ -63,6 +91,17 @@ async def list_page(
     """
     projection = {field: 0 for field in omit} if omit else None
     total = await collection.count_documents(filters)
+    if sort_field == "name":
+        pipeline = [
+            {"$match": filters},
+            *sort_stages(sort_field, descending=sort_desc),
+            {"$skip": skip},
+            {"$limit": limit},
+        ]
+        if projection:
+            pipeline.append({"$project": projection})
+        cursor = await collection.aggregate(pipeline)
+        return {"items": [to_api(document) async for document in cursor], "total": total}
     cursor = (
         collection.find(filters, projection)
         .sort([(sort_field, -1 if sort_desc else 1), ("_id", -1)])
