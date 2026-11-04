@@ -26,7 +26,7 @@ from modeling_api.schemas.models import (
 from modeling_api.services.languages import check_language_refs
 from modeling_api.services.learning_path_access import require_model_access
 from modeling_api.services.xml_patches import apply_patches, validate_model_xml
-from modeling_api.services.task_edits import validate_task_edit_document
+from modeling_api.services import task_edit_history
 
 
 async def list_models(
@@ -105,7 +105,8 @@ def model_fields(body: CreateModel, user: User) -> Document:
             if body.task_version
             else None
         ),
-        "taskEdit": None,
+        "taskEditVersionId": None,
+        "taskEditRevision": 0,
         "preferences": {},
         "updatedAt": utcnow(),
         "archivedAt": None,
@@ -119,6 +120,7 @@ async def get_model(model_id: UUID, user: User) -> Document:
     await require_model_access(model_id, user)
     api_model = to_api(result)
     api_model.pop("taskEditBaseSignature", None)
+    api_model["taskEdit"] = await task_edit_history.snapshot(result.get("taskEditVersionId"), str(model_id))
     return api_model
 
 
@@ -143,6 +145,7 @@ async def delete_model(model_id: UUID, user: User) -> None:
         raise conflict("Models referenced by a learning-path step cannot be deleted.")
     await db.feedback.delete_many({"modelId": model_id_str})
     await db.model_versions.delete_many({"modelId": model_id_str})
+    await db.task_edit_versions.delete_many({"modelId": model_id_str})
     await db.models.delete_one({"_id": model_id_str, "ownerId": user.id})
 
 
@@ -194,53 +197,15 @@ async def ensure_task_questionnaire_completed(model_id):
 async def update_task_edit(model_id: UUID, body: UpdateTaskEdit, user: User) -> Document:
     model = await get_model(model_id, user)
     await ensure_task_questionnaire_completed(model_id)
-    stored_model = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
-    if stored_model is None:
-        raise not_found()
-    task_reference = model.get("taskVersion")
-    if task_reference is None:
-        raise conflict("A model without an assigned task cannot have task edits.")
-    current = model.get("taskEdit")
-    current_revision = int(current.get("revision", 0)) if current else 0
-    if body.base_revision != current_revision:
-        raise conflict("Task edits changed concurrently. Reload them before saving again.")
+    return await task_edit_history.publish(model, body, user)
 
-    task_version = await db.task_version.find_one(
-        {
-            "_id": task_reference["versionId"],
-            "taskId": task_reference["taskId"],
-            "kind": "release",
-        }
-    )
-    if task_version is None:
-        raise not_found()
-    signature = validate_task_edit_document(
-        body.document,
-        task_version.get("data", {}).get("contentHtml", ""),
-        stored_model.get("taskEditBaseSignature"),
-    )
-    now = utcnow()
-    task_edit = {
-        "schemaVersion": 1,
-        "revision": current_revision + 1,
-        "updatedAt": now,
-        "document": body.document,
-    }
-    updated = await db.models.update_one(
-        {"_id": str(model_id), "ownerId": user.id, "taskEdit.revision": current_revision}
-        if current
-        else {"_id": str(model_id), "ownerId": user.id, "taskEdit": None},
-        {
-            "$set": {
-                "taskEdit": task_edit,
-                "taskEditBaseSignature": signature,
-                "updatedAt": now,
-            }
-        },
-    )
-    if updated.matched_count == 0:
-        raise conflict("Task edits changed concurrently. Reload them before saving again.")
-    return task_edit
+
+async def list_task_edit_history(model_id, skip, limit, user):
+    return await task_edit_history.list_history(await get_model(model_id, user), skip, limit)
+
+
+async def get_task_edit_version(model_id, version_id, user):
+    return await task_edit_history.get_snapshot(await get_model(model_id, user), str(version_id))
 
 
 async def list_versions(model_id: UUID, skip: int, limit: int, user: User) -> Document:
@@ -261,7 +226,9 @@ async def get_version(model_id: UUID, version_id: UUID, user: User) -> Document:
     )
     if version is None:
         raise not_found()
-    return to_api(await _materialize_version(version))
+    result = await _materialize_version(version)
+    result["taskEditSnapshot"] = await task_edit_history.snapshot(version.get("taskEditVersionId"), str(model_id))
+    return to_api(result)
 
 
 async def _materialize_version(version: Document) -> Document:
@@ -355,7 +322,12 @@ async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -
         by_alias=True,
         exclude={"base_version_id", "base_release_id"},
     )
-    fields["taskEditSnapshot"] = deepcopy(model.get("taskEdit")) if model_task else None
+    task_edit_id = model.get("taskEditVersionId") if model_task else None
+    if "task_edit_version_id" in body.model_fields_set:
+        task_edit_id = str(body.task_edit_version_id) if body.task_edit_version_id else None
+        if task_edit_id:
+            await task_edit_history.get_snapshot(model, task_edit_id)
+    fields["taskEditVersionId"] = task_edit_id
     if body.kind == "release":
         validate_model_xml(body.data["xml"])
         fields.pop("patches", None)
@@ -389,4 +361,6 @@ async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -
     stored = await db.model_versions.find_one({"_id": str(result["id"])})
     if stored is None:
         raise not_found()
-    return to_api(await _materialize_version(stored))
+    result = await _materialize_version(stored)
+    result["taskEditSnapshot"] = await task_edit_history.snapshot(stored.get("taskEditVersionId"), str(model_id))
+    return to_api(result)

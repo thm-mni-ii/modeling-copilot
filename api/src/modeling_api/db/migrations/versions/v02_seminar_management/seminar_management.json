@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "learningPathId": "b7affb3a-fcbb-509a-8ec1-b4c8a7381d0d",
+  "step": {
+    "id": "a9865513-7694-517e-912f-e01d15deb26a",
+    "title": "Seminarverwaltung – SERM",
+    "type": "task",
+    "taskVersion": {
+      "taskId": "afa9e394-2ce9-5234-af1a-92b99d105cf0",
+      "versionId": "df992c4e-3205-5762-9e03-af42e9bf7a9c"
+    },
+    "afterSurveyId": "a4d7b24f-d026-5132-bcf0-184014c82719",
+    "required": true,
+    "unlock": {
+      "mode": "sequence",
+      "conditions": []
+    }
+  },
+  "task": {
+    "id": "afa9e394-2ce9-5234-af1a-92b99d105cf0",
+    "name": "Seminarverwaltung – SERM",
+    "parent": null,
+    "ownerId": "",
+    "latestVersionId": "df992c4e-3205-5762-9e03-af42e9bf7a9c",
+    "latestReleaseId": "df992c4e-3205-5762-9e03-af42e9bf7a9c",
+    "visibility": "published",
+    "archivedAt": null
+  },
+  "version": {
+    "id": "df992c4e-3205-5762-9e03-af42e9bf7a9c",
+    "taskId": "afa9e394-2ce9-5234-af1a-92b99d105cf0",
+    "versionNumber": "1.0",
+    "createdBy": "",
+    "kind": "release",
+    "releaseName": "Annotierter Text",
+    "description": "Seminarverwaltung mit selbstständiger Attributzuordnung und Schlüsselbestimmung.",
+    "data": {
+      "contentHtml": "<h2>Aufgabe: Seminarverwaltung als SERM</h2><h3>So gehst du vor</h3><ol><li><strong>Objekttypen anlegen:</strong> Ziehe die markierten Objekttypen auf die Zeichenfläche und ordne sie nach ihrer Existenzabhängigkeit an.</li><li><strong>Beziehungen modellieren:</strong> Verbinde die Objekttypen und bestimme die passenden Kardinalitäten.</li><li><strong>Attribute zuordnen:</strong> Ordne die vorgegebenen Attribute zu und kennzeichne die Primärschlüssel <strong>fett</strong>.</li><li><strong>Modell ergänzen:</strong> Ergänze die Objekttypen mit sinnvollen Attributen.</li></ol><p><strong>Hinweis:</strong> Geerbte Schlüsselattribute werden in der Attributliste kursiv aufgeführt.</p><h3>Fallstudie</h3><p>Ein Weiterbildungszentrum bietet verschiedene <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-er\">Seminare</span></mark> an. Jedes Seminar wird von genau einer <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-entity\">Lehrkraft</span></mark> geleitet. Eine Lehrkraft kann <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-connection-type=\"serm-0-n\">beliebig viele Seminare leiten, aber auch noch keines</span></mark>.</p><p><mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-entity\">Teilnehmer</span></mark> können sich über eine <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-relationship\">Anmeldung</span></mark> für Seminare registrieren. Jede Anmeldung gehört zu genau einem Teilnehmer und einem Seminar. Ein Teilnehmer kann sich <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-connection-type=\"serm-0-n\">für beliebig viele Seminare anmelden, aber auch für keines</span></mark>. Ebenso können für ein Seminar <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-connection-type=\"serm-0-n\">beliebig viele Anmeldungen vorliegen, aber auch keine</span></mark>. Pro Teilnehmer und Seminar ist höchstens eine Anmeldung möglich.</p><p><strong>Für die Verwaltung sollen folgende Attribute erfasst werden:</strong></p><p>Lehrkraftnummer (<mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">LNr</span></mark>), Seminarnummer (<mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">SNr</span></mark>), Teilnehmernummer (<mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">TNr</span></mark>), <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Name</span></mark> der Lehrkraft, <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Name</span></mark> des Teilnehmers, <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">E-Mail</span></mark>-Adresse der Lehrkraft, <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">E-Mail</span></mark>-Adresse des Teilnehmers, Seminartitel (<mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Titel</span></mark>), <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Startdatum</span></mark>, <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Dauer</span></mark> in Stunden, Teilnahmegebühr (<mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Gebühr</span></mark>), Anmeldedatum (<mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Datum</span></mark>) und Anmeldestatus (<mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Status</span></mark>).</p>",
+      "autonomyMode": "validating",
+      "sampleSolutions": []
+    },
+    "workspaceLanguages": [
+      {
+        "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+        "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+        "source": "required"
+      }
+    ]
+  }
+}

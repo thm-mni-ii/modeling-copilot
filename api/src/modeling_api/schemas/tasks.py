@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 from modeling_api.schemas.common import (
     ApiSchema,
     Identity,
+    JsonObject,
     ModelVersionReference,
     Name,
     TaskVersionReference,
@@ -87,6 +88,7 @@ class TaskData(ApiSchema):
         max_length=2_000_000,
         description="Task text serialized as Tiptap-compatible HTML.",
     )
+    content_document: JsonObject | None = Field(default=None, description="Canonical task document supplied by the server.")
     autonomy_mode: AutonomyMode = Field(
         default="free",
         description="Modeling assistance mode enforced for models created from the task.",

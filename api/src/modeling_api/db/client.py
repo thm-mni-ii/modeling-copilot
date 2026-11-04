@@ -49,6 +49,10 @@ async def create_indexes() -> None:
             ("updatedAt", DESCENDING),
         ]
     )
+    await db.task_edit_versions.create_index([("modelId", ASCENDING), ("patches.id", ASCENDING)], unique=True)
+    await db.task_edit_versions.create_index(
+        [("modelId", ASCENDING), ("baseReleaseId", ASCENDING), ("revision", ASCENDING)]
+    )
 
     await db.feedback.create_index(
         [("source", ASCENDING), ("externalFeedbackId", ASCENDING)], unique=True

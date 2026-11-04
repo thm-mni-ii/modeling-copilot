@@ -5,13 +5,11 @@
       <v-btn size="small" color="warning" variant="tonal" prepend-icon="mdi-marker" :disabled="!hasSelection" @mousedown.prevent @click="markHelpText">Textstelle markieren</v-btn>
     </div>
     <div v-if="editor && mode === 'edit'" class="task-edit-toolbar">
-      <template v-if="!shared">
-        <v-btn-group size="x-small" density="compact" variant="outlined">
-          <v-btn :disabled="!editor.can().undo()" title="Undo Edit" @click="editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
-          <v-btn :disabled="!editor.can().redo()" title="Redo Edit" @click="editor.chain().focus().redo().run()"><v-icon>mdi-redo</v-icon></v-btn>
-        </v-btn-group>
-        <v-divider vertical class="mx-1" />
-      </template>
+      <v-btn-group size="x-small" density="compact" variant="outlined">
+        <v-btn :disabled="!editor.can().undo()" title="Undo Edit" @click="editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
+        <v-btn :disabled="!editor.can().redo()" title="Redo Edit" @click="editor.chain().focus().redo().run()"><v-icon>mdi-redo</v-icon></v-btn>
+      </v-btn-group>
+      <v-divider vertical class="mx-1" />
       <v-btn-group size="x-small" density="compact" variant="outlined">
         <v-btn :color="isFormatActive('taskEditBold') ? 'primary' : undefined" :disabled="!hasSelection" title="Bold Edit" @mousedown.prevent @click="applyFormat('taskEditBold', 'bold')"><v-icon>mdi-format-bold</v-icon></v-btn>
         <v-btn :color="isFormatActive('taskEditItalic') ? 'primary' : undefined" :disabled="!hasSelection" title="Italic Edit" @mousedown.prevent @click="applyFormat('taskEditItalic', 'italic')"><v-icon>mdi-format-italic</v-icon></v-btn>
@@ -21,10 +19,14 @@
       </v-btn-group>
       <TaskColorPicker title="Text color Edit" icon="mdi-format-color-text" :colors="TASK_TEXT_COLORS" size="x-small" :disabled="!hasSelection" :active="isFormatActive('taskEditTextColor')" @select="applyFormat('taskEditTextColor', 'textColor', $event)" />
       <TaskColorPicker title="Highlight Edit" icon="mdi-marker" :colors="TASK_HIGHLIGHT_COLORS" size="x-small" :disabled="!hasSelection" :active="isFormatActive('taskEditHighlight')" @select="applyFormat('taskEditHighlight', 'highlight', $event)" />
-      <template v-if="!shared">
-        <v-divider vertical class="mx-1" />
-        <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-text-box-plus-outline" title="Insert text Edit" @click="insertionDialog = true">Add text</v-btn>
-      </template>
+      <v-divider vertical class="mx-1" />
+      <v-tooltip :text="commentHint" location="bottom">
+        <template #activator="{ props: tooltipProps }">
+          <span v-bind="tooltipProps" class="task-comment-action" :tabindex="canAddComment ? undefined : 0">
+            <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-comment-plus-outline" :disabled="!canAddComment" @mousedown.prevent @click="openInsertion">Add Comment</v-btn>
+          </span>
+        </template>
+      </v-tooltip>
     </div>
 
     <editor-content :editor="editor" class="task-edit-body" @click="onTaskReferenceClick" @dragstart="onDragStart" @mouseleave="hideReferencePreview" @mouseover="onTaskReferenceMouseOver" />
@@ -39,13 +41,6 @@
       </div>
     </Teleport>
 
-    <v-dialog v-model="insertionDialog" max-width="520">
-      <v-card>
-        <v-card-title>Add text Edit</v-card-title>
-        <v-card-text><v-text-field v-model="insertionText" label="Text" maxlength="4000" counter autofocus @keyup.enter="insertText" /></v-card-text>
-        <v-card-actions><v-spacer /><v-btn @click="insertionDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!insertionText" @click="insertText">Insert</v-btn></v-card-actions>
-      </v-card>
-    </v-dialog>
   </div>
 </template>
 
@@ -53,14 +48,15 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { Editor as CoreEditor, Extension } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
-import { Plugin } from '@tiptap/pm/state'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
+import type { Mark as ProseMirrorMark } from '@tiptap/pm/model'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { HelpTextRange } from '@/services/learningPaths'
 import type { JsonObject } from '@/services/api/types/common'
-import { cloneTaskDocument, taskDocumentsEqual } from '@/utils/taskEdits'
+import { cloneTaskDocument, flashTaskEdits, taskDocumentsEqual, TASK_EDIT_MARKS } from '@/utils/taskEdits'
 import TaskColorPicker from './TaskColorPicker.vue'
-import { createTaskEditorExtensions, readTaskConnectionReference, TASK_HIGHLIGHT_COLORS, TASK_TEXT_COLORS, writeTaskElementDragData, type TaskConnectionOption, type TaskElementOption } from './taskEditorExtensions'
-import { createTaskEditMarks, toggleTaskEditMark, type TaskEditMarkName } from './taskEditMarks'
+import { readTaskConnectionReference, TASK_HIGHLIGHT_COLORS, TASK_TEXT_COLORS, writeTaskElementDragData, type TaskConnectionOption, type TaskElementOption } from './taskEditorExtensions'
+import { createTaskEditExtensions, toggleTaskEditMark, type TaskEditMarkName } from './taskEditMarks'
 
 type EditType = 'highlight' | 'bold' | 'italic' | 'underline' | 'strike' | 'textColor' | 'inlineCode'
 
@@ -70,32 +66,32 @@ const ConnectionPreviewItem = defineAsyncComponent(() => import('@/components/mo
 const props = withDefaults(
   defineProps<{
     baseHtml: string
+    baseDocument?: JsonObject | null
     modelValue: JsonObject | null
     mode?: 'read' | 'edit' | 'help'
-    /** Im Raum: nur markieren. Der Verlauf des Editors nähme sonst auch Markierungen anderer zurück. */
-    shared?: boolean
     helpTextRanges?: HelpTextRange[]
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
   }>(),
-  { mode: 'read', shared: false, elementOptions: () => [], connectionOptions: () => [], helpTextRanges: () => [] }
+  { mode: 'read', elementOptions: () => [], connectionOptions: () => [], helpTextRanges: () => [] }
 )
 
 const emit = defineEmits<{
   'update:modelValue': [document: JsonObject]
   'select-connection': [reference: { languageId: string; connectionType: string }]
   'mark-help-text': [range: HelpTextRange]
+  'select-edits': [ids: string[]]
 }>()
 
-const baseExtensions = [...createTaskEditorExtensions(), ...createTaskEditMarks()]
+const baseExtensions = createTaskEditExtensions()
 
-const baseParser = new CoreEditor({ content: props.baseHtml, editable: false, extensions: baseExtensions })
-let baseDocument = cloneTaskDocument(baseParser.getJSON() as JsonObject)
+const baseParser = new CoreEditor({ content: props.baseDocument ?? props.baseHtml, editable: false, extensions: baseExtensions })
+let originalDocument = cloneTaskDocument(baseParser.getJSON() as JsonObject)
 baseParser.destroy()
 
 const OriginalGuard = Extension.create({
   name: 'taskEditOriginalGuard',
-  addProseMirrorPlugins: () => [new Plugin({ filterTransaction: (transaction) => !transaction.docChanged || taskDocumentsEqual(transaction.doc.toJSON() as JsonObject, baseDocument) })]
+  addProseMirrorPlugins: () => [new Plugin({ filterTransaction: (transaction) => !transaction.docChanged || taskDocumentsEqual(transaction.doc.toJSON() as JsonObject, originalDocument) })]
 })
 
 const EditShortcutGuard = Extension.create({
@@ -106,11 +102,7 @@ const EditShortcutGuard = Extension.create({
     'Mod-i': () => true,
     'Mod-u': () => true,
     'Mod-Shift-s': () => true,
-    'Mod-e': () => true,
-    // Im Raum gibt es keinen Verlauf, siehe `shared`.
-    'Mod-z': () => props.shared,
-    'Mod-Shift-z': () => props.shared,
-    'Mod-y': () => props.shared
+    'Mod-e': () => true
   })
 })
 
@@ -125,15 +117,66 @@ const HelpSelection = Extension.create({
   })]
 })
 
-let lastDocument = JSON.stringify(props.modelValue ?? baseDocument)
-const insertionDialog = ref(false)
+const commentComposerKey = new PluginKey<number | null>('taskCommentComposer')
+const CommentComposer = Extension.create({
+  name: 'taskCommentComposer',
+  addProseMirrorPlugins: () => [new Plugin<number | null>({
+    key: commentComposerKey,
+    state: {
+      init: () => null,
+      apply: (transaction, position) => {
+        const next = transaction.getMeta(commentComposerKey)
+        if (next !== undefined) return next
+        if (position === null) return null
+        const mapped = transaction.mapping.mapResult(position, -1)
+        return mapped.deleted ? null : mapped.pos
+      }
+    },
+    props: {
+      decorations: (state) => {
+        const position = commentComposerKey.getState(state)
+        return position == null ? null : DecorationSet.create(state.doc, [Decoration.widget(position, createCommentComposer, {
+          key: 'task-comment-composer', side: -1, stopEvent: () => true, ignoreSelection: true
+        })])
+      }
+    }
+  })]
+})
+
+let lastDocument = JSON.stringify(props.modelValue ?? originalDocument)
+const insertionOpen = ref(false)
 const insertionText = ref('')
 const selectionTick = ref(0)
+const cursorActive = ref(false)
+
+const emitSelectedEdits = (current: CoreEditor, range: { from: number; to: number } = current.state.selection) => {
+  if (props.mode === 'help') return []
+  const ids = new Set<string>()
+  const collect = (marks: readonly ProseMirrorMark[]) => {
+    for (const mark of marks) {
+      if (mark.type.name in TASK_EDIT_MARKS && typeof mark.attrs.editId === 'string') ids.add(mark.attrs.editId)
+    }
+  }
+  const { from, to } = range
+  if (from === to) collect(current.state.doc.resolve(from).marks())
+  else current.state.doc.nodesBetween(from, to, (node) => collect(node.marks))
+  const selected = [...ids]
+  emit('select-edits', selected)
+  return selected
+}
 
 const editor = useEditor({
-  content: props.modelValue ?? props.baseHtml,
+  content: props.modelValue ?? originalDocument,
   editable: props.mode === 'edit',
-  extensions: [...baseExtensions, OriginalGuard, EditShortcutGuard, HelpSelection],
+  extensions: [...baseExtensions, OriginalGuard, EditShortcutGuard, HelpSelection, CommentComposer],
+  onFocus: () => { cursorActive.value = true },
+  onBlur: ({ editor: current, event }) => {
+    const host = current.view.dom.closest('.task-edit-editor')
+    cursorActive.value = event.relatedTarget instanceof Node && Boolean(host?.contains(event.relatedTarget))
+  },
+  onTransaction: ({ editor: current }) => {
+    insertionOpen.value = commentComposerKey.getState(current.state) != null
+  },
   onUpdate: ({ editor: current }) => {
     const document = current.getJSON() as JsonObject
     const serialized = JSON.stringify(document)
@@ -141,15 +184,27 @@ const editor = useEditor({
     lastDocument = serialized
     selectionTick.value += 1
     emit('update:modelValue', document)
+    emitSelectedEdits(current)
   },
-  onSelectionUpdate: () => {
+  onSelectionUpdate: ({ editor: current }) => {
     selectionTick.value += 1
+    emitSelectedEdits(current)
   }
 })
 
 const hasSelection = computed(() => {
   selectionTick.value
   return Boolean(editor.value && editor.value.state.selection.from !== editor.value.state.selection.to)
+})
+const canAddComment = computed(() => {
+  selectionTick.value
+  return props.mode === 'edit' && cursorActive.value && !hasSelection.value && !insertionOpen.value && Boolean(editor.value?.state.selection.$from.parent.inlineContent)
+})
+const commentHint = computed(() => {
+  if (insertionOpen.value) return 'Add or cancel your current comment first.'
+  if (hasSelection.value) return 'Clear the selection and place the cursor where the comment should go.'
+  if (!canAddComment.value) return 'Place the cursor in the task text to add a comment.'
+  return 'Add a comment at the cursor.'
 })
 const markHelpText = () => {
   const current = editor.value
@@ -180,30 +235,93 @@ const isFormatActive = (mark: TaskEditMarkName) => {
   return Boolean(editor.value?.isActive(mark))
 }
 
+const openInsertion = () => {
+  if (!editor.value || !canAddComment.value) return
+  insertionText.value = ''
+  const { state, view } = editor.value
+  view.dispatch(state.tr.setMeta(commentComposerKey, state.selection.from))
+  view.dom.querySelector<HTMLInputElement>('[data-task-comment-input]')?.focus()
+}
+const closeInsertion = (restoreFocus = true) => {
+  if (!editor.value) return
+  const position = commentComposerKey.getState(editor.value.state)
+  if (position == null) return
+  editor.value.view.dispatch(editor.value.state.tr.setMeta(commentComposerKey, null))
+  insertionText.value = ''
+  if (restoreFocus) editor.value.chain().setTextSelection(position).focus().run()
+}
+
+function createCommentComposer() {
+  const container = document.createElement('span')
+  container.className = 'task-comment-composer'
+  container.dataset.taskCommentComposer = ''
+  container.contentEditable = 'false'
+  container.setAttribute('role', 'group')
+  container.setAttribute('aria-label', 'Add comment')
+  const input = document.createElement('input')
+  input.dataset.taskCommentInput = ''
+  input.setAttribute('aria-label', 'Comment')
+  input.placeholder = 'Comment here…'
+  input.maxLength = 4000
+  input.value = insertionText.value
+  const add = document.createElement('button')
+  add.type = 'button'
+  add.textContent = 'Add'
+  add.disabled = !input.value.trim()
+  const cancel = document.createElement('button')
+  cancel.type = 'button'
+  cancel.textContent = '×'
+  cancel.title = 'Cancel comment'
+  cancel.setAttribute('aria-label', 'Cancel comment')
+  input.addEventListener('input', () => {
+    insertionText.value = input.value
+    add.disabled = !input.value.trim()
+  })
+  input.addEventListener('keydown', (event) => {
+    if (event.isComposing || !['Enter', 'Escape'].includes(event.key)) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.key === 'Escape') closeInsertion()
+    else insertText()
+  })
+  add.addEventListener('click', () => insertText())
+  cancel.addEventListener('click', () => closeInsertion())
+  container.append(input, add, cancel)
+  return container
+}
+
 const insertText = () => {
-  if (!editor.value || !insertionText.value) return
+  if (!editor.value || props.mode !== 'edit' || !insertionText.value.trim()) return
+  const position = commentComposerKey.getState(editor.value.state)
+  if (position == null) return
   editor.value
     .chain()
-    .focus()
+    .setMeta(commentComposerKey, null)
+    .setTextSelection(position)
     .insertContent({ type: 'text', text: insertionText.value, marks: [{ type: 'taskEditInsertion', attrs: attributes('insertion') }] })
+    .focus()
     .run()
   insertionText.value = ''
-  insertionDialog.value = false
 }
 
 watch(
   () => props.mode,
-  (mode) => editor.value?.setEditable(mode === 'edit')
+  (mode) => {
+    closeInsertion(false)
+    cursorActive.value = false
+    editor.value?.setEditable(mode === 'edit')
+  }
 )
 watch(
-  () => props.baseHtml,
-  (html) => {
-    const parser = new CoreEditor({ content: html, editable: false, extensions: baseExtensions })
-    baseDocument = cloneTaskDocument(parser.getJSON() as JsonObject)
+  () => [props.baseHtml, props.baseDocument] as const,
+  ([html, document]) => {
+    closeInsertion(false)
+    const parser = new CoreEditor({ content: document ?? html, editable: false, extensions: baseExtensions })
+    originalDocument = cloneTaskDocument(parser.getJSON() as JsonObject)
     parser.destroy()
     if (props.modelValue === null && editor.value) {
-      lastDocument = JSON.stringify(baseDocument)
-      if (JSON.stringify(editor.value.getJSON()) !== lastDocument) editor.value.commands.setContent(baseDocument, false)
+      lastDocument = JSON.stringify(originalDocument)
+      if (JSON.stringify(editor.value.getJSON()) !== lastDocument) editor.value.chain().setMeta('addToHistory', false).setContent(originalDocument, { emitUpdate: false }).run()
     }
   }
 )
@@ -211,14 +329,37 @@ watch(
   () => props.modelValue,
   (document) => {
     if (!editor.value) return
-    const next = document ?? baseDocument
+    const next = document ?? originalDocument
     lastDocument = JSON.stringify(next)
-    if (JSON.stringify(editor.value.getJSON()) !== lastDocument) editor.value.commands.setContent(next, false)
+    if (JSON.stringify(editor.value.getJSON()) !== lastDocument) editor.value.chain().setMeta('addToHistory', false).setContent(next, { emitUpdate: false }).run()
   },
   { deep: true }
 )
 
 const onTaskReferenceClick = (event: MouseEvent) => {
+  if (event.target instanceof Element && event.target.closest('[data-task-comment-composer]')) return
+  if (props.mode !== 'help' && editor.value) {
+    const view = editor.value.view
+    const selection = view.dom.ownerDocument.getSelection()
+    let selected: string[]
+    if (selection && !selection.isCollapsed && selection.anchorNode && selection.focusNode && view.dom.contains(selection.anchorNode) && view.dom.contains(selection.focusNode)) {
+      const anchor = view.posAtDOM(selection.anchorNode, selection.anchorOffset)
+      const focus = view.posAtDOM(selection.focusNode, selection.focusOffset)
+      selected = emitSelectedEdits(editor.value, { from: Math.min(anchor, focus), to: Math.max(anchor, focus) })
+    }
+    else {
+      const ids = new Set<string>()
+      let target = event.target instanceof Element ? event.target : null
+      while (target && editor.value.view.dom.contains(target)) {
+        const id = target.getAttribute('data-task-edit-id')
+        if (id) ids.add(id)
+        target = target.parentElement
+      }
+      selected = [...ids]
+      emit('select-edits', selected)
+    }
+    flashTaskEdits(view.dom, selected)
+  }
   if (props.mode !== 'read') return
   const reference = readTaskConnectionReference(event.target)
   if (reference) emit('select-connection', reference)
@@ -283,6 +424,36 @@ onBeforeUnmount(() => editor.value?.destroy())
   min-height: 0;
   overflow-y: auto;
 }
+.task-comment-action { display: inline-flex; }
+.task-edit-body :deep(.task-comment-composer) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  margin: 2px 4px;
+  padding: 4px;
+  border: 2px solid rgb(var(--v-theme-primary));
+  border-radius: 6px;
+  background: rgb(var(--v-theme-surface));
+  font: 400 13px/1.4 sans-serif;
+  vertical-align: middle;
+}
+.task-edit-body :deep(.task-comment-composer input) {
+  width: 160px;
+  min-width: 0;
+  padding: 4px;
+  outline: none;
+  color: rgb(var(--v-theme-on-surface));
+}
+.task-edit-body :deep(.task-comment-composer button) {
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+  cursor: pointer;
+}
+.task-edit-body :deep(.task-comment-composer button:disabled) { opacity: 0.4; cursor: default; }
+.task-edit-body :deep(.task-comment-composer button:focus-visible) { outline: 2px solid currentColor; }
 .task-edit-body :deep(.ProseMirror) {
   min-height: 120px;
   height: 100%;

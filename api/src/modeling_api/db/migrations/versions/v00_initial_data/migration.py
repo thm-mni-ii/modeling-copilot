@@ -1,8 +1,8 @@
 """Initialize an empty database or upgrade a validated main/branch baseline.
 
 Run with PYTHONPATH=api/src, before migration 01 and before starting the API:
-  python api/scripts/00_initial_data.py
-  python api/scripts/00_initial_data.py --apply
+  python -m modeling_api.db.migrations.versions.v00_initial_data
+  python -m modeling_api.db.migrations.versions.v00_initial_data --apply
 The preview is read-only. Existing releases and admin metadata are preserved.
 """
 

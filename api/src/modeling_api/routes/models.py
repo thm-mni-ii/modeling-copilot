@@ -15,6 +15,7 @@ from modeling_api.schemas.models import (
     ModelVersionInfo,
     SortOrder,
     TaskEditDocument,
+    TaskEditVersionInfo,
     UpdateModel,
     UpdateTaskEdit,
 )
@@ -104,9 +105,9 @@ async def get_task_edit(model_id: UUID, user: CurrentUser) -> TaskEditDocument |
 
 @router.put(
     "/{model_id}/task-edit",
-    summary="Replace current task edits",
+    summary="Save local task editing actions",
     description=(
-        "Validates and replaces the complete task-edit document. The original task text, "
+        "Publishes an idempotent batch of task editing patches as checkpoints with automatic full releases. The original task text, "
         "structure, formatting, and task references cannot be changed. A stale baseRevision "
         "returns HTTP 409."
     ),
@@ -118,6 +119,16 @@ async def update_task_edit(
     user: CurrentUser,
 ) -> TaskEditDocument:
     return TaskEditDocument.model_validate(await service.update_task_edit(model_id, body, user))
+
+
+@router.get("/{model_id}/task-edit/history", response_model=Page[TaskEditVersionInfo])
+async def task_edit_history(model_id: UUID, user: CurrentUser, skip: Skip = 0, limit: Limit = 100):
+    return await service.list_task_edit_history(model_id, skip, limit, user)
+
+
+@router.get("/{model_id}/task-edit/history/{version_id}", response_model=TaskEditDocument)
+async def task_edit_version(model_id: UUID, version_id: UUID, user: CurrentUser):
+    return await service.get_task_edit_version(model_id, version_id, user)
 
 
 @router.get(

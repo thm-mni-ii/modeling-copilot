@@ -122,7 +122,7 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
+        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :selected-task-edit-ids="props.selectedTaskEditIds" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
           <template v-if="$slots['sidebar-top']" #top><slot name="sidebar-top" /></template>
         </SidebarRightContainer>
         <CollabConnector v-if="props.modelManagement" />
@@ -139,7 +139,7 @@ import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorH
 import { CellHighlight, eventUtils, type EdgeStyleFunction, type MouseListenerSet, type GraphPluginConstructor } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
-import type { TaskEditSyncState } from '@/utils/taskEdits'
+import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
 import { provideGraphContext } from '@/composables/useGraphContext'
 import { useGraphOperations } from '@/composables/useGraphOperations'
 import { useZoomOperations } from '@/composables/useZoomOperations'
@@ -467,6 +467,7 @@ const props = withDefaults(
     taskActive?: boolean
     taskEdit?: TaskEditDocument | null
     taskEditSyncState?: TaskEditSyncState
+    selectedTaskEditIds?: string[]
     modelId?: string | null
     openEvaluationId?: string | null
     previewConnection?: DiagramConnection
@@ -497,6 +498,7 @@ const props = withDefaults(
     taskActive: false,
     taskEdit: null,
     taskEditSyncState: 'synced',
+    selectedTaskEditIds: () => [],
     modelId: null,
     openEvaluationId: null,
     previewConnection: undefined,
@@ -515,7 +517,7 @@ const emit = defineEmits<{
   'removeTaskEdit': [id: string]
   'updateTaskEditDocument': [document: JsonObject]
   'update:helpCellIds': [ids: string[]]
-  'focusTaskEdit': [id: string]
+  'focusTaskEdit': [target: TaskEditFocus]
 }>()
 
 const autonomyMode = ref<AutonomyMode>(props.autonomyMode ?? 'free')

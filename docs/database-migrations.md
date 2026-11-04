@@ -1,6 +1,6 @@
 # Database setup and releases
 
-The API image applies `api/scripts/run_migrations.py --apply` before starting
+The API image runs `python -m modeling_api.db.migrations --apply` before starting
 Uvicorn. Docker Compose and the k3s deployment therefore use the same setup.
 Running Uvicorn directly requires running this command first with `PYTHONPATH=api/src`
 and the intended `MONGODB_URI` and `MONGODB_DATABASE` environment variables.
@@ -8,18 +8,19 @@ and the intended `MONGODB_URI` and `MONGODB_DATABASE` environment variables.
 ## Code organization
 
 ```text
-api/scripts/                         Thin CLI entry points (existing commands stay valid)
 api/src/modeling_api/db/
   client.py                         MongoDB connection and index creation
   store.py                          Shared persistence helpers
   help_questionnaires.py            Stable questionnaire identities used at runtime
   migrations/
+    __main__.py                     Shared CLI entry point (python -m modeling_api.db.migrations)
     registry.py                     Ordered steps, immutable IDs and prerequisites
     state.py                        Execution records, locking and retry handling
     runner.py                       Execution and shared CLI options
     resources.py                    Shared reader for prefix-owned JSON resources
     versions/
       v00_initial_data/
+        __main__.py                 Baseline-only CLI entry point
         migration.py                Baseline validation, initialization and adoption
         definitions.py              Reads identities and references from manifest.json
         initial_data.py             Idempotent document writing and revision guards
@@ -29,10 +30,13 @@ api/src/modeling_api/db/
         entry_pulse_surveys.json    Entry-course pulse definitions
         ...json                     Languages, tasks, sample model and questionnaires
       v01_connection_rule_aliases/
+        __main__.py                 Language-upgrade-only CLI entry point
         migration.py                Language upgrade logic
         releases.json               Language/release resource assignments
         erm_v2.json                 ERM 2.0 definition
         serm_v2.json                SERM 2.0 definition
+      v05_task_edit_history/
+        migration.py                Discards legacy task edits, initializes the new history
 ```
 
 The API startup check and migration runner share `registry.MIGRATIONS`.
@@ -56,6 +60,50 @@ questionnaire service without importing migration implementations.
    necessary. It creates new releases and moves the current language pointer;
    historical language releases, task references and learner models stay pinned.
    Archived languages and newer canonical admin releases are preserved.
+3. `versions/v02_seminar_management/migration.py` adds the annotated task
+   “Seminarverwaltung – SERM” to “Grafische Datenmodellierung”, directly after
+   “Hilfe bei Datenmodellierungsaufgaben”. The task pins SERM 2.0 from
+   `01_connection_rule_aliases`.
+   Existing steps and personal progress are
+   preserved. Preview is read-only; retries reuse fixed task, release and step
+   IDs and reject conflicting content.
+4. `versions/v03_update_survey/migration.py` publishes shortened task
+   completion questionnaires for Bestellabwicklung and Seminarverwaltung with
+   simplified support choices. The questions about the help button, pirate
+   prompts and study incentives move to a required “Abschluss: Studienteilnahme”
+   station directly after Seminarverwaltung. Existing questionnaire releases
+   and submitted answers are preserved; new sessions use the new releases.
+   The seminar completion also asks whether the task could have been solved
+   without support, followed by a ranking of the support sources actually used.
+   Learners may instead say that none is dispensable or that they cannot judge.
+   Sorting is skipped when fewer than two sources were selected.
+
+5. `versions/v04_maintenance_management/migration.py` adds the annotated task
+   “Wartungsverwaltung – SERM” between Seminarverwaltung (station 5) and the
+   final study questionnaire (previously station 6). It pins the same SERM 2.0
+   release and reuses the integrated seminar completion questionnaire.
+   Only object types are annotated; learners determine attributes, keys and
+   cardinalities themselves. Multiple executions by the same technician on
+   the same maintenance order remain distinct. Preview is read-only; fixed
+   identities and conflict checks allow retries without overwriting edits.
+
+6. `versions/v05_task_edit_history/migration.py` discards all earlier task-edit
+   data, as the editing mode was never in production use. It removes
+   `models.taskEdit`, `models.taskEditBaseSignature`,
+   `model_versions.taskEditSnapshot`, any other legacy `taskEdit*` fields, and
+   indexes on them. It also drops the collections `task_edit_events`,
+   `task_edit_documents` and `task_edit_versions`, and clears embedded
+   `submissionSnapshot.taskEditSnapshot` copies in evaluations (the evaluations
+   themselves remain). Afterwards `models.taskEditVersionId` is `null`,
+   `models.taskEditRevision` is `0`, `model_versions.taskEditVersionId` is `null`
+   (no dangling references), and the two `task_edit_versions` indexes exist.
+   No empty documents or artificial edits are created. Task texts, models,
+   model versions, languages and learning paths are untouched; no
+   `contentDocument` backfill is needed because task loading derives it from
+   `contentHtml` when absent, so original content and task element/connection
+   annotations are preserved. Preview lists affected documents and indexes
+   without writing. The completed record prevents later starts from deleting
+   new task edits.
 
 `schema_migrations` records each step as `running`, `failed`, or `completed`.
 The API refuses startup until all registered steps have completed. Repeated starts skip
@@ -74,20 +122,23 @@ ship subsequent data changes as new registered steps.
 Without `--apply`, all scripts are read-only:
 
 ```sh
-docker compose run --rm --no-deps api python scripts/run_migrations.py
+docker compose run --rm --no-deps api python -m modeling_api.db.migrations
 ```
 
 Build the new API image first and start MongoDB if necessary. Overriding the
 container command as above bypasses automatic application. Before baseline
 adoption, the combined preview validates the old baseline and reports the
 subsequent step as pending. A detailed language preview is available after
-`00_initial_data.py --apply` via `01_migrate_connection_rule_aliases.py`.
-Both numbered commands remain available as thin wrappers. Alternatively, select
-a step through the shared entry point, for example:
+`python -m modeling_api.db.migrations --migration 00_initial_data --apply`.
+All CLI entry points live inside the migration package. Individual steps can be
+run as version modules, for example
+`python -m modeling_api.db.migrations.versions.v01_connection_rule_aliases`,
+or selected through the shared entry point. For local commands below, set
+`PYTHONPATH=api/src` first:
 
 ```sh
-python api/scripts/run_migrations.py --migration 01_connection_rule_aliases
-python api/scripts/run_migrations.py --migration 01_connection_rule_aliases --language-id b20cd790-923c-4c79-b308-e154cdad331b
+python -m modeling_api.db.migrations --migration 01_connection_rule_aliases
+python -m modeling_api.db.migrations --migration 01_connection_rule_aliases --language-id b20cd790-923c-4c79-b308-e154cdad331b
 ```
 
 Do not execute the preview against a database while another migration is running.

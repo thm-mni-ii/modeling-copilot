@@ -30,6 +30,28 @@ async def require_run_access(run, user):
     require_template_access(template, user, existing_run=True)
 
 
+async def accessible_task_releases(task_id, user):
+    """Private task releases shared through paths accessible to this learner."""
+    releases = set()
+    async for step in db.learning_path_template_steps.find(
+        {"kind": "task", "task.taskId": str(task_id), "archivedAt": None}
+    ):
+        template = await db.learning_path_templates.find_one(
+            {"_id": step["templateId"], "stepIds": step["_id"]}
+        )
+        if not template:
+            continue
+        visibility = template_visibility(template)
+        if visibility == "published" or (
+            visibility == "unlisted"
+            and await db.learning_path_runs.find_one(
+                {"templateId": step["templateId"], "learnerId": user.id}, {"_id": 1}
+            )
+        ):
+            releases.add(step["task"]["releaseId"])
+    return releases
+
+
 async def require_model_access(model_id, user):
     if user.is_admin:
         return
