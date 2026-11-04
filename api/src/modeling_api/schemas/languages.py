@@ -82,7 +82,7 @@ class LanguageVersionInfo(VersionInfo):
     language_id: UUID = Field(description="Owning language identifier.")
     kind: VersionKind = "release"
     release_name: Name | None = Field(
-        default=None, description="Required display name for a release."
+        default=None, description="Optional display name for a release."
     )
     description: str | None = Field(
         default=None, max_length=2000, description="Optional version description."
@@ -106,7 +106,7 @@ class CreateLanguageVersion(ApiSchema):
     )
     kind: VersionKind = "release"
     release_name: Name | None = Field(
-        default=None, description="Required display name for releases only."
+        default=None, description="Optional display name for releases only."
     )
     description: str | None = Field(
         default=None, max_length=2000, description="Optional version description."
@@ -120,8 +120,6 @@ class CreateLanguageVersion(ApiSchema):
 
     @model_validator(mode="after")
     def valid_release_name(self) -> "CreateLanguageVersion":
-        if self.kind == "release" and self.release_name is None:
-            raise ValueError("A release requires releaseName.")
         if self.kind == "checkpoint" and self.release_name is not None:
             raise ValueError("releaseName is only allowed for releases.")
         return self

@@ -119,7 +119,7 @@ class TaskVersionInfo(VersionInfo):
     kind: VersionKind = "release"
     release_name: Name | None = Field(
         default=None,
-        description="Required display name for releases.",
+        description="Optional display name for releases.",
     )
     description: str | None = Field(
         default=None,
@@ -148,7 +148,7 @@ class CreateTaskVersion(ApiSchema):
     kind: VersionKind = "checkpoint"
     release_name: Name | None = Field(
         default=None,
-        description="Required for releases and omitted for checkpoints.",
+        description="Optional for releases and omitted for checkpoints.",
     )
     description: str | None = Field(
         default=None,
@@ -164,8 +164,6 @@ class CreateTaskVersion(ApiSchema):
 
     @model_validator(mode="after")
     def valid_release_name(self) -> "CreateTaskVersion":
-        if self.kind == "release" and self.release_name is None:
-            raise ValueError("A release requires releaseName.")
         if self.kind == "checkpoint" and self.release_name is not None:
             raise ValueError("releaseName is only allowed for releases.")
         return self

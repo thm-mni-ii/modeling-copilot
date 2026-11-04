@@ -168,7 +168,7 @@
       ><v-card title="Change task release"
         ><v-card-text
           ><p class="text-body-2 mb-4">The selected release is fixed when a learner starts a new run. Existing runs keep their original releases.</p>
-          <v-select v-model="pendingVersion" :items="selectedVersions.map((version) => ({ title: `${version.releaseName} (v${version.versionNumber})`, value: version.id }))" label="Task release" variant="outlined" :loading="Boolean(loadingVersions)" /><v-alert v-if="!selectedVersions.length && !loadingVersions" type="info" variant="tonal">No accessible releases found.</v-alert></v-card-text
+          <v-select v-model="pendingVersion" :items="selectedVersions.map((version) => ({ title: releaseVersionLabel(version), value: version.id }))" label="Task release" variant="outlined" :loading="Boolean(loadingVersions)" /><v-alert v-if="!selectedVersions.length && !loadingVersions" type="info" variant="tonal">No accessible releases found.</v-alert></v-card-text
         ><v-card-actions><v-btn @click="releaseDialog = false">Cancel</v-btn><v-spacer /><v-btn color="primary" :disabled="!pendingVersion || !selectedVersions.some((version) => version.id === pendingVersion)" @click="applyRelease">Use release</v-btn></v-card-actions></v-card
       ></v-dialog
     >
@@ -224,6 +224,7 @@ import surveys, { type Survey } from '@/services/surveys'
 import taskService from '@/services/task/task.service'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
 import { availabilitySummary, conditionSummary, validatePathSteps, validatePulseConfig } from '@/utils/learningPathEditor'
+import { releaseVersionLabel } from '@/utils/versions'
 
 const route = useRoute(),
   router = useRouter()
@@ -298,7 +299,7 @@ const message = (e: unknown) => (e as { response?: { data?: { message?: string }
 const taskName = (step: PathStep) => tasks.value.find((task) => task.id === step.taskVersion?.taskId)?.name ?? step.title
 const releaseLabel = (step: PathStep) => {
   const version = versions.value[step.taskVersion?.taskId ?? '']?.find((version) => version.id === step.taskVersion?.versionId)
-  return version ? `${version.releaseName} · v${version.versionNumber}` : tasks.value.find((task) => task.id === step.taskVersion?.taskId)?.latestReleaseId === step.taskVersion?.versionId ? 'Latest release' : 'Saved release'
+  return version ? releaseVersionLabel(version) : tasks.value.find((task) => task.id === step.taskVersion?.taskId)?.latestReleaseId === step.taskVersion?.versionId ? 'Latest release' : 'Saved release'
 }
 const selectStep = async (id: string) => {
   detailMode.value = 'activity'
