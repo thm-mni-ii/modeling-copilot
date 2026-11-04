@@ -1,4 +1,4 @@
-"""Command-line entry point; preview only without --apply."""
+"""Migration package CLI; preview only without --apply."""
 
 import asyncio
 

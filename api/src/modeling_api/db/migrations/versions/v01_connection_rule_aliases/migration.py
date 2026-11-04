@@ -1,10 +1,11 @@
 """Publish canonical language releases; historical releases and models stay pinned.
 
 Run with PYTHONPATH=api/src. The default is a read-only preview:
-  python api/scripts/01_migrate_connection_rule_aliases.py
-  python api/scripts/01_migrate_connection_rule_aliases.py --apply
+  python -m modeling_api.db.migrations.versions.v01_connection_rule_aliases
+  python -m modeling_api.db.migrations.versions.v01_connection_rule_aliases --apply
 Use --language-id UUID to limit the read-only preview to one language.
-Run 00_initial_data.py --apply first to initialize or adopt the baseline.
+Run python -m modeling_api.db.migrations --migration 00_initial_data --apply
+first to initialize or adopt the baseline.
 This migration publishes ERM/SERM 2.0 before normalizing other current releases.
 MongoDB configuration is read from the application's normal environment.
 """
