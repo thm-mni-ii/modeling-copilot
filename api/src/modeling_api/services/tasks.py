@@ -353,7 +353,7 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
     if body.kind == "release":
         await db.task.update_one(
             {"_id": str(task_id)},
-            {"$set": {"latestReleaseId": result["id"], "visibility": "published"}},
+            {"$set": {"latestReleaseId": result["id"]}},
         )
     return result
 

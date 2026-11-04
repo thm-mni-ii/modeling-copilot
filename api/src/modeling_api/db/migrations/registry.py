@@ -44,4 +44,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v05_task_edit_history.migration",
         ("04_maintenance_management",),
     ),
+    Migration(
+        "06_private_task_catalog",
+        "modeling_api.db.migrations.versions.v06_private_task_catalog.migration",
+        ("05_task_edit_history",),
+    ),
 )

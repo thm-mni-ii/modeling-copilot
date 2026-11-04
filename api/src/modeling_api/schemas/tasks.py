@@ -41,7 +41,10 @@ class Task(Identity):
     )
     visibility: TaskVisibility = Field(
         default="private",
-        description="Whether the task is private to administrators or published.",
+        description=(
+            "Whether the task is listed publicly; private tasks may still be shared "
+            "through learning paths."
+        ),
     )
     archived_at: datetime | None = Field(
         default=None,
