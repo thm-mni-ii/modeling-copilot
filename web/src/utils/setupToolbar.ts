@@ -36,16 +36,12 @@ const isTruthyAttribute = (value: string | null | undefined) => {
   return normalized !== '' && normalized !== '0' && normalized !== 'false'
 }
 
-const resolveContainerSectionTarget = (cell: Cell | null, graph?: Graph): Cell | null => {
+const resolveContainerSectionTarget = (cell: Cell | null, graph: Graph, droppedCell: Cell): Cell | null => {
   let current = cell
 
   while (current) {
-    if (graph?.isSwimlane(current)) {
-      return current
-    }
-
     const attribute = (current as any).getAttribute?.('containerSection', null)
-    if (isTruthyAttribute(attribute)) {
+    if ((graph.isSwimlane(current) || isTruthyAttribute(attribute)) && graph.isValidDropTarget(current, [droppedCell])) {
       return current
     }
 
@@ -56,21 +52,12 @@ const resolveContainerSectionTarget = (cell: Cell | null, graph?: Graph): Cell |
   return null
 }
 
-const resolveEffectiveParent = (graph: Graph, defaultParent: Cell, dropTarget: Cell | null, isSwimlaneDrop: boolean): Cell => {
+const resolveEffectiveParent = (graph: Graph, defaultParent: Cell, dropTarget: Cell | null, isSwimlaneDrop: boolean, droppedCell: Cell): Cell => {
   if (isSwimlaneDrop) {
     return defaultParent
   }
 
-  const containerSection = resolveContainerSectionTarget(dropTarget, graph)
-  if (containerSection) {
-    return containerSection
-  }
-
-  if (dropTarget && graph.isSwimlane(dropTarget)) {
-    return dropTarget
-  }
-
-  return defaultParent
+  return resolveContainerSectionTarget(dropTarget, graph, droppedCell) ?? defaultParent
 }
 
 export function ensureGraphDropHandlers(graph: Graph, parent: Ref<Cell | undefined>, shapes: ShapeConfig[]) {
@@ -142,7 +129,7 @@ export function ensureGraphDropHandlers(graph: Graph, parent: Ref<Cell | undefin
 
       const isDroppingSwimlane = shape.style?.shape === 'swimlane' || graphInstance.isSwimlane(templateCell as unknown as Cell)
       const dropTarget = graphInstance.getCellAt(point.x, point.y)
-      const effectiveParent = resolveEffectiveParent(graphInstance, defaultParent, dropTarget, isDroppingSwimlane)
+      const effectiveParent = resolveEffectiveParent(graphInstance, defaultParent, dropTarget, isDroppingSwimlane, templateCell)
 
       if (shape.dropHandler) {
         shape.dropHandler(graphInstance, effectiveParent, { x: point.x, y: point.y }, taskLabel)
@@ -217,7 +204,7 @@ export function setupToolbar(graph: Ref<Graph | undefined>, toolbarContainer: Re
 
         const dropTarget = target ?? graph.getCellAt(resolvedX, resolvedY)
         const isDroppingSwimlane = shape.style?.shape === 'swimlane' || graph.isSwimlane(cell as unknown as Cell)
-        const effectiveParent = resolveEffectiveParent(graph, defaultParent, dropTarget, isDroppingSwimlane)
+        const effectiveParent = resolveEffectiveParent(graph, defaultParent, dropTarget, isDroppingSwimlane, cell)
 
         if (shape.dropHandler) {
           shape.dropHandler(graph, effectiveParent, { x: resolvedX, y: resolvedY })

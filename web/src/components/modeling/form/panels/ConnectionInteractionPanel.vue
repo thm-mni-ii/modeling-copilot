@@ -9,6 +9,14 @@
     </FieldWithIndicator>
 
     <FieldWithIndicator :config="{ minComplexity: 'dev' }">
+      <v-switch v-model="allowLooseEndsValue" color="primary" density="compact" class="mb-3" label="Allow Loose Ends" hint="Allows an end of this line to stay unconnected." persistent-hint @update:model-value="emit('update')" />
+    </FieldWithIndicator>
+
+    <FieldWithIndicator :config="{ minComplexity: 'dev' }">
+      <v-switch v-model="allowLoopsValue" color="primary" density="compact" class="mb-3" label="Allow Loops" hint="Allows both ends of this line to attach to the same Element." persistent-hint @update:model-value="emit('update')" />
+    </FieldWithIndicator>
+
+    <FieldWithIndicator :config="{ minComplexity: 'dev' }">
       <v-switch v-model="localStyle.pointerEvents" color="primary" density="compact" class="mb-3" label="Pointer Events Enabled" hint="Controls whether the Connection receives mouse events." persistent-hint @update:model-value="emit('update')" />
     </FieldWithIndicator>
 
@@ -43,6 +51,23 @@ const connectableValue = computed({
   set: (value: boolean) => {
     // eslint-disable-next-line vue/no-mutating-props
     props.connection.connectable = value
+  }
+})
+
+const allowLooseEndsValue = computed({
+  get: () => props.connection.allowLooseEnds ?? true,
+  set: (value: boolean) => {
+    // eslint-disable-next-line vue/no-mutating-props
+    props.connection.allowLooseEnds = value
+  }
+})
+
+// Default (off) removes the field, so switching and switching back restores the stored state
+const allowLoopsValue = computed({
+  get: () => props.connection.allowLoops ?? false,
+  set: (value: boolean) => {
+    // eslint-disable-next-line vue/no-mutating-props
+    props.connection.allowLoops = value || undefined
   }
 })
 </script>

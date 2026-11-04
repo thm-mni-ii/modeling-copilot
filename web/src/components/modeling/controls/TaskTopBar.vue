@@ -31,7 +31,7 @@
             <v-icon size="16" color="primary">mdi-open-in-new</v-icon>
             The task text is open in a window. Close the window to display it here.
           </div>
-          <TaskEditEditor v-else :base-html="contentHtml" :model-value="helpSelectionMode ? helpTaskDocument ?? null : taskEdit?.document ?? null" :mode="helpSelectionMode ? 'help' : editMode ? 'edit' : 'read'" :help-text-ranges="helpTextRanges" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="editorStyle" @mark-help-text="emit('mark-help-text', $event)" @select-connection="emit('select-connection', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
+          <TaskEditEditor v-else :base-html="contentHtml" :base-document="baseDocument" :model-value="helpSelectionMode ? helpTaskDocument ?? null : taskEdit?.document ?? null" :mode="helpSelectionMode ? 'help' : editMode ? 'edit' : 'read'" :help-text-ranges="helpTextRanges" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="editorStyle" @mark-help-text="emit('mark-help-text', $event)" @select-connection="emit('select-connection', $event)" @select-edits="emit('select-task-edits', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
 
           <div class="task-topbar__resize-handle" title="Adjust height" @mousedown.prevent="startResize">
             <v-icon size="12">mdi-drag-horizontal</v-icon>
@@ -56,6 +56,7 @@ const props = withDefaults(
     task: DiagramTask | null
     windowOpen: boolean
     contentHtml: string
+    baseDocument?: JsonObject | null
     taskEdit: TaskEditDocument | null
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
@@ -78,6 +79,7 @@ const emit = defineEmits<{
   'select-connection': [reference: { languageId: string; connectionType: string }]
   'start-evaluation': []
   'mark-help-text': [range: HelpTextRange]
+  'select-task-edits': [ids: string[]]
 }>()
 
 const expanded = ref(true)

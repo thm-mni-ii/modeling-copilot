@@ -1,7 +1,9 @@
 import { Cell, Geometry, ConnectionConstraint, Point, Rectangle } from '@maxgraph/core'
-import type { Graph } from '@maxgraph/core'
+import type { CellStyle, Graph } from '@maxgraph/core'
+import type { DiagramConnection } from '@/model/Connection'
 import type { DiagramElement } from '@/model/Element'
 import { registerElementShapes } from './shapeRegistry'
+import { pointId } from './connectionPoints'
 
 /**
  * Erstellt eine MaxGraph Cell aus einer DiagramElement-Definition
@@ -23,6 +25,8 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
   const baseStyle: Record<string, any> = {
     shape: element.renderMode === 'swimlane' ? 'swimlane' : element.predefinedShape ?? 'rectangle',
     ...style, // Alle Style-Eigenschaften aus Definition übernehmen
+    movable: element.movable ?? true,
+    resizable: element.resizable ?? true,
     // Defaults für fehlende Werte
     strokeColor: style.strokeColor ?? 'black',
     fillColor: style.fillColor ?? '#f5f5f5',
@@ -66,7 +70,7 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
 
   // 3. Anchor Points als Connection Constraints hinzufügen
   if (element.anchorPoints && element.anchorPoints.length > 0) {
-    const constraints = element.anchorPoints.map((point: { x: number; y: number }) => new ConnectionConstraint(new Point(point.x, point.y), false))
+    const constraints = element.anchorPoints.map((point) => new ConnectionConstraint(new Point(point.x, point.y), false, pointId(point)))
     ;(geometry as any).constraints = constraints
   }
 
@@ -84,7 +88,10 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
   cell.setVertex(true)
   cell.setConnectable(element.connectable ?? true)
   ;(cell as any).allowLabelEdit = element.allowLabelEdit !== false
+  if (element.docking) (cell as any).docking = element.docking
   ;(cell as any).diagramElementType = element.type
+  // Keep point IDs out of maxGraph's global XML object-ID index: every instance shares them.
+  ;(cell as any).connectionPointsJson = JSON.stringify(element.anchorPoints)
   ;(cell as any).diagramAttributes = {
     type: element.type,
     label: element.defaultLabel
@@ -127,6 +134,7 @@ export function createCellFromElement(element: DiagramElement, x: number, y: num
  */
 export function addCellToGraph(graph: Graph, cell: Cell, element: DiagramElement, parent: any): void {
   const addChildRecursive = (parentCell: Cell, child: any): void => {
+    registerElementShapes(child)
     const childGeometry = new Geometry(child.position.x, child.position.y, child.position.width, child.position.height)
     childGeometry.relative = child.position.relative
 
@@ -137,7 +145,7 @@ export function addCellToGraph(graph: Graph, cell: Cell, element: DiagramElement
 
     const childStyle: any = {
       ...child.style,
-      shape: child.renderMode === 'swimlane' ? 'swimlane' : child.predefinedShape || 'label'
+      shape: child.renderMode === 'canvas2d' ? child.type : child.renderMode === 'swimlane' ? 'swimlane' : child.predefinedShape || 'label'
     }
 
     const childCell = new Cell(child.defaultLabel, childGeometry, childStyle)
@@ -171,6 +179,24 @@ export function addCellToGraph(graph: Graph, cell: Cell, element: DiagramElement
  * @param connection - Die DiagramConnection-Definition
  * @returns Das Style-Objekt für MaxGraph
  */
+export function createConnectionStyle(connection: DiagramConnection): CellStyle {
+  return {
+    shape: 'connector',
+    strokeColor: '#000000',
+    strokeWidth: 1,
+    strokeOpacity: 100,
+    startArrow: 'none',
+    endArrow: 'none',
+    startFill: true,
+    endFill: true,
+    align: 'center',
+    verticalAlign: 'middle',
+    fontColor: '#000000',
+    fontSize: 12,
+    ...connection.style
+  }
+}
+
 /**
  * Rendert eine Verbindungs-Vorschau im Graph (nur die Edge, mit Dummy-Knoten)
  *

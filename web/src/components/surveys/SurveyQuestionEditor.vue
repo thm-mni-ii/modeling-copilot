@@ -9,10 +9,12 @@
     <v-select :model-value="condition?.source" :items="conditionSources.map(question => ({ title: question.title, value: question.name }))" clearable label="Nur nach bestimmter Antwort anzeigen (optional)" variant="outlined" @update:model-value="setConditionSource" />
     <v-select v-if="condition" :model-value="condition.choice" :items="conditionSources.find(question => question.name === condition?.source)?.choices ?? []" label="Bei dieser Antwort anzeigen" variant="outlined" @update:model-value="setConditionChoice" />
     <v-select v-if="condition && conditionSources.find(question => question.name === condition?.source)?.type === 'radiogroup'" :model-value="condition.operator" :items="[{ title: 'Bei der gewählten Antwort', value: '=' }, { title: 'Bei jeder anderen beantworteten Auswahl', value: '!=' }]" label="Bedingung" variant="outlined" @update:model-value="setConditionOperator" />
+    <v-select v-if="condition && conditionSources.find(question => question.name === condition?.source)?.type === 'checkbox'" :model-value="condition.operator" :items="[{ title: 'Wenn ausgewählt', value: 'contains' }, { title: 'Wenn nicht ausgewählt', value: 'notcontains' }]" label="Bedingung" variant="outlined" @update:model-value="setConditionOperator" />
     <v-divider class="mb-5" />
     <p v-if="modelValue.type === 'comment'" class="text-body-2 text-medium-emphasis">Teilnehmende antworten in einem mehrzeiligen Textfeld.</p>
     <v-textarea v-if="['radiogroup', 'checkbox'].includes(modelValue.type)" :model-value="modelValue.choices?.join('\n')" variant="outlined" label="Antwortoptionen (eine pro Zeile)" :rules="[optionsRule]" @update:model-value="changeChoices" />
     <v-select v-if="modelValue.type === 'checkbox'" :model-value="modelValue.exclusiveChoices ?? []" :items="modelValue.choices ?? []" multiple chips variant="outlined" label="Exklusive Antworten (optional)" hint="Eine exklusive Antwort kann nicht zusammen mit anderen Optionen gewählt werden." persistent-hint class="mb-4" @update:model-value="patch({ exclusiveChoices: $event })" />
+    <v-select v-if="modelValue.type === 'ranking'" :model-value="modelValue.choicesFromQuestion" :items="rankingSources.map(question => ({ title: question.title, value: question.name }))" label="Optionen aus vorheriger Mehrfachauswahl" hint="Nur ausgewählte Optionen werden sortiert. Bei weniger als zwei Optionen entfällt die Sortierung." persistent-hint variant="outlined" @update:model-value="patch({ choicesFromQuestion: $event, choicesFromQuestionMode: 'selected' })" />
     <template v-if="modelValue.type === 'matrix'">
       <v-textarea :model-value="modelValue.rows?.join('\n')" variant="outlined" label="Aussagen (eine pro Zeile)" :rules="[optionsRule]" @update:model-value="patch({ rows: lines($event) })" />
       <v-textarea :model-value="modelValue.columns?.join('\n')" variant="outlined" label="Skalenoptionen (eine pro Zeile)" :rules="[optionsRule]" @update:model-value="patch({ columns: lines($event) })" />
@@ -35,13 +37,15 @@ const props = defineProps<{ modelValue: SurveyQuestion; pages?: SurveyPage[]; ea
 const emit = defineEmits<{ 'update:modelValue': [question: SurveyQuestion] }>()
 const lines = (v: string) => v.split('\n')
 const conditionSources = computed(() => (props.earlierQuestions ?? []).filter(question => ['radiogroup', 'checkbox'].includes(question.type)))
+const rankingSources = computed(() => (props.earlierQuestions ?? []).filter(question => question.type === 'checkbox'))
 const condition = computed(() => {
-  const match = props.modelValue.visibleIf?.match(/^\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} (=|!=|contains) '([^']+)'$/)
+  const match = props.modelValue.visibleIf?.match(/^\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} (=|!=|contains|notcontains) '([^']+)'$/)
   return match ? { source: match[1], operator: match[2], choice: match[3] } : null
 })
 function setCondition(source: string, choice: string, operator = '=') {
   const question = conditionSources.value.find(question => question.name === source)
-  patch({ visibleIf: question && choice ? `{${source}} ${question.type === 'checkbox' ? 'contains' : operator} '${choice}'` : undefined })
+  const validOperator = question?.type === 'checkbox' ? (operator === 'notcontains' ? operator : 'contains') : (operator === '!=' ? operator : '=')
+  patch({ visibleIf: question && choice ? `{${source}} ${validOperator} '${choice}'` : undefined })
 }
 function setConditionSource(source: string | null) {
   if (!source) return patch({ visibleIf: undefined })
@@ -74,6 +78,7 @@ function changeType(type: SurveyQuestion['type']) {
     type,
     ...(type === 'radiogroup' || type === 'checkbox' ? { choices: ['Option 1', 'Option 2'] } : {}),
     ...(type === 'rating' ? { rateMin: 1, rateMax: 5 } : {}),
+    ...(type === 'ranking' ? { choicesFromQuestion: rankingSources.value[0]?.name, choicesFromQuestionMode: 'selected' } : {}),
     ...(type === 'matrix' ? { rows: ['Aussage 1'], columns: ['Stimme nicht zu', 'Neutral', 'Stimme zu'], isAllRowRequired: isRequired } : {})
   })
 }

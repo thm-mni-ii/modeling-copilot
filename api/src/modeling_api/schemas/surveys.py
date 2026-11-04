@@ -14,7 +14,7 @@ from modeling_api.schemas.common import ApiSchema, JsonObject, Name
 class Question(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["comment", "radiogroup", "checkbox", "rating", "matrix"]
+    type: Literal["comment", "radiogroup", "checkbox", "rating", "matrix", "ranking"]
     name: str = Field(pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
     title: Name
     description: str | None = Field(default=None, max_length=2000)
@@ -25,6 +25,8 @@ class Question(BaseModel):
     choices: list[Name] | None = Field(default=None, max_length=100)
     exclusiveChoices: list[Name] | None = Field(default=None, max_length=100)
     choiceLabels: dict[str, Name] | None = None
+    choicesFromQuestion: str | None = Field(default=None, pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
+    choicesFromQuestionMode: Literal["selected"] | None = None
     rows: list[Name] | None = Field(default=None, max_length=100)
     columns: list[Name] | None = Field(default=None, max_length=100)
     isAllRowRequired: bool = False
@@ -35,6 +37,11 @@ class Question(BaseModel):
 
     @model_validator(mode="after")
     def valid_question(self):
+        if self.type == "ranking":
+            if not self.choicesFromQuestion or self.choicesFromQuestionMode != "selected" or self.choices:
+                raise ValueError("Rankings require selected choices from an earlier checkbox question.")
+        elif self.choicesFromQuestion is not None or self.choicesFromQuestionMode is not None:
+            raise ValueError("Dynamic choices are supported only for rankings.")
         if self.exclusiveChoices is not None and (
             self.type != "checkbox"
             or not self.choices
@@ -91,14 +98,18 @@ class Definition(BaseModel):
                 source = earlier.get(name)
                 if not source or source.type not in ("radiogroup", "checkbox") or choice not in source.choices:
                     raise ValueError("Visibility must reference an earlier choice question and one of its options.")
-                if (source.type == "checkbox") != question.visibleIf.partition("} ")[2].startswith("contains "):
+                if (source.type == "checkbox") != question.visibleIf.partition("} ")[2].startswith(("contains ", "notcontains ")):
                     raise ValueError("Checkbox conditions require contains; single-choice conditions require = or !=.")
+            if question.type == "ranking":
+                source = earlier.get(question.choicesFromQuestion)
+                if not source or source.type != "checkbox":
+                    raise ValueError("Rankings must reference an earlier checkbox question.")
             earlier[question.name] = question
         return self
 
 
 def visibility_condition(expression):
-    match = re.fullmatch(r"\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} (?:=|!=|contains) '([^']+)'", expression)
+    match = re.fullmatch(r"\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} (?:=|!=|contains|notcontains) '([^']+)'", expression)
     if not match:
         raise ValueError("Unsupported question visibility condition.")
     return match.groups()

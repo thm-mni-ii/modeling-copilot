@@ -80,12 +80,11 @@ async def save_template(body: SaveTemplate, user, template_id=None):
             task = await db.task.find_one(
                 {
                     "_id": str(step.task_version.task_id),
-                    "visibility": "published",
                     "archivedAt": None,
                 }
             )
             if not task:
-                raise conflict("Published paths require accessible, published tasks.")
+                raise conflict("Published paths require active tasks.")
     now = utcnow()
     template_id = str(template_id) if template_id else new_id()
     old = None

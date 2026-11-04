@@ -3,11 +3,12 @@
 from copy import deepcopy
 from hashlib import sha256
 import json
-from pathlib import Path
 from uuid import UUID, uuid5
 
 from modeling_api.db.client import db
 from modeling_api.db.store import utcnow
+from modeling_api.db.migrations.registry import BASELINE_ID
+from modeling_api.db.migrations.resources import load_data
 from modeling_api.schemas.surveys import Definition
 from modeling_api.services import surveys
 
@@ -19,8 +20,7 @@ PHASE_QUESTIONS = {
 
 
 def blueprint():
-    path = Path(__file__).parents[1] / "db" / "initial_data" / "help_questionnaires.json"
-    source = json.loads(path.read_text(encoding="utf-8"))
+    source = load_data(BASELINE_ID, "help_questionnaires.json")
     questions = {}
     for phase in ("reflection", "action"):
         for question in source[phase]["definition"]["elements"]:

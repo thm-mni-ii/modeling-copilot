@@ -3,16 +3,45 @@ import type { CellStyle } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
 import type { FeedbackCanvasRulesConfig } from '@/model/Feedback'
 import { applyConnectionAdditionalLabels, applyConnectionLabelOffset } from '@/utils/connectionLabelHelpers'
+import { createConnectionStyle } from '@/utils/elementFactory'
 import { getGraphValidationMode, setValidationPassActive, shouldBlockInteractiveValidation } from '@/utils/graphValidationRuntime'
 import { isTruthyFlag } from '@/utils/flagUtils'
+import { constraintStyle } from '@/utils/connectionPoints'
 
-class AnchorConstraintHandler extends ConstraintHandler {
+/** Distance in pixels within which an edge end is held on the outline with "Free on Outline". */
+const OUTLINE_SNAP_DISTANCE = 10
+
+/** Elements with "Free on Outline" (docking = 'outline'); otherwise edges snap to the nearest anchor point. */
+export const isOutlineDocking = (cell: Cell | null | undefined): boolean => (cell as any)?.docking === 'outline'
+
+/** Docking points for new edges (ConnectionHandler) and for reconnecting edge ends (EdgeHandler). */
+export class AnchorConstraintHandler extends ConstraintHandler {
+  // Target and reconnecting snap to the nearest anchor; with free docking only to directly hit ones
   override intersects(icon: ImageShape, rectangle: Rectangle, source: boolean, existingEdge: boolean): boolean {
-    return !source || existingEdge || mathUtils.intersects(icon.bounds!, rectangle)
+    const hit = mathUtils.intersects(icon.bounds!, rectangle)
+    return isOutlineDocking(this.currentFocus?.cell) ? hit : !source || existingEdge || hit
+  }
+
+  override update(me: InternalMouseEvent, source: boolean, existingEdge: boolean, point: Point | null): void {
+    super.update(me, source, existingEdge, point)
+    const focus = this.currentFocus
+    if (this.currentConstraint || !focus || !isOutlineDocking(focus.cell) || (source && !existingEdge)) return
+    // Free docking: near the outline the end stays fixed there, further inside it docks freely on the facing side
+    const mouse = new Point(me.getGraphX(), me.getGraphY())
+    const outlinePoint = this.graph.view.getPerimeterPoint(focus, mouse, false)
+    if (!outlinePoint || Math.hypot(outlinePoint.x - mouse.x, outlinePoint.y - mouse.y) > OUTLINE_SNAP_DISTANCE) return
+    this.currentConstraint = this.graph.getOutlineConstraint(outlinePoint, focus, me)
+    this.currentPoint = outlinePoint
+  }
+
+  // No anchor points on edges that must not be docked onto
+  override isStateIgnored(state: CellState): boolean {
+    return !this.graph.isValidSource(state.cell)
   }
 }
 
 export class CustomConnectionHandler extends ConnectionHandler {
+  private sourcePointChosen = false
   private selectedConnection: DiagramConnection | null = null
   private feedbackConnection: DiagramConnection | null = null
   private feedbackConnectionByElementId = new Map<string, DiagramConnection>()
@@ -68,12 +97,10 @@ export class CustomConnectionHandler extends ConnectionHandler {
     const roleFromStyle = style?.cellRole
     const roleFromCell = (cell as any).cellRole ?? (cell as any).canvasRole
     const connectionId = (cell as any).connectionId
-    const connectionType = (cell as any).connectionType
     const configuredFeedbackConnectionId = this.feedbackConnection?.type
-    const configuredFeedbackConnectionType = this.feedbackConnection?.connectionType ?? this.feedbackConnection?.type
-    const isConfiguredType = (connectionId && this.feedbackConnectionByType.has(connectionId)) || (connectionType && this.feedbackConnectionByType.has(connectionType))
+    const isConfiguredType = connectionId && this.feedbackConnectionByType.has(connectionId)
 
-    return roleFromStyle === 'feedback' || roleFromCell === 'feedback' || (configuredFeedbackConnectionId ? connectionId === configuredFeedbackConnectionId : false) || (configuredFeedbackConnectionType ? connectionType === configuredFeedbackConnectionType : false) || Boolean(isConfiguredType) || connectionId === '__feedback_note_link__' || connectionType === 'feedback-note'
+    return roleFromStyle === 'feedback' || roleFromCell === 'feedback' || (configuredFeedbackConnectionId ? connectionId === configuredFeedbackConnectionId : false) || Boolean(isConfiguredType) || connectionId === '__feedback_note_link__'
   }
 
   private isFeedbackEntity(cell: Cell | null): boolean {
@@ -107,34 +134,20 @@ export class CustomConnectionHandler extends ConnectionHandler {
     return this.selectedConnection
   }
 
-  private buildConnectionStyle(connection: DiagramConnection): CellStyle {
-    return {
-      shape: 'connector',
-      strokeColor: '#000000',
-      strokeWidth: 1,
-      strokeOpacity: 100,
-      startArrow: 'none',
-      endArrow: 'none',
-      startFill: true,
-      endFill: true,
-      align: 'center',
-      verticalAlign: 'middle',
-      fontColor: '#000000',
-      fontSize: 12,
-      ...connection.style
-    }
-  }
-
   protected override createConstraintHandler(): ConstraintHandler {
     return new AnchorConstraintHandler(this.graph)
   }
 
+  // Via the graph check, so edges that must not be docked onto are blocked in free mode too
   override isConnectableCell(cell: Cell): boolean {
-    return cell.isConnectable()
+    return this.graph.isValidSource(cell)
   }
 
   override updateEdgeState(pt: Point, constraint: ConnectionConstraint | null): void {
-    if (pt != null && this.previous != null) {
+    // Over the start element itself the start anchor stays, otherwise it falls back to the target anchor
+    // and maxGraph discards the loop (checkConstraints in ConnectionHandler.mouseUp)
+    const overSource = this.constraintHandler.currentFocus?.cell === this.previous?.cell
+    if (pt != null && this.previous != null && !overSource && !this.sourcePointChosen && !isOutlineDocking(this.previous.cell)) {
       const constraints = this.graph.getAllConnectionConstraints(this.previous, true)
       let nearestConstraint: ConnectionConstraint | null = null
       let bestDist: number | null = null
@@ -158,6 +171,7 @@ export class CustomConnectionHandler extends ConnectionHandler {
     }
 
     super.updateEdgeState(pt, constraint)
+    if (this.previous?.cell && this.constraintHandler.currentFocus?.cell) this.error = this.validateConnection(this.previous.cell, this.constraintHandler.currentFocus.cell)
   }
 
   setSelectedConnection(connection: DiagramConnection | null) {
@@ -179,10 +193,6 @@ export class CustomConnectionHandler extends ConnectionHandler {
 
       if (connection.type) {
         this.feedbackConnectionByType.set(connection.type, connection)
-      }
-      const semanticType = connection.connectionType ?? connection.type
-      if (semanticType) {
-        this.feedbackConnectionByType.set(semanticType, connection)
       }
     }
 
@@ -214,10 +224,12 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return new CellState(this.graph.view, edge, this.graph.getCellStyle(edge))
     }
 
-    const style = this.buildConnectionStyle(effectiveConnection)
+    const style = createConnectionStyle(effectiveConnection)
     const edge = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', null, null, style)
     ;(edge as any).connectionId = effectiveConnection.type
-    ;(edge as any).connectionType = effectiveConnection.connectionType ?? effectiveConnection.type
+    ;(edge as any).connectionUndirected = effectiveConnection.undirected === true
+    // ConnectionHandler.connect copies the geometry of this edge to the new one, hence the label offset here already
+    applyConnectionLabelOffset(edge, effectiveConnection.labelOffset)
 
     return new CellState(this.graph.view, edge, this.graph.getCellStyle(edge))
   }
@@ -259,12 +271,12 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return super.validateConnection(source, target)
     }
 
-    const style = this.buildConnectionStyle(effectiveConnection)
+    const style = { ...createConnectionStyle(effectiveConnection), ...constraintStyle(this.sourceConstraint, true), ...constraintStyle(this.constraintHandler.currentConstraint, false) }
     const probeEdge = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', source, target, style)
     probeEdge.setTerminal(source, true)
     probeEdge.setTerminal(target, false)
     ;(probeEdge as any).connectionId = effectiveConnection.type
-    ;(probeEdge as any).connectionType = effectiveConnection.connectionType ?? effectiveConnection.type
+    ;(probeEdge as any).connectionUndirected = effectiveConnection.undirected === true
 
     return this.graph.getEdgeValidationError(probeEdge, source, target)
   }
@@ -301,19 +313,23 @@ export class CustomConnectionHandler extends ConnectionHandler {
       return null as unknown as Cell
     }
 
+    // Without "Allow Loose Ends" no edge with an open end is created, in every mode
+    if (effectiveConnection?.allowLooseEnds === false && (!sourceCell || !targetCell)) {
+      return null as unknown as Cell
+    }
+
     if (effectiveConnection) {
       const connectionId = effectiveConnection.type
       const edgeLabel = effectiveConnection.defaultLabel ?? ''
-      const connectionStyle = this.buildConnectionStyle(effectiveConnection)
+      const connectionStyle = createConnectionStyle(effectiveConnection)
 
       const edge = super.insertEdge(parent, persistedId, edgeLabel, source, target, connectionStyle)
       if (edge) {
         edge.setConnectable(true)
         ;(edge as any).connectionId = connectionId
-        ;(edge as any).connectionType = effectiveConnection.connectionType ?? connectionId
+        ;(edge as any).connectionUndirected = effectiveConnection.undirected === true
         ;(edge as any).connectionStyle = connectionStyle
         ;(edge as any).connectionLabelOffset = effectiveConnection.labelOffset
-        ;(edge as any).connectionAdditionalLabels = effectiveConnection.additionalLabels
 
         applyConnectionLabelOffset(edge, effectiveConnection.labelOffset)
         applyConnectionAdditionalLabels(this.graph, edge, effectiveConnection)
@@ -336,6 +352,12 @@ export class CustomConnectionHandler extends ConnectionHandler {
 
   override mouseDown(sender: any, me: InternalMouseEvent): void {
     super.mouseDown(sender, me)
+    if (this.first) this.sourcePointChosen = Boolean(this.sourceConstraint?.name)
+  }
+
+  override reset(): void {
+    this.sourcePointChosen = false
+    super.reset()
   }
 
   override mouseUp(sender: any, me: InternalMouseEvent): void {

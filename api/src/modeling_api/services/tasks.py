@@ -10,6 +10,7 @@ from modeling_api.db.client import db
 from modeling_api.db.store import Document, insert, list_page, save_version, to_api, utcnow
 from modeling_api.schemas.tasks import CreateTask, CreateTaskVersion, UpdateTask
 from modeling_api.services.languages import check_language_refs
+from modeling_api.services.learning_path_access import accessible_task_releases
 from modeling_api.services import dagu
 
 
@@ -150,7 +151,13 @@ async def create_task(body: CreateTask, user: User) -> Document:
 
 async def get_task(task_id: UUID, user: User) -> Document:
     result = await db.task.find_one({"_id": str(task_id)})
-    if result is None or (not user.is_admin and result.get("visibility", "private") != "published"):
+    if result is None:
+        raise not_found()
+    if (
+        not user.is_admin
+        and result.get("visibility", "private") != "published"
+        and not await accessible_task_releases(task_id, user)
+    ):
         raise not_found()
     return to_api(result)
 
@@ -170,22 +177,33 @@ async def update_task(task_id: UUID, body: UpdateTask, user: User) -> Document:
 
 
 async def list_versions(task_id: UUID, skip: int, limit: int, user: User) -> Document:
-    await get_task(task_id, user)
+    task = await get_task(task_id, user)
     filters: Document = {"taskId": str(task_id)}
     if not user.is_admin:
         filters["kind"] = "release"
+        if task.get("visibility", "private") != "published":
+            filters["_id"] = {"$in": list(await accessible_task_releases(task_id, user))}
     return await list_page(
         db.task_version, filters, skip, limit, omit=("data",)
     )
 
 
 async def get_version(task_id: UUID, version_id: UUID, user: User) -> Document:
-    await get_task(task_id, user)
+    task = await get_task(task_id, user)
+    if (
+        not user.is_admin
+        and task.get("visibility", "private") != "published"
+        and str(version_id) not in await accessible_task_releases(task_id, user)
+    ):
+        raise not_found()
     version = await db.task_version.find_one(
         {"_id": str(version_id), "taskId": str(task_id)}
     )
     if version is None or (version.get("kind") != "release" and not user.is_admin):
         raise not_found()
+    from modeling_api.services.task_documents import task_document
+
+    version["data"]["contentDocument"] = version["data"].get("contentDocument") or task_document(version["data"].get("contentHtml", ""))
     return to_api(version)
 
 
@@ -320,6 +338,9 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
     await _validate_sample_solutions(body, user)
     await _validate_evaluation_workflows(body)
     fields = body.model_dump(mode="json", by_alias=True, exclude={"base_version_id"})
+    from modeling_api.services.task_documents import task_document
+
+    fields["data"]["contentDocument"] = task_document(body.data.content_html)
     result = await save_version(
         db.task,
         db.task_version,
@@ -339,7 +360,10 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
 
 async def ensure_release_reference(task_id: UUID, version_id: UUID, user: User | None = None) -> Document:
     if user is not None:
-        await get_task(task_id, user)
+        version = await get_version(task_id, version_id, user)
+        if version.get("kind") != "release":
+            raise not_found()
+        return version
     version = await db.task_version.find_one(
         {"_id": str(version_id), "taskId": str(task_id), "kind": "release"}
     )

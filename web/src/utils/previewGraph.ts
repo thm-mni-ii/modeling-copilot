@@ -1,10 +1,14 @@
-import { Graph, InternalEvent, Point } from '@maxgraph/core'
-import { protectHtmlLabels } from './htmlLabels'
+import { EdgeStyle, Graph, InternalEvent, Point } from '@maxgraph/core'
+import { enableLabelPadding, protectHtmlLabels } from './htmlLabels'
+
+const resizeObservers = new WeakMap<Graph, ResizeObserver>()
 
 export const createPreviewGraph = (container: HTMLDivElement): Graph => {
   container.innerHTML = ''
 
   const graph = new Graph(container)
+  // Same default edge routing as in the canvas (DrawingCanvas.vue)
+  graph.getStylesheet().getDefaultEdgeStyle().edgeStyle = EdgeStyle.OrthConnector
   graph.setEnabled(false)
   graph.setPanning(false)
   graph.setConnectable(false)
@@ -16,14 +20,27 @@ export const createPreviewGraph = (container: HTMLDivElement): Graph => {
   graph.setAllowDanglingEdges(false)
   graph.setHtmlLabels(true)
   protectHtmlLabels(graph)
+  enableLabelPadding(graph)
   graph.getView().updateStyle = false
   InternalEvent.disableContextMenu(container)
+
+  const observer = new ResizeObserver(() => fitPreviewGraph(graph))
+  observer.observe(container)
+  resizeObservers.set(graph, observer)
 
   return graph
 }
 
 export const fitPreviewGraph = (graph: Graph, padding = 8): void => {
   const container = graph.container
+  // Hidden tabs have no usable dimensions. Fit when the observer sees them become visible.
+  if (container.clientWidth === 0 || container.clientHeight === 0) return
+
+  const view = graph.getView()
+  // Measure without an existing transform so repeated fits do not accumulate scaling or rounding.
+  view.scale = 1
+  view.translate = new Point(0, 0)
+  graph.refresh()
   const bounds = graph.getGraphBounds()
 
   const availableWidth = Math.max(container.clientWidth - padding * 2, 1)
@@ -33,7 +50,6 @@ export const fitPreviewGraph = (graph: Graph, padding = 8): void => {
 
   const scale = Math.min(availableWidth / width, availableHeight / height, 1)
 
-  const view = graph.getView()
   view.scale = scale
 
   const dx = padding / scale - bounds.x + (availableWidth / scale - width) / 2
@@ -45,6 +61,8 @@ export const fitPreviewGraph = (graph: Graph, padding = 8): void => {
 
 export const destroyPreviewGraph = (graph: Graph | null): null => {
   if (graph) {
+    resizeObservers.get(graph)?.disconnect()
+    resizeObservers.delete(graph)
     graph.destroy()
   }
   return null
