@@ -20,13 +20,15 @@ const props = withDefaults(
   }
 )
 
-const previewCanvas = ref<{ loadPersistedModel: (data: JsonObject) => void } | null>(null)
+const previewCanvas = ref<{ graph?: { resetViewOnRootChange: boolean }; loadPersistedModel: (data: JsonObject) => void } | null>(null)
 
 watch(
   [() => props.data, previewCanvas],
   async ([data, canvas]) => {
     if (!data || !canvas) return
     await nextTick()
+    // Ansicht (Zoom und Verschiebung) beim Wechsel zwischen Patches behalten
+    if (canvas.graph) canvas.graph.resetViewOnRootChange = false
     canvas.loadPersistedModel(data)
   },
   { immediate: true }
