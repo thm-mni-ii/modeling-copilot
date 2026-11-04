@@ -41,7 +41,10 @@ class Task(Identity):
     )
     visibility: TaskVisibility = Field(
         default="private",
-        description="Whether the task is private to administrators or published.",
+        description=(
+            "Whether the task is listed publicly; private tasks may still be shared "
+            "through learning paths."
+        ),
     )
     archived_at: datetime | None = Field(
         default=None,
@@ -94,7 +97,7 @@ class TaskData(ApiSchema):
         description="Modeling assistance mode enforced for models created from the task.",
     )
     connection_preview_allowed: bool = Field(
-        default=True,
+        default=False,
         description="Whether participants may enable Connection Preview for this task.",
     )
     sample_solutions: list[ModelVersionReference] = Field(
@@ -116,7 +119,7 @@ class TaskVersionInfo(VersionInfo):
     kind: VersionKind = "release"
     release_name: Name | None = Field(
         default=None,
-        description="Required display name for releases.",
+        description="Optional display name for releases.",
     )
     description: str | None = Field(
         default=None,
@@ -145,7 +148,7 @@ class CreateTaskVersion(ApiSchema):
     kind: VersionKind = "checkpoint"
     release_name: Name | None = Field(
         default=None,
-        description="Required for releases and omitted for checkpoints.",
+        description="Optional for releases and omitted for checkpoints.",
     )
     description: str | None = Field(
         default=None,
@@ -161,8 +164,6 @@ class CreateTaskVersion(ApiSchema):
 
     @model_validator(mode="after")
     def valid_release_name(self) -> "CreateTaskVersion":
-        if self.kind == "release" and self.release_name is None:
-            raise ValueError("A release requires releaseName.")
         if self.kind == "checkpoint" and self.release_name is not None:
             raise ValueError("releaseName is only allowed for releases.")
         return self

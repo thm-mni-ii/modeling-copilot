@@ -14,7 +14,7 @@
         <v-spacer />
         <v-btn size="small" variant="text" prepend-icon="mdi-history" :disabled="!store.language" @click="openHistory">History</v-btn>
         <v-btn color="primary" size="small" prepend-icon="mdi-content-save" :loading="store.saving" :disabled="!store.isDirty || store.saving" @click="saveCheckpoint">Save</v-btn>
-        <v-btn size="small" variant="tonal" prepend-icon="mdi-bookmark-plus-outline" :disabled="!store.currentVersion || store.saving" @click="openReleaseDialog">Release version</v-btn>
+        <v-btn size="small" variant="tonal" prepend-icon="mdi-bookmark-plus-outline" :disabled="!store.currentVersion || store.saving || releaseSaving" @click="openReleaseDialog">Release version</v-btn>
       </div>
 
       <v-divider />
@@ -38,21 +38,7 @@
     </div>
   </v-container>
 
-  <v-dialog v-model="releaseDialog" max-width="520">
-    <v-card>
-      <v-card-title>Release version</v-card-title>
-      <v-card-text>
-        <v-text-field v-model="releaseName" label="Release name" variant="outlined" autofocus maxlength="256" counter class="mb-2" @keyup.enter="saveRelease" />
-        <v-textarea v-model="versionDescription" label="Description (optional)" variant="outlined" rows="3" maxlength="2000" counter />
-        <p class="text-caption text-medium-emphasis mb-0">Releases advance the major version. Checkpoints remain available under All Saves.</p>
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn variant="text" @click="releaseDialog = false">Cancel</v-btn>
-        <v-btn color="primary" :loading="store.saving" :disabled="!releaseName.trim() || store.saving" @click="saveRelease">Release</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+  <DialogReleaseVersion v-model="releaseDialog" subject="modeling language" :version-number="nextReleaseVersion" :busy="store.saving || releaseSaving" @confirm="saveRelease" />
 
   <v-dialog v-model="historyDialog" max-width="760">
     <v-card>
@@ -88,6 +74,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import ConnectionEditor from '@/components/modeling/editors/ConnectionEditor.vue'
 import DialogConfirm from '@/components/dialog/DialogConfirm.vue'
+import DialogReleaseVersion from '@/components/dialog/DialogReleaseVersion.vue'
 import ElementEditor from '@/components/modeling/editors/ElementEditor.vue'
 import FeedbackEditor from '@/components/modeling/editors/FeedbackEditor.vue'
 import GlobalSettingsEditor from '@/components/modeling/editors/GlobalSettingsEditor.vue'
@@ -97,6 +84,7 @@ import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 import languageService from '@/services/language/language.service'
 import type { LanguageVersionInfo } from '@/services/api/types/language'
 import { notifyError } from '@/composables/useNotifications'
+import { nextReleaseVersionNumber } from '@/utils/versions'
 
 const route = useRoute()
 const router = useRouter()
@@ -104,8 +92,8 @@ const store = useDiagramLanguages()
 const confirmDialog = ref<InstanceType<typeof DialogConfirm>>()
 const activeEditor = ref<'elements' | 'connections' | 'syntax' | 'feedback' | 'settings'>('elements')
 const releaseDialog = ref(false)
-const releaseName = ref('')
-const versionDescription = ref('')
+const nextReleaseVersion = ref('')
+const releaseSaving = ref(false)
 const historyDialog = ref(false)
 const historyTab = ref<'versions' | 'saves'>('versions')
 const historyLoading = ref(false)
@@ -160,13 +148,17 @@ const save = async (kind: 'checkpoint' | 'release', name?: string, description?:
 
 const saveCheckpoint = () => save('checkpoint')
 const openReleaseDialog = () => {
-  releaseName.value = ''
-  versionDescription.value = ''
+  nextReleaseVersion.value = nextReleaseVersionNumber(store.currentVersion?.versionNumber)
   releaseDialog.value = true
 }
-const saveRelease = async () => {
-  if (!releaseName.value.trim()) return
-  if (await save('release', releaseName.value, versionDescription.value)) releaseDialog.value = false
+const saveRelease = async (name: string) => {
+  if (store.saving || releaseSaving.value) return
+  releaseSaving.value = true
+  try {
+    if (await save('release', name)) releaseDialog.value = false
+  } finally {
+    releaseSaving.value = false
+  }
 }
 const openHistory = async () => {
   historyDialog.value = true

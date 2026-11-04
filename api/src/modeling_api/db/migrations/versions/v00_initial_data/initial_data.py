@@ -2,7 +2,8 @@
 
 Fixed identifiers keep references stable and prevent duplicate seed records.
 The initial modeling-language releases and the entry learning path are public
-by default. Example tasks and paths require explicit publication by an admin.
+by default. Tasks stay private in the catalog but remain accessible through
+published learning paths.
 Questionnaires have active releases for embedded use; their catalog remains
 admin-only.
 """
@@ -174,9 +175,7 @@ async def _seed_entry_learning_path(created_at):
         current = await db.learning_path_templates.find_one({"_id": ENTRY_LEARNING_PATH_ID})
         if current.get("entrySeedRevision", 0) >= 2:
             break
-        # The published course needs a readable source task, including for
-        # workspace loading. Other example tasks retain their private defaults.
-        await db.task.update_one({"_id": config["taskId"]}, {"$set": {"visibility": "published"}})
+        # The task stays private in the catalog and is readable through its path.
         step_ids = [step_id for step_id in current["stepIds"] if step_id != task_step_id]
         step_ids.insert(min(1, len(step_ids)), task_step_id)
         meta = template_meta(body, step_ids)
@@ -215,7 +214,6 @@ async def _seed_entry_learning_path(created_at):
         current = await db.learning_path_templates.find_one({"_id": ENTRY_LEARNING_PATH_ID})
         if current.get("entrySeedRevision", 0) >= 4:
             break
-        await db.task.update_one({"_id": config["sermTaskId"]}, {"$set": {"visibility": "published"}})
         step_ids = [step_id for step_id in current["stepIds"] if step_id not in (serm_step_id, attitudes_step_id)]
         position = step_ids.index(task_step_id) + 1
         step_ids[position:position] = [serm_step_id, attitudes_step_id]
@@ -369,4 +367,3 @@ async def _seed_survey(survey_id, version_id, title, definition, created_at, *, 
         },
         upsert=True,
     )
-

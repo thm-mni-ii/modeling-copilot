@@ -1,0 +1,352 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "document": "02_1_hausübung.pdf",
+    "title": "1. Hausübung: Datenmodellierung",
+    "semester": "Wintersemester 2026/2027",
+    "pages": [
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14
+    ]
+  },
+  "tasks": [
+    {
+      "id": "d7529b69-ef19-5f9b-8659-de55f730116d",
+      "name": "F1 – Einzelhandel",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "65fbec79-556f-5886-a571-2131e8dc9cbe",
+      "latestReleaseId": "65fbec79-556f-5886-a571-2131e8dc9cbe",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "65fbec79-556f-5886-a571-2131e8dc9cbe",
+        "taskId": "d7529b69-ef19-5f9b-8659-de55f730116d",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Fallstudie",
+        "description": "Fallstudie 1 aus der 1. Hausübung Datenmodellierung (Wintersemester 2026/2027).",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Fallstudie 1: Einzelhandel</h2><p>Die Einzelhandelskette „Nice-Price GmbH“ besitzt mehrere Filialen in Deutschland. Die Kette möchte mit einer zentralen Datenbank ihre Lieferanten, Artikel, Mitarbeiter und Filialen verwalten.</p><p>Die zu erfassenden Daten sind im Einzelnen:</p><p>Artikel haben eine Bezeichnung, Warengruppe (z.B. Milchprodukte, Tabakwaren), Marke, Verkaufsmengeneinheit und einen Verkaufspreis (Bruttopreis), der über die Zeit variieren kann.</p><p>Lieferanten liefern Artikel zu einem bestimmten Einkaufspreis an Filialen. Die Preise der Lieferanten für Produkte können voneinander abweichen und ebenfalls mit der Zeit variieren.</p><p>Zu einer Filiale soll die Adresse und ein Filialleiter erfasst werden. Die Nice-Price GmbH ordnet ihren Filialen bestimmten Kategorien zu: Mega-Store, Super-Mega-Store und Hyper-Super-Mega-Store. Diese unterscheiden sich in ihrer Verkaufsfläche.</p><p>Mitarbeiter werden mit Name, Adresse, Eintrittsdatum und Position erfasst.</p><p>Der wichtigste Vorgang in den Filialen ist das Verkaufen von Ware. Der Kassenbeleg listet den Kassierer, einen Zeitstempel und alle verkauften Artikel mit Bezeichnung, Netto- und Bruttopreis auf.</p><p>Die Buchhaltung weist darauf hin, dass in Deutschland für bestimmte Warengruppen unterschiedliche Mehrwertsteuersätze gelten. Diese müssen beim Scannen der Artikel anhand des Verkaufspreises ermittelt werden.</p><p>Die Geschäftsführung benötigt unbedingt folgende Unternehmensdaten:</p><ul><li>Jeden Monat erhält der schnellste Kassierer jeder Filiale, gemessen an Artikeln pro Stunde, einen Bonus. Wer ist es?</li><li>Welcher Artikel erzielte im letzten Monat den höchsten und welcher den niedrigsten Gewinn?</li><li>Wie hoch ist der aktuelle Bestand an Tabakwaren?</li><li>Welche Filiale verkauft am wenigsten Tomaten? (Zeige aber nur Filialen, die tatsächlich Tomaten verkauft haben.)</li><li>Finde für jede Kategorie die Anzahl der Stores heraus.</li></ul>",
+          "autonomyMode": "informative",
+          "connectionPreviewAllowed": false,
+          "sampleSolutions": [],
+          "evaluationWorkflows": []
+        }
+      }
+    },
+    {
+      "id": "aaa91ff7-6a07-5a01-80a8-067e0e5953e8",
+      "name": "F2 – Paketversand",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "4803b3ca-871a-5609-af19-7234dbf0017b",
+      "latestReleaseId": "4803b3ca-871a-5609-af19-7234dbf0017b",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "4803b3ca-871a-5609-af19-7234dbf0017b",
+        "taskId": "aaa91ff7-6a07-5a01-80a8-067e0e5953e8",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Fallstudie",
+        "description": "Fallstudie 2 aus der 1. Hausübung Datenmodellierung (Wintersemester 2026/2027).",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Fallstudie 2: Paketversand</h2><p>Der private, bundesweit tätige Paketversanddienst „Just Throw It Express“ plant für seine Website eine zentrale Datenbank, die Informationen über ihre Paketklassen, deren Preise, Annahme- und Abgabestellen anzeigen sowie Informationen zur Sendungsverfolgung bereitstellen soll.</p><p>Die zu erfassenden Daten im Einzelnen:</p><p>Eine Paketklasse definiert Maße und maximales Gewicht der Sendung und hat einen Preis. Der Preis ist online in der Regel etwas günstiger als im Shop.</p><p>Eine Sendung hat eine Paketklasse, Nummer, einen aktuellen Status, Empfänger und Absender.</p><p>Ein Zusteller stellt die Sendungen in einem bestimmten Bezirk zu. Intern werden sein Name und seine Kontaktdaten wie Adresse, Telefon, E-Mail erfasst.</p><p>Die Sendungsverfolgung soll den Weg einer Sendung von der Aufgabe (Filiale/Paketstation) über die passierten Paketzentren bis hin zu den Zustellversuchen abbilden. Dabei werden für jedes Paketzentrum die Adresse sowie die Zeitpunkte des Eintreffens und Verlassens erfasst. Zudem wird die Anzahl der Zustellversuche festgehalten, einschließlich des Zeitpunkts jedes Versuchs und des Namens des zuständigen Zustellers.</p><p>Das Unternehmen empfiehlt jedem Kunden dringend eine Paketversicherung. Einige Paketklassen haben diese inkludiert, andernfalls können sie dazu gebucht werden.</p><p>Sollte es zu Beschädigungen oder Verlusten kommen, müssen Inhalt und Wert der Sendung sowie der Empfänger erfasst werden. Die Art der Beschädigung wird einer Kategorie zugeordnet.</p><p>Das Unternehmen benötigt außerdem folgende Informationen:</p><ul><li>Welcher Zusteller hat die meisten unbeschädigten Pakete zugestellt?</li><li>Wie viele Sendungen pro Monat gehen verloren oder werden beschädigt?</li><li>Welche Pakete hatten die längste und die kürzeste Laufzeit von der Aufgabe bis zur Zustellung?</li><li>Welche Paketklasse generiert die höchsten Gesamteinnahmen (unter Berücksichtigung von Online- und Shop-Preisen)?</li><li>Welche Paketzentren haben die schnellste Durchlaufzeit?</li></ul>",
+          "autonomyMode": "informative",
+          "connectionPreviewAllowed": false,
+          "sampleSolutions": [],
+          "evaluationWorkflows": []
+        }
+      }
+    },
+    {
+      "id": "c84e6541-083e-5954-b86b-0600b0538c5a",
+      "name": "F3 – Mühle",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "d4771f3c-4d7c-583e-8e84-86a87185f202",
+      "latestReleaseId": "d4771f3c-4d7c-583e-8e84-86a87185f202",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "d4771f3c-4d7c-583e-8e84-86a87185f202",
+        "taskId": "c84e6541-083e-5954-b86b-0600b0538c5a",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Fallstudie",
+        "description": "Fallstudie 3 aus der 1. Hausübung Datenmodellierung (Wintersemester 2026/2027).",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Fallstudie 3: Mühle</h2><p>Die Stumpfmühle in Buseck kauft Getreide von Landwirten, vermahlt dieses zu verschiedenen Mehlen und verkauft diese an Supermärkte in der Umgebung, Bäcker und Privatkunden – online oder im eigenen Laden. Für ein Warenwirtschaftssystem soll ein Datenmodell entworfen werden.</p><p>Die relevanten Daten im Einzelnen sind:</p><p>Zuliefernde Landwirte mit Hofname, Adresse und angebauten Getreidearten. Lieferungen von Landwirten. Dazu gehören alle gelieferten Getreide, deren Menge und das Lieferdatum. Das gelieferte Getreide wird in einem Silo gelagert. Die verschiedenen Mehle und Schrote der Mühle wie z.B. Roggen Type 997, Emmer Vollkorn, Weizenschrot etc. Verkäufe an Privat- oder Geschäftskunden mit Produkten, Mengen, Chargennummern, Rechnungsnummer und Versandart (Abholung, Lieferung, Versand). Der aktuelle Bestand von Getreiden und Mehl (inkl. Chargennummer) in einem Lager. Jeden Tag wird Getreide zu verschiedenen Produkten vermahlen. Die Kombination aus Endprodukt und Mahldatum erhält ein Mindesthaltbarkeitsdatum und eine eindeutige Chargennummer zur Nachverfolgung. Die Menge des verbrauchten Getreides sowie die Menge des Endprodukts muss ebenfalls erfasst werden.</p><p>Denken Sie daran, dass lediglich die Daten und nicht die Prozesse erfasst werden sollen!</p><p>Zweimal pro Woche werden alle anstehenden Auslieferungen durchgeführt. Dazu müssen die Verkäufe einer Tour zugeordnet werden. Jeder Tour ist ein Lieferdatum, ein Lieferplan und ein Fahrer zugeordnet.</p><p>Folgende Informationen müssen den Daten entnehmbar sein:</p><ul><li>Wie viele Tonnen Weizenmehl Type 405 wurden im März 2022 verkauft?</li><li>Welcher Landwirt hat 2021 am meisten Dinkel geliefert?</li><li>Wie viel Roggenmehl Type 1150 ist derzeit auf Lager?</li><li>In Charge 20220425WZ550 wurden Mehlwürmer entdeckt. Wie viel Mehl wurde hiervon bereits verkauft?</li><li>Von welchen Produkten wurde 2023 am meisten verkauft?</li></ul>",
+          "autonomyMode": "informative",
+          "connectionPreviewAllowed": false,
+          "sampleSolutions": [],
+          "evaluationWorkflows": []
+        }
+      }
+    },
+    {
+      "id": "7ae67cda-174f-5288-b87b-88ad072a1d07",
+      "name": "F4 – Ticketverkauf",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "dc126252-46df-5b05-8071-11fad2578e3b",
+      "latestReleaseId": "dc126252-46df-5b05-8071-11fad2578e3b",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "dc126252-46df-5b05-8071-11fad2578e3b",
+        "taskId": "7ae67cda-174f-5288-b87b-88ad072a1d07",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Fallstudie",
+        "description": "Fallstudie 4 aus der 1. Hausübung Datenmodellierung (Wintersemester 2026/2027).",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Fallstudie 4: Ticketverkauf</h2><p>Ein bekanntes Ticketbuchungsportal benötigt eine Datenbank, um seine Ticketverkäufe, Künstler (zur Vereinfachung: Einzelpersonen) und Veranstaltungen zu verwalten.</p><p>Folgende Daten sollen abrufbar sein:</p><p>Künstler, deren Tickets auf der Website gelistet sind, werden mit einer Rubrik (Musik, Comedy, Darstellende Kunst, Sport, etc.), einem Genre (Rock, Kabarett, Artistik, Eishockey, …), Gründungsjahr, Beschreibung usw. aufgeführt. Die Rubrik beschreibt dabei das übergeordnete Feld der Darbietung, während das Genre eine spezifische Ausprägung innerhalb der Rubrik darstellt.</p><p>Aktuelle Veranstaltungen mit Datum, inklusive Veranstaltungsort mit Informationen wie durchschnittlicher Kapazität, Art, Baujahr.</p><p>Verfügbare Ticketkategorien zu einer Veranstaltung mit Platzart (Sitz-/Stehplatz), Preis und Gesamtmenge. Sitzplatznummern werden derzeit nicht zugewiesen.</p><p>Kunden (Name, Adresse, E-Mail usw.) und ihre Ticketkäufe mit Gesamtpreis und Zusätzen.</p><p>Das Portal erhebt allerlei Gebühren zum Ticketverkauf: eine pauschale Bearbeitungsgebühr, Versandkosten (falls nicht Print@Home), optionale Ticketversicherung usw. Da die Ticket-PDFs von besonderer Qualität und handgemalt sind, wird außerdem ein Print@Home-Zuschlag erhoben.</p><p>Einige Veranstaltungen bieten Zusatzpakete zum Ticket an (z. B. ein T-Shirt, Backstagepass, Meet ‚n‘ Greet o. Ä.).</p><p>Die Aktionäre interessieren sich für folgende Informationen:</p><ul><li>Wie hoch ist der gesamte Ertrag durch Print@Home-Gebühren?</li><li>Für welchen Künstler wurden die meisten Backstagepässe verkauft?</li><li>Wie viele Künstler zählt die Rubrik „Influencer“?</li><li>In welchem Monat finden die meisten Rockkonzerte (Veranstaltung der Rubrik Musik mit Genre Rock) statt?</li><li>Wie hoch ist die Anzahl der Veranstaltungen, die Anzahl der verkauften Eintrittskarten und die Gesamteinnahmen pro Jahr durch Influencer?</li></ul>",
+          "autonomyMode": "informative",
+          "connectionPreviewAllowed": false,
+          "sampleSolutions": [],
+          "evaluationWorkflows": []
+        }
+      }
+    },
+    {
+      "id": "eb4c0e70-869b-59ee-b6b8-62116989a6a0",
+      "name": "F5 – Pflegedienst",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "4fff86b9-0870-58d2-8fdd-0ccb779ba0cf",
+      "latestReleaseId": "4fff86b9-0870-58d2-8fdd-0ccb779ba0cf",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "4fff86b9-0870-58d2-8fdd-0ccb779ba0cf",
+        "taskId": "eb4c0e70-869b-59ee-b6b8-62116989a6a0",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Fallstudie",
+        "description": "Fallstudie 5 aus der 1. Hausübung Datenmodellierung (Wintersemester 2026/2027).",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Fallstudie 5: Pflegedienst</h2><p>Die neu gegründete Pflegegesellschaft „Gute Betreuung“ benötigt für die effiziente Abwicklung der Pflegeleistungen eine Software.</p><p>Durch die Software sollen folgende grundlegende Probleme gelöst werden:</p><p>Verwaltung des Pflegepersonals, der Patienten und der Angehörigen / Ansprechpartner. Speicherung eines Pflegekatalogs, der alle Pflegeleistungen mit Beschreibung, Kurzbeschreibung (6 Zeichen), Preis und Durchführungsdauer (in Minuten) enthält, die von dem Unternehmen angeboten werden. Erfassung eines Pflegeeinsatzes mit Leistungen des Katalogs, Mitarbeiter, Patient, Datum, Uhrzeit etc. Monatliche Abrechnung der Pflegeleistungen gegenüber den Krankenkassen bzw. Versicherungen der Patienten.</p><p>Die Mitarbeiter fahren täglich mit einem Firmenfahrzeug eine Tour ab, auf welcher sie zu mehreren Patienten kommen. Diese Tourenplanung soll nun in der Software durchgeführt werden.</p><p>Patienten können ihre Pfleger regelmäßig mit einem standardisierten Fragebogen evaluieren. Die Ergebnisse sollen gespeichert werden.</p><p>Die Pflegeleitung interessiert sich besonders für folgende Informationen:</p><ul><li>Welche Pfleger haben im letzten Monat die meisten Pflegeleistungen erbracht?</li><li>In welcher Kategorie werden die Mitarbeiter von ihren Patienten besonders schlecht bewertet?</li><li>Wie lange dauert ein Pflegeeinsatz durchschnittlich und wie viel kostet er?</li><li>Wie oft weicht die geplante Pflegezeit von der tatsächlichen Pflegezeit ab?</li><li>Welche Patienten haben im letzten Monat die meisten Pflegeleistungen in Anspruch genommen?</li></ul>",
+          "autonomyMode": "informative",
+          "connectionPreviewAllowed": false,
+          "sampleSolutions": [],
+          "evaluationWorkflows": []
+        }
+      }
+    },
+    {
+      "id": "18caf141-f4ed-50dc-9833-3ed97a335e29",
+      "name": "F6 – Bauunternehmen",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "5c88f6c2-18bc-51c2-935d-0d6b74150ccb",
+      "latestReleaseId": "5c88f6c2-18bc-51c2-935d-0d6b74150ccb",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "5c88f6c2-18bc-51c2-935d-0d6b74150ccb",
+        "taskId": "18caf141-f4ed-50dc-9833-3ed97a335e29",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Fallstudie",
+        "description": "Fallstudie 6 aus der 1. Hausübung Datenmodellierung (Wintersemester 2026/2027).",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Fallstudie 6: Bauunternehmen</h2><p>Ein interstellares Bauunternehmen baut eine riesige Raumstation in Form eines Mondes. Eine Lagerhaltung ist nicht nötig; das Material wird just-in-time geliefert.</p><p>Folgende Daten sollen erfasst werden:</p><p>Das große Projekt der Raumstation soll in Teilprojekte (z.B. Abluftschacht) aufgeteilt werden. Diese haben jeweils einen eigenen Materialbedarf, eine Arbeitsstundenschätzung, Budget und zugewiesene Mitarbeiter.</p><p>Mitarbeiter mit Wochenarbeitsstunden, Anstellungsart (Vollzeit, Teilzeit, Werkstudent), Name, Adresse, Position (Wachposten, Arbeiter, Supervisor), etc. Lieferanten für Baumaterial, Lieferungen mit Material, Mengen, Preisen und zugehörigem Projekt.</p><p>Falls Unfälle mit möglicherweise katastrophalem Ausgang passieren, sollen diese mit zugehörigem Teilprojekt, beteiligten Mitarbeitern und deren Folgen (z.B. Verletzungen oder Sachschäden) erfasst werden. Auch der zuständige Supervisor muss angegeben sein.</p><p>Mitarbeiter tragen ihre tatsächlich erbrachte Arbeitszeit pro Teilprojekt jeden Tag in eine Tabelle ein. Hierüber wird der Projektfortschritt ermittelt.</p><p>Der Bauherr interessiert sich besonders für folgende Informationen:</p><ul><li>Wann wird die Raumstation voraussichtlich fertiggestellt sein? (Errechenbar über bisherige Arbeitszeit pro Woche und Restzeit der Projekte)</li><li>Welche Teilprojekte haben ihr Budget überschritten?</li><li>Welches Baumaterial wird besonders oft benötigt?</li><li>Wie viele Teilprojekte sind abgeschlossen?</li><li>Unter welchem Supervisor sind im letzten Jahr die meisten Unfälle passiert?</li></ul>",
+          "autonomyMode": "informative",
+          "connectionPreviewAllowed": false,
+          "sampleSolutions": [],
+          "evaluationWorkflows": []
+        }
+      }
+    },
+    {
+      "id": "3ff5b771-c368-52e5-93bc-caeed347080b",
+      "name": "F7 – Messeverwaltung",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "cfe5b56f-01c5-51b1-aa51-30dffe806497",
+      "latestReleaseId": "cfe5b56f-01c5-51b1-aa51-30dffe806497",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "cfe5b56f-01c5-51b1-aa51-30dffe806497",
+        "taskId": "3ff5b771-c368-52e5-93bc-caeed347080b",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Fallstudie",
+        "description": "Fallstudie 7 aus der 1. Hausübung Datenmodellierung (Wintersemester 2026/2027).",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Fallstudie 7: Messeverwaltung</h2><p>Die Stadt führt ein neues System zur Verwaltung des großen Messegeländes ein. Das Messegelände besteht aus verschiedenen Flächen, darunter Messehallen und Außenbereiche, die für unterschiedliche Messen genutzt werden können. Diese Flächen variieren in Größe und Ausstattung und müssen für die Veranstaltungen effizient zugeordnet werden.</p><p>Das Messegelände wird für Messen genutzt, die zu bestimmten Zeiträumen (von–bis) stattfinden. Für jede Messe werden entsprechende Flächen (Messehallen und/oder Außenbereiche) im jeweiligen Veranstaltungszeitraum vorgesehen. Jede Messe hat einen Veranstalter, ein Thema, einen Veranstaltungszeitraum, Öffnungszeiten, Eintrittspreise und eine erwartete Besucherzahl, die sowohl für die Organisation als auch für Werbezwecke der Stadt auf der Internetseite veröffentlicht werden können, um den Standort attraktiv zu präsentieren.</p><p>Die Messehallen unterscheiden sich in ihrer Größe (Höhe, Breite, Länge), der maximalen Anzahl der Besucher, die hineinpassen, sowie in ihrer Grundausstattung (z.B. Deckenaufhängung, Wasseranschlüsse, Beleuchtung etc.). Für die Dauer der Messe kann jede Halle ein oder mehrere Themen haben, die der Veranstalter festlegt (z.B. Motorsport, PKW, Baumaschinen). Ebenso kann die Halle für die Dauer der Messe in Sektoren unterteilt werden, die jeweils einem Aussteller zugeordnet werden.</p><p>Aussteller betreiben Stände auf der Messe und müssen die Größe ihres Standes, das zugehörige Thema sowie die benötigte Ausstattung angeben, wie z.B. Strom- oder Wasseranschlüsse, Tische, Stühle. Jeder Aussteller wird mit seinen Kontaktdaten erfasst, ebenso wie die Anzahl der Stände, die er auf der Messe betreibt.</p><p>Falls es zu Problemen wie technischen Ausfällen oder Beschwerden kommt, müssen diese in Verbindung mit dem betroffenen Stand, dem Aussteller und den ergriffenen Maßnahmen dokumentiert werden.</p><p>Zusätzlich interessiert sich der Veranstalter für folgende Informationen:</p><ul><li>Welche Aussteller hatten 2024 den größten und den kleinsten Stand?</li><li>Welcher Aussteller hatte 2024 Stände zu verschiedenen Themen auf der gleichen Messe?</li><li>Welche Messehallen sind am häufigsten ausgebucht?</li><li>Wie viele Stände hatten auf der Green Energy Messe 2023 einen Wasseranschluss?</li><li>Welche Probleme traten 2023 am häufigsten auf?</li></ul>",
+          "autonomyMode": "informative",
+          "connectionPreviewAllowed": false,
+          "sampleSolutions": [],
+          "evaluationWorkflows": []
+        }
+      }
+    },
+    {
+      "id": "a4f25c42-4eaa-5ce1-be6c-2540732ac891",
+      "name": "F8 – Hundeschule",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "ad67b7ba-7b1a-51dd-9888-64cd4d33ddb4",
+      "latestReleaseId": "ad67b7ba-7b1a-51dd-9888-64cd4d33ddb4",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "ad67b7ba-7b1a-51dd-9888-64cd4d33ddb4",
+        "taskId": "a4f25c42-4eaa-5ce1-be6c-2540732ac891",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Fallstudie",
+        "description": "Fallstudie 8 aus der 1. Hausübung Datenmodellierung (Wintersemester 2026/2027).",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Fallstudie 8: Hundeschule</h2><p>Die örtliche Hundeschule „Babybell“ möchte für seine Kurse und Veranstaltungen eine zentrale Datenbank einführen.</p><p>Die abzubildenden Sachverhalte sind:</p><p>Besitzer melden sich mit ihren Hunden an. Für die Hunde wird mindestens Name, Rasse und Geschlecht erfasst.</p><p>Die Hundeschule bietet Kurse (z.B. Grundkurs streicheln lassen) an. Kurse werden regelmäßig angeboten und finden teilweise an mehreren Terminen statt. Hierzu können die Besitzer ihre Hunde anmelden.</p><p>Einem angebotenen und geplanten Kurs ist jeweils ein Trainer zugeordnet.</p><p>Für abgeschlossene Kurse erhalten Hunde ein Zertifikat wie z.B. den Bachelor of Barks. Diese können Voraussetzungen für weiterführende Kurse sein.</p><p>Im Winter organisiert die Schule jedes Jahr ein Schlittenhunderennen mit verschiedenen Disziplinen, wie zum Beispiel Sprint, Langstrecke und Slalom. Für jede Disziplin können mehrere Hunderudel angemeldet werden. Jede Disziplin besteht aus mehreren Durchläufen, darunter Qualifikationsrunden und das abschließende Hauptrennen.</p><p>Für jeden Durchlauf werden die Start- und Endzeiten der Rudel erfasst und ausgewertet. Für jede Disziplin werden nur die 10 besten Rudel aus den Qualifikationsrunden qualifiziert.</p><p>Für die Öffentlichkeitsarbeit werden immer wieder folgende Informationen benötigt:</p><ul><li>Zu welchem Kurs sind durchschnittlich die meisten Doggen angemeldet?</li><li>Welcher Hund hat die meisten Zertifikate gesammelt?</li><li>Wer ist der Hundebesitzer mit den meisten Rassen?</li><li>Welches Rudel hält derzeit den Rundenrekord in der jeweiligen Disziplin?</li><li>Welcher Hundetrainer hat 2023 die meisten Kurse angeboten bzw. durchgeführt?</li></ul>",
+          "autonomyMode": "informative",
+          "connectionPreviewAllowed": false,
+          "sampleSolutions": [],
+          "evaluationWorkflows": []
+        }
+      }
+    },
+    {
+      "id": "18d524b9-8da7-5efa-a8a2-bcc5dcf0d8ba",
+      "name": "F9 – Escaperoom",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "025dadaa-66ff-570b-b19a-77d1d4a45292",
+      "latestReleaseId": "025dadaa-66ff-570b-b19a-77d1d4a45292",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "025dadaa-66ff-570b-b19a-77d1d4a45292",
+        "taskId": "18d524b9-8da7-5efa-a8a2-bcc5dcf0d8ba",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Fallstudie",
+        "description": "Fallstudie 9 aus der 1. Hausübung Datenmodellierung (Wintersemester 2026/2027).",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Fallstudie 9: Escaperoom</h2><p>Der Escaperoom „Komm rein, kannst’e raus finden“ möchte expandieren und benötigt dazu eine verbesserte Verwaltung seiner Standorte, Missionen und Kunden. Das Unternehmen betreibt mehrere Standorte und bietet eine Vielzahl an Missionen an, die auf die Bedürfnisse der Kunden abgestimmt werden müssen. Folgende Daten sollen erfasst werden:</p><p>Das Unternehmen hat mehrere Standorte, an denen unterschiedliche Missionen angeboten werden können. Diese Standorte variieren in ihrer Größe und Ausstattung, einige davon verfügen über spezielle VR-Escape Rooms. Jede Mission hat einen Schwierigkeitsgrad (z.B. leicht, mittel, schwer, extrem), eine Altersempfehlung, eine empfohlene Gruppengröße und ein Setting (z.B. Krimi, Horror, Mystery).</p><p>Eine Mission kann an einem oder mehreren Standorten über einen längeren Zeitraum (z.B. April–August) angeboten werden. Für jede Mission muss an dem jeweiligen Standort ein passender Raum eingerichtet werden, der die spezifischen Anforderungen der Mission erfüllt (Größe, Ausstattung, etc.). An bestimmten Standorten gibt es VR-Escape Rooms, in denen rund um die Uhr mehrere unterschiedliche Missionen digital angeboten werden können. Diese Räume bieten durch virtuelle Realität eine zusätzliche Dimension der Missionen und erfordern spezielle Ausstattungen. Es gibt außerdem besondere Missionen, die nur zu bestimmten Events (z.B. Weihnachts- oder Halloween-Missionen) verfügbar sind. Diese sind zeitlich begrenzt und erfordern oft spezielle Vorbereitungen in den entsprechenden Räumen.</p><p>Jede Besuchergruppe wird mit den Daten der Teilnehmer erfasst, wie Name, Alter, Geschlecht und Kontaktdaten. Der Anlass des Besuchs (Geburtstagsfeier, Team-Building, Klassenfahrt, etc.) wird ebenfalls dokumentiert, um Rückschlüsse auf die Nutzung der Escape Rooms zu ziehen. Die Zeit, die eine Gruppe benötigt, um eine Mission zu lösen, wird erfasst, und die Bestzeiten werden in einer Rangliste angezeigt. Der Eintrittspreis (pro Person) für die Missionen variiert je nach Standort, Mission und Gruppengröße.</p><p>Falls es technische Probleme in den VR-Räumen oder Beschwerden gibt, müssen diese in Verbindung mit der betroffenen Mission und der Gruppe dokumentiert werden.</p><ul><li>Welche Gruppe hat die Bestzeit für die diesjährige Weihnachtsmission?</li><li>Gibt es einen Gast, dessen Gruppen in mehreren Missionen die Bestzeit haben?</li><li>Finde für jeden Standort heraus, welche Mission am häufigsten gebucht wurde.</li><li>Wie hoch ist der Anteil (%) der Einnahmen durch VR-Räume an den Gesamteinnahmen?</li></ul>",
+          "autonomyMode": "informative",
+          "connectionPreviewAllowed": false,
+          "sampleSolutions": [],
+          "evaluationWorkflows": []
+        }
+      }
+    },
+    {
+      "id": "a8e50a63-f8a2-5d8f-aa60-f8d8aa3dba82",
+      "name": "F10 – Abfallwirtschaft",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "bde1b4a1-74c4-50bc-94d2-ab0e82109fd3",
+      "latestReleaseId": "bde1b4a1-74c4-50bc-94d2-ab0e82109fd3",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "bde1b4a1-74c4-50bc-94d2-ab0e82109fd3",
+        "taskId": "a8e50a63-f8a2-5d8f-aa60-f8d8aa3dba82",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Fallstudie",
+        "description": "Fallstudie 10 aus der 1. Hausübung Datenmodellierung (Wintersemester 2026/2027).",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Fallstudie 10: Abfallwirtschaft</h2><p>Zur besseren Verwaltung des Müllaufkommens einer Stadt soll eine Datenbank erstellt werden. Achten Sie bei der Erstellung insbesondere auf die Erfassung von Daten und nicht auf die Abbildung der Prozesse.</p><p>Die Abläufe sind wie folgt:</p><p>Jeder Haushalt erhält Mülltonnen und Container verschiedener Arten (Rest, Bio, Papier, Wertstoffe) mit einem eindeutigen Code. Diese haben festgelegte Größen (in Liter) und können in verschiedenen Intervallen (alle 2 Wochen, alle 4 Wochen, …) geleert werden. Die Kosten variieren je nach Größe und Leerungshäufigkeit. Wertstofftonnen sind zwar kostenlos, müssen jedoch ebenfalls erfasst werden. Jeder Haushalt kann 2× pro Jahr kostenlos eine Sperrmüllabholung beantragen. Weitere Abholungen sind kostenpflichtig. Auch sollen die Abfalltransportwagen mit Kennzeichen und Art (Container, Tonne, Sperrmüll) erfasst werden. Für die Einsatzplanung ist es wichtig, die Bezirke, die Mitarbeiter sowie die Abfallart und die Fahrzeuge einer Fahrt zuordnen zu können.</p><p>Zur besseren Planung sind diese Informationen gesucht:</p><ul><li>Welcher Haushalt hat die höchsten Ausgaben für Abfallentsorgung insgesamt?</li><li>In welchem Bezirk wird pro Monat das größte Volumen Müll in Tonnen oder Containern geleert?</li><li>Welcher Haushalt hat die meisten Behälter?</li><li>Welche Müllart wurde im letzten Jahr am häufigsten geleert?</li><li>In welchen Bezirken gibt es keine Container?</li></ul>",
+          "autonomyMode": "informative",
+          "connectionPreviewAllowed": false,
+          "sampleSolutions": [],
+          "evaluationWorkflows": []
+        }
+      }
+    }
+  ]
+}

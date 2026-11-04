@@ -8,8 +8,19 @@ client = AsyncMongoClient(settings.mongodb_uri, tz_aware=True)
 db = client[settings.mongodb_database]
 
 
+async def create_activity_indexes() -> None:
+    """Indexes shared by startup and the activity migration."""
+    await db.model_activity_sessions.create_index(
+        [("modelId", ASCENDING), ("createdAt", DESCENDING), ("_id", DESCENDING)]
+    )
+    await db.model_activity_interactions.create_index(
+        [("sessionId", ASCENDING), ("createdAt", ASCENDING), ("_id", DESCENDING)]
+    )
+
+
 async def create_indexes() -> None:
     """Create indexes required by API query patterns."""
+    await create_activity_indexes()
     await db.surveys.create_index([("deletedAt", ASCENDING), ("createdAt", DESCENDING)])
     await db.survey_versions.create_index(
         [("surveyId", ASCENDING), ("version", DESCENDING)], unique=True

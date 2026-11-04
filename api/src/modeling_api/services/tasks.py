@@ -5,10 +5,10 @@ from re import escape
 from uuid import UUID
 
 from modeling_api.core.auth import User
-from modeling_api.core.errors import ApiError, not_found
+from modeling_api.core.errors import ApiError, conflict, not_found
 from modeling_api.db.client import db
-from modeling_api.db.store import Document, insert, list_page, save_version, to_api, utcnow
-from modeling_api.schemas.tasks import CreateTask, CreateTaskVersion, UpdateTask
+from modeling_api.db.store import Document, insert, list_page, save_version, sort_stages, to_api, utcnow
+from modeling_api.schemas.tasks import CreateTask, CreateTaskVersion, TaskData, UpdateTask
 from modeling_api.services.languages import check_language_refs
 from modeling_api.services.learning_path_access import accessible_task_releases
 from modeling_api.services import dagu
@@ -73,7 +73,7 @@ async def list_tasks(
     cursor = await db.task.aggregate(
         [
             {"$match": filters},
-            {"$sort": {"name": 1, "_id": 1}},
+            *sort_stages("name", descending=False, identifier_desc=False),
             {"$skip": skip},
             {"$limit": limit},
             {
@@ -308,9 +308,32 @@ async def _validate_evaluation_workflows(body: CreateTaskVersion) -> None:
         raise ApiError(422, "UNKNOWN_EVALUATION_WORKFLOW", "A selected workflow is no longer available in Dagu.")
 
 
+def _version_content(version: Document) -> Document:
+    from modeling_api.services.task_documents import task_document
+
+    data = TaskData.model_validate(version["data"])
+    return {
+        "workspaceLanguages": version.get("workspaceLanguages", []),
+        "data": {
+            **data.model_dump(mode="json", by_alias=True, exclude={"content_html", "content_document"}),
+            "contentDocument": task_document(data.content_html),
+        },
+    }
+
+
 async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> Document:
     _require_admin(user)
-    await get_task(task_id, user)
+    task = await get_task(task_id, user)
+    if task["latestVersionId"] != (str(body.base_version_id) if body.base_version_id else None):
+        raise conflict()
+    fields = body.model_dump(mode="json", by_alias=True, exclude={"base_version_id"})
+    content = _version_content(fields)
+    comparison_id = task.get("latestReleaseId") if body.kind == "release" else task["latestVersionId"]
+    if comparison_id:
+        previous = await db.task_version.find_one({"_id": comparison_id, "taskId": str(task_id)})
+        if previous is not None and _version_content(previous) == content:
+            reference = "release" if body.kind == "release" else "saved version"
+            raise ApiError(409, "NO_TASK_CHANGES", f"No task content has changed since the last {reference}.")
     language_ids = [str(reference.language_id) for reference in body.workspace_languages]
     if len(language_ids) != len(set(language_ids)):
         raise ApiError(
@@ -337,10 +360,7 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
     await _validate_task_references(body)
     await _validate_sample_solutions(body, user)
     await _validate_evaluation_workflows(body)
-    fields = body.model_dump(mode="json", by_alias=True, exclude={"base_version_id"})
-    from modeling_api.services.task_documents import task_document
-
-    fields["data"]["contentDocument"] = task_document(body.data.content_html)
+    fields["data"]["contentDocument"] = content["data"]["contentDocument"]
     result = await save_version(
         db.task,
         db.task_version,
@@ -353,7 +373,7 @@ async def create_version(task_id: UUID, body: CreateTaskVersion, user: User) -> 
     if body.kind == "release":
         await db.task.update_one(
             {"_id": str(task_id)},
-            {"$set": {"latestReleaseId": result["id"], "visibility": "published"}},
+            {"$set": {"latestReleaseId": result["id"]}},
         )
     return result
 
