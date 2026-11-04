@@ -8,12 +8,13 @@
       </v-card-title>
       <v-progress-linear v-if="loading" indeterminate />
       <v-card-text>
-        <ModelSnapshotPreview :data="timelineData" :height="520" />
+        <v-checkbox v-if="workspace.taskVersion" v-model="includeTaskEdits" label="Include task edit history" hide-details />
         <v-expansion-panels v-if="timelineTaskEditSnapshot && workspace.taskVersion" class="mt-3" variant="accordion">
           <v-expansion-panel title="Edits in this model state">
-            <v-expansion-panel-text><TaskEditEditor :base-html="workspace.taskVersion.data.contentHtml" :model-value="timelineTaskEditSnapshot.document" mode="read" class="timeline-task-edits" /></v-expansion-panel-text>
+            <v-expansion-panel-text><TaskEditEditor :base-html="workspace.taskVersion.data.contentHtml" :base-document="workspace.taskVersion.data.contentDocument" :model-value="timelineTaskEditSnapshot.document" mode="read" class="timeline-task-edits" /></v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>
+        <ModelSnapshotPreview :data="timelineData" :height="520" />
         <div v-if="timelineSteps.length > 1" class="timeline-slider-wrap">
           <v-slider v-model="timelineStep" :min="0" :max="timelineSteps.length - 1" :step="1" :ticks="timelineTicks" show-ticks="always" :tick-size="8" :color="timelineIsUnsaved ? 'warning' : 'primary'" :track-fill-color="timelineIsUnsaved ? 'warning' : 'primary'" :class="['timeline-slider', 'mt-7', { 'timeline-slider--has-unsaved': hasUnsavedTimeline }]" :style="timelineSliderStyle" />
         </div>
@@ -38,6 +39,7 @@
       <v-card-text>
         <v-text-field v-model="branchName" label="New model name" maxlength="256" counter autofocus @keyup.enter="createBranch" />
         <p class="text-caption text-medium-emphasis mb-0">The selected state becomes the initial release of a new model.</p>
+        <v-checkbox v-if="timelineTaskEditSnapshot" v-model="branchEdits" label="Use task edits from the selected position" hide-details />
       </v-card-text>
       <v-card-actions><v-spacer /><v-btn :disabled="branching" @click="branchDialog = false">Cancel</v-btn><v-btn color="primary" :loading="branching" :disabled="!branchName.trim()" @click="createBranch">Create branch</v-btn></v-card-actions>
     </v-card>
@@ -61,13 +63,14 @@ import { useRouter } from 'vue-router'
 import { useGraphContext } from '@/composables/useGraphContext'
 import modelService from '@/services/model/model.service'
 import type { JsonObject } from '@/services/api/types/common'
-import type { ModelVersion, ModelVersionInfo, TaskEditDocument } from '@/services/api/types/model'
+import type { ModelVersion, ModelVersionInfo, TaskEditDocument, TaskEditVersionInfo } from '@/services/api/types/model'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { applyModelPatches } from '@/utils/modelPatches'
 import { importModelFromXml } from '@/utils/modelPersistence'
-import { appendUnsavedTimelinePatches, buildModelTimeline, lastSavedTimelineIndex, patchesForTimelineStep, releaseTimelineTicks } from '@/utils/modelTimeline'
+import { appendUnsavedTimelinePatches, buildModelTimeline, patchesForTimelineStep } from '@/utils/modelTimeline'
 import ModelSnapshotPreview from './ModelSnapshotPreview.vue'
 import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
+import { buildTaskEditTimeline, loadTaskEditHistory } from '@/utils/taskEditTimeline'
 import { notifyError } from '@/composables/useNotifications'
 
 const props = defineProps<{ modelValue: boolean }>()
@@ -88,18 +91,48 @@ const branchName = ref('')
 const restoreDialog = ref(false)
 const restoreEdits = ref(false)
 const timelineVersion = ref<ModelVersion | null>(null)
-const timelineTaskEditSnapshot = computed<TaskEditDocument | null>(() => timelineVersion.value?.taskEditSnapshot ?? (timelineIsUnsaved.value ? workspace.taskEdit : null))
+const selectedTaskSnapshot = ref<TaskEditDocument | null>(null)
+const timelineTaskEditSnapshot = computed(() => selectedTaskSnapshot.value)
+const includeTaskEdits = ref(false)
+const taskHistory = ref<TaskEditVersionInfo[]>([])
+const branchEdits = ref(false)
 const releaseDataCache = new Map<string, JsonObject>()
 const versionCache = new Map<string, ModelVersion>()
 let timelineRequest = 0
 
 const savedTimelineSteps = computed(() => buildModelTimeline(history.value))
-const timelineSteps = computed(() => appendUnsavedTimelinePatches(savedTimelineSteps.value, workspace.baseReleaseId, workspace.pendingPatches, workspace.languages))
-const lastSavedIndex = computed(() => lastSavedTimelineIndex(timelineSteps.value))
-const timelineTicks = computed(() => releaseTimelineTicks(timelineSteps.value, lastSavedIndex.value))
-const selectedStep = computed(() => timelineSteps.value[timelineStep.value] ?? null)
-const hasUnsavedTimeline = computed(() => timelineSteps.value.some((step) => step.kind === 'patch' && !step.saved))
-const timelineIsUnsaved = computed(() => timelineStep.value > lastSavedIndex.value)
+const modelSteps = computed(() => appendUnsavedTimelinePatches(savedTimelineSteps.value, workspace.baseReleaseId, workspace.pendingPatches, workspace.languages))
+const timelineSteps = computed(() => {
+  const positions = modelSteps.value.map((step, modelIndex) => ({
+    id: `model-${modelIndex}`, modelIndex, taskStep: null as ReturnType<typeof buildTaskEditTimeline>[number] | null,
+    createdAt: step.kind === 'release' ? step.createdAt : step.patch.createdAt,
+    saved: step.kind === 'release' || step.saved
+  }))
+  if (!includeTaskEdits.value) return positions
+  for (const taskStep of buildTaskEditTimeline(taskHistory.value, workspace.pendingTaskEditPatches, workspace.model?.taskEdit?.document ?? workspace.taskVersion?.data.contentDocument)) {
+    let modelIndex = 0
+    for (let index = 0; index < modelSteps.value.length; index++) {
+      const step = modelSteps.value[index]
+      const date = step.kind === 'release' ? step.createdAt : step.patch.createdAt
+      if (date <= taskStep.createdAt) modelIndex = index
+    }
+    positions.push({ id: taskStep.id, modelIndex, taskStep, createdAt: taskStep.createdAt, saved: taskStep.saved })
+  }
+  return positions.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+})
+const lastSavedIndex = computed(() => {
+  for (let index = timelineSteps.value.length - 1; index >= 0; index--) if (timelineSteps.value[index].saved) return index
+  return -1
+})
+const timelineTicks = computed(() => Object.fromEntries(timelineSteps.value.flatMap((position, index) => {
+  const step = modelSteps.value[position.modelIndex]
+  const label = !position.taskStep && step?.kind === 'release' ? `Release v${step.versionNumber}` : ''
+  return label || index === lastSavedIndex.value ? [[index, [label, index === lastSavedIndex.value ? 'Last save' : ''].filter(Boolean).join(' ? ')]] : []
+})))
+const selectedPosition = computed(() => timelineSteps.value[timelineStep.value] ?? null)
+const selectedStep = computed(() => modelSteps.value[selectedPosition.value?.modelIndex ?? -1] ?? null)
+const hasUnsavedTimeline = computed(() => timelineSteps.value.some((step) => !step.saved))
+const timelineIsUnsaved = computed(() => selectedPosition.value ? !selectedPosition.value.saved : false)
 const busy = computed(() => loading.value || restoring.value || branching.value)
 const previewReady = computed(() => Boolean(timelineData.value) && materializedStepIndex.value === timelineStep.value)
 const timelineSliderStyle = computed<Record<string, string>>(() => {
@@ -108,6 +141,8 @@ const timelineSliderStyle = computed<Record<string, string>>(() => {
   return { '--last-save-position': `${Math.max(0, percentage)}%` }
 })
 const timelineLabel = computed(() => {
+  const taskStep = selectedPosition.value?.taskStep
+  if (taskStep) return `${taskStep.saved ? 'Saved' : 'Local'} task edit - ${new Date(taskStep.createdAt).toLocaleString()} - ${taskStep.label}`
   const step = selectedStep.value
   if (!step) return 'No version history is available.'
   if (step.kind === 'release') {
@@ -144,6 +179,7 @@ const getReleaseData = async (releaseId: string) => {
 const updatePreview = async () => {
   const request = ++timelineRequest
   materializedStepIndex.value = -1
+  selectedTaskSnapshot.value = null
   const step = selectedStep.value
   if (!step) {
     timelineData.value = null
@@ -152,7 +188,7 @@ const updatePreview = async () => {
   try {
     const base = await getReleaseData(step.releaseId)
     if (request !== timelineRequest || typeof base.xml !== 'string') return
-    timelineData.value = { ...base, xml: applyModelPatches(base.xml, patchesForTimelineStep(timelineSteps.value, timelineStep.value)) }
+    timelineData.value = { ...base, xml: applyModelPatches(base.xml, patchesForTimelineStep(modelSteps.value, selectedPosition.value?.modelIndex ?? 0)) }
     const versionId = step.kind === 'release' ? step.releaseId : step.checkpointId
     if (versionId && workspace.model) {
       let version = versionCache.get(versionId)
@@ -160,8 +196,16 @@ const updatePreview = async () => {
         version = (await modelService.getVersion(workspace.model, versionId)).data
         versionCache.set(versionId, version)
       }
+      if (request !== timelineRequest) return
       timelineVersion.value = version
     } else timelineVersion.value = null
+    const taskStep = selectedPosition.value?.taskStep
+    let taskSnapshot = taskStep?.patch ? { schemaVersion: 1 as const, revision: workspace.taskEdit?.revision ?? 0, updatedAt: taskStep.createdAt, document: taskStep.patch.document }
+      : taskStep && workspace.model ? (await modelService.getTaskEditVersion(workspace.model.id, taskStep.id)).data
+      : timelineIsUnsaved.value ? workspace.taskEdit : timelineVersion.value?.taskEditSnapshot ?? null
+    if (request !== timelineRequest) return
+    if (!taskSnapshot && workspace.taskVersion?.data.contentDocument) taskSnapshot = { schemaVersion: 1, revision: 0, updatedAt: workspace.taskVersion.createdAt, document: workspace.taskVersion.data.contentDocument }
+    selectedTaskSnapshot.value = taskSnapshot
     materializedStepIndex.value = timelineStep.value
   } catch {
     if (request === timelineRequest) notifyError('Unable to load this timeline position.')
@@ -176,6 +220,7 @@ const openTimeline = async () => {
   materializedStepIndex.value = -1
   try {
     await loadHistory()
+    taskHistory.value = workspace.model && workspace.taskVersion ? await loadTaskEditHistory(workspace.model.id) : []
     timelineStep.value = Math.max(0, timelineSteps.value.length - 1)
     await updatePreview()
   } catch {
@@ -210,6 +255,7 @@ const confirmRestore = async () => {
 
 const openBranch = () => {
   branchName.value = `${workspace.model?.name ?? workspace.data.name} – ${timelineLabel.value}`.slice(0, 256)
+  branchEdits.value = false
   branchDialog.value = true
 }
 
@@ -218,7 +264,7 @@ const createBranch = async () => {
   if (!step || !previewReady.value || !timelineData.value || !branchName.value.trim()) return
   branching.value = true
   try {
-    await workspace.branchSnapshot(timelineData.value, step.workspaceLanguages, branchName.value.trim(), timelineVersion.value?.taskVersion ?? workspace.taskReference, timelineTaskEditSnapshot.value)
+    await workspace.branchSnapshot(timelineData.value, step.workspaceLanguages, branchName.value.trim(), timelineVersion.value?.taskVersion ?? workspace.taskReference, branchEdits.value ? timelineTaskEditSnapshot.value : workspace.taskEdit)
     await workspace.save()
     branchDialog.value = false
     emit('update:modelValue', false)
@@ -243,6 +289,7 @@ watch(
   }
 )
 watch(timelineStep, () => void updatePreview())
+watch(includeTaskEdits, () => { timelineStep.value = Math.max(0, timelineSteps.value.length - 1); void updatePreview() })
 </script>
 
 <style scoped>

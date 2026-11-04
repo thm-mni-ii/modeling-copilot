@@ -1,42 +1,44 @@
 <template>
   <div class="task-edits-sidebar">
     <div class="task-edits-sidebar__filters">
+      <v-btn size="x-small" prepend-icon="mdi-timeline-clock-outline" variant="text" @click="historyOpen = true">History</v-btn>
       <v-btn-toggle v-model="filter" mandatory density="compact" divided variant="outlined">
         <v-btn value="all" size="x-small">All</v-btn>
         <v-btn value="format" size="x-small">Format</v-btn>
-        <v-btn value="insertion" size="x-small">Text</v-btn>
+        <v-btn value="insertion" size="x-small">Comments</v-btn>
       </v-btn-toggle>
       <v-chip size="x-small" color="primary" variant="tonal">{{ entries.length }}</v-chip>
       <v-chip size="x-small" :color="syncState === 'conflict' || syncState === 'offline' ? 'warning' : undefined" variant="tonal">{{ syncLabel }}</v-chip>
     </div>
-    <div v-if="filteredEntries.length" class="task-edits-sidebar__list">
-      <v-expansion-panels variant="accordion" multiple>
-        <v-expansion-panel v-for="entry in filteredEntries" :key="entry.id">
-          <v-expansion-panel-title>
+    <div v-if="filteredEntries.length" ref="list" class="task-edits-sidebar__list">
+      <v-expansion-panels v-model="expandedId" variant="accordion">
+        <v-expansion-panel v-for="entry in filteredEntries" :key="entry.id" :value="entry.id" :data-task-edit-entry-id="entry.id" :class="{ 'task-edit--selected': selectedEditIds.includes(entry.id) }">
+          <v-expansion-panel-title :aria-current="selectedEditIds.includes(entry.id) ? 'true' : undefined" @click="emit('focus-edit', { id: entry.id })">
             <div class="task-edit-title">
               <span v-if="entry.color" class="task-edit-color" :style="{ background: entry.color }" />
               <v-icon v-else size="16">{{ iconFor(entry.type) }}</v-icon>
               <div class="task-edit-title__text">
                 <strong>{{ labelFor(entry.type) }}</strong
-                ><span>{{ entry.fragments[0] || 'Edit' }}</span>
+                ><span>{{ entry.fragments[0]?.text || 'Edit' }}</span>
               </div>
               <v-chip v-if="entry.fragments.length > 1" size="x-small" variant="tonal">{{ entry.fragments.length }}</v-chip>
             </div>
           </v-expansion-panel-title>
           <v-expansion-panel-text>
             <div class="task-edit-fragments">
-              <button v-for="(fragment, index) in entry.fragments" :key="`${entry.id}-${index}`" type="button" class="task-edit-fragment" @click="emit('focus-edit', entry.id)">{{ fragment }}</button>
+              <button v-for="(fragment, index) in entry.fragments" :key="`${entry.id}-${index}`" type="button" class="task-edit-fragment" @click="emit('focus-edit', { id: entry.id, from: fragment.from, to: fragment.to })">{{ fragment.text }}</button>
             </div>
             <div class="task-edit-actions">
-              <v-btn size="x-small" variant="text" prepend-icon="mdi-crosshairs-gps" @click="emit('focus-edit', entry.id)">Show</v-btn>
+              <v-btn size="x-small" variant="text" prepend-icon="mdi-crosshairs-gps" @click="emit('focus-edit', { id: entry.id })">Show</v-btn>
               <v-btn size="x-small" variant="text" color="error" prepend-icon="mdi-delete-outline" @click="requestRemoval(entry)">Remove</v-btn>
             </div>
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
     </div>
-    <div v-else class="task-edits-sidebar__empty">Activate Edit mode in the task bar to add formatting or text.</div>
+    <div v-else class="task-edits-sidebar__empty">Activate Edit mode in the task bar to add formatting or comments.</div>
 
+    <TaskEditTimelineDialog v-model="historyOpen" />
     <v-dialog v-model="confirmDialog" max-width="500">
       <v-card>
         <v-card-title>Remove Edit?</v-card-title>
@@ -48,28 +50,47 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { JsonObject } from '@/services/api/types/common'
+import { computed, nextTick, ref, watch } from 'vue'
+import TaskEditTimelineDialog from '@/components/modeling/versions/TaskEditTimelineDialog.vue'
 import type { TaskEditDocument } from '@/services/api/types/model'
-import { cloneTaskDocument, collectTaskEdits, type TaskEditListEntry, type TaskEditSyncState, type TaskEditType } from '@/utils/taskEdits'
+import { collectTaskEdits, type TaskEditFocus, type TaskEditListEntry, type TaskEditSyncState, type TaskEditType } from '@/utils/taskEdits'
 import { notifySuccess } from '@/composables/useNotifications'
 
-const props = withDefaults(defineProps<{ taskEdit: TaskEditDocument | null; syncState?: TaskEditSyncState }>(), { syncState: 'synced' })
+const props = withDefaults(defineProps<{ taskEdit: TaskEditDocument | null; syncState?: TaskEditSyncState; selectedEditIds?: string[] }>(), { syncState: 'synced', selectedEditIds: () => [] })
 const emit = defineEmits<{
   'remove-edit': [id: string]
-  'restore-document': [document: JsonObject]
-  'focus-edit': [id: string]
+  'focus-edit': [target: TaskEditFocus]
 }>()
 
+const historyOpen = ref(false)
 const filter = ref<'all' | 'format' | 'insertion'>('all')
 const entries = computed(() => collectTaskEdits(props.taskEdit?.document))
 const syncLabel = computed(() => ({ synced: 'Saved', dirty: 'Unsaved', saving: 'Saving…', offline: 'Offline', conflict: 'Conflict' })[props.syncState])
 const filteredEntries = computed(() => entries.value.filter((entry) => filter.value === 'all' || (filter.value === 'insertion' ? entry.type === 'insertion' : entry.type !== 'insertion')))
 const confirmDialog = ref(false)
 const pendingEntry = ref<TaskEditListEntry | null>(null)
-const undoDocument = ref<JsonObject | null>(null)
+const expandedId = ref<string>()
+const list = ref<HTMLElement | null>(null)
 
-const labels: Record<TaskEditType, string> = { highlight: 'Highlight', bold: 'Bold', italic: 'Italic', underline: 'Underline', strike: 'Strikethrough', textColor: 'Text color', inlineCode: 'Inline code', insertion: 'Added text' }
+watch(entries, (items) => {
+  const ids = new Set(items.map((entry) => entry.id))
+  if (expandedId.value && !ids.has(expandedId.value)) expandedId.value = undefined
+})
+watch(() => props.selectedEditIds, async (selected) => {
+  const visibleIds = new Set(filteredEntries.value.map((entry) => entry.id))
+  const selectedIds = selected.filter((id) => entries.value.some((entry) => entry.id === id))
+  if (selectedIds.some((id) => !visibleIds.has(id))) filter.value = 'all'
+  if (selectedIds.length) expandedId.value = selectedIds[0]
+  await nextTick()
+  const container = list.value
+  if (!container?.getClientRects().length || !selectedIds.length) return
+  const title = container.querySelector<HTMLElement>(`[data-task-edit-entry-id="${CSS.escape(selectedIds[0])}"] .v-expansion-panel-title`)
+  if (!title) return
+  const bounds = container.getBoundingClientRect(), target = title.getBoundingClientRect()
+  if (target.top < bounds.top || target.bottom > bounds.bottom) container.scrollTop += target.top - bounds.top
+}, { immediate: true, flush: 'post' })
+
+const labels: Record<TaskEditType, string> = { highlight: 'Highlight', bold: 'Bold', italic: 'Italic', underline: 'Underline', strike: 'Strikethrough', textColor: 'Text color', inlineCode: 'Inline code', insertion: 'Comment' }
 const icons: Record<TaskEditType, string> = { highlight: 'mdi-marker', bold: 'mdi-format-bold', italic: 'mdi-format-italic', underline: 'mdi-format-underline', strike: 'mdi-format-strikethrough', textColor: 'mdi-format-color-text', inlineCode: 'mdi-code-tags', insertion: 'mdi-text-box-plus-outline' }
 const labelFor = (type: TaskEditType) => labels[type]
 const iconFor = (type: TaskEditType) => icons[type]
@@ -80,16 +101,12 @@ const requestRemoval = (entry: TaskEditListEntry) => {
 }
 const confirmRemoval = () => {
   if (!pendingEntry.value || !props.taskEdit) return
-  undoDocument.value = cloneTaskDocument(props.taskEdit.document)
   emit('remove-edit', pendingEntry.value.id)
   confirmDialog.value = false
   pendingEntry.value = null
-  notifySuccess('Edit removed.', { timeout: 6000, action: { label: 'Undo', handler: undoRemoval } })
+  notifySuccess('Edit removed. Earlier states are available in task history.')
 }
-const undoRemoval = () => {
-  if (undoDocument.value) emit('restore-document', undoDocument.value)
-  undoDocument.value = null
-}
+
 </script>
 
 <style scoped>
@@ -119,6 +136,10 @@ const undoRemoval = () => {
   color: rgba(var(--v-theme-on-surface), 0.62);
   font-size: 12px;
   line-height: 1.5;
+}
+.task-edit--selected :deep(.v-expansion-panel-title) {
+  background: rgba(var(--v-theme-primary), 0.12);
+  box-shadow: inset 3px 0 rgb(var(--v-theme-primary));
 }
 .task-edit-title {
   display: flex;

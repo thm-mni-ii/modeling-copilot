@@ -69,10 +69,11 @@ const releaseDialog = ref(false)
 const releaseName = ref('')
 const releaseDescription = ref('')
 const timelineDialog = ref(false)
-const stateLabel = computed(() => ({ synced: 'Saved', dirty: 'Unsaved changes', saving: 'Saving...', offline: 'Offline - saved locally', conflict: 'Conflict' })[workspace.syncState])
-const canSave = computed(() => workspace.dirty && workspace.syncState !== 'saving' && workspace.syncState !== 'conflict')
-const saveColor = computed(() => ({ synced: 'success', dirty: 'warning', saving: 'primary', offline: 'warning', conflict: 'error' })[workspace.syncState])
-const saveIcon = computed(() => (workspace.syncState === 'dirty' ? 'mdi-content-save-alert' : 'mdi-content-save-outline'))
+const effectiveSyncState = computed(() => workspace.syncState === 'synced' && workspace.taskEditDirty ? workspace.taskEditSyncState : workspace.syncState)
+const stateLabel = computed(() => ({ synced: 'Saved', dirty: 'Unsaved changes', saving: 'Saving...', offline: 'Offline - saved locally', conflict: 'Conflict' })[effectiveSyncState.value])
+const canSave = computed(() => (workspace.dirty || workspace.taskEditDirty) && workspace.syncState !== 'saving' && workspace.syncState !== 'conflict')
+const saveColor = computed(() => ({ synced: 'success', dirty: 'warning', saving: 'primary', offline: 'warning', conflict: 'error' })[effectiveSyncState.value])
+const saveIcon = computed(() => (effectiveSyncState.value === 'dirty' ? 'mdi-content-save-alert' : 'mdi-content-save-outline'))
 
 const saveCheckpoint = async () => {
   if (!canSave.value) return
@@ -87,7 +88,7 @@ const saveCheckpoint = async () => {
     }
     await workspace.save()
   } catch {
-    notifyError('Unable to save this model.')
+    notifyError(workspace.taskEditError ?? 'Unable to save this model.')
   }
 }
 

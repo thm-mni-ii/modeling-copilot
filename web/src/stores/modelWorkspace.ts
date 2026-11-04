@@ -8,12 +8,14 @@ import type { DiagramLanguage } from '@/model/DiagramLanguage'
 import type { DiagramTask } from '@/model/Task'
 import { languageReferenceKey, resolveWorkspaceLanguages, type ResolvedLanguageVersion } from '@/services/model/workspaceLanguageResolver'
 import type { ApiId, JsonObject, LanguageVersionReference, TaskVersionReference } from '@/services/api/types/common'
-import type { Model, ModelPatch, ModelVersion, ModelVersionKind, TaskEditDocument, WorkspaceLanguageReference } from '@/services/api/types/model'
+import type { Model, ModelPatch, ModelVersion, ModelVersionKind, TaskEditDocument, TaskEditPatch, WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { Task, TaskVersion } from '@/services/api/types/task'
 import { readDraft, removeDraft, writeDraft } from '@/utils/workspaceDrafts'
 import { applyModelPatches, createModelPatch } from '@/utils/modelPatches'
 import { serverNow, synchronizeServerTime } from '@/utils/serverTime'
 import type { TaskEditSyncState } from '@/utils/taskEdits'
+import { applyJsonPatches, createJsonPatch } from '@/utils/jsonPatches'
+import { loadTaskEditHistory } from '@/utils/taskEditTimeline'
 
 export type WorkspaceLanguage = WorkspaceLanguageReference
 export type ModelSyncState = 'synced' | 'dirty' | 'saving' | 'offline' | 'conflict'
@@ -29,6 +31,7 @@ const selectedLanguagesFrom = (version: ModelVersion): WorkspaceLanguage[] => cl
 
 const dirtySyncState = (): ModelSyncState => (typeof navigator === 'undefined' || navigator.onLine ? 'dirty' : 'offline')
 const responseStatus = (error: unknown) => (error as { response?: { status?: number } }).response?.status
+const TASK_EDIT_SAVE_BATCH_SIZE = 100
 
 export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   const model = ref<Model | null>(null)
@@ -45,18 +48,20 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   const taskVersion = ref<TaskVersion | null>(null)
   const taskEdit = ref<TaskEditDocument | null>(null)
   const taskEditDirty = ref(false)
+  const pendingTaskEditPatches = ref<TaskEditPatch[]>([])
+  const taskEditError = ref<string | null>(null)
   const taskEditSyncState = ref<TaskEditSyncState>('synced')
   const dirty = ref(false)
   const syncState = ref<ModelSyncState>('synced')
 
   let initialDraftKey: string | null = null
   let preferenceSave = Promise.resolve()
-  let taskEditSave = Promise.resolve<TaskEditDocument | null>(null)
-  let taskEditTimer: ReturnType<typeof setTimeout> | null = null
+  let taskEditSave: Promise<TaskEditDocument | null> | null = null
+  let taskEditGeneration = 0
 
   const draftKey = computed(() => model.value?.id ?? 'new-model')
   const preferences = computed<JsonObject>(() => model.value?.preferences ?? pendingPreferences.value)
-  const canRelease = computed(() => Boolean(model.value && baseVersionId.value) && !dirty.value && pendingPatches.value.length === 0 && syncState.value === 'synced')
+  const canRelease = computed(() => Boolean(model.value && baseVersionId.value) && !dirty.value && !taskEditDirty.value && pendingPatches.value.length === 0 && syncState.value === 'synced')
   const resolvedLanguages = computed(() => effectiveLanguages.value.map((reference) => languageDefinitions.value[languageReferenceKey(reference)]).filter((entry): entry is ResolvedLanguageVersion => Boolean(entry)))
   const editorLanguages = computed<WorkspaceDiagramLanguage[]>(() =>
     resolvedLanguages.value.map(({ language, version }) => ({
@@ -112,16 +117,19 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
       await writeDraft({
         key: draftKey.value,
         modelId: model.value?.id ?? null,
+        modelDirty: dirty.value,
         baseVersionId: baseVersionId.value,
         baseReleaseId: baseReleaseId.value,
         savedAt: new Date().toISOString(),
         patches: cloneJson(pendingPatches.value),
         languages: cloneJson(languages.value),
         data: metadata,
-        taskEdit: cloneJson(taskEdit.value)
+        taskEdit: cloneJson(taskEdit.value),
+        taskEditPatches: pendingTaskEditPatches.value.map(({ id, createdAt, operations }) => ({ id, createdAt, operations: cloneJson(operations) })),
+        taskEditBaseDocument: cloneJson(model.value?.taskEdit?.document ?? taskVersion.value?.data.contentDocument ?? {})
       })
     } catch {
-      // localStorage may be unavailable; server persistence remains usable.
+      taskEditError.value = 'The local recovery draft could not be written. Save your changes before closing this page.'
     }
   }
 
@@ -144,9 +152,10 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   }
 
   const resetIdentity = () => {
-    if (taskEditTimer) clearTimeout(taskEditTimer)
-    taskEditTimer = null
-    taskEditSave = Promise.resolve(null)
+    taskEditGeneration++
+    taskEditSave = null
+    pendingTaskEditPatches.value = []
+    taskEditError.value = null
     model.value = null
     baseVersionId.value = null
     baseReleaseId.value = null
@@ -171,11 +180,15 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   }
 
   const load = async (modelId: ApiId, versionId?: ApiId) => {
+    taskEditGeneration++
+    taskEditSave = null
     const currentModel = (await modelService.get(modelId)).data
     const version = (await modelService.getVersion(currentModel, versionId ?? currentModel.latestVersionId)).data
     void synchronizeServerTime().catch(() => undefined)
     model.value = currentModel
     taskEdit.value = cloneJson(currentModel.taskEdit)
+    pendingTaskEditPatches.value = []
+    taskEditError.value = null
     taskEditDirty.value = false
     taskEditSyncState.value = 'synced'
     pendingPreferences.value = currentModel.preferences
@@ -280,9 +293,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     data.value = { ...data.value, name }
     await loadLanguages(snapshotLanguages)
     await loadAssignedTask(snapshotTask)
-    taskEdit.value = snapshotTaskEdit ? { ...cloneJson(snapshotTaskEdit), revision: 0, updatedAt: new Date().toISOString() } : null
-    taskEditDirty.value = Boolean(taskEdit.value)
-    taskEditSyncState.value = taskEdit.value ? dirtySyncState() : 'synced'
+    if (snapshotTaskEdit) updateTaskEditDocument(snapshotTaskEdit.document)
     markDirty()
   }
 
@@ -291,73 +302,72 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     await branchSnapshot(snapshot.data, selectedLanguagesFrom(snapshot), name, snapshot.taskVersion, snapshot.taskEditSnapshot)
   }
 
-  const scheduleTaskEditSync = () => {
-    if (taskEditTimer) clearTimeout(taskEditTimer)
-    taskEditTimer = setTimeout(() => void syncTaskEdit().catch(() => undefined), 700)
-  }
-
   const updateTaskEditDocument = (document: JsonObject) => {
     if (!taskReference.value) return
     if (taskEdit.value && JSON.stringify(taskEdit.value.document) === JSON.stringify(document)) return
+    const previous = taskEdit.value?.document ?? taskVersion.value?.data.contentDocument
+    if (!previous) throw new Error('The task document has not finished loading.')
+    const operations = createJsonPatch(previous, document)
+    if (!operations.length) return
+    const createdAt = new Date().toISOString()
+    pendingTaskEditPatches.value.push({ id: crypto.randomUUID(), createdAt, document: cloneJson(document), operations: cloneJson(operations) })
     taskEdit.value = {
       schemaVersion: 1,
+      versionId: taskEdit.value?.versionId ?? null,
       revision: taskEdit.value?.revision ?? 0,
-      updatedAt: new Date().toISOString(),
+      updatedAt: createdAt,
       document: cloneJson(document)
     }
     taskEditDirty.value = true
-    taskEditSyncState.value = dirtySyncState()
+    if (!taskEditSave) taskEditSyncState.value = dirtySyncState()
+    taskEditError.value = null
     void persistJournal()
-    if (model.value) scheduleTaskEditSync()
   }
 
-  const syncTaskEdit = async () => {
-    if (!model.value || !taskEdit.value || !taskEditDirty.value) return taskEdit.value
-    if (taskEditSyncState.value === 'saving') return taskEditSave
-    if (taskEditTimer) {
-      clearTimeout(taskEditTimer)
-      taskEditTimer = null
-    }
+  const syncTaskEdit = (): Promise<TaskEditDocument | null> => {
+    if (taskEditSave) return taskEditSave
+    if (!model.value || !taskEdit.value || !pendingTaskEditPatches.value.length) return Promise.resolve(taskEdit.value)
     const modelId = model.value.id
-    const cut = cloneJson(taskEdit.value)
+    const generation = taskEditGeneration
+    let baseRevision = taskEdit.value.revision
+    const patches = cloneJson(pendingTaskEditPatches.value)
     taskEditSyncState.value = 'saving'
-    taskEditSave = taskEditSave
-      .catch(() => null)
-      .then(async () => {
-        try {
-          const saved = (await modelService.updateTaskEdit(modelId, { baseRevision: cut.revision, document: cut.document })).data
-          if (model.value?.id !== modelId) return saved
-          const unchanged = taskEdit.value && JSON.stringify(taskEdit.value.document) === JSON.stringify(cut.document)
-          if (unchanged) {
-            taskEdit.value = saved
-            taskEditDirty.value = false
-            taskEditSyncState.value = 'synced'
-            model.value = { ...model.value, taskEdit: saved }
-            if (dirty.value) await persistJournal()
-            else await removeDraft(draftKey.value)
-          } else if (taskEdit.value) {
-            taskEdit.value = { ...taskEdit.value, revision: saved.revision }
-            taskEditSyncState.value = dirtySyncState()
-            scheduleTaskEditSync()
-          }
-          return saved
-        } catch (error) {
-          taskEditSyncState.value = responseStatus(error) === 409 ? 'conflict' : dirtySyncState()
-          throw error
+    taskEditError.value = null
+    const request = (async () => {
+      try {
+        let saved: TaskEditDocument | null = null
+        for (let offset = 0; offset < patches.length; offset += TASK_EDIT_SAVE_BATCH_SIZE) {
+          const batch = patches.slice(offset, offset + TASK_EDIT_SAVE_BATCH_SIZE)
+          saved = (await modelService.updateTaskEdit(modelId, { baseRevision, patches: batch })).data
+          if (model.value?.id !== modelId || generation !== taskEditGeneration) return saved
+          baseRevision = saved.revision
+          const sentIds = new Set(batch.map((patch) => patch.id))
+          pendingTaskEditPatches.value = pendingTaskEditPatches.value.filter((patch) => !sentIds.has(patch.id))
+          taskEditDirty.value = pendingTaskEditPatches.value.length > 0
+          taskEdit.value = taskEditDirty.value && taskEdit.value
+            ? { ...taskEdit.value, versionId: saved.versionId, revision: saved.revision }
+            : saved
+          model.value = { ...model.value, taskEdit: saved }
+          if (dirty.value || taskEditDirty.value) await persistJournal()
+          else await removeDraft(draftKey.value)
         }
-      })
-    return taskEditSave
+        taskEditSyncState.value = taskEditDirty.value ? dirtySyncState() : 'synced'
+        return saved
+      } catch (error) {
+        if (model.value?.id === modelId && generation === taskEditGeneration) {
+          taskEditSyncState.value = responseStatus(error) === 409 ? 'conflict' : dirtySyncState()
+          taskEditError.value = (error as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'Task edits could not be saved. Your local editing actions have been retained.'
+          await persistJournal()
+        }
+        throw error
+      }
+    })()
+    taskEditSave = request
+    void request.finally(() => { if (taskEditSave === request) taskEditSave = null }).catch(() => undefined)
+    return request
   }
 
-  const flushTaskEdit = async () => {
-    while (model.value && taskEdit.value && taskEditDirty.value) await syncTaskEdit()
-    return taskEdit.value
-  }
-
-  const adoptTaskEditSnapshot = async (snapshot: TaskEditDocument) => {
-    updateTaskEditDocument(snapshot.document)
-    await flushTaskEdit()
-  }
+  const adoptTaskEditSnapshot = (snapshot: TaskEditDocument) => updateTaskEditDocument(snapshot.document)
 
   const save = async (kind: ModelVersionKind = 'checkpoint', releaseName?: string, description?: string) => {
     if (kind === 'release' && !releaseName?.trim()) throw new Error('A release needs a name.')
@@ -378,7 +388,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
         }
       }
 
-      await flushTaskEdit()
+      await syncTaskEdit()
       currentModel = model.value ?? currentModel
 
       data.value = { ...data.value, name: currentModel.name }
@@ -391,6 +401,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
       const savedVersion = (
         await modelService.createVersion(currentModel, {
           baseVersionId: baseVersionId.value,
+          taskEditVersionId: currentModel.taskEdit?.versionId ?? null,
           baseReleaseId: actualKind === 'checkpoint' ? baseReleaseId.value : null,
           workspaceLanguages: languagesCut,
           taskVersion: taskReference.value,
@@ -407,7 +418,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
       dirty.value = pendingPatches.value.length > 0 || JSON.stringify(data.value) !== JSON.stringify(dataCut) || JSON.stringify(languages.value) !== JSON.stringify(languagesCut)
       syncState.value = dirty.value ? dirtySyncState() : 'synced'
       const journalKeys = [...new Set([initialDraftKey, draftKey.value].filter((key): key is string => Boolean(key)))]
-      if (dirty.value) await persistJournal()
+      if (dirty.value || taskEditDirty.value) await persistJournal()
       else await Promise.all(journalKeys.map(removeDraft))
       initialDraftKey = null
       return savedVersion
@@ -421,12 +432,13 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     const draft = await readDraft(draftKey.value)
     if (!draft || !Array.isArray(draft.patches) || !Array.isArray(draft.languages)) return null
     if (draft.modelId && draft.modelId !== model.value?.id) return null
-    if (draft.baseVersionId !== baseVersionId.value) return null
+    if (draft.baseVersionId !== baseVersionId.value && !draft.taskEditPatches?.length) return null
     return draft
   }
   const getRecoverySnapshot = async (): Promise<ModelSnapshot | null> => {
     const draft = await getRecoveryDraft()
     if (!draft) return null
+    if (draft.baseVersionId !== baseVersionId.value) return cloneJson(data.value)
     const xml = applyModelPatches(data.value.xml, draft.patches)
     return normalizeModelSnapshot({ ...draft.data, xml }, model.value?.name ?? data.value.name)
   }
@@ -434,21 +446,38 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   const restoreRecoveryDraft = async () => {
     const draft = await getRecoveryDraft()
     if (!draft) return false
-    const xml = applyModelPatches(data.value.xml, draft.patches)
-    languages.value = cloneJson(draft.languages) as unknown as WorkspaceLanguage[]
-    data.value = normalizeModelSnapshot({ ...draft.data, xml }, model.value?.name ?? data.value.name)
-    baseReleaseId.value = draft.baseReleaseId
-    pendingPatches.value = cloneJson(draft.patches)
-    if (draft.taskEdit && (!taskEdit.value || draft.taskEdit.revision === taskEdit.value.revision)) {
-      taskEdit.value = cloneJson(draft.taskEdit)
-      taskEditDirty.value = true
-      taskEditSyncState.value = dirtySyncState()
-      if (model.value) scheduleTaskEditSync()
+    if (draft.baseVersionId === baseVersionId.value && draft.modelDirty !== false) {
+      const xml = applyModelPatches(data.value.xml, draft.patches)
+      languages.value = cloneJson(draft.languages) as unknown as WorkspaceLanguage[]
+      data.value = normalizeModelSnapshot({ ...draft.data, xml }, model.value?.name ?? data.value.name)
+      baseReleaseId.value = draft.baseReleaseId
+      pendingPatches.value = cloneJson(draft.patches)
+      dirty.value = true
+      syncState.value = dirtySyncState()
     }
+    if (draft.taskEdit && draft.taskEditPatches?.length && taskReference.value && draft.taskEditBaseDocument) {
+      const sameRevision = draft.taskEdit.revision === (taskEdit.value?.revision ?? 0)
+      const savedIds = new Set(!sameRevision && model.value ? (await loadTaskEditHistory(model.value.id)).map((event) => event.id) : [])
+      let recovered = draft.taskEditBaseDocument
+      let previous = taskEdit.value?.document ?? taskVersion.value!.data.contentDocument!
+      pendingTaskEditPatches.value = draft.taskEditPatches.map((patch) => {
+        recovered = applyJsonPatches(recovered, patch.operations)
+        if (savedIds.has(patch.id)) return null
+        const next = { ...cloneJson(patch), id: sameRevision ? patch.id : crypto.randomUUID(), document: recovered, operations: sameRevision ? patch.operations : createJsonPatch(previous, recovered) }
+        previous = recovered
+        return next
+      }).filter((patch): patch is TaskEditPatch => Boolean(patch?.operations.length))
+      taskEditDirty.value = pendingTaskEditPatches.value.length > 0
+      if (taskEditDirty.value) {
+        const revision = taskEdit.value?.revision ?? 0
+        taskEdit.value = { ...cloneJson(draft.taskEdit), versionId: taskEdit.value?.versionId ?? null, revision, document: cloneJson(pendingTaskEditPatches.value[pendingTaskEditPatches.value.length - 1].document) }
+      }
+      taskEditSyncState.value = taskEditDirty.value ? dirtySyncState() : 'synced'
+    }
+
     await loadLanguages(languages.value)
-    dirty.value = true
-    syncState.value = dirtySyncState()
-    await persistJournal()
+    if (dirty.value || taskEditDirty.value) await persistJournal()
+    else await removeDraft(draftKey.value)
     return true
   }
 
@@ -469,6 +498,8 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     taskVersion,
     taskEdit,
     taskEditDirty,
+    pendingTaskEditPatches,
+    taskEditError,
     taskEditSyncState,
     diagramTask,
     startNew,

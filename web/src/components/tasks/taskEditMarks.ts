@@ -1,4 +1,7 @@
-import { Mark, mergeAttributes, type Editor } from '@tiptap/core'
+import { Mark, mergeAttributes, type Editor, type Node as TiptapNode } from '@tiptap/core'
+import StarterKit from '@tiptap/starter-kit'
+import { createTaskEditorExtensions } from './taskEditorExtensions'
+import { TASK_EDIT_MARKS } from '@/utils/taskEdits'
 
 export type TaskEditMarkName = 'taskEditHighlight' | 'taskEditBold' | 'taskEditItalic' | 'taskEditUnderline' | 'taskEditStrike' | 'taskEditTextColor' | 'taskEditInlineCode'
 
@@ -37,6 +40,16 @@ export const createTaskEditMark = (name: string, type: string) =>
       0
     ]
   })
+
+export const createTaskEditExtensions = () => [
+  ...createTaskEditorExtensions().map((extension) => extension.name === 'starterKit' ? (extension as typeof StarterKit).extend({
+    addExtensions() {
+      const extensions = StarterKit.config.addExtensions?.call({ ...this, parent: undefined }) ?? []
+      return extensions.map((child) => child.name === 'codeBlock' ? (child as TiptapNode).extend({ marks: Object.keys(TASK_EDIT_MARKS).join(' ') }) : child)
+    }
+  }).configure({ trailingNode: false }) : extension),
+  ...Object.entries(TASK_EDIT_MARKS).map(([name, type]) => createTaskEditMark(name, type))
+]
 
 export const toggleTaskEditMark = (editor: Editor, mark: TaskEditMarkName, attributes: Record<string, unknown>) => {
   const color = typeof attributes.color === 'string' ? attributes.color : undefined
