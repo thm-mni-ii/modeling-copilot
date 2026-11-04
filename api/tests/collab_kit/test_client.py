@@ -10,7 +10,7 @@ from modeling_api.services.collab_kit import client
 
 @pytest.fixture
 def ck(monkeypatch):
-    """Fängt die Anfragen an CK ab; die Antwort setzt der Test über `answer`."""
+    """Intercepts the requests to CK; the test sets the answer through `answer`."""
     seen: list[httpx.Request] = []
     answer = {"status": 200, "json": {"_id": "1"}}
 
