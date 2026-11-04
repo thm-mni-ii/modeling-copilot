@@ -112,7 +112,9 @@ async def open_path_session(run_id, step_id, survey_id, phase, required, user):
                 },
             )
     session = await db.survey_sessions.find_one({"_id": session_id})
-    if phase == "after" and session["status"] == "draft" and not session.get("contextFlags"):
+    if session["status"] == "draft" and not session.get("contextFlags") and (
+        phase == "after" or any(q.get("visibleWhen") for q in version["definition"]["elements"])
+    ):
         flags = await usage_context(run_id, user)
         await db.survey_sessions.update_one(
             {"_id": session_id, "userId": user.id, "$or": [

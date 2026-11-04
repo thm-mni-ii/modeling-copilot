@@ -88,7 +88,7 @@ docker compose up -d mongo
 api/.venv/Scripts/Activate.ps1
 $env:PYTHONPATH = "api/src"
 $env:MONGODB_URI = "mongodb://admin:admin@localhost:27222/?authSource=admin"
-python api/scripts/run_migrations.py --apply
+python -m modeling_api.db.migrations --apply
 uvicorn modeling_api.main:app --app-dir api/src --reload
 ```
 

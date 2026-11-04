@@ -1,9 +1,10 @@
 import type { JsonObject } from '@/services/api/types/common'
-import type { ModelPatch, TaskEditDocument } from '@/services/api/types/model'
+import type { ModelPatch, TaskEditDocument, TaskEditPatch } from '@/services/api/types/model'
 
 export interface StoredWorkspaceDraft {
   key: string
   modelId: string | null
+  modelDirty?: boolean
   baseVersionId: string | null
   baseReleaseId: string | null
   savedAt: string
@@ -11,6 +12,8 @@ export interface StoredWorkspaceDraft {
   languages: JsonObject[]
   data: JsonObject
   taskEdit?: TaskEditDocument | null
+  taskEditPatches?: Omit<TaskEditPatch, 'document'>[]
+  taskEditBaseDocument?: JsonObject
 }
 
 const STORAGE_PREFIX = 'model-workspace-journal:'

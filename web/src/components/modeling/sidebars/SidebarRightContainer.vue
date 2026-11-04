@@ -10,7 +10,7 @@
         <FeedbackSidebar v-if="activeTab === 'feedback'" :feedback-shapes="feedbackShapes" :show-header="false" />
         <SidebarPersistence v-else-if="activeTab === 'persistence'" :show-header="false" />
         <SidebarSync v-else-if="activeTab === 'sync'" :show-header="false" />
-        <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" @restore-document="emit('update-task-edit-document', $event)" />
+        <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" :selected-edit-ids="selectedTaskEditIds" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" />
         <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="modelId ?? null" :open-evaluation-id="openEvaluationId ?? null" />
         <SidebarLibrary v-else />
       </div>
@@ -22,7 +22,7 @@
 import { computed, ref, watch } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
-import type { TaskEditSyncState } from '@/utils/taskEdits'
+import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
 import SidebarLibrary from './SidebarLibrary.vue'
 import SidebarFrame from './SidebarFrame.vue'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
@@ -43,6 +43,7 @@ const props = defineProps<{
   taskActive?: boolean
   taskEdit?: TaskEditDocument | null
   taskEditSyncState?: TaskEditSyncState
+  selectedTaskEditIds?: string[]
   modelId?: string | null
   openEvaluationId?: string | null
   feedbackShapes?: Array<{
@@ -55,7 +56,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'remove-task-edit': [id: string]
   'update-task-edit-document': [document: JsonObject]
-  'focus-task-edit': [id: string]
+  'focus-task-edit': [target: TaskEditFocus]
 }>()
 
 const baseTabs: SidebarTabItem[] = [

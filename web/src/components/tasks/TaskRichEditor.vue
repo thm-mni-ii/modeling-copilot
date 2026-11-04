@@ -191,7 +191,7 @@ watch(
     if (!editor.value) return
     const currentHtml = editor.value.getHTML()
     if (newValue !== currentHtml) {
-      editor.value.commands.setContent(newValue, false)
+      editor.value.commands.setContent(newValue, { emitUpdate: false })
     }
   }
 )

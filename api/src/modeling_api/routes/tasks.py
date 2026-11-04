@@ -70,7 +70,10 @@ async def create_task(body: CreateTask, response: Response, user: CurrentUser) -
 @router.get(
     "/{task_id}",
     summary="Get a task",
-    description="Returns private tasks to administrators and published tasks to authenticated users.",
+    description=(
+        "Returns published tasks and private tasks referenced by an accessible learning path. "
+        "Administrators can access all tasks."
+    ),
     response_description="The requested task identity and publication metadata.",
 )
 async def get_task(task_id: UUID, user: CurrentUser) -> Task:
@@ -90,7 +93,10 @@ async def update_task(task_id: UUID, body: UpdateTask, user: CurrentUser) -> Tas
 @router.get(
     "/{task_id}/versions",
     summary="List task versions",
-    description="Administrators receive checkpoints and releases; other users receive releases only.",
+    description=(
+        "Administrators receive checkpoints and releases; other users receive releases only. "
+        "Private tasks expose only releases referenced by accessible learning paths."
+    ),
     response_description="A paginated list of task-version metadata without task data.",
 )
 async def list_versions(
@@ -125,7 +131,10 @@ async def create_version(
 @router.get(
     "/{task_id}/versions/{version_id}",
     summary="Get a task version",
-    description="Non-administrators can retrieve releases only.",
+    description=(
+        "Non-administrators can retrieve releases only. Private task releases must be "
+        "referenced by an accessible learning path."
+    ),
     response_description="The complete task version including task data.",
 )
 async def get_version(task_id: UUID, version_id: UUID, user: CurrentUser) -> TaskVersion:

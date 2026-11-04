@@ -1,5 +1,5 @@
 import type { AutonomyMode } from '@/model/Autonomy'
-import type { ApiId, ApiIdentity, ApiVersionInfo, ModelVersionReference, TaskVersionReference } from './common'
+import type { ApiId, ApiIdentity, ApiVersionInfo, JsonObject, ModelVersionReference, TaskVersionReference } from './common'
 import type { WorkspaceLanguageReference } from './model'
 
 export type TaskVersionKind = 'checkpoint' | 'release'
@@ -28,6 +28,7 @@ export interface UpdateTask {
 
 export interface TaskData {
   contentHtml: string
+  contentDocument?: JsonObject | null
   autonomyMode: AutonomyMode
   /** Whether participants may enable Connection Preview. Defaults to true. */
   connectionPreviewAllowed?: boolean

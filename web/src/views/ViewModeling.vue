@@ -2,6 +2,7 @@
   <v-container fluid class="modeling-view">
     <v-alert v-if="stepRun?.removed" type="info" variant="tonal" class="mb-3">This station was removed from the learning path. Your model is still available.</v-alert>
     <v-alert v-if="pulseEnabled && pulse.pollError.value" type="warning" variant="tonal" density="compact" class="mb-3">Impuls-Fragen konnten nicht abgefragt werden: {{ pulse.pollError.value }} Die Abfrage wird automatisch wiederholt.</v-alert>
+    <v-alert v-if="workspace.taskEditError" type="error" variant="tonal" class="mb-3">{{ workspace.taskEditError }}</v-alert>
     <v-progress-linear v-if="loading" indeterminate class="model-loading" />
     <ChallengeOverlay v-if="!loading && !activeSurvey && stepRun?.challenge" :key="stepRun.id" :attempt="stepRun.challenge" :stopping="challengeBusy" @stop="stopChallenge" />
     <div v-if="activeSurvey && stepRun" class="task-survey-layout">
@@ -37,6 +38,7 @@
       :task-active="Boolean(workspace.taskReference)"
       :task-edit="workspace.taskEdit"
       :task-edit-sync-state="workspace.taskEditSyncState"
+      :selected-task-edit-ids="selectedTaskEditIds"
       @window-removed="onWindowRemoved"
       @update:model="captureCanvas"
       @update:connection-preferences="workspace.updatePreferences"
@@ -76,6 +78,7 @@
             :task="workspace.diagramTask"
             :window-open="taskWindowOpen"
             :content-html="workspace.taskVersion?.data.contentHtml ?? ''"
+            :base-document="workspace.taskVersion?.data.contentDocument"
             :task-edit="workspace.taskEdit"
             :element-options="taskElementOptions"
             :connection-options="taskConnectionOptions"
@@ -87,12 +90,13 @@
             @pop-out="taskWindowOpen = true"
             @start-evaluation="startEvaluation"
             @select-connection="selectTaskConnection"
+            @select-task-edits="selectTaskEdits"
             @update:task-edit-document="workspace.updateTaskEditDocument"
           />
         </div>
       </template>
       <template #window-content="{ definition }">
-        <TaskEditEditor v-if="definition.role === 'task'" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @update:model-value="workspace.updateTaskEditDocument" />
+        <TaskEditEditor v-if="definition.role === 'task'" :key="workspace.taskReference?.versionId" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :base-document="workspace.taskVersion?.data.contentDocument" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" @update:model-value="workspace.updateTaskEditDocument" />
       </template>
     </DrawingCanvas>
 
@@ -101,6 +105,8 @@
         ><v-card-title>Unsaved changes found</v-card-title
         ><v-card-text
           ><p class="mb-3">A local draft is available. Review it before choosing whether to restore it.</p>
+          <v-alert v-if="recoveryModelChanged" type="info" variant="tonal" class="mb-3">The model has changed since this draft. Only the local task edits will be restored.</v-alert>
+          <TaskEditEditor v-if="workspace.taskVersion" :base-html="workspace.taskVersion.data.contentHtml" :base-document="workspace.taskVersion.data.contentDocument" :model-value="recoveryTaskEdit?.document ?? workspace.taskEdit?.document ?? null" mode="read" class="recovery-task-preview" />
           <ModelSnapshotPreview :data="recoveryData" />
           <p class="text-caption text-medium-emphasis mt-2">The preview is read-only and does not change the server version.</p></v-card-text
         ><v-card-actions><v-btn @click="discardDraft">Open server version</v-btn><v-spacer /><v-btn color="primary" @click="restoreDraft">Restore local draft</v-btn></v-card-actions></v-card
@@ -121,7 +127,8 @@ import { buildTaskConnectionOptions, buildTaskElementOptions } from '@/component
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { JsonObject } from '@/services/api/types/common'
 import type { CanvasWindowDefinition } from '@/model/CanvasWindow'
-import { removeTaskEdit } from '@/utils/taskEdits'
+import { collectTaskEdits, flashTaskEdits, removeTaskEdit, type TaskEditFocus } from '@/utils/taskEdits'
+import type { TaskEditDocument } from '@/services/api/types/model'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import paths, { type PathModelContext, type HelpRequest, type HelpTextRange } from '@/services/learningPaths'
 import modelService from '@/services/model/model.service'
@@ -143,10 +150,22 @@ const emit = defineEmits<{ 'learning-path-model': [modelId: string | null] }>()
 const router = useRouter()
 const route = useRoute()
 const workspace = useModelWorkspaceStore()
+const selectedTaskEditIds = ref<string[]>([])
+const selectTaskEdits = (ids: string[]) => {
+  const selected = [...new Set(ids)]
+  if (JSON.stringify(selected) !== JSON.stringify(selectedTaskEditIds.value)) selectedTaskEditIds.value = selected
+}
+watch(() => workspace.taskEdit?.document, (document) => {
+  const ids = new Set(collectTaskEdits(document).map((entry) => entry.id))
+  selectTaskEdits(selectedTaskEditIds.value.filter((id) => ids.has(id)))
+})
+watch([() => workspace.model?.id, () => workspace.taskReference?.versionId], () => selectTaskEdits([]))
 const canvas = ref<{ serializeModel: () => JsonObject; loadPersistedModel: (data: JsonObject) => void; selectConnectionByType: (languageId: string, connectionType: string) => boolean } | null>(null)
 const graphModel = ref<GraphDataModel>()
 const recoveryDialog = ref(false)
 const recoveryData = ref<JsonObject | null>(null)
+const recoveryTaskEdit = ref<TaskEditDocument | null>(null)
+const recoveryModelChanged = ref(false)
 const hydrating = ref(false)
 const loading = ref(false)
 const pathBusy = ref(false)
@@ -366,11 +385,21 @@ const selectTaskConnection = (reference: { languageId: string; connectionType: s
 const removeTaskEditById = (id: string) => {
   if (workspace.taskEdit) workspace.updateTaskEditDocument(removeTaskEdit(workspace.taskEdit.document, id))
 }
-const focusTaskEdit = (id: string) => {
-  const targets = [...document.querySelectorAll<HTMLElement>(`[data-task-edit-id="${CSS.escape(id)}"]`)]
-  targets[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  targets.forEach((target) => target.animate([{ outline: '2px solid rgb(25, 118, 210)' }, { outline: '2px solid transparent' }], { duration: 1400 }))
+const focusTaskEdit = (target: TaskEditFocus) => {
+  const host = document.querySelector<HTMLElement>(taskWindowOpen.value ? '.canvas-task-window-content .tiptap' : '.task-topbar__editor .tiptap')
+  if (!host) { selectTaskEdits([target.id]); return }
+  const editor = (host as HTMLElement & { editor?: import('@tiptap/core').Editor }).editor
+  const fragment = collectTaskEdits(workspace.taskEdit?.document).find((entry) => entry.id === target.id)?.fragments[0]
+  const from = target.from ?? fragment?.from, to = target.to ?? fragment?.to
+  if (editor && from !== undefined && to !== undefined) {
+    editor.commands.setTextSelection({ from, to })
+    const coordinates = editor.view.coordsAtPos(from)
+    host.parentElement?.scrollBy({ top: coordinates.top - host.parentElement.getBoundingClientRect().top - 40, behavior: 'smooth' })
+  } else host.querySelector<HTMLElement>(`[data-task-edit-id="${CSS.escape(target.id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  flashTaskEdits(host, [target.id])
+  selectTaskEdits([target.id])
 }
+
 const startEvaluation = async () => {
   if (!workspace.model || !workspace.taskVersion) return
   if (!workspace.taskVersion.data.evaluationWorkflows[0]) return
@@ -416,6 +445,9 @@ onMounted(async () => {
       const recoverySnapshot = await workspace.getRecoverySnapshot()
       if (recoverySnapshot) {
         recoveryData.value = recoverySnapshot
+        const draft = await workspace.getRecoveryDraft()
+        recoveryTaskEdit.value = draft?.taskEdit ?? null
+        recoveryModelChanged.value = draft?.baseVersionId !== workspace.baseVersionId
         recoveryDialog.value = true
       } else await loadActiveHelp()
     } else if (workspace.languages.length === 0) {
@@ -431,6 +463,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.recovery-task-preview { max-height: 260px; overflow-y: auto; margin-bottom: 16px; }
 .modeling-view {
   position: relative;
   padding: 8px 12px;

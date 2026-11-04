@@ -308,15 +308,30 @@ def validate_answers(definition, answers):
     questions = {q["name"]: q for q in definition["elements"]}
     if answers.keys() - questions.keys():
         raise ApiError(422, "INVALID_ANSWERS", "Unknown question in answers.")
+    visible_names = set()
     for name, q in questions.items():
         if q.get("visibleIf"):
             source, expected = visibility_condition(q["visibleIf"])
+            if source not in visible_names:
+                continue
             selected = answers.get(source)
-            matches = expected in selected if q["visibleIf"].partition("} ")[2].startswith("contains ") and isinstance(selected, list) else selected == expected
-            if q["visibleIf"].partition("} ")[2].startswith("!= "):
+            operator = q["visibleIf"].partition("} ")[2].split(" ", 1)[0]
+            matches = selected == expected
+            if operator in ("contains", "notcontains"):
+                matches = isinstance(selected, list) and bool(selected) and (
+                    expected in selected if operator == "contains" else expected not in selected
+                )
+            elif operator == "!=":
                 matches = selected is not None and selected != "" and selected != expected
             if not matches:
                 continue
+        ranked_choices = None
+        if q["type"] == "ranking":
+            source = q["choicesFromQuestion"]
+            ranked_choices = answers.get(source)
+            if source not in visible_names or not isinstance(ranked_choices, list) or len(ranked_choices) < 2:
+                continue
+        visible_names.add(name)
         value = answers.get(name)
         empty = value is None or value == "" or value == [] or value == {}
         invalid = False
@@ -327,6 +342,7 @@ def validate_answers(definition, answers):
                 "checkbox": list,
                 "matrix": dict,
                 "rating": int,
+                "ranking": list,
             }
             invalid = type(value) is not expected[q["type"]]
         if not empty:
@@ -347,6 +363,10 @@ def validate_answers(definition, answers):
                 invalid = (
                     type(value) is not int or not q["rateMin"] <= value <= q["rateMax"]
                 )
+            elif kind == "ranking":
+                invalid = not isinstance(value, list) or any(not isinstance(v, str) for v in value)
+                if not invalid:
+                    invalid = len(value) != len(ranked_choices) or set(value) != set(ranked_choices)
             elif kind == "matrix":
                 invalid = not isinstance(value, dict) or any(
                     row not in q["rows"]

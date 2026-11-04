@@ -9,7 +9,7 @@ async def require_completed(*migration_ids):
     for migration_id in migration_ids:
         record = await db.schema_migrations.find_one({"_id": migration_id})
         if not record or record.get("status") != "completed":
-            raise RuntimeError(f"Migration {migration_id} must complete first; run api/scripts/run_migrations.py with --apply.")
+            raise RuntimeError(f"Migration {migration_id} must complete first; run python -m modeling_api.db.migrations --apply.")
 
 
 async def run_migration(migration_id, action):

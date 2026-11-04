@@ -4,6 +4,7 @@ export const questionTypes = [
   { title: 'Freitext', value: 'comment' },
   { title: 'Einfachauswahl', value: 'radiogroup' },
   { title: 'Mehrfachauswahl', value: 'checkbox' },
+  { title: 'Rangfolge genutzter Optionen', value: 'ranking' },
   { title: 'Bewertungsskala', value: 'rating' },
   { title: 'Likert-Skala', value: 'matrix' }
 ]
@@ -30,5 +31,6 @@ export function questionIssues(question: SurveyQuestion): string[] {
     check(optionsRule(question.columns?.join('\n') ?? ''), 'Skalenoptionen: ')
   }
   if (question.type === 'rating') check(ratingRule(question))
+  if (question.type === 'ranking' && !question.choicesFromQuestion) errors.push('Bitte eine vorherige Mehrfachauswahl als Quelle auswählen.')
   return errors
 }

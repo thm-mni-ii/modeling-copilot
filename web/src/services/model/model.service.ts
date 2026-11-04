@@ -1,7 +1,7 @@
 import type { AxiosResponse } from 'axios'
 import httpClient from '@/services/api/httpClient'
 import type { ApiId, ApiPage } from '@/services/api/types/common'
-import type { CreateModel, CreateModelVersion, Model, ModelListOptions, ModelVersion, ModelVersionInfo, TaskEditDocument, UpdateModel, UpdateTaskEdit } from '@/services/api/types/model'
+import type { CreateModel, CreateModelVersion, Model, ModelListOptions, ModelVersion, ModelVersionInfo, TaskEditDocument, TaskEditVersionInfo, UpdateModel, UpdateTaskEdit } from '@/services/api/types/model'
 import { versionsOf } from '@/collab/storage/workpieceVersions'
 
 class ModelService {
@@ -42,7 +42,15 @@ class ModelService {
   }
 
   updateTaskEdit(modelId: ApiId, taskEdit: UpdateTaskEdit): Promise<AxiosResponse<TaskEditDocument>> {
-    return httpClient.put(`/v1/models/${modelId}/task-edit`, taskEdit)
+    return httpClient.put(`/v1/models/${modelId}/task-edit`, { ...taskEdit, patches: taskEdit.patches.map(({ id, createdAt, operations }) => ({ id, createdAt, operations })) })
+  }
+
+  listTaskEditHistory(modelId: ApiId, skip = 0, limit = 100): Promise<AxiosResponse<ApiPage<TaskEditVersionInfo>>> {
+    return httpClient.get(`/v1/models/${modelId}/task-edit/history`, { params: { skip, limit } })
+  }
+
+  getTaskEditVersion(modelId: ApiId, versionId: ApiId): Promise<AxiosResponse<TaskEditDocument>> {
+    return httpClient.get(`/v1/models/${modelId}/task-edit/history/${versionId}`)
   }
 }
 
