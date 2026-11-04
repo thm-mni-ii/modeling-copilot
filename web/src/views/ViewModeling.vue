@@ -90,6 +90,8 @@
             @update:task-edit-document="workspace.updateTaskEditDocument"
           />
         </div>
+        <!-- Modell eines Raums: die mitgeteilte Aufgabe, sofern der Host eine geteilt hat. -->
+        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="task-area" @select-connection="selectTaskConnection" />
       </template>
       <template #window-content="{ definition }">
         <TaskEditEditor v-if="definition.role === 'task'" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @update:model-value="workspace.updateTaskEditDocument" />
@@ -134,6 +136,8 @@ import PulseSurveyPirate from '@/components/learningPaths/PulseSurveyPirate.vue'
 import LearningPathHelp from '@/components/learningPaths/LearningPathHelp.vue'
 import HelpRequestFlow from '@/components/learningPaths/HelpRequestFlow.vue'
 import { usePulseSurvey } from '@/composables/usePulseSurvey'
+import SharedTask from '@/collab/sharing/SharedTask.vue'
+import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
 interface Props {
   modelId?: string
@@ -143,6 +147,7 @@ const emit = defineEmits<{ 'learning-path-model': [modelId: string | null] }>()
 const router = useRouter()
 const route = useRoute()
 const workspace = useModelWorkspaceStore()
+const { linkedWorkpieceId } = useCollabConnection()
 const canvas = ref<{ serializeModel: () => JsonObject; loadPersistedModel: (data: JsonObject) => void; selectConnectionByType: (languageId: string, connectionType: string) => boolean } | null>(null)
 const graphModel = ref<GraphDataModel>()
 const recoveryDialog = ref(false)

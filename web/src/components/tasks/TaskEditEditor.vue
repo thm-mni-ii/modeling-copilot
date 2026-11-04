@@ -5,11 +5,13 @@
       <v-btn size="small" color="warning" variant="tonal" prepend-icon="mdi-marker" :disabled="!hasSelection" @mousedown.prevent @click="markHelpText">Textstelle markieren</v-btn>
     </div>
     <div v-if="editor && mode === 'edit'" class="task-edit-toolbar">
-      <v-btn-group size="x-small" density="compact" variant="outlined">
-        <v-btn :disabled="!editor.can().undo()" title="Undo Edit" @click="editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
-        <v-btn :disabled="!editor.can().redo()" title="Redo Edit" @click="editor.chain().focus().redo().run()"><v-icon>mdi-redo</v-icon></v-btn>
-      </v-btn-group>
-      <v-divider vertical class="mx-1" />
+      <template v-if="!shared">
+        <v-btn-group size="x-small" density="compact" variant="outlined">
+          <v-btn :disabled="!editor.can().undo()" title="Undo Edit" @click="editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
+          <v-btn :disabled="!editor.can().redo()" title="Redo Edit" @click="editor.chain().focus().redo().run()"><v-icon>mdi-redo</v-icon></v-btn>
+        </v-btn-group>
+        <v-divider vertical class="mx-1" />
+      </template>
       <v-btn-group size="x-small" density="compact" variant="outlined">
         <v-btn :color="isFormatActive('taskEditBold') ? 'primary' : undefined" :disabled="!hasSelection" title="Bold Edit" @mousedown.prevent @click="applyFormat('taskEditBold', 'bold')"><v-icon>mdi-format-bold</v-icon></v-btn>
         <v-btn :color="isFormatActive('taskEditItalic') ? 'primary' : undefined" :disabled="!hasSelection" title="Italic Edit" @mousedown.prevent @click="applyFormat('taskEditItalic', 'italic')"><v-icon>mdi-format-italic</v-icon></v-btn>
@@ -19,8 +21,10 @@
       </v-btn-group>
       <TaskColorPicker title="Text color Edit" icon="mdi-format-color-text" :colors="TASK_TEXT_COLORS" size="x-small" :disabled="!hasSelection" :active="isFormatActive('taskEditTextColor')" @select="applyFormat('taskEditTextColor', 'textColor', $event)" />
       <TaskColorPicker title="Highlight Edit" icon="mdi-marker" :colors="TASK_HIGHLIGHT_COLORS" size="x-small" :disabled="!hasSelection" :active="isFormatActive('taskEditHighlight')" @select="applyFormat('taskEditHighlight', 'highlight', $event)" />
-      <v-divider vertical class="mx-1" />
-      <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-text-box-plus-outline" title="Insert text Edit" @click="insertionDialog = true">Add text</v-btn>
+      <template v-if="!shared">
+        <v-divider vertical class="mx-1" />
+        <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-text-box-plus-outline" title="Insert text Edit" @click="insertionDialog = true">Add text</v-btn>
+      </template>
     </div>
 
     <editor-content :editor="editor" class="task-edit-body" @click="onTaskReferenceClick" @dragstart="onDragStart" @mouseleave="hideReferencePreview" @mouseover="onTaskReferenceMouseOver" />
@@ -56,7 +60,7 @@ import type { JsonObject } from '@/services/api/types/common'
 import { cloneTaskDocument, taskDocumentsEqual } from '@/utils/taskEdits'
 import TaskColorPicker from './TaskColorPicker.vue'
 import { createTaskEditorExtensions, readTaskConnectionReference, TASK_HIGHLIGHT_COLORS, TASK_TEXT_COLORS, writeTaskElementDragData, type TaskConnectionOption, type TaskElementOption } from './taskEditorExtensions'
-import { createTaskEditMark, toggleTaskEditMark, type TaskEditMarkName } from './taskEditMarks'
+import { createTaskEditMarks, toggleTaskEditMark, type TaskEditMarkName } from './taskEditMarks'
 
 type EditType = 'highlight' | 'bold' | 'italic' | 'underline' | 'strike' | 'textColor' | 'inlineCode'
 
@@ -68,11 +72,13 @@ const props = withDefaults(
     baseHtml: string
     modelValue: JsonObject | null
     mode?: 'read' | 'edit' | 'help'
+    /** Im Raum: nur markieren. Der Verlauf des Editors nähme sonst auch Markierungen anderer zurück. */
+    shared?: boolean
     helpTextRanges?: HelpTextRange[]
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
   }>(),
-  { mode: 'read', elementOptions: () => [], connectionOptions: () => [], helpTextRanges: () => [] }
+  { mode: 'read', shared: false, elementOptions: () => [], connectionOptions: () => [], helpTextRanges: () => [] }
 )
 
 const emit = defineEmits<{
@@ -81,17 +87,7 @@ const emit = defineEmits<{
   'mark-help-text': [range: HelpTextRange]
 }>()
 
-const baseExtensions = [
-  ...createTaskEditorExtensions(),
-  createTaskEditMark('taskEditHighlight', 'highlight'),
-  createTaskEditMark('taskEditBold', 'bold'),
-  createTaskEditMark('taskEditItalic', 'italic'),
-  createTaskEditMark('taskEditUnderline', 'underline'),
-  createTaskEditMark('taskEditStrike', 'strike'),
-  createTaskEditMark('taskEditTextColor', 'textColor'),
-  createTaskEditMark('taskEditInlineCode', 'inlineCode'),
-  createTaskEditMark('taskEditInsertion', 'insertion')
-]
+const baseExtensions = [...createTaskEditorExtensions(), ...createTaskEditMarks()]
 
 const baseParser = new CoreEditor({ content: props.baseHtml, editable: false, extensions: baseExtensions })
 let baseDocument = cloneTaskDocument(baseParser.getJSON() as JsonObject)
@@ -110,7 +106,11 @@ const EditShortcutGuard = Extension.create({
     'Mod-i': () => true,
     'Mod-u': () => true,
     'Mod-Shift-s': () => true,
-    'Mod-e': () => true
+    'Mod-e': () => true,
+    // Im Raum gibt es keinen Verlauf, siehe `shared`.
+    'Mod-z': () => props.shared,
+    'Mod-Shift-z': () => props.shared,
+    'Mod-y': () => props.shared
   })
 })
 

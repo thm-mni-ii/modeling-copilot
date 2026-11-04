@@ -17,7 +17,7 @@
           <v-btn v-if="!windowOpen" size="x-small" variant="text" density="compact" title="Edit mode" class="task-topbar__action-btn" :color="editMode ? 'primary' : undefined" @click="editMode = !editMode">
             <v-icon size="15">mdi-clipboard-edit-outline</v-icon>
           </v-btn>
-          <v-btn v-if="!windowOpen" size="x-small" variant="text" density="compact" title="Open as a free-floating window" class="task-topbar__action-btn" @click="emit('pop-out')">
+          <v-btn v-if="!windowOpen && poppable" size="x-small" variant="text" density="compact" title="Open as a free-floating window" class="task-topbar__action-btn" @click="emit('pop-out')">
             <v-icon size="15">mdi-open-in-new</v-icon>
           </v-btn>
           <v-btn v-if="evaluationWorkflows.length" size="x-small" color="primary" variant="tonal" prepend-icon="mdi-play-circle-outline" @click="emit('start-evaluation')">Auswertung starten</v-btn>
@@ -31,7 +31,11 @@
             <v-icon size="16" color="primary">mdi-open-in-new</v-icon>
             The task text is open in a window. Close the window to display it here.
           </div>
-          <TaskEditEditor v-else :base-html="contentHtml" :model-value="helpSelectionMode ? helpTaskDocument ?? null : taskEdit?.document ?? null" :mode="helpSelectionMode ? 'help' : editMode ? 'edit' : 'read'" :help-text-ranges="helpTextRanges" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="editorStyle" @mark-help-text="emit('mark-help-text', $event)" @select-connection="emit('select-connection', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
+          <!-- Mit Inhalt im Slot (Notizen im Raum) scrollen Aufgabe und Inhalt gemeinsam. -->
+          <div v-else class="task-topbar__content">
+            <TaskEditEditor :base-html="contentHtml" :model-value="helpSelectionMode ? helpTaskDocument ?? null : taskEdit?.document ?? null" :mode="helpSelectionMode ? 'help' : editMode ? 'edit' : 'read'" :shared="shared" :help-text-ranges="helpTextRanges" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :class="{ 'task-topbar__editor--flow': $slots.default }" :style="$slots.default ? undefined : editorStyle" @mark-help-text="emit('mark-help-text', $event)" @select-connection="emit('select-connection', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
+            <slot />
+          </div>
 
           <div class="task-topbar__resize-handle" title="Adjust height" @mousedown.prevent="startResize">
             <v-icon size="12">mdi-drag-horizontal</v-icon>
@@ -63,12 +67,18 @@ const props = withDefaults(
     helpSelectionMode?: boolean
     helpTaskDocument?: JsonObject | null
     helpTextRanges?: HelpTextRange[]
+    /** Ob die Aufgabe in ein eigenes Fenster darf; im Raum nicht. */
+    poppable?: boolean
+    /** Aufgabe im Raum: nur markieren, kein eigener Text und kein Verlauf des Editors. */
+    shared?: boolean
   }>(),
   {
     elementOptions: () => [],
     connectionOptions: () => [],
     evaluationWorkflows: () => [],
-    helpTextRanges: () => []
+    helpTextRanges: () => [],
+    poppable: true,
+    shared: false
   }
 )
 
@@ -238,6 +248,31 @@ watch(
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.task-topbar__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Mit Inhalt darunter wächst der Text mit, statt selbst zu scrollen. */
+.task-topbar__editor--flow {
+  height: auto !important;
+}
+
+.task-topbar__editor--flow :deep(.task-edit-body) {
+  overflow-y: visible;
+}
+
+.task-topbar__editor--flow :deep(.ProseMirror) {
+  min-height: 0;
+}
+
+.task-topbar__editor--flow :deep(.task-edit-toolbar) {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .task-topbar__editor {

@@ -38,6 +38,18 @@ export const createTaskEditMark = (name: string, type: string) =>
     ]
   })
 
+/** Alle Marks der Task-Edits, wie der Editor sie liest; auch für den Grundtext der Aufgabe im Raum. */
+export const createTaskEditMarks = () => [
+  createTaskEditMark('taskEditHighlight', 'highlight'),
+  createTaskEditMark('taskEditBold', 'bold'),
+  createTaskEditMark('taskEditItalic', 'italic'),
+  createTaskEditMark('taskEditUnderline', 'underline'),
+  createTaskEditMark('taskEditStrike', 'strike'),
+  createTaskEditMark('taskEditTextColor', 'textColor'),
+  createTaskEditMark('taskEditInlineCode', 'inlineCode'),
+  createTaskEditMark('taskEditInsertion', 'insertion')
+]
+
 export const toggleTaskEditMark = (editor: Editor, mark: TaskEditMarkName, attributes: Record<string, unknown>) => {
   const color = typeof attributes.color === 'string' ? attributes.color : undefined
   const active = color ? editor.isActive(mark, { color }) : editor.isActive(mark)

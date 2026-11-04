@@ -5,6 +5,7 @@
         <v-switch v-model="options.anonymous" color="primary" density="compact" hide-details label="Visitors anonymous" />
         <v-switch v-model="options.edit" color="primary" density="compact" hide-details label="Visitors may edit" />
         <v-switch v-model="options.comment" color="primary" density="compact" hide-details label="Visitors may comment" />
+        <v-switch v-if="workspace.taskReference" v-model="options.task" color="primary" density="compact" hide-details label="Share the task" />
         <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mt-3">{{ error }}</v-alert>
       </v-card-text>
       <v-card-actions>
@@ -78,7 +79,7 @@ import { currentShare, hostClosed, leaveAsVisitor, leaveShare, reopenShare, shar
 const router = useRouter()
 const workspace = useModelWorkspaceStore()
 
-const options = reactive({ anonymous: false, edit: true, comment: true })
+const options = reactive({ anonymous: false, edit: true, comment: true, task: true })
 const target = ref<LeaveTarget>('version')
 const name = ref('')
 const busy = ref(false)

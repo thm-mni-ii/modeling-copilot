@@ -158,7 +158,8 @@ export const shareDialog = ref<'ask' | 'link' | 'quit' | null>(null)
 export const shareLink = (router: Router, roomId: string) => new URL(router.resolve({ name: 'Join', params: { roomId } }).href, window.location.origin).href
 
 /** Shares the open model: creates room and workpiece at the backend, writes the state, opens the room model. Gives back the link. */
-export const shareModel = async (router: Router, options: ShareOptions) => {
+/** With `task`, the task of the model comes along; the backend reads it from the model. */
+export const shareModel = async (router: Router, options: ShareOptions & { task: boolean }) => {
   // A second share saves and closes the first one beforehand, as on leaving.
   if (current.value) await leaveShare(router, 'version')
 
@@ -171,7 +172,8 @@ export const shareModel = async (router: Router, options: ShareOptions) => {
   const languages = cloneJson(workspace.languages)
 
   const { name, contract, units } = newWorkpiece('', privateModel.name, languages)
-  const shared = await request(() => httpClient.post<{ roomId: string; workpieceId: string; hostId: string; created: boolean }>('/v1/share', { name, contract, units, ...options }))
+  const task = options.task && Boolean(workspace.taskReference)
+  const shared = await request(() => httpClient.post<{ roomId: string; workpieceId: string; hostId: string; created: boolean }>('/v1/share', { name, contract, units, ...options, task, modelId: privateModel.id }))
   const ck = await loadCollabKit()
   // The host already shares: the workpiece holds the live state, which must not be overwritten.
   if (shared.created) await writeState(ck, shared.workpieceId, xml, languages)
