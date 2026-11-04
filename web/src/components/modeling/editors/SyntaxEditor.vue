@@ -21,7 +21,6 @@
             <span class="text-h6">Preview</span>
             <v-spacer />
             <AutonomyControls :mode="autonomyMode" @update:mode="autonomyMode = $event" />
-            <ConnectionPreviewControl v-model="connectionPreview" />
           </v-card-title>
 
           <v-divider />
@@ -43,8 +42,6 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import DrawingCanvas from '@/components/modeling/canvas/DrawingCanvas.vue'
 import AutonomyControls from '@/components/modeling/controls/AutonomyControls.vue'
-import ConnectionPreviewControl from '@/components/modeling/controls/ConnectionPreviewControl.vue'
-import { useConnectionPreviewPreference } from '@/composables/useConnectionPreviewPreference'
 import type { AutonomyMode } from '@/model/Autonomy'
 import BasicEditorForm from '../form/BasicEditorForm.vue'
 import type { GraphDataModel } from '@maxgraph/core'
@@ -65,7 +62,6 @@ const drawingCanvasRef = ref()
 const previewSidebarVisible = ref(false)
 
 const autonomyMode = ref<AutonomyMode>('free')
-const connectionPreview = useConnectionPreviewPreference()
 
 // Computed
 const syntaxRules = computed(() => store.definition?.syntax || [])

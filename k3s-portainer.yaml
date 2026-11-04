@@ -16,6 +16,82 @@ data:
 
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: modeling-copilot-backup
+  namespace: modeling-copilot
+data:
+  # Used only in archive names, never to decide whether a backup is needed.
+  BACKUP_RELEASE_VERSION: latest
+  backup.sh: |
+    #!/bin/sh
+    set -eu
+    umask 077
+
+    : "${POD_UID:?POD_UID is required}"
+    : "${MONGODB_DATABASE:?MONGODB_DATABASE is required}"
+    : "${DB_USER:?DB_USER is required}"
+    : "${DB_PASSWORD:?DB_PASSWORD is required}"
+    case "$POD_UID" in
+      *[!a-zA-Z0-9-]*) echo "Invalid pod UID." >&2; exit 1 ;;
+    esac
+
+    backup_root=${BACKUP_ROOT:-/backups}
+    backup_dir="$backup_root/pod-$POD_UID"
+    if [ -d "$backup_dir" ]; then
+      # Init containers can run again; only reuse a complete, intact backup.
+      cd "$backup_dir"
+      sha256sum -c SHA256SUMS
+      gzip -t ./*.archive.gz
+      echo "Verified existing pre-migration backup: $backup_dir"
+      exit 0
+    fi
+
+    version=$(printf '%s' "${BACKUP_RELEASE_VERSION:-unversioned}" | tr -c 'A-Za-z0-9._-' '_')
+    timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+    archive="modeling_${version}_${timestamp}.archive.gz"
+    staging=$(mktemp -d "$backup_root/.partial-$POD_UID-XXXXXX")
+    cd "$staging"
+
+    # A failed dump stays in a hidden staging directory and cannot be reused.
+    mongodump --host "${MONGODB_HOST:-mongo}:27017" \
+      --username "$DB_USER" --password "$DB_PASSWORD" \
+      --authenticationDatabase admin --db "$MONGODB_DATABASE" \
+      --archive="$archive" --gzip
+    test -s "$archive"
+    gzip -t "$archive"
+    sha256sum "$archive" > SHA256SUMS
+    sha256sum -c SHA256SUMS
+    {
+      printf 'database=%s\n' "$MONGODB_DATABASE"
+      printf 'releaseVersion=%s\n' "$version"
+      printf 'createdAtUtc=%s\n' "$timestamp"
+      printf 'podUid=%s\n' "$POD_UID"
+      printf 'archive=%s\n' "$archive"
+      mongodump --version
+    } > metadata.txt
+    # Publish the whole backup atomically only after its files are persisted.
+    sync
+    mv "$staging" "$backup_dir"
+    sync
+    echo "Created pre-migration backup: $backup_dir/$archive"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: modeling-copilot-backups
+  namespace: modeling-copilot
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: mongo
@@ -122,7 +198,7 @@ metadata:
   namespace: modeling-copilot
 spec:
   replicas: 1
-  # Stop the old API before the new image applies database migrations.
+  # Stop the old API before the new pod backs up and migrates the database.
   strategy:
     type: Recreate
   selector:
@@ -135,6 +211,47 @@ spec:
         app.kubernetes.io/name: modeling-copilot
         app.kubernetes.io/component: api
     spec:
+      initContainers:
+        - name: database-backup
+          # Includes Database Tools compatible with the production MongoDB.
+          image: mongo:4.4.29
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "/etc/modeling-backup/backup.sh"]
+          env:
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: modeling-copilot-api-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: modeling-copilot-api-secrets
+                  key: DB_PASSWORD
+            - name: BACKUP_RELEASE_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: modeling-copilot-backup
+                  key: BACKUP_RELEASE_VERSION
+          envFrom:
+            - configMapRef:
+                name: modeling-copilot-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: database-backups
+              mountPath: /backups
+            - name: database-backup-script
+              mountPath: /etc/modeling-backup
+              readOnly: true
       containers:
         - name: api
           image: ghcr.io/thm-mni-ii/modeling-copilot-api:latest
@@ -206,6 +323,16 @@ spec:
               memory: 128Mi
             limits:
               memory: 512Mi
+      volumes:
+        - name: database-backups
+          persistentVolumeClaim:
+            claimName: modeling-copilot-backups
+        - name: database-backup-script
+          configMap:
+            name: modeling-copilot-backup
+            items:
+              - key: backup.sh
+                path: backup.sh
 
 ---
 apiVersion: v1

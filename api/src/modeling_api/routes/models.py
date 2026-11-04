@@ -20,8 +20,39 @@ from modeling_api.schemas.models import (
     UpdateTaskEdit,
 )
 from modeling_api.services import models as service
+from modeling_api.services import model_activity
+from modeling_api.schemas.model_activity import ActivitySession, SaveActivitySession, StoredActivityInteraction
 
 router = APIRouter(prefix="/models", tags=["Models"])
+
+
+@router.put("/{model_id}/activity/sessions/{session_id}", status_code=204,
+            summary="Save an editor session and its pending interactions")
+async def save_activity_session(
+    model_id: UUID, session_id: UUID, body: SaveActivitySession, user: CurrentUser,
+) -> None:
+    await model_activity.save_session(model_id, session_id, body, user)
+
+
+@router.get("/{model_id}/activity/sessions", response_model=Page[ActivitySession],
+            summary="List model sessions (administrators only)")
+async def list_activity_sessions(model_id: UUID, user: CurrentUser, skip: Skip = 0, limit: Limit = 100):
+    return await model_activity.list_sessions(model_id, skip, limit, user)
+
+
+@router.get("/{model_id}/activity/sessions/{session_id}", response_model=ActivitySession,
+            summary="Get an editor session (administrators only)")
+async def activity_session(model_id: UUID, session_id: UUID, user: CurrentUser):
+    return await model_activity.get_session(model_id, session_id, user)
+
+
+@router.get("/{model_id}/activity/sessions/{session_id}/interactions",
+            response_model=Page[StoredActivityInteraction],
+            summary="List session interactions chronologically (administrators only)")
+async def activity_interactions(
+    model_id: UUID, session_id: UUID, user: CurrentUser, skip: Skip = 0, limit: Limit = 100,
+):
+    return await model_activity.list_interactions(model_id, session_id, skip, limit, user)
 
 
 @router.get(

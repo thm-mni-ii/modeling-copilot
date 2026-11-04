@@ -66,6 +66,7 @@ import type { JsonObject } from '@/services/api/types/common'
 import type { Model, ModelSortField, ModelVersionInfo, SortOrder, TaskEditDocument } from '@/services/api/types/model'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
 import { notifyError } from '@/composables/useNotifications'
+import { releaseVersionLabel } from '@/utils/versions'
 
 interface ModelTableOptions {
   page: number
@@ -116,7 +117,7 @@ const asModel = (item: Model | { raw: Model }) => ('raw' in item ? item.raw : it
 const previewTitle = computed(() => previewModel.value?.name ?? '')
 const releaseVersions = (modelId: string) => (versions.value[modelId] ?? []).filter((entry) => entry.kind === 'release')
 const taskOptions = computed(() => availableTasks.value.filter((task) => task.visibility === 'published' && task.latestReleaseId).map((task) => ({ title: task.name, value: task.id })))
-const taskVersionOptions = computed(() => selectableTaskVersions.value.map((version) => ({ title: `${version.releaseName} · v${version.versionNumber}`, value: version.id })))
+const taskVersionOptions = computed(() => selectableTaskVersions.value.map((version) => ({ title: releaseVersionLabel(version), value: version.id })))
 const taskName = (model: Model) => (model.taskVersion ? taskNames.value[model.taskVersion.taskId] ?? availableTasks.value.find((task) => task.id === model.taskVersion?.taskId)?.name ?? 'Task' : '—')
 
 const loadModels = async (options?: ModelTableOptions) => {
