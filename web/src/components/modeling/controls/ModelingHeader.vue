@@ -10,8 +10,20 @@
 
       <ModelingToolbarGroup title="Save" class="modeling-header__save-group">
         <v-btn-group size="small" density="compact" variant="outlined">
-          <v-btn :icon="saveIcon" :color="saveColor" :loading="workspace.syncState === 'saving'" :title="`${stateLabel} — Save model`" @click="saveCheckpoint" />
-          <v-btn icon="mdi-tag-plus-outline" color="medium-gray" :disabled="!workspace.canRelease" :title="workspace.canRelease ? 'Release version' : 'Save the latest checkpoint before releasing'" @click="openRelease" />
+          <v-btn :icon="saveIcon" :color="saveColor" :loading="workspace.saving" :title="`${stateLabel} — Save model`" @click="saveCheckpoint" />
+          <v-menu v-model="releaseMenu" :close-on-content-click="false" location="bottom start" :offset="8">
+            <template #activator="{ props }">
+              <v-btn v-bind="props" icon="mdi-tag-plus-outline" color="medium-gray" :disabled="!workspace.canRelease" :title="workspace.canRelease ? 'Release version' : 'Change the model before creating another release'" aria-label="Release version" @click="releaseName = ''" />
+            </template>
+            <v-card class="modeling-release" width="320" rounded="lg">
+              <v-text-field v-model="releaseName" label="Release name (optional)" placeholder="Automatic release number" variant="outlined" density="compact" autofocus maxlength="256" hide-details :disabled="workspace.saving" @keydown.enter.prevent="saveRelease">
+                <template #append-inner>
+                  <v-btn icon="mdi-check" color="primary" size="small" variant="text" :loading="workspace.saving" :disabled="!workspace.canRelease" title="Create release" aria-label="Create release" @click="saveRelease" />
+                </template>
+              </v-text-field>
+              <p class="text-caption text-medium-emphasis mt-2 mb-0">Enter or ✓ to release. Leave empty for V1, V2, …</p>
+            </v-card>
+          </v-menu>
           <v-btn icon="mdi-timeline-clock-outline" :color="workspace.pendingPatches.length ? 'warning' : 'medium-gray'" :disabled="!workspace.model" title="Version timeline" aria-label="Open version timeline" @click="timelineDialog = true" />
           <slot name="save-tools" />
         </v-btn-group>
@@ -36,23 +48,12 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="releaseDialog" max-width="520">
-      <v-card>
-        <v-card-title>Release version</v-card-title>
-        <v-card-text>
-          <v-text-field v-model="releaseName" label="Release name" autofocus @keyup.enter="saveRelease" />
-          <v-textarea v-model="releaseDescription" label="Description (optional)" />
-          <p class="text-caption text-medium-emphasis mb-0">A release can only be created after all local changes have been saved as a checkpoint.</p>
-        </v-card-text>
-        <v-card-actions><v-spacer /><v-btn @click="releaseDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!releaseName.trim() || !workspace.canRelease" @click="saveRelease">Release</v-btn></v-card-actions>
-      </v-card>
-    </v-dialog>
     <ModelTimelineDialog v-model="timelineDialog" />
   </header>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { exportModelAsXml } from '@/utils/modelPersistence'
@@ -65,13 +66,12 @@ const { graph } = useGraphContext()
 const modelName = computed(() => workspace.model?.name ?? workspace.data.name)
 const renameDialog = ref(false)
 const editedName = ref('')
-const releaseDialog = ref(false)
+const releaseMenu = ref(false)
 const releaseName = ref('')
-const releaseDescription = ref('')
 const timelineDialog = ref(false)
 const effectiveSyncState = computed(() => workspace.syncState === 'synced' && workspace.taskEditDirty ? workspace.taskEditSyncState : workspace.syncState)
 const stateLabel = computed(() => ({ synced: 'Saved', dirty: 'Unsaved changes', saving: 'Saving...', offline: 'Offline - saved locally', conflict: 'Conflict' })[effectiveSyncState.value])
-const canSave = computed(() => (workspace.dirty || workspace.taskEditDirty) && workspace.syncState !== 'saving' && workspace.syncState !== 'conflict')
+const canSave = computed(() => (workspace.dirty || workspace.taskEditDirty) && !workspace.saving && workspace.syncState !== 'conflict')
 const saveColor = computed(() => ({ synced: 'success', dirty: 'warning', saving: 'primary', offline: 'warning', conflict: 'error' })[effectiveSyncState.value])
 const saveIcon = computed(() => (effectiveSyncState.value === 'dirty' ? 'mdi-content-save-alert' : 'mdi-content-save-outline'))
 
@@ -92,14 +92,13 @@ const saveCheckpoint = async () => {
   }
 }
 
-const openRelease = () => {
+watch(() => workspace.model?.id, () => {
+  releaseMenu.value = false
   releaseName.value = ''
-  releaseDescription.value = ''
-  releaseDialog.value = true
-}
+})
 
 const saveRelease = async () => {
-  if (!releaseName.value.trim()) return
+  if (!workspace.canRelease) return
   try {
     if (graph.value) {
       workspace.setData({
@@ -109,8 +108,8 @@ const saveRelease = async () => {
         name: modelName.value
       })
     }
-    await workspace.save('release', releaseName.value, releaseDescription.value)
-    releaseDialog.value = false
+    await workspace.release(releaseName.value)
+    releaseMenu.value = false
   } catch {
     notifyError('Unable to release this version.')
   }
@@ -143,6 +142,11 @@ const saveName = async () => {
   border: 1px solid rgba(var(--v-theme-outline), 0.14);
   border-radius: 4px;
   flex-wrap: wrap;
+}
+
+.modeling-release {
+  padding: 12px;
+  border-top: 3px solid rgb(var(--v-theme-primary));
 }
 
 .modeling-header__main {

@@ -32,6 +32,7 @@ const selectedLanguagesFrom = (version: ModelVersion): WorkspaceLanguage[] => cl
 const dirtySyncState = (): ModelSyncState => (typeof navigator === 'undefined' || navigator.onLine ? 'dirty' : 'offline')
 const responseStatus = (error: unknown) => (error as { response?: { status?: number } }).response?.status
 const TASK_EDIT_SAVE_BATCH_SIZE = 100
+const releaseState = (snapshot: ModelSnapshot, languages: WorkspaceLanguage[], taskDocument: JsonObject | null) => JSON.stringify([snapshot.xml, snapshot.name, languages, taskDocument])
 
 export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   const model = ref<Model | null>(null)
@@ -53,6 +54,9 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   const taskEditSyncState = ref<TaskEditSyncState>('synced')
   const dirty = ref(false)
   const syncState = ref<ModelSyncState>('synced')
+  const savedReleaseState = ref<string | null>(null)
+  const versionSavePending = ref(false)
+  const releasePending = ref(false)
 
   let initialDraftKey: string | null = null
   let preferenceSave = Promise.resolve()
@@ -61,7 +65,9 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
 
   const draftKey = computed(() => model.value?.id ?? 'new-model')
   const preferences = computed<JsonObject>(() => model.value?.preferences ?? pendingPreferences.value)
-  const canRelease = computed(() => Boolean(model.value && baseVersionId.value) && !dirty.value && !taskEditDirty.value && pendingPatches.value.length === 0 && syncState.value === 'synced')
+  const saving = computed(() => versionSavePending.value || releasePending.value)
+  const hasReleaseChanges = computed(() => savedReleaseState.value !== null && savedReleaseState.value !== releaseState(data.value, languages.value, taskEdit.value?.document ?? null))
+  const canRelease = computed(() => Boolean(model.value && baseVersionId.value) && hasReleaseChanges.value && !saving.value && syncState.value !== 'conflict' && syncState.value !== 'offline' && taskEditSyncState.value !== 'conflict')
   const resolvedLanguages = computed(() => effectiveLanguages.value.map((reference) => languageDefinitions.value[languageReferenceKey(reference)]).filter((entry): entry is ResolvedLanguageVersion => Boolean(entry)))
   const editorLanguages = computed<WorkspaceDiagramLanguage[]>(() =>
     resolvedLanguages.value.map(({ language, version }) => ({
@@ -107,6 +113,17 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     data.value = normalizeModelSnapshot(version.data, modelName)
     baseReleaseId.value = version.kind === 'release' ? version.id : version.baseReleaseId
     await Promise.all([loadLanguages(version.workspaceLanguages), loadAssignedTask(version.taskVersion)])
+  }
+
+  const rememberRelease = (version: ModelVersion, modelName: string) => {
+    const snapshot = normalizeModelSnapshot(version.data, typeof version.data.name === 'string' ? version.data.name : modelName)
+    savedReleaseState.value = releaseState(snapshot, version.workspaceLanguages, version.taskEditSnapshot?.document ?? null)
+  }
+
+  const loadReleaseState = async (currentModel: Model, version: ModelVersion) => {
+    savedReleaseState.value = null
+    const release = version.kind === 'release' ? version : version.baseReleaseId ? (await modelService.getVersion(currentModel, version.baseReleaseId)).data : null
+    if (release) rememberRelease(release, currentModel.name)
   }
 
   const persistJournal = async () => {
@@ -159,6 +176,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     model.value = null
     baseVersionId.value = null
     baseReleaseId.value = null
+    savedReleaseState.value = null
     pendingPatches.value = []
     pendingPreferences.value = {}
     taskReference.value = null
@@ -195,6 +213,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     baseVersionId.value = version.id
     initialDraftKey = null
     await applyVersion(version, currentModel.name)
+    await loadReleaseState(currentModel, version)
     pendingPatches.value = []
     dirty.value = false
     syncState.value = 'synced'
@@ -278,6 +297,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     baseVersionId.value = latest.id
     pendingPatches.value = []
     await applyVersion(latest, currentModel.data.name)
+    await loadReleaseState(currentModel.data, latest)
     dirty.value = false
     syncState.value = 'synced'
     languages.value = cloneJson(snapshotLanguages)
@@ -370,10 +390,13 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   const adoptTaskEditSnapshot = (snapshot: TaskEditDocument) => updateTaskEditDocument(snapshot.document)
 
   const save = async (kind: ModelVersionKind = 'checkpoint', releaseName?: string, description?: string) => {
+    if (versionSavePending.value) throw new Error('A model version is already being saved.')
     if (kind === 'release' && !releaseName?.trim()) throw new Error('A release needs a name.')
+    if (kind === 'release' && !hasReleaseChanges.value) throw new Error('Change the model before creating another release.')
     if (kind === 'release' && (dirty.value || pendingPatches.value.length > 0)) {
       throw new Error('Save the latest checkpoint before creating a release.')
     }
+    versionSavePending.value = true
     syncState.value = 'saving'
 
     try {
@@ -414,6 +437,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
 
       baseVersionId.value = savedVersion.id
       baseReleaseId.value = savedVersion.kind === 'release' ? savedVersion.id : savedVersion.baseReleaseId
+      if (savedVersion.kind === 'release') rememberRelease(savedVersion, currentModel.name)
       pendingPatches.value.splice(0, patchCut.length)
       dirty.value = pendingPatches.value.length > 0 || JSON.stringify(data.value) !== JSON.stringify(dataCut) || JSON.stringify(languages.value) !== JSON.stringify(languagesCut)
       syncState.value = dirty.value ? dirtySyncState() : 'synced'
@@ -425,6 +449,36 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     } catch (error: unknown) {
       syncState.value = responseStatus(error) === 409 ? 'conflict' : dirtySyncState()
       throw error
+    } finally {
+      versionSavePending.value = false
+    }
+  }
+
+  const release = async (name?: string) => {
+    if (!canRelease.value || !model.value) throw new Error('Change the model before creating another release.')
+    releasePending.value = true
+    const currentModel = model.value
+    try {
+      let releaseName = name?.trim()
+      if (!releaseName) {
+        let count = 0
+        let skip = 0
+        let total = 0
+        do {
+          const page = (await modelService.listVersions(currentModel, skip, 100)).data
+          count += page.items.filter((version) => version.kind === 'release').length
+          skip += page.items.length
+          total = page.total
+          if (!page.items.length) break
+        } while (skip < total)
+        releaseName = `V${count + 1}`
+      }
+      if (model.value?.id !== currentModel.id) throw new Error('The active model changed before releasing.')
+      // Preserve editing steps before adding the full release snapshot.
+      while (dirty.value || taskEditDirty.value) await save()
+      return await save('release', releaseName)
+    } finally {
+      releasePending.value = false
     }
   }
 
@@ -488,6 +542,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     data,
     dirty,
     syncState,
+    saving,
     baseVersionId,
     baseReleaseId,
     pendingPatches,
@@ -518,6 +573,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     adoptTaskEditSnapshot,
     setData,
     save,
+    release,
     getRecoveryDraft,
     getRecoverySnapshot,
     discardRecoveryDraft,
