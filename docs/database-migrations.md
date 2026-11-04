@@ -152,12 +152,76 @@ Do not execute the preview against a database while another migration is running
 
 ## Production release from main
 
-Use a database backup taken with application writes stopped. Deploy the new API
-image together with the updated `k3s-portainer.yaml`. Its `Recreate` strategy
-stops the old API before the new container migrates the database; this introduces
-a maintenance interval. A restart of an old image does not deploy the new code:
-verify the selected release image/digest. Do not override the image's startup
-command with a direct Uvicorn invocation.
+Deploy the new API image together with the updated `k3s-portainer.yaml`. Its
+`Recreate` strategy stops the old API before the new pod's `database-backup`
+init container exports the `MONGODB_DATABASE` database. Only a successful backup
+allows the API container to start its existing migrations and then Uvicorn.
+This introduces a maintenance interval. Keep other direct database writers
+stopped throughout backup and migration. Do not use manual pod deletion or
+additional API replicas for releases: those do not provide the same write stop
+as a Deployment update with `Recreate`.
+
+Select immutable release tags or image digests for API and web in Portainer,
+and record the previous image digests before deploying. The manifest defaults
+to `latest`; pulling it is not enough to identify a rollback image or to trigger
+a new Deployment rollout. Explicitly redeploy when using an unchanged image
+reference. Do not override the image's startup command with direct Uvicorn.
+
+### Automatic pre-migration backup in Portainer / k3s
+
+The backup script and its settings are included in the manifest's
+`modeling-copilot-backup` ConfigMap, so Portainer needs no host checkout or
+separate command. Set `BACKUP_RELEASE_VERSION` there to the intended release
+tag for readable archive names. It is only a label, never a backup reuse key.
+Changing this ConfigMap alone does not trigger an API rollout.
+
+Each new API pod creates a backup, even when the version was not updated:
+
+```text
+/backups/pod-<pod-uid>/
+  modeling_v1.2.3_20261104T143015Z.archive.gz
+  SHA256SUMS
+  metadata.txt
+```
+
+Names contain the configured version and the actual UTC date and time. The
+pod UID distinguishes backups even within the same second. An unset/empty
+version is labeled `unversioned`; the shipped default is `latest`.
+
+The dump includes all collections, indexes and migration records of the
+application database. The script checks the dump exit status, archive size,
+gzip integrity and SHA-256 checksum before publishing its staging directory
+atomically. Authentication, storage or verification failures block API startup
+and therefore migration. Kubernetes retries the failed init container.
+
+If the init container runs again for the same pod, it verifies and reuses that
+pod's completed backup. An invalid existing backup blocks startup. A new pod
+always creates another backup and retains all earlier ones, including the
+original backup from before a failed migration. After a failure, use logs and
+timestamps to identify that original backup: a later pod may have backed up
+partially migrated data. Hidden `.partial-*` directories are incomplete attempts
+and must not be used for recovery.
+
+Archives persist on the separate `modeling-copilot-backups` PVC (initial request:
+10 GiB). Only the init container mounts it; the API container cannot modify it.
+There is no automatic deletion. Monitor actual free disk space, export backups
+and remove obsolete archives/incomplete attempts deliberately. A full disk
+blocks the release. The `local-path` storage is node-local and does not protect
+against losing that node; copy successful archives to independent storage for
+that protection. Do not delete the backup PVC or its namespace during recovery.
+
+Inspect the backup step before investigating migration startup:
+
+```sh
+kubectl -n modeling-copilot logs <api-pod> -c database-backup
+kubectl -n modeling-copilot describe pod <api-pod>
+```
+
+This safeguard applies to the API deployment in `k3s-portainer.yaml`. Direct
+migration CLI calls and local Docker Compose still require a manual backup
+with application writes stopped. `collab_kit` is a separate database and is not
+included; a complete application rollback needs its own coordinated backup and
+write stop if Collab-Kit data must also be restored. No automatic restore occurs.
 
 The first start adopts the old baseline, adds missing seeds, publishes language
 releases, and then serves requests. Verify migration logs and `/health/ready`
@@ -167,6 +231,85 @@ upgrade. For local Compose upgrades, stop the old API before `up --build` as wel
 If a release must be rolled back, stop the API and restore the pre-release
 database backup together with its matching previous image. Reverting only the
 image does not revert newly published language releases.
+
+### Manual database restore
+
+Before the first production release, rehearse backup and restore against an
+isolated database. Archive integrity checks alone do not prove restorability.
+
+For recovery, scale the API to zero in Portainer and pause any deployment
+automation and other database writers. Select the original pre-migration
+backup and the matching previous API/web images. For access to the backup PVC,
+create a temporary recovery pod in the same namespace using this specification
+(it is deliberately not part of the normal release manifest):
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: database-recovery
+  namespace: modeling-copilot
+spec:
+  restartPolicy: Never
+  containers:
+    - name: tools
+      image: mongo:4.4.29
+      command: ["sleep", "infinity"]
+      envFrom:
+        - secretRef:
+            name: modeling-copilot-api-secrets
+        - configMapRef:
+            name: modeling-copilot-config
+      volumeMounts:
+        - name: backups
+          mountPath: /backups
+          readOnly: true
+  volumes:
+    - name: backups
+      persistentVolumeClaim:
+        claimName: modeling-copilot-backups
+```
+
+Open a shell with `kubectl -n modeling-copilot exec -it database-recovery -- sh`.
+Choose the backup directory, inspect its metadata and verify it:
+
+```sh
+cd /backups/pod-<original-pod-uid>
+cat metadata.txt
+sha256sum -c SHA256SUMS && gzip -t ./*.archive.gz
+```
+
+Stop if either verification fails. After confirming the database name and that
+all writers are stopped, restore with the following commands **inside that
+shell**. This explicitly deletes the current application database first, so
+collections introduced by the failed migration cannot survive the restore.
+The original backup remains read-only. Restore into an isolated database first
+if the backup has not yet been rehearsed.
+
+```sh
+set -eu
+: "${MONGODB_DATABASE:?}" "${DB_USER:?}" "${DB_PASSWORD:?}"
+mongo --host mongo:27017 --username "$DB_USER" --password "$DB_PASSWORD" \
+  --authenticationDatabase admin "$MONGODB_DATABASE" \
+  --eval 'if (!db.dropDatabase().ok) quit(1)'
+mongorestore --host mongo:27017 --username "$DB_USER" --password "$DB_PASSWORD" \
+  --authenticationDatabase admin --archive="$(find . -name '*.archive.gz')" \
+  --gzip --stopOnError
+```
+
+Verify the restore completed successfully. Configure the recorded previous
+images while API replicas remain at zero, then remove the recovery pod
+(`kubectl -n modeling-copilot delete pod database-recovery`) to release the
+backup volume. Scale the API back to one and check migration logs and
+`/health/ready` before reopening access. Never delete the PVC as cleanup.
+
+Backup verification on 2026-11-04 used the manifest's actual script with an
+isolated MongoDB 4.4.29 container. It covered same-pod reuse, a fresh backup for
+a new pod with the same version, an empty database, an unset version, invalid
+credentials, read-only storage and a corrupted existing backup. Restoring the
+original archive recovered documents, a unique index and migration records,
+and removed a collection introduced after the backup. Temporary containers,
+volumes and the network were removed. No live cluster rollout was performed.
 
 ## Failures and recovery
 
