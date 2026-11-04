@@ -198,6 +198,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
   }
 
   const load = async (modelId: ApiId, versionId?: ApiId) => {
+    savedReleaseState.value = null
     taskEditGeneration++
     taskEditSave = null
     const currentModel = (await modelService.get(modelId)).data

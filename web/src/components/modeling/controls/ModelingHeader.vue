@@ -11,12 +11,12 @@
       <ModelingToolbarGroup title="Save" class="modeling-header__save-group">
         <v-btn-group size="small" density="compact" variant="outlined">
           <v-btn :icon="saveIcon" :color="saveColor" :loading="workspace.saving" :title="`${stateLabel} — Save model`" @click="saveCheckpoint" />
-          <v-menu v-model="releaseMenu" :close-on-content-click="false" location="bottom start" :offset="8">
+          <v-menu v-model="releaseMenu" :close-on-content-click="false" location="bottom start" :offset="8" :transition="{ name: 'fade-transition', onAfterEnter: () => releaseInput?.focus() }">
             <template #activator="{ props }">
               <v-btn v-bind="props" icon="mdi-tag-plus-outline" color="medium-gray" :disabled="!workspace.canRelease" :title="workspace.canRelease ? 'Release version' : 'Change the model before creating another release'" aria-label="Release version" @click="releaseName = ''" />
             </template>
             <v-card class="modeling-release" width="320" rounded="lg">
-              <v-text-field v-model="releaseName" label="Release name (optional)" placeholder="Automatic release number" variant="outlined" density="compact" autofocus maxlength="256" hide-details :disabled="workspace.saving" @keydown.enter.prevent="saveRelease">
+              <v-text-field ref="releaseInput" v-model="releaseName" label="Release name (optional)" placeholder="Automatic release number" variant="outlined" density="compact" maxlength="256" hide-details :disabled="workspace.saving" @keydown.enter.prevent="saveRelease">
                 <template #append-inner>
                   <v-btn icon="mdi-check" color="primary" size="small" variant="text" :loading="workspace.saving" :disabled="!workspace.canRelease" title="Create release" aria-label="Create release" @click="saveRelease" />
                 </template>
@@ -68,6 +68,7 @@ const renameDialog = ref(false)
 const editedName = ref('')
 const releaseMenu = ref(false)
 const releaseName = ref('')
+const releaseInput = ref<{ focus: () => void } | null>(null)
 const timelineDialog = ref(false)
 const effectiveSyncState = computed(() => workspace.syncState === 'synced' && workspace.taskEditDirty ? workspace.taskEditSyncState : workspace.syncState)
 const stateLabel = computed(() => ({ synced: 'Saved', dirty: 'Unsaved changes', saving: 'Saving...', offline: 'Offline - saved locally', conflict: 'Conflict' })[effectiveSyncState.value])
