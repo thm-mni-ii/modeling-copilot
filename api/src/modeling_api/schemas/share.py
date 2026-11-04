@@ -1,6 +1,7 @@
 """Schemas for sharing a model in a Collab-Kit room."""
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field
 
@@ -18,12 +19,16 @@ class ShareModel(ApiSchema):
     anonymous: bool = Field(description="Whether visitors appear anonymously.")
     edit: bool = Field(description="Whether visitors may edit.")
     comment: bool = Field(description="Whether visitors may comment.")
+    model_id: UUID | None = Field(default=None, description="The own model that is shared.")
+    task: bool = Field(
+        default=False, description="Whether the task of the model comes along, read from the model."
+    )
 
 
 class JoinRoom(ApiSchema):
     """The room a link points to."""
 
-    # Eine ObjectId von CK; sie geht in den Pfad der Anfrage an CK, daher keine andere Form.
+    # An ObjectId from CK; it goes into the path of the request to CK, so no other form.
     room_id: str = Field(pattern=r"^[0-9a-f]{24}$", description="ID of the room, as in the link.")
 
 

@@ -12,8 +12,14 @@ ARGS = dict(name="Model", contract={"tool": "x"}, units=[{"path": ["cells"]}])
 
 
 @pytest.fixture
-def ck(monkeypatch):
-    """Ein kleines CK im Speicher: legt an, liest und ändert die settings, merkt sich Grants und Werkstücke."""
+def tasks() -> list[dict]:
+    """The tasks that the in-memory CK has created."""
+    return []
+
+
+@pytest.fixture
+def ck(monkeypatch, tasks):
+    """A small in-memory CK: creates, reads and changes the settings, remembers grants and workpieces."""
     rooms: dict[str, dict] = {}
     groups: dict[str, dict] = {}
     grants: list[dict] = []
@@ -22,6 +28,9 @@ def ck(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
         method, path = request.method, request.url.path
         body = json.loads(request.content) if request.content else {}
+        if (method, path) == ("POST", "/tasks"):
+            tasks.append({"_id": f"T{len(tasks)}", **body})
+            return httpx.Response(201, json=tasks[-1])
         if (method, path) == ("POST", "/rooms"):
             room = {"_id": f"R{len(rooms)}", "createdBy": "service-modeling-copilot", "workpieces": [], **body}
             rooms[room["_id"]] = room
@@ -31,7 +40,7 @@ def ck(monkeypatch):
             groups[group["_id"]] = group
             return httpx.Response(201, json=group)
         if (method, path) == ("PUT", "/grants"):
-            # Wie in CK: Ein Grant je Gruppe und Ort, ein neuer ersetzt den alten.
+            # As in CK: one grant per group and place, a new one replaces the old one.
             grants[:] = [g for g in grants if (g["groupId"], g.get("scope")) != (body["groupId"], body.get("scope"))]
             grants.append(body)
             return httpx.Response(200, json=body)
@@ -125,6 +134,33 @@ def test_another_host_gets_a_room_of_their_own(ck):
     asyncio.run(share.share("42", anonymous=False, edit=True, comment=True, **ARGS))
     result = asyncio.run(share.share("43", anonymous=False, edit=True, comment=True, **ARGS))
     assert result[0] == "R1" and len(rooms) == 2
+
+
+TASK = {"title": "Orders", "contentHtml": "<p>Each order</p>", "taskVersion": {"taskId": "t", "versionId": "v"}}
+
+
+def test_sharing_with_the_task_bundles_it_into_the_contract_of_the_model(ck, tasks):
+    rooms, _, _, workpieces = ck
+    room_id, workpiece_id, created = asyncio.run(
+        share.share("42", anonymous=False, edit=True, comment=True, task=TASK, **ARGS)
+    )
+
+    task_workpiece, model = workpieces
+    assert (workpiece_id, created) == (model["_id"], True)
+    assert rooms[room_id]["workpieces"] == [task_workpiece["_id"], model["_id"]]
+    assert task_workpiece["contract"]["format"] == share.TASK_FORMAT
+    assert task_workpiece["units"] == [{"path": [share.MARKS_MAP]}]
+    assert tasks[0]["anchor"] == {"kind": "workpiece", "id": task_workpiece["_id"]}
+    assert tasks[0]["detail"] == {"contentHtml": "<p>Each order</p>", "taskVersion": TASK["taskVersion"]}
+    assert model["contract"] == {"tool": "x", "task": {"workpieceId": task_workpiece["_id"], "taskId": "T0"}}
+    assert rooms[room_id]["settings"]["share"]["taskWorkpieceId"] == task_workpiece["_id"]
+
+
+def test_sharing_without_the_task_leaves_the_model_alone(ck, tasks):
+    rooms, _, _, workpieces = ck
+    asyncio.run(share.share("42", anonymous=False, edit=True, comment=True, **ARGS))
+    assert tasks == [] and len(workpieces) == 1 and "task" not in workpieces[0]["contract"]
+    assert rooms["R0"]["settings"]["share"]["taskWorkpieceId"] is None
 
 
 def members_of(groups, role):
@@ -221,6 +257,16 @@ def test_closing_takes_visitors_and_workpiece_out_but_keeps_room_and_groups(ck):
     assert len(rooms) == 1 and len(groups) == 2
     with pytest.raises(ApiError):
         asyncio.run(share.join("99", room_id))
+
+
+def test_closing_takes_the_task_out_of_the_room_as_well(ck):
+    rooms, _, _, _ = ck
+    asyncio.run(share.share("42", anonymous=False, edit=True, comment=True, task=TASK, **ARGS))
+
+    asyncio.run(share.close("42"))
+
+    shared = rooms["R0"]["settings"]["share"]
+    assert rooms["R0"]["workpieces"] == [] and (shared["workpieceId"], shared["taskWorkpieceId"]) == (None, None)
 
 
 def test_closing_again_changes_nothing_and_a_new_share_reuses_the_room(ck):

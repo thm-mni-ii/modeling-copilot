@@ -151,6 +151,25 @@ async def get_task_edit(model_id: UUID, user: User) -> Document | None:
     return model.get("taskEdit")
 
 
+async def get_shared_task(model_id: UUID, user: User) -> Document:
+    """Title, text and release of the model's task, as sharing puts them into the room."""
+    model = await get_model(model_id, user)
+    reference = model.get("taskVersion")
+    if reference is None:
+        raise conflict("A model without an assigned task cannot share one.")
+    version = await db.task_version.find_one(
+        {"_id": reference["versionId"], "taskId": reference["taskId"], "kind": "release"}
+    )
+    task = await db.task.find_one({"_id": reference["taskId"]})
+    if version is None or task is None:
+        raise not_found()
+    return {
+        "title": task.get("name", ""),
+        "contentHtml": version.get("data", {}).get("contentHtml", ""),
+        "taskVersion": reference,
+    }
+
+
 async def ensure_task_questionnaire_completed(model_id):
     from modeling_api.services.learning_path_store import (
         template_document, run_by_model, run_sessions, linked_session,

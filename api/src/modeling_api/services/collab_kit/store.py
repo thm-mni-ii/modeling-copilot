@@ -1,13 +1,13 @@
-"""Der Share eines Hosts, abgelegt in den settings von Collab-Kit (keine eigene DB).
+"""The share of a host, kept in the settings of Collab-Kit (no database of its own).
 
-Die settings des Raums kann der Host ändern (er hat dort `manage`), die der Gruppen nicht.
-Deshalb gilt der Raum nur als Hinweis: Die Gruppen, die er nennt, müssen sich selbst als
-Gruppen dieses Raums ausweisen. Sonst könnte ein Host die ID einer fremden Gruppe eintragen.
+The host can change the settings of the room (they have `manage` there), but not those of the
+groups. So the room counts only as a hint: the groups it names must vouch for themselves as
+groups of this room. Otherwise a host could enter the ID of a foreign group.
 
-Raum:   {"share": {"open": true, "joinable": true, "workpieceId": "…",
+Raum:   {"share": {"open": true, "joinable": true, "workpieceId": "…", "taskWorkpieceId": "…" | null,
                    "groups": {"hosts": "…", "visitors": "…"},
-                   "before": {"rights": […], "anonymous": false} (nur während der Sperre)}}
-Gruppe: {"share": {"role": "hosts" | "visitors", "roomId": "…", "ownerId": "…" (nur hosts)}}
+                   "before": {"rights": […], "anonymous": false} (only while locked)}}
+Gruppe: {"share": {"role": "hosts" | "visitors", "roomId": "…", "ownerId": "…" (hosts only)}}
 """
 
 from typing import Any
@@ -22,7 +22,7 @@ VISITORS = "visitors"
 
 
 def group_settings(role: str, room_id: str, owner_id: str | None = None) -> dict[str, Any]:
-    """Die settings einer neuen Gruppe: der Beleg, zu welchem Raum und in welcher Rolle sie gehört."""
+    """The settings of a new group: the proof of which room and role it belongs to."""
     share: dict[str, Any] = {"role": role, "roomId": room_id}
     if owner_id is not None:
         share["ownerId"] = owner_id
@@ -35,7 +35,7 @@ def _share_of(settings_: Any) -> dict[str, Any]:
 
 
 async def find_by_owner(owner_id: str) -> dict[str, Any] | None:
-    """Der Share dieses Hosts oder None; bei mehreren (Doppelklick) gewinnt der ältere."""
+    """The share of this host or None; with several (double click) the older one wins."""
     owned = [
         group
         for group in await client.list_groups()
@@ -49,10 +49,10 @@ async def find_by_owner(owner_id: str) -> dict[str, Any] | None:
 
 
 async def read(room_id: str) -> dict[str, Any]:
-    """Der Share eines Raums mit geprüften Gruppen; ein Raum ohne Share ist 404."""
+    """The share of a room with verified groups; a room without a share is a 404."""
     room = await client.get_room(room_id)
     share = _share_of(room["settings"])
-    # Räume legt nur der Dienst an; was anderes hat keinen Share.
+    # Only the service creates rooms; anything else has no share.
     if not share or room["createdBy"] != settings.service_actor:
         raise not_found()
     groups = share.get("groups") if isinstance(share.get("groups"), dict) else {}
@@ -68,19 +68,21 @@ async def read(room_id: str) -> dict[str, Any]:
     return {
         "roomId": room_id,
         "open": share.get("open") is True,
-        # Ob der Link für Neue gilt; ohne Angabe ja, so bleiben bestehende Räume beitrittsfähig.
+        # Whether the link works for new visitors; yes if unset, so existing rooms stay joinable.
         "joinable": share.get("joinable") is not False,
         "workpieceId": share.get("workpieceId"),
+        # The workpiece of the shared task, if one came along.
+        "taskWorkpieceId": share.get("taskWorkpieceId"),
         "groups": groups,
-        # Wem der Raum gehört; die Besucher kennen den Host sonst nicht, die Gruppe können sie nicht lesen.
+        # Who owns the room; visitors do not know the host otherwise, and they cannot read the group.
         "hostId": host_id,
-        # Die Rechte der Besucher vor der Sperre, solange der Raum gesperrt ist.
+        # The rights of the visitors before the lock, as long as the room is locked.
         "before": share.get("before") if isinstance(share.get("before"), dict) else None,
     }
 
 
 async def save(room_id: str, **fields: Any) -> None:
-    """Setzt `open`, `joinable`, `workpieceId`, `groups` oder `before` und lässt alle anderen settings des Raums stehen."""
+    """Sets `open`, `joinable`, `workpieceId`, `taskWorkpieceId`, `groups` or `before` and leaves all other settings of the room alone."""
     room = await client.get_room(room_id)
     current = room["settings"] if isinstance(room["settings"], dict) else {}
     await client.update_room_settings(

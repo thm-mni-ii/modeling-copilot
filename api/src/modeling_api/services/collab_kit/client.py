@@ -1,7 +1,7 @@
-"""REST-Aufrufe an Collab-Kit (CK) mit dem Dienst-Token.
+"""REST calls to Collab-Kit (CK) with the service token.
 
-Nur die Aufrufe, die das Teilen braucht; was beim Teilen passiert, steht in share.py.
-Antworten gibt der Client unverändert als JSON zurück.
+Only the calls that sharing needs; what happens while sharing is in share.py.
+The client returns answers unchanged as JSON.
 """
 
 from typing import Any
@@ -13,7 +13,7 @@ from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError, not_found
 from modeling_api.services.collab_kit.token import service_token
 
-# Nur für Tests: ein anderer Transport statt des Netzwerks.
+# For tests only: another transport instead of the network.
 _transport: httpx.AsyncBaseTransport | None = None
 
 
@@ -27,11 +27,11 @@ async def _request(method: str, path: str, body: dict[str, Any] | None = None) -
             )
     except httpx.HTTPError as error:
         raise ApiError(503, "CK_UNAVAILABLE", "Collab-Kit is currently unavailable.") from error
-    # Ein unbekanntes Objekt (Raum, Gruppe) ist für den Aufrufer ebenfalls unbekannt.
+    # An unknown object (room, group) is just as unknown to the caller.
     if response.status_code == 404:
         raise not_found()
     if not response.is_success:
-        # CK antwortet bei Fehlern mit {"error": "..."}.
+        # On errors CK answers with {"error": "..."}.
         try:
             reason = response.json().get("error", "")
         except ValueError:
@@ -51,7 +51,7 @@ async def get_room(room_id: str) -> dict:
 
 
 async def update_room_settings(room_id: str, settings: dict[str, Any]) -> dict:
-    """CK ersetzt die settings als Ganzes; fremde Schlüssel muss der Aufrufer mitschicken."""
+    """CK replaces the settings as a whole; the caller must send foreign keys along."""
     return await _request("PATCH", f"/rooms/{room_id}", {"settings": settings})
 
 
@@ -76,14 +76,14 @@ async def add_member(group_id: str, actor_id: str) -> dict:
 
 
 async def remove_member(group_id: str, actor_id: str) -> dict:
-    # Die Kennung stammt aus Tokens; kodiert, damit kein Zeichen den Pfad ändert.
+    # The ID comes from tokens; encoded so that no character changes the path.
     return await _request("DELETE", f"/groups/{group_id}/members/{quote(actor_id, safe='')}")
 
 
 async def set_grant(
     group_id: str, rights: list[str], room_id: str | None = None, anonymous: bool = False
 ) -> dict:
-    """Setzt, was die Gruppe am Raum darf, und ersetzt dabei den bisherigen Grant dort."""
+    """Sets what the group may do in the room and replaces the previous grant there."""
     body: dict[str, Any] = {"groupId": group_id, "rights": rights, "anonymous": anonymous}
     if room_id is not None:
         body["scope"] = {"kind": "room", "id": room_id}
@@ -91,13 +91,18 @@ async def set_grant(
 
 
 async def list_grants(room_id: str) -> list[dict]:
-    """Die Grants, die an genau diesem Raum liegen."""
+    """The grants that sit on exactly this room."""
     return await _request("GET", f"/grants?scopeKind=room&scopeId={room_id}")
 
 
 async def create_workpiece(workpiece: dict[str, Any]) -> dict:
-    """Legt ein Werkstück an; `roomId` im Körper legt es gleich in den Raum."""
+    """Creates a workpiece; `roomId` in the body puts it into the room right away."""
     return await _request("POST", "/workpieces", workpiece)
+
+
+async def create_task(task: dict[str, Any]) -> dict:
+    """Creates a task; `detail` stays fixed afterwards, CK only changes the state."""
+    return await _request("POST", "/tasks", task)
 
 
 async def add_workpiece_to_room(room_id: str, workpiece_id: str) -> dict:

@@ -30,12 +30,12 @@ def share_group(group_id, role, room_id="R", created="2026-01-01T00:00:00Z", **s
 
 @pytest.fixture
 def ck(monkeypatch):
-    """Ein kleines CK im Speicher: Räume und Gruppen nach ID, dazu die gesendeten PATCH-Körper."""
+    """A small in-memory CK: rooms and groups by ID, plus the PATCH bodies that were sent."""
     rooms = {"R": share_room()}
     groups = {
         "G1": share_group("G1", "hosts", ownerId="42"),
         "G2": share_group("G2", "visitors"),
-        # Die Gruppe des Dienstes selbst trägt kein share-Feld.
+        # The group of the service itself has no share field.
         "S": {"_id": "S", "createdAt": "2025-01-01T00:00:00Z", "settings": {}},
     }
     patches: list[dict] = []
@@ -66,6 +66,7 @@ def test_read_returns_the_share_when_the_groups_vouch_for_it(ck):
         "open": True,
         "joinable": True,
         "workpieceId": None,
+        "taskWorkpieceId": None,
         "groups": {"hosts": "G1", "visitors": "G2"},
         "hostId": "42",
         "before": None,
@@ -75,8 +76,8 @@ def test_read_returns_the_share_when_the_groups_vouch_for_it(ck):
 @pytest.mark.parametrize(
     "visitors",
     [
-        "S",  # die Gruppe des Dienstes, ohne share-Feld
-        "G1",  # die falsche Rolle
+        "S",  # the group of the service, without a share field
+        "G1",  # the wrong role
     ],
 )
 def test_read_rejects_a_group_that_does_not_vouch_for_the_room(ck, visitors):
