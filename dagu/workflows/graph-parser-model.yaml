@@ -1,0 +1,50 @@
+description: Parst genau einen vollständigen Modell-Snapshot als eigenen Kubernetes Job.
+tags:
+  - visibility=internal
+artifacts:
+  enabled: true
+kubernetes:
+  volumes:
+    - name: workflow-data
+      persistent_volume_claim:
+        claim_name: workflow-data
+  volume_mounts:
+    - name: workflow-data
+      mount_path: /work/evaluations
+params:
+  schema:
+    type: object
+    required: [MODEL_KEY, EVALUATION_ID]
+    properties:
+      MODEL_KEY:
+        type: string
+      EVALUATION_ID:
+        type: string
+  values:
+    MODEL_KEY: ''
+    EVALUATION_ID: ''
+steps:
+  - name: parse_model
+    description: Speichert den normalisierten Graphen mit Quelle und Diagnosen als Workflow-Artefakt.
+    stdout:
+      artifact: parser-result.json
+    action: k8s.run
+    with:
+      image: modeling-copilot/graph-parser:0.3.0
+      image_pull_policy: IfNotPresent
+      env:
+        - name: WORKFLOW_EVALUATION_ID
+          value: ${EVALUATION_ID}
+        - name: MODEL_KEY
+          value: ${MODEL_KEY}
+
+  - name: publish_graph
+    description: Veröffentlicht den Modellschlüssel und die gespeicherte Graphreferenz.
+    depends: [parse_model]
+    action: outputs.write
+    with:
+      values:
+        evaluationId: ${EVALUATION_ID}
+        modelKey: ${MODEL_KEY}
+        graphPath: graphs/${MODEL_KEY}.json
+        artifactPath: parser-result.json

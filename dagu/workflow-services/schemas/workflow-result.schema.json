@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Workflow service result envelope v1",
+  "type": "object",
+  "required": ["schemaVersion", "schema", "status", "capability", "mode", "summary", "result"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "schema": { "const": "workflow-result/v1" },
+    "status": { "const": "ok" },
+    "capability": { "type": "string", "minLength": 1 },
+    "mode": { "enum": ["data", "parse", "demo"] },
+    "summary": { "type": "string" },
+    "result": { "type": "object" }
+  }
+}

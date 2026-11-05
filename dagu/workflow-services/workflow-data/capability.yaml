@@ -1,0 +1,7 @@
+id: workflow-data
+version: 0.1.0
+type: workflow
+image: modeling-copilot/workflow-data:0.1.0
+inputSchema: ../schemas/evaluation-input.schema.json
+outputSchema: ../schemas/workflow-result.schema.json
+description: Bereitet vollständige Auswertungs-Snapshots vor und sammelt workflowinterne Graph-Artefakte.

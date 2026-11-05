@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Complete, platform-independent evaluation input v1",
+  "type": "object",
+  "required": ["schemaVersion", "schema", "evaluationId", "task", "models", "languages"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "schema": { "const": "evaluation-input/v1" },
+    "evaluationId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$" },
+    "task": { "type": "object" },
+    "models": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "required": ["source", "snapshot"],
+        "properties": {
+          "source": {
+            "type": "object", "required": ["key", "role", "label", "modelId", "versionId"],
+            "properties": {
+              "key": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$" },
+              "role": { "enum": ["submission", "reference"] },
+              "label": { "type": "string" },
+              "modelId": { "type": "string", "minLength": 1 },
+              "versionId": { "type": "string", "minLength": 1 }
+            }
+          },
+          "snapshot": {
+            "type": "object", "required": ["data", "workspaceLanguages"],
+            "properties": {
+              "data": { "type": "object", "required": ["xml"], "properties": { "xml": { "type": "string", "minLength": 1 } } },
+              "workspaceLanguages": { "type": "array", "items": { "$ref": "#/definitions/languageReference" } }
+            }
+          }
+        }
+      }
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["languageId", "versionId", "data", "includedLanguageVersions"],
+        "properties": {
+          "languageId": { "type": "string", "minLength": 1 },
+          "versionId": { "type": "string", "minLength": 1 },
+          "data": { "type": "object", "required": ["elements", "connections"] },
+          "includedLanguageVersions": { "type": "array", "items": { "$ref": "#/definitions/languageReference" } }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "languageReference": {
+      "type": "object", "required": ["languageId", "versionId"],
+      "properties": { "languageId": { "type": "string", "minLength": 1 }, "versionId": { "type": "string", "minLength": 1 } }
+    }
+  }
+}

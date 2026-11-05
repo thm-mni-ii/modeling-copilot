@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Immutable workflow-local JSON artifact reference v1",
+  "type": "object",
+  "required": ["evaluationId", "path", "sha256", "bytes"],
+  "additionalProperties": false,
+  "properties": {
+    "evaluationId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$" },
+    "path": { "type": "string", "minLength": 1, "description": "Relative to the evaluation directory; runtime rejects traversal or symlink escapes." },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "bytes": { "type": "integer", "minimum": 0 }
+  }
+}

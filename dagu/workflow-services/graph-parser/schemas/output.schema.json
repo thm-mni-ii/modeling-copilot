@@ -1,1 +1,40 @@
-{"$schema":"http://json-schema.org/draft-07/schema#","title":"graph-parser output","type":"object","required":["status","capability","summary","result"],"properties":{"status":{"const":"ok"},"capability":{"const":"graph-parser"},"step":{"type":"string"},"summary":{"type":"string"},"result":{"type":"object","properties":{"graph":{"type":"object"}}}}}
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "graph-parser output (draft v1)",
+  "type": "object",
+  "required": ["schemaVersion", "schema", "status", "capability", "step", "mode", "summary", "result"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "schema": { "const": "workflow-result/v1" },
+    "status": { "const": "ok", "description": "Parsing completed. Check graph.complete and diagnostics before consuming the graph." },
+    "capability": { "const": "graph-parser" },
+    "step": { "type": "string" },
+    "mode": { "enum": ["parse", "demo"] },
+    "summary": { "type": "string" },
+    "result": {
+      "type": "object",
+      "required": ["graph", "diagnostics"],
+      "additionalProperties": false,
+      "properties": {
+        "graph": { "$ref": "graph.schema.json" },
+        "source": { "type": "object", "additionalProperties": { "type": "string" } },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["severity", "code", "cellId", "message", "details"],
+            "additionalProperties": false,
+            "properties": {
+              "severity": { "enum": ["warning", "error"] },
+              "code": { "type": "string" },
+              "cellId": { "type": "string" },
+              "message": { "type": "string" },
+              "details": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

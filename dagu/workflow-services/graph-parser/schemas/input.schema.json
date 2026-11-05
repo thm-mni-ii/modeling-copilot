@@ -1,1 +1,77 @@
-{"$schema":"http://json-schema.org/draft-07/schema#","title":"graph-parser input","type":"object","properties":{"step":{"type":"string"},"input":{"type":"object","description":"Future model snapshot."},"demoDelaySeconds":{"type":"number","minimum":0,"maximum":30}},"additionalProperties":true}
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "graph-parser input (draft v1)",
+  "type": "object",
+  "properties": {
+    "step": { "type": "string" },
+    "mode": { "enum": ["parse", "demo"], "default": "parse" },
+    "demoDelaySeconds": { "type": "number", "minimum": 0, "maximum": 30 },
+    "input": { "type": "object" },
+    "source": { "type": "object", "additionalProperties": { "type": "string" } }
+  },
+  "if": { "required": ["mode"], "properties": { "mode": { "const": "demo" } } },
+  "then": {},
+  "else": {
+    "required": ["input"],
+    "properties": {
+      "input": {
+        "type": "object",
+        "required": ["model", "languages"],
+        "properties": {
+          "model": {
+            "type": "object",
+            "required": ["xml"],
+            "properties": {
+              "format": { "enum": ["maxgraph-xml", "maxgraph-model"] },
+              "version": { "type": "integer", "const": 1 },
+              "xml": { "type": "string", "minLength": 1 },
+              "name": { "type": "string" }
+            }
+          },
+          "languages": {
+            "type": "array",
+            "description": "Pinned definitions including all transitively included language versions, resolved by the caller. May be empty for an empty model. No network/database lookup in this service.",
+            "items": {
+              "type": "object",
+              "required": ["languageId", "versionId", "data"],
+              "properties": {
+                "languageId": { "type": "string", "minLength": 1 },
+                "versionId": { "type": "string", "minLength": 1 },
+                "data": {
+                  "type": "object",
+                  "required": ["elements", "connections"],
+                  "properties": {
+                    "elements": { "type": "array", "items": { "$ref": "#/definitions/element" } },
+                    "connections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["type"],
+                        "properties": {
+                          "type": { "type": "string", "minLength": 1 },
+                          "undirected": { "type": "boolean" },
+                          "additionalLabels": { "type": "array", "items": { "$ref": "#/definitions/element" } }
+                        }
+                      }
+                    },
+                    "feedback": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "element": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "children": { "type": "array", "items": { "$ref": "#/definitions/element" } }
+      }
+    }
+  }
+}

@@ -18,6 +18,9 @@ def read_input() -> dict:
 
 
 def main() -> int:
+    if os.environ.get("WORKFLOW_EVALUATION_ID"):
+        from workflow_io import execute
+        return execute(SERVICE)
     try:
         payload = read_input(); delay = float(payload.get("demoDelaySeconds", 0))
         if not 0 <= delay <= 30: raise ValueError("demoDelaySeconds must be between 0 and 30")
