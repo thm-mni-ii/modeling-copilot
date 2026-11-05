@@ -1,6 +1,7 @@
 import { watch } from 'vue'
 import { CellHighlight, InternalEvent, type Graph } from '@maxgraph/core'
 import { isPseudonym } from '@/collab/kit/collabKit'
+import { compareNames } from '@/utils/sorting'
 import type { Session } from '@/collab/kit/collabKitV1'
 import { announcedRights, currentShare, hostPresenting, personColors, presenting, settingsLoaded, shareSettings } from '@/collab/sharing/shareModel'
 import { startCursors } from './cursors'
@@ -147,7 +148,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
       readOnly: person.clients.some(({ state }) => (state as PresenceState).readOnly === true),
       tabs: person.clients.length
     }))
-    list.sort((a, b) => Number(b.self) - Number(a.self) || a.name.localeCompare(b.name))
+    list.sort((a, b) => Number(b.self) - Number(a.self) || compareNames(a.name, b.name))
     onPeople(
       list,
       people.reduce((count, person) => count + person.clients.length, 0)

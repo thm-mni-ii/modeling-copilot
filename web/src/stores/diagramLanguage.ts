@@ -52,7 +52,7 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
 
   const saveCurrentLanguage = async (kind: LanguageVersionKind = 'checkpoint', releaseName?: string, description?: string) => {
     if (!language.value || !currentVersion.value) throw new Error('No language version is loaded.')
-    if (kind === 'release' && !releaseName?.trim()) throw new Error('A release needs a name.')
+    if (saving.value) throw new Error('A language version is already being saved.')
 
     saving.value = true
     error.value = null
@@ -61,7 +61,7 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
         await languageService.createVersion<DiagramLanguage>(language.value.id, {
           baseVersionId: currentVersion.value.id,
           kind,
-          ...(kind === 'release' ? { releaseName: releaseName!.trim(), description: description?.trim() || null } : {}),
+          ...(kind === 'release' ? { releaseName: releaseName?.trim() || null, description: description?.trim() || null } : {}),
           includedLanguageVersions: clone(currentVersion.value.includedLanguageVersions),
           data: clone(currentVersion.value.data)
         })

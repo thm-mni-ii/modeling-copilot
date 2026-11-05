@@ -12,6 +12,7 @@ from modeling_api.db.store import (
     insert,
     list_page,
     save_version,
+    sort_stages,
     to_api,
     utcnow,
 )
@@ -60,7 +61,7 @@ async def list_models(
             {
                 "$facet": {
                     "items": [
-                        {"$sort": {sort: -1 if order != "asc" else 1, "_id": -1}},
+                        *sort_stages(sort, descending=order != "asc"),
                         {"$skip": skip},
                         {"$limit": limit},
                         {
@@ -146,6 +147,9 @@ async def delete_model(model_id: UUID, user: User) -> None:
     await db.feedback.delete_many({"modelId": model_id_str})
     await db.model_versions.delete_many({"modelId": model_id_str})
     await db.task_edit_versions.delete_many({"modelId": model_id_str})
+    session_ids = await db.model_activity_sessions.distinct("_id", {"modelId": model_id_str})
+    await db.model_activity_interactions.delete_many({"sessionId": {"$in": session_ids}})
+    await db.model_activity_sessions.delete_many({"modelId": model_id_str})
     await db.models.delete_one({"_id": model_id_str, "ownerId": user.id})
 
 
