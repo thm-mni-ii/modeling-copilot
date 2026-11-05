@@ -48,8 +48,8 @@
       </v-card>
 
       <v-card v-if="currentTask" class="task-editor" variant="outlined">
-        <v-card-title class="d-flex align-center ga-2">
-          <v-text-field v-model="titleModel" label="Task name" density="compact" variant="outlined" hide-details @blur="saveMetadata" />
+        <v-card-title class="d-flex flex-wrap align-center ga-2 flex-shrink-0">
+          <v-text-field v-model="titleModel" label="Task name" density="compact" variant="outlined" hide-details class="task-name-field" @blur="saveMetadata" />
           <v-chip v-if="currentVersion" size="small" :color="currentVersion.kind === 'release' ? 'success' : 'warning'" variant="tonal">
             {{ versionLabel(currentVersion) }}
           </v-chip>
@@ -58,6 +58,8 @@
           <v-btn icon="mdi-source-branch" variant="text" title="Create branch" :disabled="!currentVersion" @click="branchTask" />
           <v-btn :icon="visibilityIcon(visibilityModel)" :color="visibilityColor(visibilityModel)" variant="tonal" :title="visibilityModel === 'published' ? 'Published — click to make private' : 'Private — click to publish'" @click="toggleVisibility" />
           <v-btn :icon="currentTask.archivedAt ? 'mdi-archive-arrow-up-outline' : 'mdi-archive-outline'" variant="text" :title="currentTask.archivedAt ? 'Restore task' : 'Archive task'" @click="toggleArchiveTask" />
+          <v-btn icon="mdi-content-save-outline" variant="tonal" color="success" title="Save checkpoint" aria-label="Save checkpoint" :loading="saving" :disabled="!canSaveCheckpoint" @click="saveVersion('checkpoint')" />
+          <v-btn icon="mdi-tag-outline" variant="tonal" color="medium-gray" title="Create release" aria-label="Create release" :loading="saving" :disabled="!canRelease" @click="releaseDialog = true" />
         </v-card-title>
         <v-divider />
         <v-card-text class="task-editor-content">
@@ -86,9 +88,6 @@
 
           <div class="d-flex align-center ga-2 mt-3">
             <v-select v-model="selectedVersionId" :items="versionOptions" label="Loaded version" density="compact" variant="outlined" hide-details class="version-select" :disabled="saving || versionLoading" @update:model-value="loadVersion" />
-            <v-spacer />
-            <v-btn :loading="saving" :disabled="!canSaveCheckpoint" variant="tonal" prepend-icon="mdi-content-save-outline" @click="saveVersion('checkpoint')">Save checkpoint</v-btn>
-            <v-btn :loading="saving" :disabled="!canRelease" color="primary" prepend-icon="mdi-tag-outline" @click="releaseDialog = true">Create release</v-btn>
           </div>
         </v-card-text>
       </v-card>
@@ -515,6 +514,10 @@ onMounted(async () => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+.task-name-field {
+  flex: 1 1 220px;
+  min-width: 0;
 }
 .task-settings {
   display: grid;
