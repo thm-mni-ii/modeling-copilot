@@ -21,14 +21,17 @@
       </v-btn-group>
       <TaskColorPicker title="Text color Edit" icon="mdi-format-color-text" :colors="TASK_TEXT_COLORS" size="x-small" :disabled="!hasSelection" :active="isFormatActive('taskEditTextColor')" @select="applyFormat('taskEditTextColor', 'textColor', $event)" />
       <TaskColorPicker title="Highlight Edit" icon="mdi-marker" :colors="TASK_HIGHLIGHT_COLORS" size="x-small" :disabled="!hasSelection" :active="isFormatActive('taskEditHighlight')" @select="applyFormat('taskEditHighlight', 'highlight', $event)" />
-      <v-divider vertical class="mx-1" />
-      <v-tooltip :text="commentHint" location="bottom">
-        <template #activator="{ props: tooltipProps }">
-          <span v-bind="tooltipProps" class="task-comment-action" :tabindex="canAddComment ? undefined : 0">
-            <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-comment-plus-outline" :disabled="!canAddComment" @mousedown.prevent @click="openInsertion">Add Comment</v-btn>
-          </span>
-        </template>
-      </v-tooltip>
+      <!-- Im Raum wird nur markiert: Eingefügter Text verschöbe die Stellen der geteilten Markierungen. -->
+      <template v-if="!shared">
+        <v-divider vertical class="mx-1" />
+        <v-tooltip :text="commentHint" location="bottom">
+          <template #activator="{ props: tooltipProps }">
+            <span v-bind="tooltipProps" class="task-comment-action" :tabindex="canAddComment ? undefined : 0">
+              <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-comment-plus-outline" :disabled="!canAddComment" @mousedown.prevent @click="openInsertion">Add Comment</v-btn>
+            </span>
+          </template>
+        </v-tooltip>
+      </template>
     </div>
 
     <editor-content :editor="editor" class="task-edit-body" @click="onTaskReferenceClick" @dragstart="onDragStart" @mouseleave="hideReferencePreview" @mouseover="onTaskReferenceMouseOver" />

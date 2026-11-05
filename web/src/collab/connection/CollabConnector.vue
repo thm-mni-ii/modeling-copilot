@@ -9,11 +9,14 @@ import { useRouter } from 'vue-router'
 import { useGraphContext } from '@/composables/useGraphContext'
 import CollabDialogs from '@/collab/sharing/CollabDialogs.vue'
 import ModeBar from '@/collab/sharing/ModeBar.vue'
-import { guardShareLeave } from '@/collab/sharing/shareModel'
+import { dropStaleShare, guardShareLeave } from '@/collab/sharing/shareModel'
 import { holdCollabConnection } from './useCollabConnection'
 
 // As long as the editor is there, leaving the shared model goes through the dialog.
 onBeforeUnmount(guardShareLeave(useRouter()))
+
+// A share kept by this browser may belong to another account or have ended meanwhile.
+void dropStaleShare()
 
 // Sits in the editor and shows only the dialogs of sharing: the live connection lasts as long as the editor, not a sidebar tab.
 holdCollabConnection(useGraphContext().graph)

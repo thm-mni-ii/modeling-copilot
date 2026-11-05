@@ -17,7 +17,7 @@
           <v-btn v-if="!windowOpen" size="x-small" variant="text" density="compact" title="Edit mode" class="task-topbar__action-btn" :color="editMode ? 'primary' : undefined" @click="editMode = !editMode">
             <v-icon size="15">mdi-clipboard-edit-outline</v-icon>
           </v-btn>
-          <v-btn v-if="!windowOpen" size="x-small" variant="text" density="compact" title="Open as a free-floating window" class="task-topbar__action-btn" @click="emit('pop-out')">
+          <v-btn v-if="!windowOpen && !shared" size="x-small" variant="text" density="compact" title="Open as a free-floating window" class="task-topbar__action-btn" @click="emit('pop-out')">
             <v-icon size="15">mdi-open-in-new</v-icon>
           </v-btn>
           <v-btn v-if="evaluationWorkflows.length" size="x-small" color="primary" variant="tonal" prepend-icon="mdi-play-circle-outline" @click="emit('start-evaluation')">Auswertung starten</v-btn>

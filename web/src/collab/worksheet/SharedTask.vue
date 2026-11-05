@@ -1,6 +1,6 @@
 <template>
   <div v-if="task">
-    <TaskTopBar :task="task" :window-open="false" :content-html="contentHtml" :task-edit="taskEdit" :element-options="elementOptions" :connection-options="connectionOptions" :poppable="false" shared @select-connection="emit('select-connection', $event)" @update:task-edit-document="write">
+    <TaskTopBar :task="task" :window-open="false" :content-html="contentHtml" :task-edit="taskEdit" :element-options="elementOptions" :connection-options="connectionOptions" shared @select-connection="emit('select-connection', $event)" @update:task-edit-document="write">
       <div class="shared-notes">
         <div class="shared-notes__toolbar">
           <span class="text-caption">Notes</span>

@@ -94,6 +94,8 @@
             @update:task-edit-document="workspace.updateTaskEditDocument"
           />
         </div>
+        <!-- Modell eines Raums: die mitgeteilte Aufgabe, sofern der Host eine geteilt hat. -->
+        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="task-area" @select-connection="selectTaskConnection" />
       </template>
       <template #window-content="{ definition }">
         <TaskEditEditor v-if="definition.role === 'task'" :key="workspace.taskReference?.versionId" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :base-document="workspace.taskVersion?.data.contentDocument" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" @update:model-value="workspace.updateTaskEditDocument" />
@@ -142,6 +144,8 @@ import LearningPathHelp from '@/components/learningPaths/LearningPathHelp.vue'
 import HelpRequestFlow from '@/components/learningPaths/HelpRequestFlow.vue'
 import { usePulseSurvey } from '@/composables/usePulseSurvey'
 import { useModelActivity } from '@/composables/useModelActivity'
+import SharedTask from '@/collab/worksheet/SharedTask.vue'
+import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
 interface Props {
   modelId?: string
@@ -153,6 +157,7 @@ const route = useRoute()
 const workspace = useModelWorkspaceStore()
 const activityReady = ref(false)
 useModelActivity(activityReady)
+const { linkedWorkpieceId } = useCollabConnection()
 const selectedTaskEditIds = ref<string[]>([])
 const selectTaskEdits = (ids: string[]) => {
   const selected = [...new Set(ids)]

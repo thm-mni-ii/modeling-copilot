@@ -425,6 +425,24 @@ export const resumeShare = async () => {
 }
 
 /**
+ * The browser keeps the share of a host across sign-ins, so it may belong to another account or have
+ * ended meanwhile. What the backend no longer gives this user as their share is forgotten here, or the
+ * sidebar stays stuck on it. No answer at all (network) changes nothing.
+ */
+export const dropStaleShare = async () => {
+  const share = current.value
+  if (!share?.privateModelId) return
+  try {
+    const { data } = await httpClient.get<{ roomId: string; workpieceId: string | null }>('/v1/share')
+    if (data.roomId === share.roomId && data.workpieceId === share.workpieceId) return
+  } catch (error) {
+    if ((error as AxiosError).response?.status !== 404) return
+  }
+  current.value = null
+  settingsLoaded.value = false
+}
+
+/**
  * Asks the backend whether the room of a visitor is still the one they sit in. If it is closed, gone
  * or shows another workpiece, the dialog to save the local copy opens, whatever the host did before.
  * No answer at all (network) changes nothing, so a dropped connection is not taken for a closed room.
