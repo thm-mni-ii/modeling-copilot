@@ -167,6 +167,11 @@ Konfigurationsdatei) und `--data` (andere Testdaten). Es gibt keine Flags je Ver
 
 **Änderungen an Experimenten:** nur `research/experiments.json` bearbeiten.
 
+- `languages`: erlaubte Sprachen (Standard `["de", "en"]`, wie im Studium gemischt).
+  Fälle mit anderen Sprachen (hier die spanischen Fälle 11 und 22) werden nicht
+  ausgewertet, aber im Terminal und unter `excluded_cases` im JSON aufgeführt.
+  Damit sind zwei der 28 ursprünglichen Falltypen standardmäßig nicht Teil der
+  Rankings; `"es"` ergänzen, um sie wieder aufzunehmen.
 - `preprocessing`: benannte Schrittlisten für die Ablation der Stringverfahren.
 - `methods`: Einzelverfahren. `"enabled": false` schaltet ein Verfahren ab,
   `"ablate": true` lässt es alle Preprocessing-Varianten durchlaufen,
@@ -198,8 +203,15 @@ Laufzeiten, Seed, Modellrevisionen, Ressourcen-/Codehashes und Paketversionen.
 Bestehende Dateien werden nicht überschrieben. Nicht unterstützte Sprachen werden
 als nicht verfügbar markiert; technische Fehler führen zu Exitcode 1.
 
-Top 3 je Kategorie und insgesamt erscheinen im Terminal und unter `rankings` im
-JSON. Preprocessing und Einzelmethoden werden ausgeschrieben. Auf gespeicherten
+Top 3 je Kategorie, je **Sprachgruppe** (`de`, `de-en`, `de-es`, …) und insgesamt
+erscheinen im Terminal und unter `rankings` im
+JSON. Die Sprachgruppen werden aus den nichtleeren Labels der Fälle abgeleitet; Gruppen
+mit wenigen Szenarien (z. B. `de-es`: 1) sind kaum aussagekräftig, die Szenarioanzahl
+steht jeweils dabei. Preprocessing, Einzelmethoden und Gewichte werden ausgeschrieben,
+darunter „Nicht vollständig ausgeführt“ mit Grund und Zahl der betroffenen Läufe.
+Dateihashes der Wortvektormodelle stammen aus dem Download-Manifest
+(`.cache/word-vectors/huggingface-download-manifest.json`), wenn Pfad und Dateigröße
+passen (`sha256_source: manifest`); sonst werden sie berechnet. Auf gespeicherten
 Ergebnissen ohne erneute Modellberechnung:
 
 ```bash
@@ -224,8 +236,11 @@ optional eine vollständige Kopie. Die Formatierung liegt in `rank_results.py`.
   und höchstens 1:1; unter Threshold liegende Kanten sind vorher gesperrt.
   SciPy verwendet einen Jonker-Volgenant-Solver. Mehrere annotierte korrekte Alternativen
   können deshalb bei 1:1 den Recall senken, ohne dass die gewählte Zuordnung falsch ist.
-- Geteilte Featurezeiten inklusive Erstladen/Cacheeffekten sind keine isolierten
-  End-to-End-Messungen; Kandidatenaufbau und JSON-Konvertierung sind ausgeschlossen.
+- Rechenzeiten enthalten kein Modellladen; die Ladezeit steht getrennt in
+  `model_load_seconds` und im Terminal. Geteilte Modelle (z. B. der Übersetzer) werden
+  dem ersten Verfahren zugerechnet, das sie braucht; spaCy-Ladezeiten sind nicht
+  getrennt. Das sind keine End-to-End-Latenzen; Kandidatenaufbau und
+  JSON-Konvertierung sind ausgeschlossen.
 - „Bank/Bank“ mit verschiedener Bedeutung bleibt ohne Kontext unlösbar. Die
   Kandidatenheuristik nutzt Konkurrenz in der Matrix, keine Graphstruktur.
 

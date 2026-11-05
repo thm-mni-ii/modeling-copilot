@@ -60,6 +60,37 @@ def test_configurations_has_no_aliases_and_three_unique_weights():
     assert sorted(values) == pytest.approx([.35, .5, .65])
 
 
+def test_resource_hash_uses_download_manifest_only_when_size_matches(tmp_path, monkeypatch):
+    from research import compare
+
+    monkeypatch.setattr(compare, 'ROOT', tmp_path)
+    folder = tmp_path / '.cache/word-vectors'
+    folder.mkdir(parents=True)
+    model = folder / 'model.bin'
+    model.write_bytes(b'abc')
+    manifest = folder / 'huggingface-download-manifest.json'
+    entry = {'path': '.cache/word-vectors/model.bin', 'bytes': 3, 'sha256': 'aus-manifest'}
+    manifest.write_text(json.dumps([entry]))
+    assert compare.resource_hash(model) == ('aus-manifest', 'manifest')
+    manifest.write_text(json.dumps([{**entry, 'bytes': 4}]))
+    digest, source = compare.resource_hash(model)
+    assert source == 'berechnet' and digest == compare.sha256(model)
+
+
+def test_run_experiments_stores_load_seconds_separately_from_compute(tmp_path):
+    data = {'cases': [{'id': 'test', 'case_number': 1, 'title': 'x',
+            'reference': [{'id': 'r', 'label': 'Kunde', 'language': 'de'}],
+            'student': [{'id': 's', 'label': 'Kunde', 'language': 'de'}],
+            'annotations': [['correct']]}]}
+    config = only(load_config(), 'levenshtein')
+    config['preprocessing'] = {'raw': []}
+    output = tmp_path / 'run.json'
+    run_experiments(data, output, config)
+    run = json.loads(output.read_text())
+    assert all('load_seconds' in f and f['seconds'] >= 0 for f in run['features'])
+    assert 'model_load_seconds' in run
+
+
 def test_research_configurations_use_service_methods_and_combiners():
     config = load_config()
     for spec in configurations(config)[0].values():

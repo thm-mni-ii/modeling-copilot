@@ -5,20 +5,25 @@ Die Terminalausgabe ist die kurze Übersicht. Es wird nichts auf Testlabels trai
 """
 
 import argparse
+import contextlib
 import hashlib
 import importlib.metadata
 import json
 import platform
 import random
 import time
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
 
 from synonym_matching.service import MatchingEngine
+from . import word_matching
 from .evaluation import evaluate_case, select_matches, global_ranking
-from synonym_matching.lexicons import DATA_DIR
+from synonym_matching.lexicons import DATA_DIR, OpenThesaurus, WordNet
 from synonym_matching.combinations import REQUIRES, combine
+from synonym_matching.methods import EmbeddingMethod
+from synonym_matching.translation import Translator
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = Path(__file__).with_name('experiments.json')
@@ -135,6 +140,45 @@ def sha256(path):
     return digest.hexdigest()
 
 
+def resource_hash(path):
+    """Nutze die beim Download geprüfte Prüfsumme, wenn Pfad und Dateigröße passen."""
+    manifest = ROOT / '.cache/word-vectors/huggingface-download-manifest.json'
+    path = Path(path)
+    if manifest.is_file():
+        for entry in json.loads(manifest.read_text()):
+            if str(ROOT / entry['path']) == str(path) and entry['bytes'] == path.stat().st_size:
+                return entry['sha256'], 'manifest'
+    return sha256(path), 'berechnet'
+
+
+LOAD_SECONDS = [0.0]
+
+
+@contextlib.contextmanager
+def track_loading():
+    """Messe Modellladezeiten getrennt von der Rechenzeit, ohne den Service zu ändern."""
+    targets = [(EmbeddingMethod, '_load'), (Translator, '_load'), (WordNet, '_load'),
+               (OpenThesaurus, '_load'), (word_matching, 'load_vectors')]
+    originals = [(owner, name, getattr(owner, name)) for owner, name in targets]
+
+    def timed(function):
+        def wrapper(*args, **kwargs):
+            started = time.perf_counter()
+            try:
+                return function(*args, **kwargs)
+            finally:
+                LOAD_SECONDS[0] += time.perf_counter() - started
+        return wrapper
+
+    for owner, name, function in originals:
+        setattr(owner, name, timed(function))
+    try:
+        yield
+    finally:
+        for owner, name, function in originals:
+            setattr(owner, name, function)
+
+
 def provenance(engines):
     """Speichere die Umgebung und tatsächlich geladenen Modellrevisionen."""
     packages = {}
@@ -243,12 +287,15 @@ def calculate_features(cases, definitions, methods):
                             word_backends[method] = engine
                         else:
                             engines[key] = engine
+                    load_before = LOAD_SECONDS[0]
                     started = time.perf_counter()
                     result = engine.compute_scores(case['reference'], case['student'])
-                    seconds = time.perf_counter() - started
+                    elapsed = time.perf_counter() - started
+                    load = LOAD_SECONDS[0] - load_before
                     features[key, case['id']] = {
                         'status': 'ok', 'scores': result['scores'][method].tolist(),
-                        'shape': result['shape'], 'seconds': seconds,
+                        'shape': result['shape'], 'seconds': elapsed - load,
+                        'load_seconds': load,
                         'processedLabels': result['processedLabels'][method],
                         'eligible': (result['validPairs'] & result['usablePairs'][method]).tolist(),
                     }
@@ -263,10 +310,29 @@ def calculate_features(cases, definitions, methods):
     for name, backend in word_backends.items():
         word_vectors[name] = {
             'config': methods[name],
-            'sha256': {lang: sha256(path) if Path(path).is_file() else None
-                       for lang, path in backend.files.items()},
+            'sha256': {}, 'sha256_source': {},
             'translation_revision': backend.translator.revision if backend.translator else None}
+        for lang, path in backend.files.items():
+            if Path(path).is_file():
+                digest, source = resource_hash(path)
+                word_vectors[name]['sha256'][lang] = digest
+                word_vectors[name]['sha256_source'][lang] = source
     return features, engines, errors, word_vectors
+
+
+def split_by_language(data, languages):
+    """Trenne Fälle mit nicht erlaubten Sprachen ab; sie werden gemeldet, nicht still entfernt."""
+    if not languages:
+        return data, []
+    kept, excluded = [], []
+    for case in data['cases']:
+        used = {e['language'] for side in ('reference', 'student') for e in case[side]
+                if e['label'].strip() and e.get('language')}
+        if used <= set(languages):
+            kept.append(case)
+        else:
+            excluded.append({'case': case['id'], 'languages': sorted(used - set(languages))})
+    return {**data, 'cases': kept}, excluded
 
 
 def run_experiments(data, output, config):
@@ -274,6 +340,8 @@ def run_experiments(data, output, config):
     output = Path(output)
     if output.exists():
         raise FileExistsError('choose a new output filename')
+    dataset_hash = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+    data, excluded = split_by_language(data, config.get('languages'))
     if not data.get('cases'):
         raise ValueError('nonempty cases required')
     case_ids = [case['id'] for case in data['cases']]
@@ -286,7 +354,8 @@ def run_experiments(data, output, config):
     definitions, skipped = configurations(config)
     methods = config['methods']
     started = time.perf_counter()
-    features, engines, errors, word_vectors = calculate_features(data['cases'], definitions, methods)
+    with track_loading():
+        features, engines, errors, word_vectors = calculate_features(data['cases'], definitions, methods)
     for spec in definitions.values():
         options = {name: word_vectors[name]['config']
                    for name in spec['methods'] if name in word_vectors}
@@ -333,16 +402,23 @@ def run_experiments(data, output, config):
     for ((method, steps), case_id), item in features.items():
         feature_records.append({'method': method, 'preprocessing': list(steps),
                                 'case': case_id, **item})
+    model_load_seconds = Counter()
+    for item in feature_records:
+        model_load_seconds[item['method']] += item.get('load_seconds', 0)
     payload = {'version': 3, 'seed': config['seed'], 'threshold': threshold, 'config': config,
                'score_policy': 'raw cosine [-1,1]; combinations clip to [0,1]; no calibration',
-               'timing_policy': ('sequential CPU; shared cached raw features; load time included on first use; '
-                                 'feature time excludes candidate construction and JSON conversion'),
-               'dataset': data, 'definitions': definitions, 'skipped_definitions': skipped,
+               'timing_policy': ('sequential CPU; compute seconds exclude model loading, which is stored '
+                                 'in model_load_seconds (shared models count for the first method needing '
+                                 'them; spaCy loads are not separated); excludes candidate construction '
+                                 'and JSON conversion'),
+               'model_load_seconds': dict(model_load_seconds),
+               'dataset': data, 'excluded_cases': excluded, 'definitions': definitions,
+               'skipped_definitions': skipped,
                'features': feature_records, 'records': records, 'errors': errors,
                'provenance': provenance(engines),
                'additional_resources': {'word_vectors': word_vectors},
                'score_statistics': score_statistics(feature_records),
-               'dataset_sha256': hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(),
+               'dataset_sha256': dataset_hash,
                'elapsed_seconds': time.perf_counter() - started}
     from .rank_results import build_rankings, print_rankings
     strategy = 'threshold' if 'threshold' in strategies else strategies[0]
@@ -351,13 +427,21 @@ def run_experiments(data, output, config):
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
     print_rankings(rankings)
+    if excluded:
+        print('Nicht ausgewertet (Sprache nicht in "languages" von experiments.json): ' +
+              ', '.join(f"{e['case']} ({'/'.join(e['languages'])})" for e in excluded))
     # Nicht ausführbare Verfahren erscheinen mit Grund, nie als Nullergebnis.
-    reasons = sorted({(item['method'], item['reason']) for item in feature_records
-                      if item['status'] != 'ok'})
-    for method, reason in reasons:
-        print(f'Nicht vollständig ausgeführt: {method}: {reason}')
+    runs = Counter(item['method'] for item in feature_records)
+    reasons = Counter((item['method'], item['reason']) for item in feature_records
+                      if item['status'] != 'ok')
+    for (method, reason), count in sorted(reasons.items()):
+        print(f'Nicht vollständig ausgeführt: {method}: {reason} ({count} von {runs[method]} Läufen)')
     for item in skipped:
         print(f"Übersprungen: {item['name']}: {item['reason']}")
+    loaded = {m: s for m, s in model_load_seconds.items() if s >= 0.05}
+    if loaded:
+        print('Modellladezeit (nicht in den Rechenzeiten): ' +
+              ', '.join(f'{m} {s:.1f}s' for m, s in sorted(loaded.items())))
     return errors
 
 

@@ -164,6 +164,13 @@ def top_three(results, case_ids, total_pipelines, technical=()):
             'top3': shown, 'additional_tied_pipelines': tied}
 
 
+def language_group(case):
+    """Trenne rein deutsche, gemischte DE/EN- und spanische Fälle, z. B. 'de' oder 'de-en'."""
+    languages = {e.get('language') for side in ('reference', 'student') for e in case[side]
+                 if e['label'].strip() and e.get('language')}
+    return '-'.join(sorted(languages)) or 'ohne Sprache'
+
+
 def build_rankings(payload, strategy='threshold'):
     """Erzeuge JSON-Daten für Kategorien und Gesamtrankings."""
     if strategy not in {'threshold', 'mutual_best', 'hungarian'}:
@@ -179,6 +186,12 @@ def build_rankings(payload, strategy='threshold'):
         technical = [case['id'] for case in group if not evaluable(case)]
         categories.append({'number': number, 'title': group[0]['title'],
             **top_three(rank(payload, selected, names, strategy), selected, len(names), technical)})
+    languages = defaultdict(set)
+    for case in cases:
+        if evaluable(case):
+            languages[language_group(case)].add(case['id'])
+    language_groups = {name: top_three(rank(payload, ids, names, strategy), ids, len(names))
+                       for name, ids in sorted(languages.items())}
     all_cases = {case['id'] for case in cases if evaluable(case)}
     complete = top_three(rank(payload, all_cases, names, strategy), all_cases, len(names))
     available = {name: set() for name in names}
@@ -193,9 +206,10 @@ def build_rankings(payload, strategy='threshold'):
             'policy': {'positive_cases': 'micro F1, precision, recall descending',
                        'negative_only': 'correct rejection rate',
                        'ties': 'same rank; alphabetical representatives; no runtime tiebreak',
-                       'timings': 'shared features; not isolated end-to-end times',
+                       'timings': 'compute seconds only; model loading is stored separately',
                        'scope': 'exploratory synthetic data; no automatic service changes'},
-            'categories': categories, 'overall_complete': complete, 'overall_common': shared}
+            'categories': categories, 'language_groups': language_groups,
+            'overall_complete': complete, 'overall_common': shared}
 
 
 def print_rankings(rankings):
@@ -204,6 +218,8 @@ def print_rankings(rankings):
     print('Positive Fälle: F1 / Precision / Recall. Negativfälle: korrekte Ablehnung.')
     print('Gleichstände alphabetisch; Laufzeit ist kein Entscheidungskriterium.')
     sections = [(f"{c['number']}. {c['title']}", c) for c in rankings['categories']]
+    sections += [(f'Sprachgruppe {name}', group)
+                 for name, group in rankings.get('language_groups', {}).items()]
     sections += [('Gesamt: vollständige Abdeckung', rankings['overall_complete']),
                  ('Gesamt: gemeinsame Fallmenge', rankings['overall_common'])]
     for title, section in sections:
@@ -217,7 +233,7 @@ def print_rankings(rankings):
             print(f"  {row['rank']}. {row['description']}")
             print(f"     {quality}; "
                   f"Top1={top1}; FP/FN={m['fp']}/{m['fn']}; "
-                  f"Features={row['feature_seconds']:.4f}s, Auswahl={row['decision_seconds']:.4f}s")
+                  f"Rechnen={row['feature_seconds']:.4f}s, Auswahl={row['decision_seconds']:.4f}s")
         if not section['top3']:
             print('  Kein Qualitätsranking verfügbar.')
         if section['additional_tied_pipelines']:

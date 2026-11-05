@@ -1,6 +1,7 @@
 {
   "seed": 42,
   "threshold": 0.5,
+  "languages": ["de", "en"],
   "strategies": ["threshold", "mutual_best", "hungarian"],
   "preprocessing": {
     "raw": [],

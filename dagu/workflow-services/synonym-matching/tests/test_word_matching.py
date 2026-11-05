@@ -202,3 +202,8 @@ def test_word_vectors_use_pipeline_preprocessing_and_load_model_once(tmp_path, m
     assert records['raw/word2vec_de_matching']['combinedScores'] == [[1.0]]
     assert records['lower/word2vec_de_matching']['combinedScores'] == [[0.0]]
     assert len(loads) == 1
+    run = json.loads(output.read_text())
+    loaded = [f['load_seconds'] for f in run['features'] if f['status'] == 'ok']
+    assert sum(value > 0 for value in loaded) == 1
+    assert run['model_load_seconds']['word2vec_de_matching'] == pytest.approx(sum(loaded))
+    assert run['additional_resources']['word_vectors']['word2vec_de_matching']['sha256_source'] == {'de': 'berechnet'}

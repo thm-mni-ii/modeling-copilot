@@ -69,6 +69,19 @@ def test_report_marks_technical_cases_ties_and_different_cohorts(capsys):
     assert 'Gesamt: vollständige Abdeckung' in text
 
 
+def test_language_groups_keep_german_mixed_and_spanish_cases_apart(capsys):
+    payload = example()
+    for case, languages in zip(payload['dataset']['cases'], ['de', 'es']):
+        for side in ('reference', 'student'):
+            case[side][0]['language'] = languages
+    payload['dataset']['cases'][1]['student'][0]['language'] = 'en'
+    rankings = build_rankings(payload)
+    assert set(rankings['language_groups']) == {'de', 'en-es'}
+    assert rankings['language_groups']['de']['cases'] == ['positive']
+    print_rankings(rankings)
+    assert 'Sprachgruppe en-es' in capsys.readouterr().out
+
+
 def test_cli_saves_rankings_in_existing_json_only(tmp_path, monkeypatch, capsys):
     path = tmp_path / 'run.json'
     original = example()

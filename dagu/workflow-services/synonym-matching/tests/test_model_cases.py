@@ -59,6 +59,20 @@ def test_single_research_command_writes_json_and_rankings(tmp_path):
     assert bank['decisions']['threshold']['metrics']['fp'] == 1
 
 
+def test_cases_with_other_languages_are_excluded_and_reported(tmp_path):
+    data = json.loads((EXAMPLES / 'model-cases.json').read_text())
+    data['cases'] = [c for c in data['cases'] if c['case_number'] in (1, 10, 11, 22)]
+    config = only(load_config(), 'levenshtein')
+    config['preprocessing'] = {'raw': []}
+    out = tmp_path / 'run.json'
+    experiments.run_experiments(data, out, config)
+    run = json.loads(out.read_text())
+    assert [c['id'] for c in run['dataset']['cases']] == ['case-01', 'case-10']
+    assert run['excluded_cases'] == [{'case': 'case-11', 'languages': ['es']},
+                                     {'case': 'case-22', 'languages': ['es']}]
+    assert set(run['rankings']['threshold']['language_groups']) == {'de', 'de-en'}
+
+
 def test_spanish_translation_explicit_and_other_variants_continue(tmp_path, monkeypatch):
     class FakeEmbeddingEngine(MatchingEngine):
         def compute_scores(self, refs, students):
@@ -77,6 +91,7 @@ def test_spanish_translation_explicit_and_other_variants_continue(tmp_path, monk
     out = tmp_path / 'run.json'
     config = only(load_config(), 'levenshtein', 'multilingual', 'translated_embedding', 'translated_string')
     config['preprocessing'] = {'raw': []}
+    config['languages'] = ['de', 'en', 'es']
     assert experiments.run_experiments(data, out, config) == []
     results = json.loads(out.read_text())['records']
     translated = next(r for r in results if r['experiment'] == 'fixed/translated_embedding')
