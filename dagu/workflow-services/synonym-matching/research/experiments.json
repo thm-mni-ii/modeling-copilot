@@ -11,6 +11,11 @@
     "stem": ["normalize", "lowercase", "stem"],
     "identifiers": ["normalize", "split_identifiers", "lowercase"],
     "identifiers_cased": ["normalize", "split_identifiers"],
+    "compounds_cased": ["normalize", "split_compounds"],
+    "identifiers_lemma": ["normalize", "split_identifiers", "lemmatize", "lowercase"],
+    "compounds_lemma": ["normalize", "split_compounds", "lemmatize", "lowercase"],
+    "all_light": ["normalize", "split_identifiers", "split_compounds", "lemmatize", "lowercase"],
+    "stopwords": ["normalize", "lowercase", "remove_stopwords"],
     "compounds": ["normalize", "lowercase", "split_compounds"]
   },
   "methods": {
