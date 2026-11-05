@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from synonym_matching.service import MatchingEngine
-from .evaluation import evaluate_case, select_matches
+from .evaluation import evaluate_case, select_matches, global_ranking
 from synonym_matching.lexicons import DATA_DIR
 from synonym_matching.combinations import REQUIRES, combine
 
@@ -34,6 +34,8 @@ STRING_METHODS = (
     'char_trigram', 'token_jaccard', 'token_sort_ratio', 'word_order',
 )
 STRATEGIES = ('threshold', 'mutual_best', 'hungarian')
+WORD_METHODS = {name + '_matching': name for name in ('word2vec', 'fasttext', 'glove', 'paragram')}
+
 # Diese Aliasfunktionen bleiben für bestehende API-Aufrufer erhalten.
 ALIASES = {
     'translation_string', 'translation_monolingual', 'multilingual_only',
@@ -41,7 +43,7 @@ ALIASES = {
 }
 
 
-def configurations(models=False, lexicons=False, pipelines=None):
+def configurations(models=False, lexicons=False, pipelines=None, new_methods=False):
     """Erstelle eindeutige Spezifikationen statt mehrfacher Namen für dieselbe Formel."""
     methods = list(STRING_METHODS) + ['exact_match']
     if models:
@@ -73,6 +75,21 @@ def configurations(models=False, lexicons=False, pipelines=None):
                               'combiner': {'kind': 'mean'}})
         specs.append({'name': 'wordnet_openthesaurus', 'methods': ['wordnet', 'openthesaurus'],
                       'combiner': {'kind': 'mean'}})
+    if new_methods:
+        specs += [{'name': name, 'methods': [name], 'combiner': {'kind': 'mean'}}
+                  for name in list(WORD_METHODS)]
+        # 22 und 32 verwenden dieselbe FastText-Matrix; Hungarian läuft bereits separat.
+        specs.append({'name': 'fasttext_levenshtein',
+                      'methods': ['fasttext_matching', 'levenshtein'], 'combiner': {'kind': 'mean'}})
+        specs.append({'name': 'glove_fasttext_paragram',
+                      'methods': ['glove_matching', 'fasttext_matching', 'paragram_matching'],
+                      'combiner': {'kind': 'weighted_mean',
+                                   'weights': {'glove_matching': 1, 'fasttext_matching': 1, 'paragram_matching': 1}}})
+        if models:
+            specs.append({'name': 'string_embedding_global_ranking',
+                          'methods': list(REQUIRES['weighted_fusion']),
+                          'combiner': {'kind': 'variant', 'name': 'weighted_fusion',
+                                       'options': {'embedding_weight': .5}}, 'global_ranking': True})
     # Jede Zeile beschreibt genau einen Versuch. Hier neue Kombinationen ergänzen.
     pipelines = PIPELINES if pipelines is None else pipelines
     result = {}
@@ -86,10 +103,19 @@ def configurations(models=False, lexicons=False, pipelines=None):
     return result
 
 
-def unsupported(method, steps, case):
+def unsupported(method, steps, case, word_vectors=None):
     """Unpassende Sprachen sind fehlende Abdeckung, keine Nullscores."""
     languages = {e.get('language') for e in case['reference'] + case['student']
                  if e['label'].strip()}
+    if method in WORD_METHODS:
+        config = (word_vectors or {}).get(WORD_METHODS[method])
+        if config is None:
+            return 'Lokale Wortvektoren fehlen.'
+        supported = {'de', 'en'} if config.get('translate_to_en') else set(config.get('files', {}))
+        if not languages <= supported:
+            return 'Keine Wortvektoren für alle angegebenen Sprachen.'
+        if config.get('nouns_only') and not languages <= {'de', 'en'}:
+            return 'Nomenfilter nur DE/EN.'
     if method == 'openthesaurus' and not languages <= {'de'}:
         return 'OpenThesaurus: only de supported'
     if method in {'wordnet', 'translated_string', 'translated_embedding'}:
@@ -102,7 +128,11 @@ def unsupported(method, steps, case):
 
 def sha256(path):
     """Identifiziere Code und lokale Ressourcen ohne sie zu kopieren."""
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def provenance(engines):
@@ -110,7 +140,7 @@ def provenance(engines):
     packages = {}
     for name in ('numpy', 'scipy', 'nltk', 'spacy', 'rapidfuzz', 'torch',
                  'transformers', 'sentence-transformers', 'de_core_news_sm',
-                 'en_core_web_sm'):
+                 'en_core_web_sm', 'gensim'):
         try:
             packages[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
@@ -165,7 +195,7 @@ def score_statistics(features):
     return result
 
 
-def calculate_features(cases, definitions):
+def calculate_features(cases, definitions, word_vectors=None):
     """Berechne jede Methode/Preprocessing-Kombination pro Testfall genau einmal."""
     tasks = {}
     for config in definitions.values():
@@ -174,18 +204,27 @@ def calculate_features(cases, definitions):
             tasks[method, tuple(steps)] = steps
     features, engines, errors = {}, {}, []
     translator = None
+    word_backends = {}
+    extra = {'word_vectors': {}}
     for key, steps in tasks.items():
         method = key[0]
         engine = None
         for case in cases:
-            reason = unsupported(method, steps, case)
+            reason = unsupported(method, steps, case, word_vectors)
             if reason:
                 features[key, case['id']] = {'status': 'unsupported', 'reason': reason}
                 continue
             try:
                 if engine is None:
-                    engine = MatchingEngine({'methods': [method], 'preprocessing': steps})
-                    engines[key] = engine
+                    if method in WORD_METHODS:
+                        from .word_matching import WordMatching
+                        model = WORD_METHODS[method]
+                        engine = WordMatching(word_vectors[model], translator, name=method)
+                        word_backends[model] = engine
+                        translator = engine.translator or translator
+                    else:
+                        engine = MatchingEngine({'methods': [method], 'preprocessing': steps})
+                        engines[key] = engine
                     if method in {'wordnet', 'translated_string', 'translated_embedding'}:
                         translator = translator or engine.translator
                         engine.translator = translator
@@ -205,11 +244,19 @@ def calculate_features(cases, definitions):
                 features[key, case['id']] = {'status': 'error', 'reason': reason}
                 errors.append({'method': method, 'preprocessing': steps,
                                'case': case['id'], 'reason': reason})
-    return features, engines, errors
+        # Die Kombinationen verwenden danach nur noch die gespeicherten Scores.
+        if method in WORD_METHODS and engine is not None:
+            engine.models.clear()
+    for name, backend in word_backends.items():
+        extra['word_vectors'][name] = {'config': backend.config,
+            'sha256': {lang: sha256(path) if Path(path).is_file() else None for lang, path in backend.files.items()},
+            'translation_revision': backend.translator.revision if backend.translator else None}
+    return features, engines, errors, extra
 
 
 def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
-                    pipelines=None, strategies=STRATEGIES):
+                    pipelines=None, strategies=STRATEGIES, new_methods=False,
+                    word_vectors=None):
     """Berechne gemeinsame Features einmal; vergleiche alle Varianten ohne Tuning."""
     if not np.isfinite(threshold) or not 0 <= threshold <= 1:
         raise ValueError('threshold must be in [0,1]')
@@ -227,9 +274,16 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
     # Seeds einmal pro Versuch setzen, nicht bei jeder Engine-Erzeugung.
     random.seed(42)
     np.random.seed(42)
-    definitions = configurations(models, lexicons, pipelines)
+    definitions = configurations(models, lexicons, pipelines, new_methods)
     started = time.perf_counter()
-    features, engines, errors = calculate_features(data['cases'], definitions)
+    features, engines, errors, extra = calculate_features(data['cases'], definitions, word_vectors)
+    for spec in definitions.values():
+        options = {
+            method: extra['word_vectors'][WORD_METHODS[method]]['config']
+            for method in spec['methods'] if method in WORD_METHODS
+            and WORD_METHODS[method] in extra['word_vectors']}
+        if options:
+            spec['word_matching'] = options
     records = []
 
     for identifier, spec in definitions.items():
@@ -249,6 +303,8 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
                 np.asarray(p['eligible'], dtype=bool).reshape(shape) for p in parts.values()])
             t0 = time.perf_counter()
             scores = combine(raw, spec['combiner'])
+            if spec.get('global_ranking'):
+                scores = global_ranking(scores, eligible)
             combine_seconds = time.perf_counter() - t0
             decisions = {}
             for strategy in strategies:
@@ -275,6 +331,7 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
                                  'feature time excludes candidate construction and JSON conversion'),
                'dataset': data, 'definitions': definitions, 'features': feature_records,
                'records': records, 'errors': errors, 'provenance': provenance(engines),
+               'additional_resources': extra,
                'score_statistics': score_statistics(feature_records),
                'dataset_sha256': hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(),
                'elapsed_seconds': time.perf_counter() - started}
@@ -285,6 +342,12 @@ def run_experiments(data, output, *, models=False, lexicons=False, threshold=.5,
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
     print_rankings(rankings)
+    if new_methods:
+        for method in list(WORD_METHODS):
+            reasons = sorted({item['reason'] for item in feature_records
+                              if item['method'] == method and item['status'] != 'ok'})
+            if reasons:
+                print(f"Nicht vollständig ausgeführt: {method}: {'; '.join(reasons)}")
     return errors
 
 
@@ -294,16 +357,22 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--models', action='store_true', help='Embedding- und Übersetzungsverfahren')
     parser.add_argument('--lexicons', action='store_true', help='WordNet und OpenThesaurus')
+    parser.add_argument('--new-methods', action='store_true', help='Neue Wortvektor- und Ranking-Vergleiche')
+    parser.add_argument('--word-vectors', type=Path, help='JSON mit lokalen Vektormodellpfaden je Sprache')
     parser.add_argument('--threshold', type=float, default=.5)
     parser.add_argument('--preprocessing', nargs='*', default=None,
                         help='Nur diese Schritte vergleichen; ohne Angabe alle Ablationen')
     parser.add_argument('--extended', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.word_vectors and not args.new_methods:
+        parser.error('--word-vectors requires --new-methods')
     pipelines = None if args.preprocessing is None else {'custom': args.preprocessing}
     errors = run_experiments(
         json.loads(args.data.read_text()), args.output,
         models=args.models, lexicons=args.lexicons, threshold=args.threshold,
         pipelines=pipelines,
+        new_methods=args.new_methods,
+        word_vectors=json.loads(args.word_vectors.read_text()) if args.word_vectors else None,
     )
     print(f'Gespeichert: {args.output}; technische Fehler: {len(errors)}')
     return int(bool(errors))

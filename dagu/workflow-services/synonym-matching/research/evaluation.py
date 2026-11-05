@@ -2,6 +2,7 @@
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+from scipy.stats import rankdata
 
 from synonym_matching.service import nonempty_pairs
 
@@ -123,3 +124,18 @@ def select_matches(scores, eligible, threshold=0.5, strategy='threshold'):
         if column < columns and allowed[row, column]:
             chosen[row, column] = True
     return chosen
+
+
+def global_ranking(scores, eligible):
+    """Eigene Rangheuristik: senke Scores entsprechend Zeilen- und Spaltenrang ab.
+
+    Gleichstände erhalten mittlere Ränge. Beide Ränge 1 erhalten den Originalscore;
+    schwächere Kandidaten werden mit 2/(Zeilenrang+Spaltenrang) gewichtet.
+    Das ist keine zusätzliche 1:1-Zuordnung und keine übernommene Paper-Formel.
+    """
+    if not scores.size:
+        return scores.copy()
+    usable = np.where(eligible, scores, -np.inf)
+    row_rank = rankdata(-usable, axis=1, method='average')
+    column_rank = rankdata(-usable, axis=0, method='average')
+    return np.where(eligible, scores * 2 / (row_rank + column_rank), 0)

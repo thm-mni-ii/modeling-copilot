@@ -22,6 +22,10 @@ METHOD_NAMES = {
     'translated_embedding': 'DE→EN-Übersetzung → monolinguales Embedding',
     'wordnet': 'DE→EN-Übersetzung → WordNet',
     'openthesaurus': 'OpenThesaurus',
+    'word2vec_matching': 'Word2Vec → Greedy-1:1-Wort-Matching',
+    'fasttext_matching': 'FastText → Greedy-1:1-Wort-Matching',
+    'glove_matching': 'GloVe → Greedy-1:1-Wort-Matching',
+    'paragram_matching': 'Paragram → Greedy-1:1-Wort-Matching',
 }
 
 
@@ -81,6 +85,20 @@ def describe_pipeline(spec):
         description += ' [Preprocessing vorne: Stringpfad; Sprach-/Lexikonpfade: normalize]'
     if name == 'exact_match_fusion':
         description += ' [Exakt-Prüfung: normalize auf Originaltext]'
+    if any(method.endswith('_matching') for method in requires):
+        paths = []
+        for method, options in spec.get('word_matching', {}).items():
+            steps = list(options['preprocessing'])
+            if options['translate_to_en']:
+                steps.append('DE→EN')
+            if options['nouns_only']:
+                steps.append('nouns_only')
+            if options['lowercase']:
+                steps.append('lowercase')
+            paths.append(f"{method}: {'_'.join(steps)}, δ={options['delta']}")
+        description += ' [Wortpfade: ' + '; '.join(paths) + ']'
+    if spec.get('global_ranking'):
+        description += ' → Zeilen-/Spaltenrang-Fusion'
     return description
 
 

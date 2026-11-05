@@ -1,0 +1,31 @@
+{
+  "word2vec": {
+    "files": {
+      "en": ".cache/word-vectors/word2vec.bin"
+    },
+    "format": "word2vec_binary",
+    "translate_to_en": true
+  },
+  "fasttext": {
+    "files": {
+      "de": ".cache/word-vectors/wiki.de.align.vec",
+      "en": ".cache/word-vectors/wiki.en.align.vec"
+    },
+    "format": "word2vec_text",
+    "aligned": true
+  },
+  "glove": {
+    "files": {
+      "en": ".cache/word-vectors/glove.txt"
+    },
+    "format": "glove",
+    "translate_to_en": true
+  },
+  "paragram": {
+    "files": {
+      "en": ".cache/word-vectors/paragram.txt"
+    },
+    "format": "glove",
+    "translate_to_en": true
+  }
+}
