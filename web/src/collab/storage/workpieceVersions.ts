@@ -5,8 +5,8 @@ import { createModelPatch } from '@/utils/modelPatches'
 import { loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabEvent, CollabKitApi, Workpiece } from '@/collab/kit/collabKitV1'
 import { liveSession } from '@/collab/kit/liveSession'
-import { languagesIn, xmlOf, type ModelUnit } from '@/collab/converters/model/modelUnits'
-import { CELLS_MAP, languagesOf, linkOf } from './workpiece'
+import { languagesIn, sameUnits, xmlOf, type ModelUnit } from '@/collab/converters/model/modelUnits'
+import { CELLS_MAP, historyModeOf, languagesOf, linkOf } from './workpiece'
 
 /** The version methods of model.service for a model shared through a workpiece, in the shapes of the API. */
 export interface ModelVersions {
@@ -95,12 +95,13 @@ const initialOf = (model: Model, workpiece: Workpiece): ModelVersionInfo => ({
   description: null
 })
 
-/** The versions oldest first: the initial release, then one per checkpoint with the changes since the one before. */
+/** The versions oldest first: the initial release, then one per checkpoint with the changes since the one before. A workpiece given the private history starts with its first checkpoint, as release 1.0, and has no empty initial release. */
 const entriesOf = (model: Model, history: History, checkpoints: readonly CollabEvent[]) => {
-  const entries: Entry[] = [{ info: initialOf(model, history.workpiece) }]
+  const given = historyModeOf(history.workpiece) !== 'none' && checkpoints.length > 0
+  const entries: Entry[] = given ? [] : [{ info: initialOf(model, history.workpiece) }]
   let done = 0
   for (const checkpoint of checkpoints) {
-    const before = entries[entries.length - 1].info
+    const before = entries[entries.length - 1]?.info
     const release = Boolean(checkpoint.label)
     const end = checkpoint.at ? history.steps.findIndex((step) => step.id === checkpoint.at) + 1 : 0
     const steps = history.steps.slice(done, end)
@@ -109,11 +110,11 @@ const entriesOf = (model: Model, history: History, checkpoints: readonly CollabE
       at: checkpoint.at,
       info: {
         id: checkpoint._id,
-        versionNumber: nextNumber(before.versionNumber, release),
+        versionNumber: nextNumber(before?.versionNumber ?? '0.0', release),
         createdAt: checkpoint.createdAt,
         createdBy: checkpoint.createdBy,
         modelId: model.id,
-        baseReleaseId: release ? null : before.kind === 'release' ? before.id : before.baseReleaseId,
+        baseReleaseId: release || !before ? null : before.kind === 'release' ? before.id : before.baseReleaseId,
         // A release holds its whole state; what others changed since the last checkpoint is in it, not shown as steps.
         patches: release ? [] : steps.flatMap((step) => (step.patch ? [{ createdAt: step.createdAt, xml: step.patch }] : [])),
         workspaceLanguages: end > 0 ? history.steps[end - 1].languages : languagesOf(history.workpiece),
@@ -134,9 +135,6 @@ const withState = (model: Model, workpiece: Workpiece, info: ModelVersionInfo, u
   workspaceLanguages: units ? languagesIn(units, workpiece) : info.workspaceLanguages,
   taskEditSnapshot: null
 })
-
-/** Whether collab-kit holds every unit as the session has it, so nothing of the own is on its way. */
-const sameUnits = (stored: ReadonlyMap<string, ModelUnit>, own: [string, ModelUnit][]) => stored.size === own.length && own.every(([key, unit]) => JSON.stringify(stored.get(key)) === JSON.stringify(unit))
 
 const pause = () => new Promise((resolve) => setTimeout(resolve, PAUSE_MS))
 

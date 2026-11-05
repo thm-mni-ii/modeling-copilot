@@ -6,6 +6,15 @@
         <v-switch v-model="options.edit" color="primary" density="compact" hide-details label="Visitors may edit" />
         <v-switch v-model="options.comment" color="primary" density="compact" hide-details label="Visitors may comment" />
         <v-switch v-if="workspace.taskReference" v-model="options.task" color="primary" density="compact" hide-details label="Share the task" />
+        <v-radio-group v-model="options.history" density="compact" class="mt-2" :disabled="busy" hint="What visitors can look back on. A longer history takes longer to share." persistent-hint>
+          <v-radio color="primary" value="none" label="Current state only" />
+          <v-radio color="primary" value="versions" label="Versions (releases and checkpoints)" />
+          <v-radio color="primary" value="steps" label="Every change (versions and the changes between them)" />
+        </v-radio-group>
+        <div v-if="shareProgress && options.history !== 'none'" class="mt-3">
+          <v-progress-linear :model-value="shareProgress.total ? (shareProgress.done / shareProgress.total) * 100 : 0" color="primary" height="4" />
+          <div class="text-caption mt-1">Writing history · {{ shareProgress.done }} of {{ shareProgress.total }}</div>
+        </div>
         <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mt-3">{{ error }}</v-alert>
       </v-card-text>
       <v-card-actions>
@@ -47,16 +56,17 @@
     </v-card>
   </v-dialog>
 
-  <v-dialog :model-value="hostClosed" width="480" persistent>
-    <v-card v-if="!confirmDiscard" title="The host has left" text="The room is closed. Do you want to keep the current state as a model of your own?">
+  <v-dialog :model-value="hostClosed || shareDialog === 'leave'" width="480" persistent>
+    <v-card v-if="!confirmDiscard" :title="hostClosed ? 'The host has left' : 'Leave sharing'" :text="hostClosed ? 'The room is closed. Do you want to keep the current state as a model of your own and continue privately?' : 'You leave the shared model. Do you want to keep the current state as a model of your own and continue privately?'">
       <v-card-text class="pt-0">
         <v-text-field v-model="name" label="Name of the model" density="compact" variant="outlined" hide-details />
         <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mt-3">{{ error }}</v-alert>
       </v-card-text>
       <v-card-actions>
+        <v-btn v-if="!hostClosed" variant="text" :disabled="busy" @click="closeDialog">Cancel</v-btn>
         <v-btn variant="text" :disabled="busy" @click="confirmDiscard = true">Discard</v-btn>
         <v-spacer />
-        <v-btn color="primary" variant="text" :loading="busy" @click="keep">Save as model</v-btn>
+        <v-btn color="primary" variant="text" :loading="busy" @click="keep">Continue privately</v-btn>
       </v-card-actions>
     </v-card>
     <v-card v-else title="Discard the state?" text="The current state of the model is lost.">
@@ -74,12 +84,13 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { notifyError } from '@/composables/useNotifications'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import { currentShare, hostClosed, leaveAsVisitor, leaveShare, reopenShare, shareDialog, shareLink, shareModel, type LeaveTarget } from './shareModel'
+import type { HistoryMode } from '@/collab/converters/model/modelHistory'
+import { currentShare, hostClosed, leaveAsVisitor, leaveShare, pendingTarget, reopenShare, shareDialog, shareLink, shareModel, shareProgress, type LeaveTarget } from './shareModel'
 
 const router = useRouter()
 const workspace = useModelWorkspaceStore()
 
-const options = reactive({ anonymous: false, edit: true, comment: true, task: true })
+const options = reactive({ anonymous: false, edit: true, comment: true, task: true, history: 'none' as HistoryMode })
 const target = ref<LeaveTarget>('version')
 const name = ref('')
 const busy = ref(false)
@@ -87,7 +98,10 @@ const error = ref('')
 const copied = ref(false)
 const confirmDiscard = ref(false)
 
-const closeDialog = () => (shareDialog.value = null)
+const closeDialog = () => {
+  shareDialog.value = null
+  pendingTarget.value = null
+}
 
 const link = computed(() => (currentShare.value ? shareLink(router, currentShare.value.roomId) : ''))
 
@@ -105,7 +119,7 @@ const run = async (step: () => Promise<void>) => {
 }
 
 // The name offered is that of the open model, taken when the dialog opens.
-watch([() => shareDialog.value === 'quit', hostClosed], ([quitting, closed]) => {
+watch([() => shareDialog.value === 'quit' || shareDialog.value === 'leave', hostClosed], ([quitting, closed]) => {
   if (quitting || closed) name.value = workspace.data.name
   error.value = ''
   confirmDiscard.value = false
@@ -138,13 +152,21 @@ const cancelQuit = () =>
   run(async () => {
     await reopenShare()
     shareDialog.value = null
+    pendingTarget.value = null
   })
 
 const keep = () =>
   run(async () => {
     if (!name.value.trim()) throw new Error('Enter a name for the model.')
+    // The state becomes an own model, which opens so the work goes on there; a place the guard stopped at does not take its place.
+    pendingTarget.value = null
     await leaveAsVisitor(router, true, name.value.trim())
+    shareDialog.value = null
   })
 
-const drop = () => run(() => leaveAsVisitor(router, false))
+const drop = () =>
+  run(async () => {
+    await leaveAsVisitor(router, false)
+    shareDialog.value = null
+  })
 </script>

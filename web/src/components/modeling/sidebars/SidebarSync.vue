@@ -25,7 +25,10 @@
           <v-btn color="error" variant="flat" size="small" prepend-icon="mdi-logout" :loading="quitting" @click="quit">Quit sharing</v-btn>
           <ShareSettings />
         </template>
-        <div v-else class="sync-hint">You joined a model shared by someone else.</div>
+        <template v-else>
+          <div class="sync-hint">You joined a model shared by someone else.</div>
+          <v-btn variant="outlined" size="small" prepend-icon="mdi-logout" @click="shareDialog = 'leave'">Leave sharing</v-btn>
+        </template>
         <CollabPeople :people="people" />
         <CollabLog :entries="logEntries" />
       </template>

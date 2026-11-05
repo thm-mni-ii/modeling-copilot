@@ -7,7 +7,7 @@
           {{ chip.text }}
         </div>
         <div class="mode-buttons">
-          <button v-for="button in buttons" :key="button.key" type="button" class="mode-button" :class="{ 'mode-button--on': button.on, 'mode-button--present': button.key === 'present', 'mode-button--shown': !isHost }" :title="button.title" :aria-label="button.title" :disabled="isHost && locked" @click="isHost && button.toggle()">
+          <button v-for="button in buttons" :key="button.key" type="button" class="mode-button" :class="{ 'mode-button--on': button.on, 'mode-button--present': button.key === 'present', 'mode-button--shown': !isHost && button.key !== 'leave' }" :title="button.title" :aria-label="button.title" :disabled="isHost && locked" @click="(isHost || button.key === 'leave') && button.toggle()">
             <v-icon :icon="button.icon" size="18" />
           </button>
         </div>
@@ -20,10 +20,11 @@
 import { computed, watch } from 'vue'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { useGraphContext } from '@/composables/useGraphContext'
-import { announcedRights, currentShare, hostPresenting, loadShareSettings, presenting, shareDialog, shareSettings, shareSettingsBusy, toggleShareSetting, visitorRights } from './shareModel'
+import { announcedRights, currentShare, hostAway, hostPresenting, loadShareSettings, presenting, shareDialog, shareSettings, shareSettingsBusy, toggleShareSetting, visitorRights } from './shareModel'
 
 const BLUE = '#3f8ad6'
 const CORAL = '#cf5c58'
+const AMBER = '#c77d0a'
 
 const { graph } = useGraphContext()
 const { isConnected, anonymous } = useCollabConnection()
@@ -33,12 +34,15 @@ const container = computed(() => graph.value?.container)
 const visible = computed(() => Boolean(currentShare.value) && isConnected.value)
 const isHost = computed(() => Boolean(currentShare.value?.privateModelId))
 const presentingNow = computed(() => (isHost.value ? presenting.value : hostPresenting.value))
-const color = computed(() => (presentingNow.value ? CORAL : BLUE))
+// A visitor sees at once when the host is gone; the host does not need to be told about themselves.
+const away = computed(() => !isHost.value && hostAway.value)
+const color = computed(() => (away.value ? AMBER : presentingNow.value ? CORAL : BLUE))
 const locked = computed(() => shareSettingsBusy() || shareDialog.value === 'quit')
 
 watch([visible, isHost], ([shown, host]) => shown && host && void loadShareSettings(), { immediate: true })
 
 const chip = computed(() => {
+  if (away.value) return { icon: 'mdi-lan-disconnect', text: 'Host disconnected' }
   if (!presentingNow.value) return { icon: 'mdi-account-group-outline', text: 'Collaborating' }
   return { icon: 'mdi-cursor-default-outline', text: isHost.value ? 'Presenting' : 'Host is presenting' }
 })
@@ -71,7 +75,10 @@ const buttons = computed<ModeButton[]>(() => {
   if (mayEdit) held.push({ key: 'edit', on: true, icon: 'mdi-pencil', title: 'You can edit', toggle: () => undefined })
   if (mayComment) held.push({ key: 'comment', on: true, icon: 'mdi-comment-outline', title: 'You can comment', toggle: () => undefined })
   if (isAnonymous) held.push({ key: 'anonymous', on: true, icon: 'mdi-incognito', title: 'You appear anonymous', toggle: () => undefined })
-  return held.length > 0 ? held : [{ key: 'view', on: true, icon: 'mdi-eye-outline', title: 'You can only view', toggle: () => undefined }]
+  if (held.length === 0) held.push({ key: 'view', on: true, icon: 'mdi-eye-outline', title: 'You can only view', toggle: () => undefined })
+  // A visitor can always leave, whatever the rights and whatever the connection does.
+  held.push({ key: 'leave', on: false, icon: 'mdi-logout', title: 'Leave sharing', toggle: () => (shareDialog.value = 'leave') })
+  return held
 })
 </script>
 

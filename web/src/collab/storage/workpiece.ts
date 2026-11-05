@@ -1,6 +1,7 @@
 import type { JsonObject } from '@/services/api/types/common'
 import type { WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { NewWorkpiece, Workpiece } from '@/collab/kit/collabKitV1'
+import type { HistoryMode } from '@/collab/converters/model/modelHistory'
 
 /** The top map of the doc, one cell per key; named as units, so a conflict names its cell. */
 export const CELLS_MAP = 'cells'
@@ -12,11 +13,11 @@ export const UML_CLASS_DIAGRAM: WorkspaceLanguageReference = {
   source: 'required'
 }
 
-/** A Copilot workpiece in a room: the cell format with its languages, and the cells as units. */
-export const newWorkpiece = (roomId: string, name: string, languages: WorkspaceLanguageReference[]): NewWorkpiece => ({
+/** A Copilot workpiece in a room: the cell format with its languages, and the cells as units. `history` tells how much of the private versions it was given. */
+export const newWorkpiece = (roomId: string, name: string, languages: WorkspaceLanguageReference[], history: HistoryMode = 'none'): NewWorkpiece => ({
   name,
   roomId,
-  contract: { tool: 'modeling-copilot', format: 'copilot-cells', version: 1, languages },
+  contract: { tool: 'modeling-copilot', format: 'copilot-cells', version: 1, languages, history },
   units: [{ path: [CELLS_MAP] }]
 })
 
@@ -36,4 +37,10 @@ export const languagesOf = (workpiece: Workpiece): WorkspaceLanguageReference[] 
   const languages = workpiece.contract.languages
   const usable = Array.isArray(languages) && languages.every((language) => typeof language?.languageId === 'string' && typeof language?.versionId === 'string')
   return usable && languages.length > 0 ? (languages as WorkspaceLanguageReference[]) : [UML_CLASS_DIAGRAM]
+}
+
+/** How much of the private history the workpiece was created with; older ones without it count as none. */
+export const historyModeOf = (workpiece: Workpiece): HistoryMode => {
+  const mode = workpiece.contract.history
+  return mode === 'versions' || mode === 'steps' ? mode : 'none'
 }

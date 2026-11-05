@@ -1,19 +1,19 @@
 import { reactive, ref, readonly, watch } from 'vue'
 import type { AxiosError } from 'axios'
-import type { Router } from 'vue-router'
+import type { RouteLocationNormalized, Router } from 'vue-router'
 import httpClient from '@/services/api/httpClient'
 import modelService from '@/services/model/model.service'
 import { cloneJson, type ModelSnapshot } from '@/model/ModelSnapshot'
-import { notifyError } from '@/composables/useNotifications'
+import { notifyError, notifyWarning } from '@/composables/useNotifications'
 import type { JsonObject } from '@/services/api/types/common'
 import type { Model, WorkspaceLanguageReference } from '@/services/api/types/model'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { createModelPatch } from '@/utils/modelPatches'
 import { loadCollabKit } from '@/collab/kit/collabKit'
-import type { CollabKitApi, Right } from '@/collab/kit/collabKitV1'
+import type { CollabKitApi, Right, Session } from '@/collab/kit/collabKitV1'
 import { openWorkpiece } from '@/collab/connection/openWorkpiece'
-import { splitModel } from '@/collab/converters/model/modelCells'
-import { LANGUAGES_KEY, type ModelUnit } from '@/collab/converters/model/modelUnits'
+import { hasChange, stepsOf, type HistoryMode, type HistoryStep, type PrivateVersion } from '@/collab/converters/model/modelHistory'
+import { sameUnits, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { CELLS_MAP, newWorkpiece } from '@/collab/storage/workpiece'
 
 /** What the host answers in the dialog before the link; visitors always see. */
@@ -69,11 +69,14 @@ watch(
 /** Set for a visitor once the host has closed the room; the dialog to save the local copy listens to it. */
 export const hostClosed = ref(false)
 
-/** How often and how long to wait until collab-kit holds the first state of the workpiece. */
-const ATTEMPTS = 10
-const PAUSE_MS = 200
+/** Set for a visitor while the host has been gone from the room for a while, as the presence tells it. */
+export const hostAway = ref(false)
 
-const pause = () => new Promise((resolve) => setTimeout(resolve, PAUSE_MS))
+/** How often collab-kit is asked whether it holds what was written, and for how long. */
+const POLL_MS = 50
+const WAIT_MS = 10000
+
+const pause = () => new Promise((resolve) => setTimeout(resolve, POLL_MS))
 
 /** Fails with the reason the backend names (`{ code, message }`), else with the message of the error. */
 const request = async <Value>(run: () => Promise<{ data: Value }>) => {
@@ -84,20 +87,61 @@ const request = async <Value>(run: () => Promise<{ data: Value }>) => {
   }
 }
 
-/** Writes the state into the new workpiece before anyone joins, and waits until collab-kit holds it. */
-const writeState = async (ck: CollabKitApi, workpieceId: string, xml: string, languages: WorkspaceLanguageReference[]) => {
-  const cells = splitModel(xml, new Map())
+/** How far the history is written while sharing, for the dialog; null when nothing is being written. */
+export const shareProgress = ref<{ done: number; total: number } | null>(null)
+
+/** The versions read at once from the API, and per page. */
+const BATCH = 6
+const PAGE = 100
+
+/** The versions of the private model with their whole state, oldest first. */
+const readPrivateVersions = async (model: Model): Promise<PrivateVersion[]> => {
+  const ids: string[] = []
+  for (let total = 1; ids.length < total; ) {
+    const { items, total: all } = (await modelService.listVersions(model, ids.length, PAGE)).data
+    if (items.length === 0) break
+    ids.push(...items.map((item) => item.id))
+    total = all
+  }
+  // The API lists the newest first; a version builds on the one before it.
+  ids.reverse()
+  const versions: PrivateVersion[] = []
+  for (let start = 0; start < ids.length; start += BATCH) {
+    const batch = await Promise.all(ids.slice(start, start + BATCH).map((id) => modelService.getVersion(model, id)))
+    for (const { data } of batch) versions.push({ info: data, xml: (data.data as ModelSnapshot).xml })
+  }
+  return versions
+}
+
+/** Waits until collab-kit holds every unit the session has, so a checkpoint marks exactly that state. */
+const waitUntilHeld = async (ck: CollabKitApi, workpieceId: string, session: Session<ModelUnit>) => {
+  const until = Date.now() + WAIT_MS
+  while (!sameUnits((await ck.workpieces.unitsAt<ModelUnit>(workpieceId, { map: CELLS_MAP })).units, session.units.entries())) {
+    if (Date.now() > until) throw new Error('collab-kit did not take the model in time.')
+    await pause()
+  }
+}
+
+/** Writes the steps into the new workpiece before anyone joins; a version ends in a checkpoint, set once collab-kit holds its state. */
+const writeHistory = async (ck: CollabKitApi, workpieceId: string, steps: HistoryStep[]) => {
   const session = ck.open<ModelUnit>(workpieceId, { map: CELLS_MAP })
   try {
     await session.synced
-    session.units.update({ set: { ...Object.fromEntries(cells), [LANGUAGES_KEY]: languages } }, { undoable: false })
-    for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
-      if ((await ck.workpieces.unitsAt<ModelUnit>(workpieceId, { map: CELLS_MAP })).units.size === cells.size + 1) return
-      await pause()
+    shareProgress.value = { done: 0, total: steps.length }
+    for (const [index, step] of steps.entries()) {
+      // Out of undo, so the host cannot take the history back.
+      if (hasChange(step.change)) session.units.update(step.change, { undoable: false })
+      if (step.checkpoint) {
+        await waitUntilHeld(ck, workpieceId, session)
+        await ck.workpieces.checkpoint(workpieceId, step.checkpoint)
+      }
+      shareProgress.value = { done: index + 1, total: steps.length }
     }
-    throw new Error('collab-kit did not take the model in time.')
+    // The session may close only once collab-kit holds the last of it.
+    await waitUntilHeld(ck, workpieceId, session)
   } finally {
     session.close()
+    shareProgress.value = null
   }
 }
 
@@ -152,14 +196,14 @@ export const toggleShareSetting = async (key: SettingKey) => {
 }
 
 /** Which dialog is open; it lives here and not in a component, as the editor and its sidebar are rebuilt while sharing and leaving. */
-export const shareDialog = ref<'ask' | 'link' | 'quit' | null>(null)
+export const shareDialog = ref<'ask' | 'link' | 'quit' | 'leave' | null>(null)
 
 /** The link of a room; the router builds it, as the app keeps its routes behind a hash. */
 export const shareLink = (router: Router, roomId: string) => new URL(router.resolve({ name: 'Join', params: { roomId } }).href, window.location.origin).href
 
 /** Shares the open model: creates room and workpiece at the backend, writes the state, opens the room model. Gives back the link. */
-/** With `task`, the task of the model comes along; the backend reads it from the model. */
-export const shareModel = async (router: Router, options: ShareOptions & { task: boolean }) => {
+/** With `task`, the task of the model comes along; the backend reads it from the model. `history` tells how much of the private versions goes into the workpiece. */
+export const shareModel = async (router: Router, { history = 'none', ...options }: ShareOptions & { task: boolean; history?: HistoryMode }) => {
   // A second share saves and closes the first one beforehand, as on leaving.
   if (current.value) await leaveShare(router, 'version')
 
@@ -171,12 +215,21 @@ export const shareModel = async (router: Router, options: ShareOptions & { task:
   const xml = workspace.data.xml
   const languages = cloneJson(workspace.languages)
 
-  const { name, contract, units } = newWorkpiece('', privateModel.name, languages)
+  const { name, contract, units } = newWorkpiece('', privateModel.name, languages, history)
   const task = options.task && Boolean(workspace.taskReference)
   const shared = await request(() => httpClient.post<{ roomId: string; workpieceId: string; hostId: string; created: boolean }>('/v1/share', { name, contract, units, ...options, task, modelId: privateModel.id }))
   const ck = await loadCollabKit()
   // The host already shares: the workpiece holds the live state, which must not be overwritten.
-  if (shared.created) await writeState(ck, shared.workpieceId, xml, languages)
+  if (shared.created) {
+    try {
+      const versions = history === 'none' ? [] : await readPrivateVersions(privateModel)
+      await writeHistory(ck, shared.workpieceId, stepsOf(versions, history, { xml, languages }))
+    } catch (error) {
+      // The room is open with a half written workpiece, and another try would take it as shared already: end the share.
+      await httpClient.post('/v1/share/close').catch(() => undefined)
+      throw error
+    }
+  }
 
   const [room, workpiece] = await Promise.all([ck.rooms.get(shared.roomId), ck.workpieces.get(shared.workpieceId)])
   await openWorkpiece(router, room, workpiece)
@@ -273,17 +326,58 @@ const saveAsVersion = async (modelId: string, data: ModelSnapshot, languages: Wo
   return model
 }
 
-/** Leaves the room model and opens `model`; after closing, the linked model has no access and is deleted. */
+/** Where the guard stopped someone on their way out; once they have decided, they go there. */
+export const pendingTarget = ref<RouteLocationNormalized | null>(null)
+
+/** Leaves the room model and opens `model`, or the place the guard stopped; after closing, the linked model has no access and is deleted. */
 const leaveLinked = async (router: Router, model: Model | null) => {
   const linkedModelId = current.value?.linkedModelId
+  const target = pendingTarget.value
+  pendingTarget.value = null
   current.value = null
   settingsLoaded.value = false
   presenting.value = false
   personColors.value = {}
   hostClosed.value = false
+  hostAway.value = false
   await router.replace('/')
   if (linkedModelId) await httpClient.delete(`/v1/models/${linkedModelId}`)
-  if (model) await router.push(`/modeling/${model.id}`)
+  if (target) await router.push(target.fullPath)
+  else if (model) await router.push(`/modeling/${model.id}`)
+}
+
+/**
+ * Keeps host and visitors from walking out of the shared model unnoticed: logo, home, the menu and the
+ * back button of the browser are stopped and the dialog to leave opens instead (vue-router stops
+ * the navigation in `beforeEach`; the tab closing only gets the standard warning of the browser through
+ * `beforeunload`, a dialog of the page is not possible there). The sharing's own way out clears `current` first.
+ */
+export const guardShareLeave = (router: Router) => {
+  const removeGuard = router.beforeEach((to, from) => {
+    const share = current.value
+    if (!share?.linkedModelId || from.name !== 'Modeling' || from.params.modelId !== share.linkedModelId) return true
+    if (to.name === 'Modeling' && to.params.modelId === share.linkedModelId) return true
+    // A dialog is open already; it asks, and the target of the first attempt stays.
+    if (shareDialog.value === 'quit' || shareDialog.value === 'leave' || hostClosed.value) return false
+    pendingTarget.value = to
+    if (share.privateModelId) {
+      openQuitDialog().catch((error) => {
+        pendingTarget.value = null
+        notifyError(`Sharing could not be quit: ${(error as Error).message}`)
+      })
+    } else {
+      shareDialog.value = 'leave'
+    }
+    return false
+  })
+  const warn = (event: BeforeUnloadEvent) => {
+    if (current.value) event.preventDefault()
+  }
+  window.addEventListener('beforeunload', warn)
+  return () => {
+    removeGuard()
+    window.removeEventListener('beforeunload', warn)
+  }
 }
 
 /**
@@ -302,9 +396,47 @@ export const leaveShare = async (router: Router, target: LeaveTarget, name?: str
   await leaveLinked(router, saved)
 }
 
-/** A visitor keeps the state held locally as an own model or drops it; there is no access to collab-kit any more. */
+/**
+ * A visitor keeps the state held locally as an own model or drops it. Going always works: the
+ * backend takes the visitor out of the room as far as it still can, and a refusal does not hold them.
+ */
 export const leaveAsVisitor = async (router: Router, keep: boolean, name?: string) => {
   const workspace = useModelWorkspaceStore()
   const saved = keep ? await createModelFrom(cloneJson(workspace.data), cloneJson(workspace.languages), name) : null
+  const roomId = current.value?.roomId
+  if (roomId) await httpClient.post('/v1/share/leave', { roomId }).catch(() => undefined)
   await leaveLinked(router, saved)
+}
+
+/**
+ * A host who comes back asks for the share they left: that wakes the sweep of the backend, which opens
+ * a room it locked because the host was gone, and tells what happened meanwhile. Visitors skip it, and
+ * a host with no share just gets nothing back.
+ */
+export const resumeShare = async () => {
+  const share = current.value
+  if (share && !share.privateModelId) return
+  try {
+    const { data } = await httpClient.get<{ workpieceId: string | null; autoLocked: boolean }>('/v1/share')
+    if (data.autoLocked) notifyWarning('Your share was paused while you were away and the visitors were removed. It continues now; they can rejoin through the link.')
+  } catch {
+    // Nothing is shared, or the backend is not reachable; the connection goes on either way.
+  }
+}
+
+/**
+ * Asks the backend whether the room of a visitor is still the one they sit in. If it is closed, gone
+ * or shows another workpiece, the dialog to save the local copy opens, whatever the host did before.
+ * No answer at all (network) changes nothing, so a dropped connection is not taken for a closed room.
+ */
+export const checkShareGone = async () => {
+  const share = current.value
+  if (!share || share.privateModelId || hostClosed.value) return
+  try {
+    const { data } = await httpClient.post<{ workpieceId: string }>('/v1/share/join', { roomId: share.roomId })
+    if (data.workpieceId !== share.workpieceId) hostClosed.value = true
+  } catch (error) {
+    const status = (error as AxiosError).response?.status
+    if (status === 403 || status === 404) hostClosed.value = true
+  }
 }
