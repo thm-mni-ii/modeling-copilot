@@ -2,6 +2,8 @@
 
 from importlib.metadata import version
 
+TRANSLATION_REVISION = '1a922f3b32a8e809e17a47d4b32142d8105924e5'
+
 
 class Translator:
     """Verwaltet das lokale Übersetzungsmodell und einen gemeinsamen Cache."""
@@ -20,7 +22,9 @@ class Translator:
         from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
         name = self.config.get('translation_model', 'Helsinki-NLP/opus-mt-de-en')
-        revision = self.config.get('translation_revision', 'main')
+        # Fester Commit des Standardmodells; bei eigenem Modell gilt weiter "main".
+        default = 'main' if 'translation_model' in self.config else TRANSLATION_REVISION
+        revision = self.config.get('translation_revision', default)
         self.tokenizer = AutoTokenizer.from_pretrained(name, revision=revision)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(
             name, revision=revision

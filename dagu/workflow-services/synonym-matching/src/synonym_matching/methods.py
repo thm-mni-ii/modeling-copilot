@@ -148,6 +148,11 @@ EMBEDDING_MODELS = {
     "multilingual": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     "translated_embedding": "sentence-transformers/all-MiniLM-L6-v2",
 }
+# Feste Commits der Standardmodelle; bei eigenem "model" gilt weiter "main".
+EMBEDDING_REVISIONS = {
+    "multilingual": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+    "translated_embedding": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+}
 
 
 class EmbeddingMethod:
@@ -174,7 +179,8 @@ class EmbeddingMethod:
         if self.model is None:
             from sentence_transformers import SentenceTransformer
             name = self.config.get("model", EMBEDDING_MODELS[self.name])
-            revision = self.config.get("revision", "main")
+            default = "main" if "model" in self.config else EMBEDDING_REVISIONS[self.name]
+            revision = self.config.get("revision", default)
             self.model = SentenceTransformer(name, revision=revision, device="cpu")
             model_config = self.model[0].auto_model.config
             self.revision = getattr(model_config, "_commit_hash", None) or revision

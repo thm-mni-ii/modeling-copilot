@@ -259,9 +259,24 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 RUN_MODEL_TESTS=1 RUN_LEXICON_TESTS=1 py
 Das Image lädt Abhängigkeiten, Standardmodelle, DE/EN-spaCy-Modelle und Lexika beim
 Build. Ein Container verarbeitet eine Eingabe und endet. Daten bleiben im Image,
 RAM-Caches nur im Prozess. Andere Modelle benötigen ein entsprechend vorbereitetes
-Image. Modellrevisionen stehen standardmäßig auf `main`, geladene Revisionen werden
+Image. Die Standardmodelle sind auf feste Hugging-Face-Commits gepinnt
+(`EMBEDDING_REVISIONS` in `methods.py`, `TRANSLATION_REVISION` in `translation.py`);
+bei eigenem `model` gilt weiter `main`. Geladene Revisionen werden
 in Experimenten dokumentiert. Die Dagu-Datenübergabe ist weiterhin Demo-Stand und
 muss vom aufrufenden Dienst angepasst werden.
+
+**Modelle und Speicherplatz** (drei verschiedene Dinge nicht verwechseln):
+
+- *Modellgewichte im Image:* nur die drei Standardmodelle im Hugging-Face-Cache
+  (`HF_HOME=/app/.cache/huggingface`, etwa 1,1 GB: multilinguales MiniLM, all-MiniLM-L6-v2,
+  Opus-MT DE→EN), jeweils genau einmal. `pip` läuft mit `--no-cache-dir`.
+- *Forschungsmodelle:* Word2Vec/FastText liegen nur lokal unter `.cache/word-vectors/`
+  (ca. 14 GB, je Modell eine Datei per `hf download --local-dir`). Sie sind per
+  `.dockerignore` und fehlendes `COPY` nie im Image. Nicht zusätzlich in den
+  Hugging-Face-Cache laden.
+- *Berechnete Ergebnisse:* der Label-Cache für Übersetzungen und Embeddings
+  (`cache.py`) liegt nur im Prozessspeicher und ist unabhängig von den Gewichten.
+- `fasttext` und `gensim` stehen in `requirements-research.txt` und nicht im Image.
 
 Lexikonquellen: [WordNet/NLTK](https://www.nltk.org/howto/wordnet.html),
 [WordNet-Lizenz](https://wordnet.princeton.edu/license-and-commercial-use),
@@ -335,7 +350,7 @@ Für reine Vektordateien wird Gensim bei Bedarf importiert; vollständige
 FastText-Binärmodelle nutzen den nativen FastText-Loader:
 
 ```bash
-.venv/bin/python -m pip install gensim==4.4.0 fasttext==0.9.3
+.venv/bin/python -m pip install -r requirements-research.txt
 ```
 
 Unterstützt: `word2vec_text`, `word2vec_binary`, `fasttext_bin` (mit Subwords),
