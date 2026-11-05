@@ -34,12 +34,12 @@ def greedy_matching(scores, delta=.2):
 
 
 def load_vectors(path, fmt):
-    """Gemeinsamer Gensim-Loader für die vorhandenen Modell-Dateiformate."""
-    from gensim.models import KeyedVectors
-    from gensim.models.fasttext import load_facebook_vectors
-
+    """Nutze native FastText-Binärmodelle und Gensim für reine Vektordateien."""
     if fmt == 'fasttext_bin':
-        return load_facebook_vectors(path)
+        # Gensim kopiert hier große Matrizen und berechnet den ganzen Wortschatz.
+        import fasttext
+        return fasttext.load_model(str(path))
+    from gensim.models import KeyedVectors
     if fmt not in {'word2vec_text', 'word2vec_binary', 'glove'}:
         raise ValueError(f'unknown vector format: {fmt}')
     # Einzelne Originalvokabulare enthalten ungültige UTF-8-Bytes in Wortschlüsseln.

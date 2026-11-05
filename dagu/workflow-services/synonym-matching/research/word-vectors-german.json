@@ -1,0 +1,28 @@
+{
+  "word2vec": {
+    "files": {"de": ".cache/word-vectors/word2vec-de/german.model"},
+    "format": "word2vec_binary",
+    "translate_to_en": false,
+    "preprocessing": ["normalize", "split_identifiers"],
+    "lowercase": false,
+    "nouns_only": false,
+    "delta": 0.2,
+    "model": "GermanWordEmbeddings, Wikipedia/News 2013, 300D",
+    "source": "https://huggingface.co/Word2vec/german_model",
+    "revision": "1dfd63ac969f4d0fe5b76eeb20534aa8617d791f",
+    "license": "MIT according to Hugging Face model card"
+  },
+  "fasttext": {
+    "files": {"de": ".cache/word-vectors/fasttext-de/model.bin"},
+    "format": "fasttext_bin",
+    "translate_to_en": false,
+    "preprocessing": ["normalize", "split_identifiers"],
+    "lowercase": true,
+    "nouns_only": false,
+    "delta": 0.2,
+    "model": "facebook/fasttext-de-vectors, full binary with subwords",
+    "source": "https://huggingface.co/facebook/fasttext-de-vectors",
+    "revision": "2fdd228795139196371a78578790c8191282e25a",
+    "license": "CC BY-SA 3.0"
+  }
+}

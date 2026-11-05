@@ -306,10 +306,11 @@ begrenzt. Ressourcenpfade, Optionen und Dateihashes stehen im Ergebnis.
 Vortrainierte Vektoren selbst bereitstellen; es wird nichts automatisch trainiert
 oder heruntergeladen. Konfigurationsvorlage: `research/word-vectors.example.json`.
 Pfade beziehen sich auf das Serviceverzeichnis. Nur vorhandene Modelle eintragen.
-Für übliche Vektorformate wird Gensim bei Bedarf importiert:
+Für reine Vektordateien wird Gensim bei Bedarf importiert; vollständige
+FastText-Binärmodelle nutzen den nativen FastText-Loader:
 
 ```bash
-.venv/bin/python -m pip install gensim==4.4.0
+.venv/bin/python -m pip install gensim==4.4.0 fasttext==0.9.3
 ```
 
 Unterstützt: `word2vec_text`, `word2vec_binary`, `fasttext_bin` (mit Subwords),
@@ -365,6 +366,9 @@ kein unabhängiger Nachweis der besten Pipeline.
 Die lokalen Pfade und Quellen stehen in `.cache/word-vectors/english-pretrained.json`;
 Modellnamen, Optionen und SHA256-Dateihashes werden im Ergebnis gespeichert.
 Modelle werden nacheinander geladen und nach der Rohscoreberechnung freigegeben.
+Wortmodelle laufen vor den Sentence-Embeddings. Der native FastText-Loader
+vermeidet Gensims zusätzliche Matrixkopien und die vorberechneten Vektoren für
+den gesamten Wortschatz; abgefragt werden nur die benötigten Wörter.
 Ungültige UTF-8-Bytes in einzelnen Vokabelschlüsseln werden beim Einlesen durch
 das Unicode-Ersatzzeichen ersetzt; die Vektoren bleiben unverändert.
 
@@ -416,3 +420,130 @@ Das erstmalige Laden der Wortvektoren dauerte etwa 15 s (Word2Vec), 154 s
 (FastText), 62 s (GloVe) und 256 s (Paragram). Geteilte Features und Caches machen
 die gespeicherten Featurezeiten nicht zu unabhängigen End-to-End-Laufzeiten je
 Pipeline; warme Service-Latenzen lassen sich daraus nicht ableiten.
+
+### Geplanter Sprachvergleich: Modelle von Hugging Face
+
+Zwei Konfigurationen verwenden den vorhandenen Forschungsrunner; die Servicepipeline
+bleibt unverändert. Die Ressourcen liegen nach dem Download lokal unter
+`.cache/word-vectors/` und werden nicht mit Git versioniert.
+Die ersten synthetischen Diagnoseläufe sind unten zusammengefasst.
+
+| Konfiguration | Vergleich | Ressourcen |
+| --- | --- | --- |
+| `research/word-vectors-german.json` | Deutsches Word2Vec und deutsches FastText ohne Übersetzung | Word2Vec ca. 738 MB, FastText ca. 7.24 GB |
+| `research/word-vectors-english-hf.json` | DE→EN-Übersetzung + englisches FastText | FastText ca. 7.24 GB |
+
+Word2Vec verwendet den Hugging-Face-Mirror
+[Word2vec/german_model](https://huggingface.co/Word2vec/german_model)
+des deutschen Müller-Modells. `german.model` hat das Word2Vec-Binärformat.
+Die Model Card nennt MIT; die Konfiguration erhält die Groß-/Kleinschreibung.
+Eine Lowercase-Ablation sollte als separate Konfiguration mit `lowercase: true`
+und eigenem Ergebnisnamen laufen: Großschreibung von Substantiven kann relevant sein.
+
+FastText nutzt die offiziellen Repositories
+[facebook/fasttext-de-vectors](https://huggingface.co/facebook/fasttext-de-vectors)
+und [facebook/fasttext-en-vectors](https://huggingface.co/facebook/fasttext-en-vectors),
+jeweils mit CC BY-SA 3.0. Beide Profile verwenden vollständige Binärmodelle mit
+Subword-Unterstützung. Sie unterscheiden sich damit auch vom früher getesteten
+statischen englischen Export; dessen Resultate sind ein separater Vergleich.
+Auch die Trainingskorpora sind ein Einflussfaktor bei einem Sprachvergleich.
+
+Die beiden monolingualen FastText-Modelle sind nicht automatisch ausgerichtet.
+Direkte DE/EN-Cosinusvergleiche zwischen ihnen sind deshalb nicht vorgesehen.
+Für ausgerichtete Vektoren wurde keine passende Hugging-Face-Quelle verifiziert;
+dieser Versuch ist vorerst zurückgestellt. Der bestehende Loader unterstützt
+ausgerichtete lokale Dateien weiterhin. Service-Embeddings und Übersetzer werden
+bereits von Hugging Face bezogen.
+
+Ressourcen bei Bedarf einzeln herunterladen; Hugging Face macht große Modelle
+nicht kleiner. Zusammen sind es ca. 15.2 GB, zusätzlich wird ausreichend RAM
+benötigt. Die Revisionen sind festgelegt und werden mit den Dateihashes im
+Ergebnis gespeichert. `hf` ist über das vorhandene `huggingface_hub` verfügbar.
+
+```bash
+.venv/bin/hf download Word2vec/german_model german.model \
+  --revision 1dfd63ac969f4d0fe5b76eeb20534aa8617d791f \
+  --local-dir .cache/word-vectors/word2vec-de
+.venv/bin/hf download facebook/fasttext-de-vectors model.bin \
+  --revision 2fdd228795139196371a78578790c8191282e25a \
+  --local-dir .cache/word-vectors/fasttext-de
+.venv/bin/hf download facebook/fasttext-en-vectors model.bin \
+  --revision a80392390daaee1a91000da45c376d512e1dc555 \
+  --local-dir .cache/word-vectors/fasttext-en
+```
+
+Nach Bereitstellung der jeweiligen Dateien:
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --models --lexicons --new-methods \
+  --word-vectors research/word-vectors-german.json \
+  --output results/vergleich-deutsche-wortvektoren.json
+
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --models --lexicons --new-methods \
+  --word-vectors research/word-vectors-english-hf.json \
+  --output results/vergleich-englische-hf-wortvektoren.json
+```
+
+Nur identische Fallmengen bei Threshold 0.5 vergleichen: deutsche Modelle und
+Übersetzungspipeline auf rein deutschen Mengen; die Übersetzungspipeline kann
+zusätzlich gemischte DE/EN-Mengen verarbeiten. Spanisch bleibt hier nicht verfügbar.
+Precision, Recall, F1, Top-1 und Laufzeit werden vom vorhandenen Runner gespeichert,
+ebenso Modellkonfigurationen und Dateihashes. Word2Vec wird im zweiten Lauf nicht
+angegeben; GloVe/Paragram sind in beiden Profilen nicht enthalten. Davon abhängige
+Varianten werden nicht als erfolgreich berechnete Vergleiche gewertet.
+
+### Ergebnisse des Sprachvergleichs
+
+`results/vergleich-gesamt-hf.json` vereint 201 Konfigurationen: den bisherigen
+Katalog, die neuen deutschen/englischen Modellprofile und eine zusätzliche
+Word2Vec-Lowercase-Ablation. Unveränderte Baselines werden einmal übernommen.
+Pro neuem Lauf wurden 6.300 bisherige Nicht-Wortvektor-Ergebnisse geprüft:
+Scores (Toleranz 1e-7) und Zuordnungen bleiben unverändert. Alle drei neuen Läufe
+haben keine technischen Fehler; fehlende Sprach-/Modellabdeckung bleibt markiert.
+
+F1 bei festem Threshold 0.5, ohne Optimierung von Gewichten oder Thresholds:
+
+| Pipeline | 28 rein deutsche Fälle | 33 DE/EN-Fälle |
+| --- | ---: | ---: |
+| Aktueller Service: normalize + String/Multilingual 50:50 | 0.800 | 0.733 |
+| Deutsches Word2Vec + Wort-Matching, Großschreibung erhalten | 0.571 | nicht abgedeckt |
+| Deutsches Word2Vec + Wort-Matching, Lowercasing | 0.250 | nicht abgedeckt |
+| Deutsches FastText + Wort-Matching | 0.690 | nicht abgedeckt |
+| Deutsches FastText + Levenshtein, lowercase, 50:50 | 0.714 | nicht abgedeckt |
+| Übersetzung + englisches FastText + Wort-Matching | 0.746 | 0.688 |
+| Übersetzung + englisches FastText/Levenshtein, lowercase, 50:50 | 0.786 | 0.750 |
+| Bestehender Vergleich: normalize + String/Übersetzungs-Embedding 50:50 | 0.807 | 0.800 |
+
+Die 33 Fälle enthalten dieselben 28 deutschen und fünf gemischte DE/EN-Szenarien;
+die zwei spanischsprachigen Szenarien und drei technischen Leerfälle sind ausgeschlossen.
+Die Werte der beiden Spalten sind wegen unterschiedlicher Fallmengen separat zu lesen.
+Der Gesamtkatalog enthält auch String-Baselines: Jaro-Winkler mit Lowercasing
+erreicht auf den 28 deutschen Fällen beispielsweise F1 0.844. Das macht es noch
+nicht zur geeigneten mehrsprachigen Servicepipeline.
+
+Deutsches Word2Vec profitiert hier stark vom Erhalt der Großschreibung.
+Die Umstellung auf deutsche Modelle allein liefert keine allgemeine Verbesserung.
+Der englische FastText-Hybrid verbessert gegenüber dem aktuellen Service den F1
+auf der DE/EN-Menge, liegt aber unter dem bestehenden Übersetzungs-/Sentence-Hybrid.
+Alle Aussagen betreffen kleine synthetische Diagnosedaten, keine unabhängige
+Testmenge oder durch Tuning gewählte finale Pipeline. Der Service bleibt unverändert.
+
+Precision, Recall, Top-1, Laufzeiten sowie Threshold-, Mutual-Best- und
+Hungarian-Ergebnisse stehen in den JSON-Dateien. Die Gesamtdatei speichert auch
+Quell-Dateihashes und getrennte Rankings für rein deutsche, alle unterstützten
+DE/EN- und ausschließlich gemischte DE/EN-Fälle. Die Rohfeatures und vollständige
+Provenienz stehen in den jeweiligen Quelldateien:
+
+- `results/vergleich-wortvektoren.json` (bisheriger Katalog)
+- `results/vergleich-deutsche-wortvektoren.json` (deutsches Profil)
+- `results/vergleich-englische-hf-wortvektoren.json` (englisches HF-Profil)
+- `results/vergleich-deutsches-word2vec-lowercase.json` (nur deutsches Word2Vec,
+  Konfiguration wie im deutschen Profil mit `lowercase: true`)
+
+Die neuen vollständigen Profil-Läufe dauerten rund 27 s, 23 s und 13 s inklusive
+Modellladen; die FastText-Binärmodelle wurden dabei mit `fasttext==0.9.3` nativ
+geladen. Eine erste Gensim-Ausführung wurde wegen hoher Speicherauslastung
+abgebrochen und liefert keine Ergebnisdatei. Feature-Caches und Modell-Ladezeiten
+verhindern einen direkten Vergleich mit warmen Service-Latenzen.

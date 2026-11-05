@@ -140,7 +140,7 @@ def provenance(engines):
     packages = {}
     for name in ('numpy', 'scipy', 'nltk', 'spacy', 'rapidfuzz', 'torch',
                  'transformers', 'sentence-transformers', 'de_core_news_sm',
-                 'en_core_web_sm', 'gensim'):
+                 'en_core_web_sm', 'gensim', 'fasttext'):
         try:
             packages[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
@@ -206,7 +206,9 @@ def calculate_features(cases, definitions, word_vectors=None):
     translator = None
     word_backends = {}
     extra = {'word_vectors': {}}
-    for key, steps in tasks.items():
+    # Große Wortmodelle vor Embeddings laden und direkt danach wieder freigeben.
+    for key in sorted(tasks, key=lambda item: item[0] not in WORD_METHODS):
+        steps = tasks[key]
         method = key[0]
         engine = None
         for case in cases:

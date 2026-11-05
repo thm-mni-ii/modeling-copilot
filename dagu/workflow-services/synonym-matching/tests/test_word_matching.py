@@ -63,6 +63,52 @@ def test_optional_noun_filter_and_explicit_translation(tmp_path, monkeypatch):
     assert len(vectors) == 1
 
 
+def test_german_profile_preserves_case_and_excludes_mixed_language_cases(tmp_path):
+    from pathlib import Path
+    from research.compare import unsupported
+
+    profile = Path(__file__).parents[1] / 'research/word-vectors-german.json'
+    config = json.loads(profile.read_text())
+    config['word2vec']['files'] = {
+        'de': archive(tmp_path / 'de.vec', ['Kunde', 'Abnehmer'], [[1, 0], [1, 0]])}
+    config['word2vec']['format'] = 'word2vec_text'
+    backend = WordMatching(config['word2vec'])
+    left = [{'label': 'Kunde', 'language': 'de'}]
+    right = [{'label': 'Abnehmer', 'language': 'de'}]
+    assert backend.translator is None
+    assert backend.prepare(left[0])[0] == ['Kunde']
+    assert backend.matrix(left, right)[0, 0] == pytest.approx(1)
+
+    lowercase = WordMatching({**config['word2vec'], 'lowercase': True})
+    assert lowercase.matrix(left, right)[0, 0] == 0
+    case = {'reference': left, 'student': [{'label': 'Customer', 'language': 'en'}]}
+    assert unsupported('word2vec_matching', ['normalize'], case, config) is not None
+
+
+def test_english_hf_profile_translates_before_vector_lookup(tmp_path):
+    from pathlib import Path
+
+    profile = Path(__file__).parents[1] / 'research/word-vectors-english-hf.json'
+    config = json.loads(profile.read_text())['fasttext']
+    config['files'] = {'en': archive(tmp_path / 'en.vec', ['customer'], [[1, 0]])}
+    config['format'] = 'word2vec_text'
+
+    class Translator:
+        def translate(self, texts, languages):
+            return ['customer' if lang == 'de' else text
+                    for text, lang in zip(texts, languages, strict=True)]
+
+    backend = WordMatching(config, Translator())
+    assert backend.matrix([{'label': 'Kunde', 'language': 'de'}],
+                          [{'label': 'Customer', 'language': 'en'}])[0, 0] == pytest.approx(1)
+
+    german = json.loads((profile.parent / 'word-vectors-german.json').read_text())
+    for model in [config, *german.values()]:
+        assert model['source'].startswith('https://huggingface.co/')
+        assert len(model['revision']) == 40
+        assert len(model['files']) == 1
+
+
 def test_real_gensim_file_formats_and_fasttext_subwords(tmp_path):
     pytest.importorskip('gensim')
     from gensim.models import KeyedVectors, FastText
@@ -91,10 +137,14 @@ def test_real_gensim_file_formats_and_fasttext_subwords(tmp_path):
     model.build_vocab([['customer', 'supplier']])
     path = tmp_path / 'fasttext.bin'
     save_facebook_model(model, str(path))
+    pytest.importorskip('fasttext')
     backend = WordMatching({'files': {'en': str(path)}, 'format': 'fasttext_bin'})
     _, result = backend.prepare({'label': 'customers', 'language': 'en'})
     assert result[0] is not None
     assert np.linalg.norm(result[0]) == pytest.approx(1)
+    # Der native Loader muss dieselben Vektoren liefern, einschließlich OOV.
+    for word in ('customer', 'customers'):
+        np.testing.assert_allclose(backend.models['en'][word], model.wv[word], atol=1e-6)
 
 
 def test_global_rank_fusion_ignores_ineligible_candidates():
