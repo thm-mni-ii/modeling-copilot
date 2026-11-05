@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from research.evaluation import select_matches
-from research.compare import configurations, run_experiments
+from research.compare import configurations, load_config, run_experiments
 from synonym_matching.combinations import combine
 from synonym_matching.config import validate_config
 from synonym_matching.preprocessing import split_compounds
@@ -35,13 +35,23 @@ def test_mutual_best_ties_and_invalid_cells():
     assert select_matches(np.ones((2, 2)), np.ones((2, 2)), .5, 'mutual_best').all()
 
 
+def only(config, *names):
+    """Aktiviere nur die genannten Verfahren; Kombinationen ohne sie werden übersprungen."""
+    for name, method in config['methods'].items():
+        method['enabled'] = name in names
+    return config
+
+
 def test_configurations_has_no_aliases_and_three_unique_weights():
-    specs = list(configurations(True, True, {'lowercase': ['normalize', 'lowercase']}).values())
+    config = load_config()
+    config['preprocessing'] = {'lowercase': ['normalize', 'lowercase']}
+    specs = list(configurations(config)[0].values())
     names = [s['name'] for s in specs]
     assert len(names) == len(set(names))
     assert not set(names) & {'translation_string', 'translation_monolingual',
                              'multilingual_only', 'string_multilingual', 'weighted_fusion'}
-    weighted = [s for s in specs if s['combiner'].get('name') == 'weighted_fusion']
+    weighted = [s for s in specs if s['combiner'].get('name') == 'weighted_fusion'
+                and not s.get('global_ranking')]
     weights = [s['combiner']['options']['embedding_weight'] for s in weighted]
     assert sorted(weights) == [.25, .5, .75]
     raw = {n: np.full((1, 1), .2) for n in ('levenshtein', 'jaro_winkler', 'char_trigram')}
@@ -51,12 +61,34 @@ def test_configurations_has_no_aliases_and_three_unique_weights():
 
 
 def test_research_configurations_use_service_methods_and_combiners():
-    for spec in configurations(True, True).values():
-        config = {key: spec[key] for key in ('methods', 'preprocessing',
-                                           'embedding_preprocessing', 'combiner')}
-        validated = validate_config(config)
+    config = load_config()
+    for spec in configurations(config)[0].values():
+        if any('files' in config['methods'][name] for name in spec['methods']):
+            continue
+        service_config = {key: spec[key] for key in ('methods', 'preprocessing',
+                                                     'embedding_preprocessing', 'combiner')}
+        validated = validate_config(service_config)
         assert validated['methods'] == spec['methods']
         assert validated['combiner']['kind'] == spec['combiner']['kind']
+
+
+def test_duplicate_pipelines_are_skipped_but_real_ablations_stay():
+    config = only(load_config(), 'levenshtein', 'jaro_winkler')
+    config['preprocessing'] = {'a': ['normalize'], 'b': ['normalize'], 'c': ['normalize', 'lowercase']}
+    config['combinations'] = [
+        {'name': 'x', 'weights': {'levenshtein': 1, 'jaro_winkler': 1}},
+        {'name': 'y', 'weights': {'levenshtein': 2, 'jaro_winkler': 2}}]
+    definitions, skipped = configurations(config)
+    assert {n.split('/')[0] for n in definitions} == {'a', 'c'}
+    assert 'a/x' in definitions and 'c/x' in definitions and 'a/y' not in definitions
+    assert {s['name'] for s in skipped} >= {'b/levenshtein', 'b/x', 'a/y'}
+
+
+def test_unknown_method_in_combination_is_an_error():
+    config = load_config()
+    config['combinations'] = [{'name': 'bad', 'weights': {'nope': 1}}]
+    with pytest.raises(ValueError):
+        configurations(config)
 
 
 def test_compounds_uses_lexicon_and_keeps_other_languages(monkeypatch):
@@ -74,7 +106,9 @@ def test_run_stores_raw_features_once_and_api_unchanged(tmp_path):
                         {'id': 's2', 'label': 'Lieferant', 'language': 'de'}],
             'annotations': [['correct', 'incorrect']]}]}
     output = tmp_path / 'run.json'
-    assert run_experiments(data, output, pipelines={'raw': [], 'lower': ['lowercase']}) == []
+    config = only(load_config(), 'levenshtein', 'jaro_winkler', 'char_trigram', 'exact_match')
+    config['preprocessing'] = {'raw': [], 'lower': ['lowercase']}
+    assert run_experiments(data, output, config) == []
     run = json.loads(output.read_text())
     keys = [(f['method'], tuple(f['preprocessing']), f['case']) for f in run['features']]
     assert len(keys) == len(set(keys))
@@ -84,4 +118,4 @@ def test_run_stores_raw_features_once_and_api_unchanged(tmp_path):
     assert 'threshold' in run['rankings']
     assert {p.name for p in tmp_path.iterdir()} == {'run.json'}
     with pytest.raises(FileExistsError):
-        run_experiments(data, output)
+        run_experiments(data, output, config)

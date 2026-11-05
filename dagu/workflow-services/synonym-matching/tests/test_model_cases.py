@@ -7,6 +7,8 @@ import numpy as np
 
 from research.build_model_cases import build
 from research import compare as experiments
+from research.compare import load_config
+from tests.test_comparison import only
 from synonym_matching import MatchingEngine
 import json
 from pathlib import Path
@@ -36,14 +38,18 @@ def test_single_research_command_writes_json_and_rankings(tmp_path):
     data['cases'] = [case for case in data['cases'] if case['case_number'] in (20, 28)]
     source = tmp_path / 'cases.json'
     source.write_text(json.dumps(data))
+    config = only(load_config(), 'levenshtein', 'jaro_winkler', 'char_trigram', 'exact_match')
+    config['preprocessing'] = {'normalize': ['normalize']}
+    config_path = tmp_path / 'config.json'
+    config_path.write_text(json.dumps(config))
     output = tmp_path / 'results.json'
     env = dict(os.environ, PYTHONPATH=str(ROOT / 'src'))
-    result = subprocess.run([sys.executable, '-m', 'research.compare',
-        '--data', str(source), '--output', str(output), '--preprocessing', 'normalize'],
+    result = subprocess.run([sys.executable, '-m', 'research.compare', '--config', str(config_path),
+        '--data', str(source), '--output', str(output)],
         cwd=ROOT, env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     payload = json.loads(output.read_text())
-    assert {p.name for p in tmp_path.iterdir()} == {'cases.json', 'results.json'}
+    assert {p.name for p in tmp_path.iterdir()} == {'cases.json', 'config.json', 'results.json'}
     assert 'Top 3' in result.stdout
     assert 'threshold' in payload['rankings']
     assert {r['case'] for r in payload['records']} == {c['id'] for c in data['cases']}
@@ -69,7 +75,9 @@ def test_spanish_translation_explicit_and_other_variants_continue(tmp_path, monk
     data = json.loads((EXAMPLES / 'model-cases.json').read_text())
     data['cases'] = [c for c in data['cases'] if c['case_number'] == 11]
     out = tmp_path / 'run.json'
-    assert experiments.run_experiments(data, out, models=True, pipelines={'raw': []}) == []
+    config = only(load_config(), 'levenshtein', 'multilingual', 'translated_embedding', 'translated_string')
+    config['preprocessing'] = {'raw': []}
+    assert experiments.run_experiments(data, out, config) == []
     results = json.loads(out.read_text())['records']
     translated = next(r for r in results if r['experiment'] == 'fixed/translated_embedding')
     assert translated['status'] == 'unavailable'

@@ -6,7 +6,7 @@ Combined Score heraus. Der Service verarbeitet extrahierte Labels, kein Graph-XM
 ## Zwei Ausführungspfade
 
 - **Service:** `src/main.py` → `synonym_matching.service.match()` → Engine.
-- **Forschung:** `research/compare.py` enthält die Konfigurationsliste und führt sie aus. Beide verwenden denselben Matching-Kern.
+- **Forschung:** `research/experiments.json` legt alle Versuche fest, `research/compare.py` führt sie aus. Beide verwenden denselben Matching-Kern.
 
 Der Service importiert keine Forschungsmodule. Docker enthält nur den Service,
 Schemas und Vorbereitungsskripte. Forschungsergebnisse verändern den Standard nicht.
@@ -103,7 +103,7 @@ src/synonym_matching/
   translation.py, lexicons.py     Übersetzungs- und Lexikonzugriff
   cache.py                       Ergebnisse pro Label wiederverwenden
 research/
-  compare.py                     Konfigurationen festlegen und vergleichen
+  compare.py, experiments.json     Versuche (Konfiguration) ausführen und vergleichen
   evaluation.py                  Zuordnung und Metriken
   rank_results.py                Top 3 berechnen und lesbar ausgeben
   build_model_cases.py            Testdaten erzeugen
@@ -158,34 +158,43 @@ Stopword Removal kann Negation entfernen. Beide sind bewusst Ablationen.
 
 ```bash
 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
-.venv/bin/python -m research.compare \
-  --models --lexicons --output results/vergleich.json
+.venv/bin/python -m research.compare --output results/vergleich.json
 ```
 
-Ohne `--models`/`--lexicons` werden nur die übrigen Verfahren verglichen.
-`--preprocessing normalize lowercase` beschränkt den Lauf auf diese Schritte;
-`--preprocessing` allein verwendet Rohtexte. Ohne diese Option laufen alle
-Preprocessing-Vergleiche. Das frühere `--extended` wird noch akzeptiert, hat aber
-keine Wirkung mehr: Es gibt keinen zweiten Vergleichsmodus.
+Ein Befehl führt **alle** in `research/experiments.json` aktivierten Verfahren,
+Kombinationen und Preprocessing-Ablationen aus. Optional: `--config` (andere
+Konfigurationsdatei) und `--data` (andere Testdaten). Es gibt keine Flags je Verfahren.
 
-**Änderungen an Experimenten:** In `research/compare.py` stehen `PIPELINES`
-und `configurations()`. Letzteres erzeugt die flache Konfigurationsliste aus
-Einzelmethoden, Kombinationen, Gewichten und Preprocessing. Die Dictionaries
-verwenden dieselben `methods` und `combiner` wie der Service. Neue Kombinationen
-dort ergänzen; neue Rechenregeln in `src/synonym_matching/combinations.py`. Neue Similarity-Funktionen
-können zunächst in der Forschung erprobt und später in `methods.py` registriert
-werden. `DEFAULT_CONFIG` bleibt unabhängig von neu registrierten Verfahren.
+**Änderungen an Experimenten:** nur `research/experiments.json` bearbeiten.
 
-Die bestehenden 164 Konfigurationen vergleichen mit allen Ressourcen 38 Szenarien:
+- `preprocessing`: benannte Schrittlisten für die Ablation der Stringverfahren.
+- `methods`: Einzelverfahren. `"enabled": false` schaltet ein Verfahren ab,
+  `"ablate": true` lässt es alle Preprocessing-Varianten durchlaufen,
+  `"languages"` begrenzt unterstützte Sprachen. Ein Eintrag mit `files` ist ein
+  Wortvektormodell (Pfade relativ zum Serviceverzeichnis, Revision und Quelle mit angeben).
+- `combinations`: entweder `"variant"` (+ `"options"`) aus
+  `src/synonym_matching/combinations.py` oder `"weights"` (gewichtetes Mittel über
+  beliebige Methoden). Eine neue Gewichtung ist ein neuer Eintrag, keine neue Funktion.
+- Identische Konfigurationen (gleiche Methoden, normierte Gewichte, gleiches
+  Preprocessing) werden nur einmal ausgeführt und unter `skipped_definitions`
+  vermerkt. Kombinationen mit deaktivierten Verfahren werden ebenfalls übersprungen.
+- Fehlende Dateien und nicht unterstützte Sprachen erscheinen als „nicht verfügbar“
+  mit Grund, nie als Nullergebnis.
+
+Neue Rechenregeln gehören in `src/synonym_matching/combinations.py`, neue
+Similarity-Funktionen zunächst in die Forschung und später in `methods.py`.
+`DEFAULT_CONFIG` bleibt unabhängig von `experiments.json`.
+
+Die Konfiguration vergleicht mit allen Ressourcen 38 Szenarien:
 28 ursprüngliche Kategorien und sechs zusätzliche schwierige Kontrastkategorien.
 Testdaten mit erwarteten Paarzuordnungen stehen in `research/model-cases.json`;
 `python -m research.build_model_cases` erzeugt sie aus dem Repository-Beispielmodell
 und synthetischen Varianten. `examples/order-management-input.json` ist eine
 Serviceeingabe mit Labels dieses Modells. Reale geprüfte Schülerabgaben fehlen.
 
-Ein Lauf speichert **eine JSON** (Formatversion 2), keine Markdown-Berichte: Dataset, Konfigurationen,
-Rohscores, kombinierte Matrizen, Entscheidungen, Precision/Recall/F1, Top-1,
-Laufzeiten, Seed 42, Modellrevisionen, Ressourcen-/Codehashes und Paketversionen.
+Ein Lauf speichert **eine JSON** (Formatversion 3), keine Markdown-Berichte: Dataset,
+Konfiguration, Rohscores, kombinierte Matrizen, Entscheidungen, Precision/Recall/F1, Top-1,
+Laufzeiten, Seed, Modellrevisionen, Ressourcen-/Codehashes und Paketversionen.
 Bestehende Dateien werden nicht überschrieben. Nicht unterstützte Sprachen werden
 als nicht verfügbar markiert; technische Fehler führen zu Exitcode 1.
 
@@ -276,17 +285,17 @@ Schnittstelle, Docker-Abhängigkeiten und bestehende Vergleiche bleiben erhalten
 | 30 | 50:50-String/Embedding-Hybrid + Zeilen-/Spaltenrang-Fusion |
 | 32 | Nr. 22 mit vorhandenem Hungarian-Assignment auf der Labelmatrix; keine zweite FastText-Berechnung |
 
-Aktivierung (noch ohne neue Ressourcen):
+Aktivierung: Die Wortvektor- und Ranking-Einträge stehen bereits in
+`research/experiments.json` und laufen im normalen Vergleichsbefehl mit
+(`"enabled": false` schaltet sie ab):
 
 ```bash
 PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
-.venv/bin/python -m research.compare --models --lexicons --new-methods \
-  --output results/vergleich-neue-methoden.json
+.venv/bin/python -m research.compare --output results/vergleich.json
 ```
 
 Fehlende Vektoren ergeben **nicht verfügbar**, keine erfundenen
 Scores oder Qualitätserfolge.
-Ohne `--new-methods` bleibt der bisherige Katalog von 164 Konfigurationen erhalten.
 
 ### Wort-Matching und Vektoren
 
@@ -304,7 +313,8 @@ keine erfundene Vektorevidenz. Wort-Cosinus wird vor dem Matching auf [0,1]
 begrenzt. Ressourcenpfade, Optionen und Dateihashes stehen im Ergebnis.
 
 Vortrainierte Vektoren selbst bereitstellen; es wird nichts automatisch trainiert
-oder heruntergeladen. Konfigurationsvorlage: `research/word-vectors.example.json`.
+oder heruntergeladen. Die Modelle stehen mit Pfad, Quelle und Revision in
+`research/experiments.json` unter `methods`.
 Pfade beziehen sich auf das Serviceverzeichnis. Nur vorhandene Modelle eintragen.
 Für reine Vektordateien wird Gensim bei Bedarf importiert; vollständige
 FastText-Binärmodelle nutzen den nativen FastText-Loader:
@@ -332,10 +342,8 @@ Ablation in einem separaten Lauf aktiviert werden. Bei Übersetzung wird POS im
 englischen Zieltext bestimmt. Für einen fairen Vergleich die Vorverarbeitung
 zwischen Vektormodellen gleich halten. Die vollständigen Optionen werden gespeichert.
 
-```bash
-PYTHONPATH=src .venv/bin/python -m research.compare --models --new-methods \
-  --word-vectors research/meine-wortvektoren.json --output results/wortvektoren.json
-```
+Ein weiteres Modell ist ein neuer Eintrag mit `files`, `format`, Quelle und Revision
+unter `methods` plus optional ein Eintrag unter `combinations`; der Befehl bleibt gleich.
 
 Modellgröße/RAM-Bedarf, Quelle und Lizenz vor dem Download prüfen. Eigene Felder
 wie `model`, `source` und `license` werden mit der Ressourcenkonfiguration gespeichert.
@@ -353,7 +361,10 @@ vorliegenden Paper-Architektur und keine Aussage über eine verbesserte Qualitä
 
 ### Lokaler Vergleich mit vortrainierten Vektoren
 
-Für den ersten Lauf wurden lokal folgende englische 300D-Vektoren bereitgestellt:
+Historischer Erstlauf (die Ressourcen sind lokal inzwischen gelöscht, da sie nicht
+von Hugging Face stammten; die Verfahren GloVe, Paragram sowie englisches Word2Vec
+sind in `experiments.json` nicht mehr enthalten und der Lauf ist so nicht
+reproduzierbar). Es wurden lokal folgende englische 300D-Vektoren bereitgestellt:
 `word2vec-google-news-300`, `fasttext-wiki-news-subwords-300` (statischer Export),
 `glove-wiki-gigaword-300` und `Paragram-SL999-300`. Deutsche Labels werden vorher
 mit dem vorhandenen Übersetzungsmodell ins Englische übersetzt. Alle vier Pfade
@@ -363,7 +374,6 @@ Spanische Fälle sind für diese Pfade nicht verfügbar und werden bei einem
 gemeinsamen Vergleich ausgeschlossen. Das ist ein synthetischer Diagnoselauf,
 kein unabhängiger Nachweis der besten Pipeline.
 
-Die lokalen Pfade und Quellen stehen in `.cache/word-vectors/english-pretrained.json`;
 Modellnamen, Optionen und SHA256-Dateihashes werden im Ergebnis gespeichert.
 Modelle werden nacheinander geladen und nach der Rohscoreberechnung freigegeben.
 Wortmodelle laufen vor den Sentence-Embeddings. Der native FastText-Loader
@@ -371,13 +381,6 @@ vermeidet Gensims zusätzliche Matrixkopien und die vorberechneten Vektoren für
 den gesamten Wortschatz; abgefragt werden nur die benötigten Wörter.
 Ungültige UTF-8-Bytes in einzelnen Vokabelschlüsseln werden beim Einlesen durch
 das Unicode-Ersatzzeichen ersetzt; die Vektoren bleiben unverändert.
-
-```bash
-PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
-.venv/bin/python -m research.compare --models --lexicons --new-methods \
-  --word-vectors .cache/word-vectors/english-pretrained.json \
-  --output results/vergleich-wortvektoren.json
-```
 
 Für einen erneuten Lauf einen neuen Ausgabedateinamen wählen. Modelle und Ergebnisse
 bleiben lokal und sind nicht im Docker-Image enthalten. Die Wortvektoren stammen
@@ -423,15 +426,16 @@ Pipeline; warme Service-Latenzen lassen sich daraus nicht ableiten.
 
 ### Geplanter Sprachvergleich: Modelle von Hugging Face
 
-Zwei Konfigurationen verwenden den vorhandenen Forschungsrunner; die Servicepipeline
-bleibt unverändert. Die Ressourcen liegen nach dem Download lokal unter
-`.cache/word-vectors/` und werden nicht mit Git versioniert.
+Drei Hugging-Face-Wortvektormodelle sind in `research/experiments.json` konfiguriert;
+die Servicepipeline bleibt unverändert. Die Ressourcen liegen nach dem Download lokal
+unter `.cache/word-vectors/` und werden nicht mit Git versioniert.
 Die ersten synthetischen Diagnoseläufe sind unten zusammengefasst.
 
-| Konfiguration | Vergleich | Ressourcen |
+| Verfahren in `experiments.json` | Vergleich | Ressourcen |
 | --- | --- | --- |
-| `research/word-vectors-german.json` | Deutsches Word2Vec und deutsches FastText ohne Übersetzung | Word2Vec ca. 738 MB, FastText ca. 7.24 GB |
-| `research/word-vectors-english-hf.json` | DE→EN-Übersetzung + englisches FastText | FastText ca. 7.24 GB |
+| `word2vec_de_matching` | Deutsches Word2Vec ohne Übersetzung | ca. 738 MB |
+| `fasttext_de_matching` | Deutsches FastText ohne Übersetzung | ca. 7.24 GB |
+| `fasttext_en_matching` | DE→EN-Übersetzung + englisches FastText | ca. 7.24 GB |
 
 Word2Vec verwendet den Hugging-Face-Mirror
 [Word2vec/german_model](https://huggingface.co/Word2vec/german_model)
@@ -472,27 +476,16 @@ Ergebnis gespeichert. `hf` ist über das vorhandene `huggingface_hub` verfügbar
   --local-dir .cache/word-vectors/fasttext-en
 ```
 
-Nach Bereitstellung der jeweiligen Dateien:
-
-```bash
-PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
-.venv/bin/python -m research.compare --models --lexicons --new-methods \
-  --word-vectors research/word-vectors-german.json \
-  --output results/vergleich-deutsche-wortvektoren.json
-
-PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
-.venv/bin/python -m research.compare --models --lexicons --new-methods \
-  --word-vectors research/word-vectors-english-hf.json \
-  --output results/vergleich-englische-hf-wortvektoren.json
-```
+Nach Bereitstellung der Dateien läuft alles mit dem einen Befehl aus dem Abschnitt
+„Forschung: ein Vergleichslauf“; ohne Datei ergibt das jeweilige Verfahren
+„nicht verfügbar“. Die früheren Einzelläufe je Profil und das manuelle Zusammenführen
+entfallen.
 
 Nur identische Fallmengen bei Threshold 0.5 vergleichen: deutsche Modelle und
 Übersetzungspipeline auf rein deutschen Mengen; die Übersetzungspipeline kann
 zusätzlich gemischte DE/EN-Mengen verarbeiten. Spanisch bleibt hier nicht verfügbar.
 Precision, Recall, F1, Top-1 und Laufzeit werden vom vorhandenen Runner gespeichert,
-ebenso Modellkonfigurationen und Dateihashes. Word2Vec wird im zweiten Lauf nicht
-angegeben; GloVe/Paragram sind in beiden Profilen nicht enthalten. Davon abhängige
-Varianten werden nicht als erfolgreich berechnete Vergleiche gewertet.
+ebenso Modellkonfigurationen und Dateihashes. GloVe/Paragram sind nicht mehr enthalten.
 
 ### Ergebnisse des Sprachvergleichs
 

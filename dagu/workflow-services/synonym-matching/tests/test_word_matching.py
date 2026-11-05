@@ -6,7 +6,8 @@ from types import SimpleNamespace
 
 from research.word_matching import WordMatching, greedy_matching
 from research.evaluation import global_ranking
-from research.compare import run_experiments
+from research.compare import load_config, run_experiments
+from tests.test_comparison import only
 
 
 def archive(path, words, vectors):
@@ -64,32 +65,32 @@ def test_optional_noun_filter_and_explicit_translation(tmp_path, monkeypatch):
 
 
 def test_german_profile_preserves_case_and_excludes_mixed_language_cases(tmp_path):
-    from pathlib import Path
-    from research.compare import unsupported
+    from research.compare import load_config, unsupported
 
-    profile = Path(__file__).parents[1] / 'research/word-vectors-german.json'
-    config = json.loads(profile.read_text())
-    config['word2vec']['files'] = {
+    word2vec = load_config()['methods']['word2vec_de_matching']
+    word2vec['files'] = {
         'de': archive(tmp_path / 'de.vec', ['Kunde', 'Abnehmer'], [[1, 0], [1, 0]])}
-    config['word2vec']['format'] = 'word2vec_text'
-    backend = WordMatching(config['word2vec'])
+    word2vec['format'] = 'word2vec_text'
+    backend = WordMatching(word2vec)
     left = [{'label': 'Kunde', 'language': 'de'}]
     right = [{'label': 'Abnehmer', 'language': 'de'}]
     assert backend.translator is None
     assert backend.prepare(left[0])[0] == ['Kunde']
     assert backend.matrix(left, right)[0, 0] == pytest.approx(1)
 
-    lowercase = WordMatching({**config['word2vec'], 'lowercase': True})
+    lowercase = WordMatching({**word2vec, 'lowercase': True})
     assert lowercase.matrix(left, right)[0, 0] == 0
     case = {'reference': left, 'student': [{'label': 'Customer', 'language': 'en'}]}
-    assert unsupported('word2vec_matching', ['normalize'], case, config) is not None
+    assert unsupported(word2vec, ['normalize'], case) is not None
+    word2vec['files'] = {'de': str(tmp_path / 'fehlt.vec')}
+    assert 'Ressource fehlt' in unsupported(word2vec, ['normalize'], {'reference': left, 'student': right})
 
 
 def test_english_hf_profile_translates_before_vector_lookup(tmp_path):
-    from pathlib import Path
+    from research.compare import load_config
 
-    profile = Path(__file__).parents[1] / 'research/word-vectors-english-hf.json'
-    config = json.loads(profile.read_text())['fasttext']
+    methods = load_config()['methods']
+    config = methods['fasttext_en_matching']
     config['files'] = {'en': archive(tmp_path / 'en.vec', ['customer'], [[1, 0]])}
     config['format'] = 'word2vec_text'
 
@@ -102,8 +103,7 @@ def test_english_hf_profile_translates_before_vector_lookup(tmp_path):
     assert backend.matrix([{'label': 'Kunde', 'language': 'de'}],
                           [{'label': 'Customer', 'language': 'en'}])[0, 0] == pytest.approx(1)
 
-    german = json.loads((profile.parent / 'word-vectors-german.json').read_text())
-    for model in [config, *german.values()]:
+    for model in [m for m in load_config()['methods'].values() if 'files' in m]:
         assert model['source'].startswith('https://huggingface.co/')
         assert len(model['revision']) == 40
         assert len(model['files']) == 1
@@ -165,12 +165,17 @@ def test_new_comparison_reuses_fasttext_for_hungarian_and_marks_missing_resource
                     {'id': 's2', 'label': 'Lieferant', 'language': 'de'}],
         'annotations': [['correct', 'incorrect']]}]}
     output = tmp_path / 'run.json'
-    assert run_experiments(data, output, pipelines={'raw': []}, new_methods=True,
-                           word_vectors={'fasttext': {'files': {'de': path}, 'format': 'word2vec_text'}}) == []
+    config = only(load_config(), 'fasttext_de_matching', 'word2vec_de_matching')
+    config['preprocessing'] = {'raw': []}
+    config['methods']['fasttext_de_matching'].update({'files': {'de': path}, 'format': 'word2vec_text'})
+    config['methods']['word2vec_de_matching']['files'] = {'de': str(tmp_path / 'fehlt.bin')}
+    assert run_experiments(data, output, config) == []
     result = json.loads(output.read_text())
-    fasttext = next(r for r in result['records'] if r['experiment'] == 'fixed/fasttext_matching')
+    fasttext = next(r for r in result['records'] if r['experiment'] == 'fixed/fasttext_de_matching')
     assert fasttext['decisions']['hungarian']['selected'] == [[True, False]]
-    assert sum(f['method'] == 'fasttext_matching' for f in result['features']) == 1
-    assert next(r for r in result['records'] if r['experiment'] == 'fixed/word2vec_matching')['status'] == 'unavailable'
+    assert sum(f['method'] == 'fasttext_de_matching' for f in result['features']) == 1
+    missing = next(r for r in result['records'] if r['experiment'] == 'fixed/word2vec_de_matching')
+    assert missing['status'] == 'unavailable'
+    assert 'Ressource fehlt' in missing['missing']['word2vec_de_matching']['reason']
     assert 'deferred' not in result
-    assert result['additional_resources']['word_vectors']['fasttext']['sha256']['de']
+    assert result['additional_resources']['word_vectors']['fasttext_de_matching']['sha256']['de']
