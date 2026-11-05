@@ -26,12 +26,14 @@
 
       <!-- Body is visible while expanded, including the detached-window hint. -->
       <transition name="task-topbar-body">
-        <div v-if="expanded" class="task-topbar__body" :style="bodyStyle">
+        <div v-if="expanded" class="task-topbar__body" :class="{ 'task-topbar__body--flow': $slots.default }" :style="bodyStyle">
           <div v-if="windowOpen" class="task-topbar__window-hint">
             <v-icon size="16" color="primary">mdi-open-in-new</v-icon>
             The task text is open in a window. Close the window to display it here.
           </div>
-          <TaskEditEditor v-else :base-html="contentHtml" :base-document="baseDocument" :model-value="helpSelectionMode ? helpTaskDocument ?? null : taskEdit?.document ?? null" :mode="helpSelectionMode ? 'help' : editMode ? 'edit' : 'read'" :help-text-ranges="helpTextRanges" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="editorStyle" @mark-help-text="emit('mark-help-text', $event)" @select-connection="emit('select-connection', $event)" @select-edits="emit('select-task-edits', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
+          <TaskEditEditor v-else :base-html="contentHtml" :base-document="baseDocument" :model-value="helpSelectionMode ? helpTaskDocument ?? null : taskEdit?.document ?? null" :mode="helpSelectionMode ? 'help' : editMode ? 'edit' : 'read'" :shared="shared" :help-text-ranges="helpTextRanges" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="$slots.default ? undefined : editorStyle" @mark-help-text="emit('mark-help-text', $event)" @select-connection="emit('select-connection', $event)" @select-edits="emit('select-task-edits', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
+          <!-- Im Raum: die Notizen unter dem Text. -->
+          <slot />
 
           <div class="task-topbar__resize-handle" title="Adjust height" @mousedown.prevent="startResize">
             <v-icon size="12">mdi-drag-horizontal</v-icon>
@@ -64,8 +66,11 @@ const props = withDefaults(
     helpSelectionMode?: boolean
     helpTaskDocument?: JsonObject | null
     helpTextRanges?: HelpTextRange[]
+    /** Im Raum: ohne Undo im Editor, mit Notizen im Slot. */
+    shared?: boolean
   }>(),
   {
+    shared: false,
     elementOptions: () => [],
     connectionOptions: () => [],
     evaluationWorkflows: () => [],
@@ -246,6 +251,26 @@ watch(
   border: none !important;
   border-radius: 0 !important;
   min-height: 0;
+}
+
+/* Mit Notizen darunter scrollen Text und Notizen gemeinsam, der Text hat keine eigene Höhe. */
+.task-topbar__body--flow {
+  overflow-y: auto;
+}
+
+.task-topbar__body--flow .task-topbar__editor {
+  flex: none;
+  height: auto;
+}
+
+.task-topbar__body--flow .task-topbar__editor :deep(.task-edit-body) {
+  overflow-y: visible;
+}
+
+.task-topbar__body--flow .task-topbar__editor :deep(.task-edit-toolbar) {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .task-topbar__resize-handle {

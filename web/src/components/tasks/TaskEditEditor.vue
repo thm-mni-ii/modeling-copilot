@@ -5,11 +5,13 @@
       <v-btn size="small" color="warning" variant="tonal" prepend-icon="mdi-marker" :disabled="!hasSelection" @mousedown.prevent @click="markHelpText">Textstelle markieren</v-btn>
     </div>
     <div v-if="editor && mode === 'edit'" class="task-edit-toolbar">
-      <v-btn-group size="x-small" density="compact" variant="outlined">
-        <v-btn :disabled="!editor.can().undo()" title="Undo Edit" @click="editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
-        <v-btn :disabled="!editor.can().redo()" title="Redo Edit" @click="editor.chain().focus().redo().run()"><v-icon>mdi-redo</v-icon></v-btn>
-      </v-btn-group>
-      <v-divider vertical class="mx-1" />
+      <template v-if="!shared">
+        <v-btn-group size="x-small" density="compact" variant="outlined">
+          <v-btn :disabled="!editor.can().undo()" title="Undo Edit" @click="editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
+          <v-btn :disabled="!editor.can().redo()" title="Redo Edit" @click="editor.chain().focus().redo().run()"><v-icon>mdi-redo</v-icon></v-btn>
+        </v-btn-group>
+        <v-divider vertical class="mx-1" />
+      </template>
       <v-btn-group size="x-small" density="compact" variant="outlined">
         <v-btn :color="isFormatActive('taskEditBold') ? 'primary' : undefined" :disabled="!hasSelection" title="Bold Edit" @mousedown.prevent @click="applyFormat('taskEditBold', 'bold')"><v-icon>mdi-format-bold</v-icon></v-btn>
         <v-btn :color="isFormatActive('taskEditItalic') ? 'primary' : undefined" :disabled="!hasSelection" title="Italic Edit" @mousedown.prevent @click="applyFormat('taskEditItalic', 'italic')"><v-icon>mdi-format-italic</v-icon></v-btn>
@@ -69,11 +71,13 @@ const props = withDefaults(
     baseDocument?: JsonObject | null
     modelValue: JsonObject | null
     mode?: 'read' | 'edit' | 'help'
+    /** Im Raum: kein Undo, weil die Marks geteilt sind und der Verlauf fremde Änderungen zurücknehmen würde. */
+    shared?: boolean
     helpTextRanges?: HelpTextRange[]
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
   }>(),
-  { mode: 'read', elementOptions: () => [], connectionOptions: () => [], helpTextRanges: () => [] }
+  { mode: 'read', shared: false, elementOptions: () => [], connectionOptions: () => [], helpTextRanges: () => [] }
 )
 
 const emit = defineEmits<{
@@ -102,7 +106,11 @@ const EditShortcutGuard = Extension.create({
     'Mod-i': () => true,
     'Mod-u': () => true,
     'Mod-Shift-s': () => true,
-    'Mod-e': () => true
+    'Mod-e': () => true,
+    // Im Raum gibt es keinen Verlauf, siehe `shared`.
+    'Mod-z': () => props.shared,
+    'Mod-Shift-z': () => props.shared,
+    'Mod-y': () => props.shared
   })
 })
 

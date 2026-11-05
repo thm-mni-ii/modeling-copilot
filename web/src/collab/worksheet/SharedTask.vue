@@ -25,8 +25,8 @@ import { Editor as CoreEditor } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import TaskTopBar from '@/components/modeling/controls/TaskTopBar.vue'
 import TaskColorPicker from '@/components/tasks/TaskColorPicker.vue'
-import { createTaskEditMarks } from '@/components/tasks/taskEditMarks'
-import { createTaskEditorExtensions, TASK_HIGHLIGHT_COLORS, type TaskConnectionOption, type TaskElementOption } from '@/components/tasks/taskEditorExtensions'
+import { createTaskEditExtensions } from '@/components/tasks/taskEditMarks'
+import { TASK_HIGHLIGHT_COLORS, type TaskConnectionOption, type TaskElementOption } from '@/components/tasks/taskEditorExtensions'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
 import type { DiagramTask } from '@/model/Task'
 import type { JsonObject } from '@/services/api/types/common'
@@ -74,7 +74,7 @@ let unmounted = false
 
 /** The text as the editor reads it, with the same marks, so offsets count the same way everywhere. */
 const baseOf = (html: string) => {
-  const parser = new CoreEditor({ content: html, editable: false, extensions: [...createTaskEditorExtensions(), ...createTaskEditMarks()] })
+  const parser = new CoreEditor({ content: html, editable: false, extensions: createTaskEditExtensions() })
   const parsed = parser.getJSON() as JsonObject
   parser.destroy()
   return parsed
