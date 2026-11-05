@@ -1,7 +1,7 @@
 {
   "version": 1,
   "provenance": {
-    "source": "api/src/modeling_api/db/initial_data/order_management_sample_solution.json",
+    "source": "api/src/modeling_api/db/migrations/versions/v00_initial_data/order_management_sample_solution.json",
     "source_sha256": "753ece602d0ffde07b717fabe0bd643b3ad44cdb89c33277d3a2559a16291fc0",
     "synthetic": true
   },

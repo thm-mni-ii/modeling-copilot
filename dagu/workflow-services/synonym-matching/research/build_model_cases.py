@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
 SOURCE = (
-    HERE.parents[3] / 'api/src/modeling_api/db/initial_data'
+    HERE.parents[3] / 'api/src/modeling_api/db/migrations/versions/v00_initial_data'
     / 'order_management_sample_solution.json'
 )
 
