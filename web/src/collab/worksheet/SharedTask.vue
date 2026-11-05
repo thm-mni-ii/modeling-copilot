@@ -21,11 +21,9 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
-import { Editor as CoreEditor } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import TaskTopBar from '@/components/modeling/controls/TaskTopBar.vue'
 import TaskColorPicker from '@/components/tasks/TaskColorPicker.vue'
-import { createTaskEditExtensions } from '@/components/tasks/taskEditMarks'
 import { TASK_HIGHLIGHT_COLORS, type TaskConnectionOption, type TaskElementOption } from '@/components/tasks/taskEditorExtensions'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
 import type { DiagramTask } from '@/model/Task'
@@ -36,6 +34,7 @@ import type { Session } from '@/collab/kit/collabKitV1'
 import { bindNotes, notesExtensions } from '@/collab/worksheet/notesBinding'
 import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/converters/task/marks'
 import { MARKS_MAP, NOTES_TEXT, taskLinkOf } from '@/collab/converters/task/taskLink'
+import { baseOf } from '@/collab/sharing/shareTask'
 
 /**
  * The task shared along with a model of a room: its text fixed in a CK task, the marks on it as
@@ -71,14 +70,6 @@ let session: Session<SharedMark> | null = null
 let unbindNotes: (() => void) | null = null
 let stops: (() => void)[] = []
 let unmounted = false
-
-/** The text as the editor reads it, with the same marks, so offsets count the same way everywhere. */
-const baseOf = (html: string) => {
-  const parser = new CoreEditor({ content: html, editable: false, extensions: createTaskEditExtensions() })
-  const parsed = parser.getJSON() as JsonObject
-  parser.destroy()
-  return parsed
-}
 
 const sameMarks = (left: SharedMarks, right: SharedMarks) => Object.keys(left).length === Object.keys(right).length && Object.entries(left).every(([id, mark]) => JSON.stringify(mark) === JSON.stringify(right[id]))
 

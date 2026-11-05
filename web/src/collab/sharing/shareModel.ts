@@ -6,6 +6,7 @@ import modelService from '@/services/model/model.service'
 import { cloneJson, type ModelSnapshot } from '@/model/ModelSnapshot'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
 import type { JsonObject } from '@/services/api/types/common'
+import type { TaskVersionReference } from '@/services/api/types/common'
 import type { Model, WorkspaceLanguageReference } from '@/services/api/types/model'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { createModelPatch } from '@/utils/modelPatches'
@@ -15,6 +16,8 @@ import { openWorkpiece } from '@/collab/connection/openWorkpiece'
 import { hasChange, stepsOf, type HistoryMode, type HistoryStep, type PrivateVersion } from '@/collab/converters/model/modelHistory'
 import { sameUnits, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { CELLS_MAP, newWorkpiece } from '@/collab/storage/workpiece'
+import type { SharedMarks } from '@/collab/converters/task/marks'
+import { readTaskMarks, saveTaskMarks, writeTaskMarks } from './shareTask'
 
 /** What the host answers in the dialog before the link; visitors always see. */
 export interface ShareOptions {
@@ -232,6 +235,16 @@ export const shareModel = async (router: Router, { history = 'none', ...options 
   }
 
   const [room, workpiece] = await Promise.all([ck.rooms.get(shared.roomId), ck.workpieces.get(shared.workpieceId)])
+  // The plain task is in the CK task already; what was marked or added privately goes along.
+  const edit = workspace.taskEdit?.document
+  const html = workspace.taskVersion?.data.contentHtml
+  if (shared.created && task && edit && html) {
+    try {
+      await writeTaskMarks(ck, workpiece, edit, html)
+    } catch (error) {
+      notifyWarning(`The task edits could not be shared: ${(error as Error).message}`)
+    }
+  }
   await openWorkpiece(router, room, workpiece)
   current.value = { roomId: shared.roomId, workpieceId: shared.workpieceId, hostId: shared.hostId, privateModelId: privateModel.id, linkedModelId: workspace.model?.id ?? null }
   return shareLink(router, shared.roomId)
@@ -290,13 +303,15 @@ export const openQuitDialog = async () => {
 export const reopenShare = () => request(() => httpClient.put('/v1/share/open', { open: true }))
 
 /** Creates the model with the state as its first version, without touching the editor or the store. */
-const createModelFrom = async (data: ModelSnapshot, languages: WorkspaceLanguageReference[], name = data.name) => {
-  const model = (await modelService.create({ name })).data
+const createModelFrom = async (data: ModelSnapshot, languages: WorkspaceLanguageReference[], name = data.name, task: { reference: TaskVersionReference; marks: SharedMarks } | null = null) => {
+  const model = (await modelService.create({ name, taskVersion: task?.reference ?? null })).data
+  const edit = task ? await saveTaskMarks(model.id, task.marks) : null
   await modelService.createVersion(model, {
     baseVersionId: null,
+    taskEditVersionId: edit?.versionId ?? null,
     baseReleaseId: null,
     workspaceLanguages: languages,
-    taskVersion: null,
+    taskVersion: task?.reference ?? null,
     data: { ...cloneJson(data), name },
     patches: [],
     kind: 'release',
@@ -307,8 +322,10 @@ const createModelFrom = async (data: ModelSnapshot, languages: WorkspaceLanguage
 }
 
 /** Writes the state as the next version of the private model; the patch is the difference to its last version. */
-const saveAsVersion = async (modelId: string, data: ModelSnapshot, languages: WorkspaceLanguageReference[]) => {
+const saveAsVersion = async (modelId: string, data: ModelSnapshot, languages: WorkspaceLanguageReference[], marks: SharedMarks | null = null) => {
   const model = (await modelService.get(modelId)).data
+  // The edits made in the room come into the task edit first, so the version points to them.
+  const edit = marks ? await saveTaskMarks(modelId, marks) : model.taskEdit
   const base = (await modelService.getVersion(model, model.latestVersionId)).data
   const patch = createModelPatch((base.data as ModelSnapshot).xml, data.xml)
   // A checkpoint holds the state only as a patch, as in the store.
@@ -316,6 +333,7 @@ const saveAsVersion = async (modelId: string, data: ModelSnapshot, languages: Wo
   delete withoutXml.xml
   await modelService.createVersion(model, {
     baseVersionId: base.id,
+    taskEditVersionId: edit?.versionId ?? null,
     baseReleaseId: base.kind === 'release' ? base.id : base.baseReleaseId,
     workspaceLanguages: languages,
     taskVersion: base.taskVersion,
@@ -391,7 +409,10 @@ export const leaveShare = async (router: Router, target: LeaveTarget, name?: str
   await lockShare()
   const data = cloneJson(workspace.data)
   const languages = cloneJson(workspace.languages)
-  const saved = target === 'version' ? await saveAsVersion(share.privateModelId, data, languages) : await createModelFrom(data, languages, name)
+  // What everyone marked or added at the task goes back with it; a model of the new kind keeps the task, so it stays among the tasks.
+  const marks = await readTaskMarks(share.workpieceId)
+  const reference = marks ? (await modelService.get(share.privateModelId)).data.taskVersion : null
+  const saved = target === 'version' ? await saveAsVersion(share.privateModelId, data, languages, marks) : await createModelFrom(data, languages, name, marks && reference ? { reference, marks } : null)
   await request(() => httpClient.post('/v1/share/close'))
   await leaveLinked(router, saved)
 }
