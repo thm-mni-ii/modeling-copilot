@@ -35,7 +35,7 @@
       :lock-autonomy-mode="Boolean(workspace.taskVersion)"
       :connection-preview-allowed="workspace.taskVersion?.data.connectionPreviewAllowed ?? false"
       :canvas-windows="taskWindows"
-      :task-active="Boolean(workspace.taskReference)"
+      :task-active="Boolean(workspace.taskReference || linkedWorkpieceId)"
       :task-edit="workspace.taskEdit"
       :task-edit-sync-state="workspace.taskEditSyncState"
       :selected-task-edit-ids="selectedTaskEditIds"

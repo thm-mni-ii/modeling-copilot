@@ -18,8 +18,15 @@
   </SidebarFrame>
 </template>
 
+<script lang="ts">
+import { ref } from 'vue'
+
+// Neben der Komponente gehalten, damit der Tab beim Teilen (Neuaufbau der Ansicht) erhalten bleibt.
+const activeTab = ref<'feedback' | 'persistence' | 'sync' | 'languages' | 'task' | 'evaluations'>('languages')
+</script>
+
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
@@ -72,7 +79,6 @@ const sidebarWidth = ref(DEFAULT_WIDTH)
 watch(() => props.hasJourney, (hasJourney) => {
   sidebarWidth.value = hasJourney ? Math.max(280, sidebarWidth.value) : DEFAULT_WIDTH
 }, { immediate: true })
-const activeTab = ref<SidebarTab>('languages')
 const activeTabLabel = computed(() => tabs.value.find((tab) => tab.value === activeTab.value)?.label ?? '')
 const selectTab = (value: string) => {
   activeTab.value = value as SidebarTab

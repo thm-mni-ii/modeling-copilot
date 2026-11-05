@@ -1,16 +1,24 @@
 <template>
   <v-dialog :model-value="shareDialog === 'ask'" width="440" persistent>
-    <v-card title="Share this model" text="Others join through a link. You decide what they may do; you can change it later.">
+    <v-card title="Share this model" text="Others join through a link. You can change these settings later.">
       <v-card-text class="pt-0">
-        <v-switch v-model="options.anonymous" color="primary" density="compact" hide-details label="Visitors anonymous" />
-        <v-switch v-model="options.edit" color="primary" density="compact" hide-details label="Visitors may edit" />
-        <v-switch v-model="options.comment" color="primary" density="compact" hide-details label="Visitors may comment" />
-        <v-switch v-if="workspace.taskReference" v-model="options.task" color="primary" density="compact" hide-details label="Share the task" />
-        <v-radio-group v-model="options.history" density="compact" class="mt-2" :disabled="busy" hint="What visitors can look back on. A longer history takes longer to share." persistent-hint>
-          <v-radio color="primary" value="none" label="Current state only" />
-          <v-radio color="primary" value="versions" label="Versions (releases and checkpoints)" />
-          <v-radio color="primary" value="steps" label="Every change (versions and the changes between them)" />
-        </v-radio-group>
+        <div class="share-section">Visitors</div>
+        <v-switch v-model="options.anonymous" color="primary" density="compact" label="Anonymous" hint="Others see a pseudonym instead of the name" persistent-hint />
+        <v-switch v-model="options.edit" color="primary" density="compact" label="May edit" hint="Change the model together with you" persistent-hint />
+        <v-switch v-model="options.comment" color="primary" density="compact" label="May comment" hint="Leave comments on elements" persistent-hint />
+        <div class="share-section">Share history</div>
+        <v-item-group v-model="options.history" mandatory :class="{ 'share-history--busy': busy }">
+          <v-item v-for="choice in historyChoices" :key="choice.value" v-slot="{ isSelected, toggle }" :value="choice.value">
+            <v-card :variant="isSelected ? 'tonal' : 'outlined'" :color="isSelected ? 'primary' : undefined" class="share-history mb-2" role="radio" tabindex="0" :aria-checked="isSelected" @click="toggle" @keydown.enter.prevent="toggle" @keydown.space.prevent="toggle">
+              <v-icon :icon="choice.icon" class="mr-3" />
+              <div class="flex-grow-1">
+                <div class="share-history__title">{{ choice.title }}</div>
+                <div class="text-caption share-history__hint">{{ choice.hint }}</div>
+              </div>
+              <v-icon v-if="isSelected" icon="mdi-check" />
+            </v-card>
+          </v-item>
+        </v-item-group>
         <div v-if="shareProgress && options.history !== 'none'" class="mt-3">
           <v-progress-linear :model-value="shareProgress.total ? (shareProgress.done / shareProgress.total) * 100 : 0" color="primary" height="4" />
           <div class="text-caption mt-1">Writing history · {{ shareProgress.done }} of {{ shareProgress.total }}</div>
@@ -32,7 +40,7 @@
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn variant="text" @click="copy">{{ copied ? 'Copied' : 'Copy' }}</v-btn>
+        <v-btn variant="text" @click="copy">Copy</v-btn>
         <v-btn color="primary" variant="text" @click="closeDialog">Done</v-btn>
       </v-card-actions>
     </v-card>
@@ -82,7 +90,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { notifyError } from '@/composables/useNotifications'
+import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { HistoryMode } from '@/collab/converters/model/modelHistory'
 import { currentShare, hostClosed, leaveAsVisitor, leaveShare, pendingTarget, reopenShare, shareDialog, shareLink, shareModel, shareProgress, type LeaveTarget } from './shareModel'
@@ -90,12 +98,16 @@ import { currentShare, hostClosed, leaveAsVisitor, leaveShare, pendingTarget, re
 const router = useRouter()
 const workspace = useModelWorkspaceStore()
 
+const historyChoices: { value: HistoryMode; icon: string; title: string; hint: string }[] = [
+  { value: 'none', icon: 'mdi-camera-outline', title: 'Current state', hint: 'Only the model as it is now' },
+  { value: 'versions', icon: 'mdi-source-branch', title: 'Versions', hint: 'Releases and checkpoints' },
+  { value: 'steps', icon: 'mdi-history', title: 'Every change', hint: 'Versions and all changes between them' }
+]
 const options = reactive({ anonymous: false, edit: true, comment: true, task: true, history: 'none' as HistoryMode })
 const target = ref<LeaveTarget>('version')
 const name = ref('')
 const busy = ref(false)
 const error = ref('')
-const copied = ref(false)
 const confirmDiscard = ref(false)
 
 const closeDialog = () => {
@@ -134,8 +146,8 @@ const share = () =>
 const copy = async () => {
   try {
     await navigator.clipboard.writeText(link.value)
-    copied.value = true
-    setTimeout(() => (copied.value = false), 1500)
+    notifySuccess('Link copied')
+    closeDialog()
   } catch {
     notifyError('The link could not be copied.')
   }
@@ -170,3 +182,35 @@ const drop = () =>
     shareDialog.value = null
   })
 </script>
+
+<style scoped>
+.share-section {
+  margin: 12px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+.share-history {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.share-history__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.share-history__hint {
+  opacity: 0.75;
+}
+
+.share-history--busy {
+  pointer-events: none;
+  opacity: 0.6;
+}
+</style>
