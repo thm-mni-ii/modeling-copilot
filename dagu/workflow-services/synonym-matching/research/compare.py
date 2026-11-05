@@ -194,64 +194,75 @@ def score_statistics(features):
     return result
 
 
+def make_engine(name, method, steps, translator, models):
+    """Einzige Stelle, an der Wortvektoren und Servicemethoden unterschieden werden.
+
+    Beide Arten liefern danach dasselbe Objekt mit compute_scores().
+    """
+    if is_wordvec(method):
+        from .word_matching import WordMatching
+        files = {lang: str(ROOT / path) for lang, path in method['files'].items()}
+        engine = WordMatching({**method, 'files': files, 'preprocessing': steps},
+                              translator, name=name, models=models)
+        return engine, engine.translator or translator
+    engine = MatchingEngine({'methods': [name], 'preprocessing': steps})
+    if name in {'wordnet', 'translated_string', 'translated_embedding'}:
+        translator = translator or engine.translator
+        engine.translator = translator
+        if name == 'translated_embedding':
+            engine.backends[name].translator = translator
+    return engine, translator
+
+
 def calculate_features(cases, definitions, methods):
     """Berechne jede Methode/Preprocessing-Kombination pro Testfall genau einmal."""
     tasks = {}
     for config in definitions.values():
         for method in config['methods']:
             steps = steps_for(method, config['preprocessing'], methods)
-            tasks[method, tuple(steps)] = steps
+            tasks.setdefault(method, {})[tuple(steps)] = steps
     features, engines, errors = {}, {}, []
     translator = None
     word_backends = {}
-    # Große Wortmodelle vor Embeddings laden und direkt danach wieder freigeben.
-    for key in sorted(tasks, key=lambda item: not is_wordvec(methods[item[0]])):
-        steps = tasks[key]
-        method = key[0]
-        engine = None
-        for case in cases:
-            reason = unsupported(methods[method], steps, case)
-            if reason:
-                features[key, case['id']] = {'status': 'unsupported', 'reason': reason}
-                continue
-            try:
-                if engine is None:
-                    if is_wordvec(methods[method]):
-                        from .word_matching import WordMatching
-                        files = {lang: str(ROOT / path)
-                                 for lang, path in methods[method]['files'].items()}
-                        engine = WordMatching({**methods[method], 'files': files}, translator, name=method)
-                        word_backends[method] = engine
-                        translator = engine.translator or translator
-                    else:
-                        engine = MatchingEngine({'methods': [method], 'preprocessing': steps})
-                        engines[key] = engine
-                    if method in {'wordnet', 'translated_string', 'translated_embedding'}:
-                        translator = translator or engine.translator
-                        engine.translator = translator
-                        if method == 'translated_embedding':
-                            engine.backends[method].translator = translator
-                started = time.perf_counter()
-                result = engine.compute_scores(case['reference'], case['student'])
-                seconds = time.perf_counter() - started
-                texts = result['processedLabels'][method]
-                features[key, case['id']] = {
-                    'status': 'ok', 'scores': result['scores'][method].tolist(),
-                    'shape': result['shape'], 'seconds': seconds, 'processedLabels': texts,
-                    'eligible': (result['validPairs'] & result['usablePairs'][method]).tolist(),
-                }
-            except Exception as error:
-                reason = f'{type(error).__name__}: {error}'
-                features[key, case['id']] = {'status': 'error', 'reason': reason}
-                errors.append({'method': method, 'preprocessing': steps,
-                               'case': case['id'], 'reason': reason})
+    # Große Wortmodelle zuerst: ein Modell wird einmal geladen, für alle
+    # Preprocessing-Varianten wiederverwendet und danach freigegeben.
+    for method in sorted(tasks, key=lambda name: not is_wordvec(methods[name])):
+        models = {}
+        for steps_key, steps in tasks[method].items():
+            key = (method, steps_key)
+            engine = None
+            for case in cases:
+                reason = unsupported(methods[method], steps, case)
+                if reason:
+                    features[key, case['id']] = {'status': 'unsupported', 'reason': reason}
+                    continue
+                try:
+                    if engine is None:
+                        engine, translator = make_engine(method, methods[method], steps, translator, models)
+                        if is_wordvec(methods[method]):
+                            word_backends[method] = engine
+                        else:
+                            engines[key] = engine
+                    started = time.perf_counter()
+                    result = engine.compute_scores(case['reference'], case['student'])
+                    seconds = time.perf_counter() - started
+                    features[key, case['id']] = {
+                        'status': 'ok', 'scores': result['scores'][method].tolist(),
+                        'shape': result['shape'], 'seconds': seconds,
+                        'processedLabels': result['processedLabels'][method],
+                        'eligible': (result['validPairs'] & result['usablePairs'][method]).tolist(),
+                    }
+                except Exception as error:
+                    reason = f'{type(error).__name__}: {error}'
+                    features[key, case['id']] = {'status': 'error', 'reason': reason}
+                    errors.append({'method': method, 'preprocessing': steps,
+                                   'case': case['id'], 'reason': reason})
         # Die Kombinationen verwenden danach nur noch die gespeicherten Scores.
-        if is_wordvec(methods[method]) and engine is not None:
-            engine.models.clear()
+        models.clear()
     word_vectors = {}
     for name, backend in word_backends.items():
         word_vectors[name] = {
-            'config': {**backend.config, 'files': methods[name]['files']},
+            'config': methods[name],
             'sha256': {lang: sha256(path) if Path(path).is_file() else None
                        for lang, path in backend.files.items()},
             'translation_revision': backend.translator.revision if backend.translator else None}

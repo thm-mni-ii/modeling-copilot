@@ -335,8 +335,14 @@ Getrennte Sprachdateien müssen im selben ausgerichteten Raum liegen und benöti
 Sprachen werden dabei nicht unterstützt. Englische Labels bleiben unverändert.
 Die Übersetzung wird über die Modelle hinweg wiederverwendet.
 
-Optionen je Modell: `preprocessing` (Standard: normalize, split_identifiers),
-`lowercase` (Standard true), `nouns_only` (Standard false), `delta` (Standard 0.2).
+Optionen je Modell: `ablate` (Preprocessing kommt aus den Pipelines in
+`experiments.json`, wie bei den Stringverfahren; ohne `ablate` gilt `normalize`),
+`lowercase` (Standard true, passend zum Vokabular des Modells und nach der Pipeline
+angewendet), `nouns_only` (Standard false), `delta` (Standard 0.2).
+Jedes Modell wird einmal geladen, für alle Preprocessing-Varianten verwendet und
+danach freigegeben. Die frühere feste Vorverarbeitung (normalize, split_identifiers)
+entspricht der Pipeline `identifiers_cased`; die Ergebnisse stimmen mit den früheren
+Einzelläufen überein.
 Nomenfilterung nutzt die vorhandenen DE/EN-spaCy-Modelle und kann als eigene
 Ablation in einem separaten Lauf aktiviert werden. Bei Übersetzung wird POS im
 englischen Zieltext bestimmt. Für einen fairen Vergleich die Vorverarbeitung

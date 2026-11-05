@@ -88,14 +88,15 @@ def describe_pipeline(spec):
     if any(method.endswith('_matching') for method in requires):
         paths = []
         for method, options in spec.get('word_matching', {}).items():
-            steps = list(options['preprocessing'])
-            if options['translate_to_en']:
+            # Das Preprocessing steht vorne; hier nur die modellabhängigen Zusatzschritte.
+            steps = []
+            if options.get('translate_to_en'):
                 steps.append('DE→EN')
-            if options['nouns_only']:
+            if options.get('nouns_only'):
                 steps.append('nouns_only')
-            if options['lowercase']:
+            if options.get('lowercase', True):
                 steps.append('lowercase')
-            paths.append(f"{method}: {'_'.join(steps)}, δ={options['delta']}")
+            paths.append(f"{method}: {'_'.join(steps) or 'keine Zusatzschritte'}, δ={options.get('delta', .2)}")
         description += ' [Wortpfade: ' + '; '.join(paths) + ']'
     if spec.get('global_ranking'):
         description += ' → Zeilen-/Spaltenrang-Fusion'

@@ -50,7 +50,7 @@ def load_vectors(path, fmt):
 class WordMatching:
     """Lade Vektoren einmal je Sprache und bereite jedes Label nur einmal vor."""
 
-    def __init__(self, config, translator=None, name="word_matching"):
+    def __init__(self, config, translator=None, name="word_matching", models=None):
         self.config = {'format': 'word2vec_text', 'delta': .2, 'nouns_only': False,
                        'lowercase': True, 'preprocessing': ['normalize', 'split_identifiers'],
                        'translate_to_en': False, **config}
@@ -61,7 +61,8 @@ class WordMatching:
             raise ValueError('word vectors require files mapped by language')
         if len(self.files) > 1 and config.get('aligned') is not True:
             raise ValueError('multiple languages require explicitly aligned vector spaces')
-        self.models = {}
+        # Ein von außen übergebenes Dict teilt geladene Modelle zwischen Preprocessing-Varianten.
+        self.models = {} if models is None else models
         self.labels = {}
         self.translator = (translator or Translator({}, Cache())) if self.config['translate_to_en'] else None
 

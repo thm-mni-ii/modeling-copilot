@@ -171,11 +171,34 @@ def test_new_comparison_reuses_fasttext_for_hungarian_and_marks_missing_resource
     config['methods']['word2vec_de_matching']['files'] = {'de': str(tmp_path / 'fehlt.bin')}
     assert run_experiments(data, output, config) == []
     result = json.loads(output.read_text())
-    fasttext = next(r for r in result['records'] if r['experiment'] == 'fixed/fasttext_de_matching')
+    fasttext = next(r for r in result['records'] if r['experiment'] == 'raw/fasttext_de_matching')
     assert fasttext['decisions']['hungarian']['selected'] == [[True, False]]
     assert sum(f['method'] == 'fasttext_de_matching' for f in result['features']) == 1
-    missing = next(r for r in result['records'] if r['experiment'] == 'fixed/word2vec_de_matching')
+    missing = next(r for r in result['records'] if r['experiment'] == 'raw/word2vec_de_matching')
     assert missing['status'] == 'unavailable'
     assert 'Ressource fehlt' in missing['missing']['word2vec_de_matching']['reason']
     assert 'deferred' not in result
     assert result['additional_resources']['word_vectors']['fasttext_de_matching']['sha256']['de']
+
+
+def test_word_vectors_use_pipeline_preprocessing_and_load_model_once(tmp_path, monkeypatch):
+    import research.word_matching as module
+
+    loads = []
+    real_load = module.load_vectors
+    monkeypatch.setattr(module, 'load_vectors', lambda *args: loads.append(args) or real_load(*args))
+    path = archive(tmp_path / 'de.vec', ['Kunde'], [[1, 0]])
+    data = {'cases': [{'id': 'test', 'case_number': 1, 'title': 'Groß-/Kleinschreibung',
+        'reference': [{'id': 'r', 'label': 'Kunde', 'language': 'de'}],
+        'student': [{'id': 's', 'label': 'Kunde', 'language': 'de'}],
+        'annotations': [['correct']]}]}
+    config = only(load_config(), 'word2vec_de_matching')
+    config['preprocessing'] = {'raw': [], 'lower': ['lowercase']}
+    config['methods']['word2vec_de_matching'].update({'files': {'de': path}, 'format': 'word2vec_text'})
+    output = tmp_path / 'run.json'
+    assert run_experiments(data, output, config) == []
+    records = {r['experiment']: r for r in json.loads(output.read_text())['records']}
+    # Das Modell kennt nur die Großschreibung; Lowercasing in der Pipeline ist echte Ablation.
+    assert records['raw/word2vec_de_matching']['combinedScores'] == [[1.0]]
+    assert records['lower/word2vec_de_matching']['combinedScores'] == [[0.0]]
+    assert len(loads) == 1
