@@ -159,7 +159,7 @@ async def get_task_edit(model_id: UUID, user: User) -> Document | None:
 
 
 async def get_shared_task(model_id: UUID, user: User) -> Document:
-    """Title, text and release of the model's task, as sharing puts them into the room."""
+    """Title, text, release and the settings of the model's task, as sharing puts them into the room."""
     model = await get_model(model_id, user)
     reference = model.get("taskVersion")
     if reference is None:
@@ -170,10 +170,17 @@ async def get_shared_task(model_id: UUID, user: User) -> Document:
     task = await db.task.find_one({"_id": reference["taskId"]})
     if version is None or task is None:
         raise not_found()
+    data = version.get("data", {})
     return {
         "title": task.get("name", ""),
-        "contentHtml": version.get("data", {}).get("contentHtml", ""),
+        "contentHtml": data.get("contentHtml", ""),
         "taskVersion": reference,
+        # What the task prescribes for working on it, so the room follows it as the private model does.
+        "settings": {
+            "autonomyMode": data.get("autonomyMode", "free"),
+            "connectionPreviewAllowed": data.get("connectionPreviewAllowed"),
+            "evaluationWorkflows": data.get("evaluationWorkflows", []),
+        },
     }
 
 

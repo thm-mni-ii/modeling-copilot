@@ -1,6 +1,20 @@
 <template>
   <div v-if="task">
-    <TaskTopBar :task="task" :window-open="false" :content-html="contentHtml" :task-edit="taskEdit" :element-options="elementOptions" :connection-options="connectionOptions" :history="history" shared @select-connection="emit('select-connection', $event)" @select-task-edits="emit('select-task-edits', $event)" @update:task-edit-document="write">
+    <TaskTopBar
+      :task="task"
+      :window-open="false"
+      :content-html="contentHtml"
+      :task-edit="taskEdit"
+      :element-options="elementOptions"
+      :connection-options="connectionOptions"
+      :history="history"
+      :evaluation-workflows="evaluationWorkflows"
+      shared
+      @select-connection="emit('select-connection', $event)"
+      @select-task-edits="emit('select-task-edits', $event)"
+      @start-evaluation="emit('start-evaluation')"
+      @update:task-edit-document="write"
+    >
       <div class="shared-notes">
         <div class="shared-notes__toolbar">
           <span class="text-caption">Notes</span>
@@ -35,7 +49,8 @@ import { bindNotes, notesExtensions } from '@/collab/worksheet/notesBinding'
 import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/converters/task/marks'
 import { MARKS_MAP, NOTES_TEXT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { baseOf } from '@/collab/sharing/shareTask'
-import { sharedTaskEdit, writeSharedTask } from './sharedTask'
+import { currentShare } from '@/collab/sharing/shareModel'
+import { sharedTaskEdit, sharedTaskSettings, writeSharedTask, type SharedTaskSettings } from './sharedTask'
 
 /**
  * The task shared along with a model of a room: its text fixed in a CK task, the marks on it as
@@ -54,6 +69,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   'select-connection': [reference: { languageId: string; connectionType: string }]
   'select-task-edits': [ids: string[]]
+  'start-evaluation': []
 }>()
 
 const task = ref<DiagramTask | null>(null)
@@ -64,6 +80,9 @@ const notes = useEditor({ extensions: notesExtensions('Notes for everyone in the
 
 // The editor of the task reads a whole document; the marks are laid over the fixed text for it.
 const taskEdit = computed<TaskEditDocument | null>(() => (document.value ? { schemaVersion: 1, revision: 0, updatedAt: '', document: document.value } : null))
+
+// Only the host evaluates, so only the host gets the button.
+const evaluationWorkflows = computed(() => (currentShare.value?.privateModelId ? sharedTaskSettings.value?.evaluationWorkflows ?? [] : []))
 
 // The sidebar lists the edits of the room as it does the private ones.
 watch(taskEdit, (value) => (sharedTaskEdit.value = value), { immediate: true })
@@ -136,6 +155,7 @@ onMounted(async () => {
     if (unmounted) return
     base = baseOf(html)
     contentHtml.value = html
+    sharedTaskSettings.value = (shared.detail?.settings as SharedTaskSettings | undefined) ?? null
     task.value = { id: shared._id, title: shared.title, content: html, createdAt: shared.createdAt, updatedAt: shared.createdAt }
 
     const opened = ck.open<SharedMark>(link.workpieceId, { map: MARKS_MAP })
@@ -169,6 +189,7 @@ writeSharedTask.value = write
 onBeforeUnmount(() => {
   unmounted = true
   sharedTaskEdit.value = null
+  sharedTaskSettings.value = null
   writeSharedTask.value = null
   unbindNotes?.()
   stops.forEach((stop) => stop())

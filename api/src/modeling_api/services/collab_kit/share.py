@@ -131,7 +131,11 @@ async def share(
                 "title": task["title"],
                 "state": "open",
                 "anchor": {"kind": "workpiece", "id": task_workpiece_id},
-                "detail": {"contentHtml": task["contentHtml"], "taskVersion": task["taskVersion"]},
+                "detail": {
+                    "contentHtml": task["contentHtml"],
+                    "taskVersion": task["taskVersion"],
+                    **({"settings": task["settings"]} if "settings" in task else {}),
+                },
             }
         )
         contract = {**contract, "task": {"workpieceId": task_workpiece_id, "taskId": ck_task["_id"]}}

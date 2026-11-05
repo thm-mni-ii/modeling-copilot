@@ -31,9 +31,9 @@
       :connection-groups="connectionGroups"
       :connection-preferences="workspace.preferences"
       :language-syntax="syntax"
-      :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? 'free'"
-      :lock-autonomy-mode="Boolean(workspace.taskVersion)"
-      :connection-preview-allowed="workspace.taskVersion?.data.connectionPreviewAllowed ?? false"
+      :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? sharedTaskSettings?.autonomyMode ?? 'free'"
+      :lock-autonomy-mode="Boolean(workspace.taskVersion || sharedTaskSettings)"
+      :connection-preview-allowed="workspace.taskVersion?.data.connectionPreviewAllowed ?? sharedTaskSettings?.connectionPreviewAllowed ?? false"
       :canvas-windows="taskWindows"
       :task-active="Boolean(workspace.taskReference || linkedWorkpieceId)"
       :task-edit="taskEdit"
@@ -95,7 +95,7 @@
           />
         </div>
         <!-- Modell eines Raums: die mitgeteilte Aufgabe, sofern der Host eine geteilt hat. -->
-        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="task-area" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" />
+        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="task-area" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" @start-evaluation="startEvaluation" />
       </template>
       <template #window-content="{ definition }">
         <TaskEditEditor v-if="definition.role === 'task'" :key="workspace.taskReference?.versionId" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :base-document="workspace.taskVersion?.data.contentDocument" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" @update:model-value="workspace.updateTaskEditDocument" />
@@ -145,7 +145,8 @@ import HelpRequestFlow from '@/components/learningPaths/HelpRequestFlow.vue'
 import { usePulseSurvey } from '@/composables/usePulseSurvey'
 import { useModelActivity } from '@/composables/useModelActivity'
 import SharedTask from '@/collab/worksheet/SharedTask.vue'
-import { sharedTaskEdit, writeSharedTask } from '@/collab/worksheet/sharedTask'
+import { sharedTaskEdit, sharedTaskSettings, writeSharedTask } from '@/collab/worksheet/sharedTask'
+import { saveRoomCheckpoint } from '@/collab/sharing/shareModel'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
 interface Props {
@@ -413,13 +414,20 @@ const focusTaskEdit = (target: TaskEditFocus) => {
 }
 
 const startEvaluation = async () => {
-  if (!workspace.model || !workspace.taskVersion) return
-  if (!workspace.taskVersion.data.evaluationWorkflows[0]) return
+  // In a room only the host evaluates, on the private model that has the task; the state of the room goes in as its newest version.
+  const room = !workspace.taskVersion && sharedTaskSettings.value
+  if (!room && (!workspace.model || !workspace.taskVersion)) return
+  if (!(room ? sharedTaskSettings.value!.evaluationWorkflows : workspace.taskVersion!.data.evaluationWorkflows)[0]) return
   try {
     // A checkpoint creates an immutable submission reference whenever canvas
     // changes have not been persisted yet.
-    if (workspace.dirty) await workspace.save('checkpoint')
-    const evaluation = (await evaluationService.start(workspace.model.id)).data
+    let modelId: string
+    if (room) modelId = await saveRoomCheckpoint()
+    else {
+      if (workspace.dirty) await workspace.save('checkpoint')
+      modelId = workspace.model!.id
+    }
+    const evaluation = (await evaluationService.start(modelId)).data
     startedEvaluationId.value = evaluation.id
     notifySuccess('Evaluation started.')
   } catch (error) {

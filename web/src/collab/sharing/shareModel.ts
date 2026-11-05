@@ -344,6 +344,15 @@ const saveAsVersion = async (modelId: string, data: ModelSnapshot, languages: Wo
   return model
 }
 
+/** Saves the state of the room as a checkpoint of the host's private model, as an evaluation needs a saved submission; gives back that model. */
+export const saveRoomCheckpoint = async () => {
+  const share = current.value
+  if (!share?.privateModelId) throw new Error('Only the host can evaluate the model.')
+  const workspace = useModelWorkspaceStore()
+  await saveAsVersion(share.privateModelId, cloneJson(workspace.data), cloneJson(workspace.languages), await readTaskMarks(share.workpieceId))
+  return share.privateModelId
+}
+
 /** Where the guard stopped someone on their way out; once they have decided, they go there. */
 export const pendingTarget = ref<RouteLocationNormalized | null>(null)
 

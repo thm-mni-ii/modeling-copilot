@@ -11,7 +11,7 @@
         <SidebarPersistence v-else-if="activeTab === 'persistence'" :show-header="false" />
         <SidebarSync v-else-if="activeTab === 'sync'" :show-header="false" />
         <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" :selected-edit-ids="selectedTaskEditIds" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" />
-        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="modelId ?? null" :open-evaluation-id="openEvaluationId ?? null" />
+        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="evaluationModelId" :open-evaluation-id="openEvaluationId ?? null" />
         <SidebarLibrary v-else />
       </div>
     </template>
@@ -39,6 +39,8 @@ import SidebarTabs, { type SidebarTabItem } from './SidebarTabs.vue'
 import FeedbackSidebar from './FeedbackSidebar.vue'
 import TaskEditsSidebar from './TaskEditsSidebar.vue'
 import EvaluationSidebar from './EvaluationSidebar.vue'
+import { currentShare } from '@/collab/sharing/shareModel'
+import { sharedTaskSettings } from '@/collab/worksheet/sharedTask'
 
 type SidebarTab = 'feedback' | 'persistence' | 'sync' | 'languages' | 'task' | 'evaluations'
 
@@ -72,7 +74,10 @@ const baseTabs: SidebarTabItem[] = [
   { value: 'sync', icon: 'mdi-sync', label: 'Collab' },
   { value: 'languages', icon: 'mdi-bookshelf', label: 'Languages' }
 ]
-const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, { value: 'evaluations', icon: 'mdi-chart-timeline-variant', label: 'Auswertungen' }, ...baseTabs] : baseTabs))
+// In a room only the host evaluates, on the private model, and only if the task has a workflow.
+const evaluationsActive = computed(() => !currentShare.value || Boolean(currentShare.value.privateModelId && sharedTaskSettings.value?.evaluationWorkflows.length))
+const evaluationModelId = computed(() => currentShare.value?.privateModelId ?? props.modelId ?? null)
+const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, ...(evaluationsActive.value ? [{ value: 'evaluations', icon: 'mdi-chart-timeline-variant', label: 'Auswertungen' }] : []), ...baseTabs] : baseTabs))
 
 const DEFAULT_WIDTH = 210
 const sidebarWidth = ref(DEFAULT_WIDTH)
