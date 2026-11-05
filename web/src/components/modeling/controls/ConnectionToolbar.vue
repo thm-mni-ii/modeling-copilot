@@ -163,7 +163,7 @@ const normalizedSearch = computed(() => searchQuery.value.trim().toLocaleLowerCa
 const matchesSearch = (item: ScopedConnection) => {
   const query = normalizedSearch.value
   if (!query) return false
-  return [item.connection.label, item.connection.type, item.connection.connectionType, item.languageLabel].filter((value): value is string => Boolean(value)).some((value) => value.toLocaleLowerCase().includes(query))
+  return [item.connection.label, item.connection.type, item.languageLabel].filter((value): value is string => Boolean(value)).some((value) => value.toLocaleLowerCase().includes(query))
 }
 
 const updateToolbarPreferences = (patch: Partial<ConnectionToolbarPreferences>) => {

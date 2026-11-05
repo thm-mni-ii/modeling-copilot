@@ -74,6 +74,23 @@ const applyGeometrySettings = (cell: Cell, definition: ConnectionLabelCell): voi
 }
 
 /**
+ * Positioniert das Haupt-Label einer Edge.
+ * x: relativ entlang der Kante (-1 = Start, 0 = Mitte, 1 = Ende),
+ * y: Pixel senkrecht auf dem Bildschirm, positiv nach oben (wie der Label-Versatz bei Elementen).
+ * Diese Funktion wird sowohl in der Vorschau als auch beim tatsächlichen Insert verwendet.
+ */
+export const applyConnectionLabelOffset = (edge: Cell, offset: DiagramConnection['labelOffset']): void => {
+  if (!offset) return
+  const geometry = edge.getGeometry()
+  if (!geometry) return
+
+  const clone = geometry.clone()
+  if (offset.x !== undefined) clone.x = offset.x
+  if (offset.y !== undefined) clone.offset = new Point(clone.offset?.x ?? 0, -offset.y)
+  edge.setGeometry(clone)
+}
+
+/**
  * Fügt einer Edge zusätzliche Text-Zellen als Kinder hinzu.
  * Diese Funktion wird sowohl in der Vorschau als auch beim tatsächlichen Insert verwendet.
  */
@@ -86,7 +103,9 @@ export const applyConnectionAdditionalLabels = (graph: AbstractGraph, edge: Cell
 
   removeExistingAdditionalLabels(graph, edge)
   definitions.forEach((definition) => {
-    const cellId = ensureLabelCellId(definition)
+    const labelId = ensureLabelCellId(definition)
+    // Der Label-Typ wiederholt sich auf jeder Kante, die Zell-ID muss im ganzen Modell eindeutig sein
+    const cellId = `${edge.getId()}-${labelId}`
     const style = {
       ...DEFAULT_LABEL_STYLE,
       fontColor: connection.style.fontColor ?? DEFAULT_LABEL_STYLE.fontColor,
@@ -113,7 +132,7 @@ export const applyConnectionAdditionalLabels = (graph: AbstractGraph, edge: Cell
 
     child.setConnectable(definition.connectable ?? false)
     ;(child as any).allowLabelEdit = definition.allowLabelEdit !== false
-    ;(child as any).connectionLabelId = cellId
+    ;(child as any).connectionLabelId = labelId
     if (child.getId() !== cellId) {
       child.setId(cellId)
     }

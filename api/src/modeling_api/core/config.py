@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     jwt_roles_claim: str = "roles"  # Feld im Token mit Rollen-Liste (später definiert)
     jwt_global_role_claim: str = "globalRole"  # globale Rolle des Feedback-Systems
 
+    # Anmeldung ohne FBS: Den Code tauscht und das Token erneuert die API beim
+    # Identity-Service des FBS, so fragt der Browser dort nichts an und das Secret
+    # der App bleibt hier. Ohne Secret (PUBLIC) gibt das FBS kein Refresh-Token.
+    # Use the same shell origin as VITE_FBS_HOST_ORIGIN to preserve the issuer.
+    oidc_token_uri: str = "http://localhost:8083/oauth2/token"
+    oidc_token_host: str = ""  # Public Host header when Docker uses an internal address
+    oidc_client_id: str = "modeling-copilot"  # Provider-ID der App im FBS
+    oidc_client_secret: str = ""  # Secret der App (CONFIDENTIAL)
+
     # Sonstiges
     docs_enabled: bool = True  # Swagger unter /docs anzeigen
     cors_origins: str = "http://localhost:5173"  # kommagetrennte Liste

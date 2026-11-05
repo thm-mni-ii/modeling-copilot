@@ -7,3 +7,9 @@ export interface TokenClaims extends Record<string, unknown> {
   iat?: number
   exp: number
 }
+
+export interface FbsTokens {
+  accessToken: string
+  refreshToken: string | null
+  expiresIn: number | null
+}

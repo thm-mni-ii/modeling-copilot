@@ -1,4 +1,4 @@
-import { loadCollabKit } from '@/collab/connection/collabKit'
+import { loadCollabKit } from '@/collab/kit/collabKit'
 
 /** Rooms and groups lie in nothing, so creating them takes manage everywhere; false when collab-kit cannot be reached. */
 export const mayManageAll = async () => {

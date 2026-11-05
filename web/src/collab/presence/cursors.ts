@@ -1,5 +1,5 @@
 import { InternalEvent, styleUtils, type Graph } from '@maxgraph/core'
-import type { Session } from '@/collab/connection/collabKitV1'
+import type { Session } from '@/collab/kit/collabKitV1'
 
 /** A pointer in model coordinates, so it points at the same element whatever the zoom. */
 type Cursor = { x: number; y: number } | null

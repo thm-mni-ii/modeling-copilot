@@ -1,0 +1,128 @@
+{
+  "title": "Aufgabenabschluss: Bestellabwicklung",
+  "definition": {
+    "introduction": "Wie hast du die gerade bearbeitete Aufgabe erlebt? Bitte beantworte die Fragen möglichst spontan.",
+    "showQuestionNumbers": "off",
+    "pages": [
+      { "name": "difficulty", "title": "Wahrgenommene Schwierigkeit" },
+      { "name": "strategies", "title": "Umgang mit Schwierigkeiten" },
+      { "name": "support", "title": "Genutzte und fehlende Unterstützung" },
+      { "name": "completion", "title": "Freiwilliger Aufgabenabschluss" },
+      { "name": "confidence", "title": "Selbsteinschätzung" },
+      {
+        "name": "feature_help", "title": "„Ich brauche Hilfe“-Button",
+        "description": "Während der Modellierungsaufgaben konntest du über den Button „Ich brauche Hilfe“ Schwierigkeiten melden. Außerdem wurden während der Bearbeitung gelegentlich kurze Zwischenfragen durch den Piraten eingeblendet. Für beantwortete Zwischenfragen konntest du Coins erhalten. Für die Teilnahme an der Studie wurden Klausurbonuspunkte angeboten.\n\nWir möchten erfahren, wie du diese Funktionen und den damit verbundenen zusätzlichen Aufwand empfunden hast.\n\nStandardskala für Aussagen: 1 = Stimme überhaupt nicht zu; 2 = Stimme eher nicht zu; 3 = Weder noch; 4 = Stimme eher zu; 5 = Stimme vollständig zu."
+      },
+      { "name": "feature_pulse", "title": "Spontane Zwischenfragen des Piraten" },
+      { "name": "feature_incentives", "title": "Anreize durch Coins und Klausurbonuspunkte" },
+      { "name": "feature_overall", "title": "Gesamtbewertung" }
+    ],
+    "elements": [
+      {
+        "type": "rating", "name": "T1", "page": "difficulty", "isRequired": true,
+        "title": "Wie schwierig war die gerade bearbeitete Modellierungsaufgabe für dich?",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "überhaupt nicht schwierig", "maxRateDescription": "sehr schwierig"
+      },
+      {
+        "type": "checkbox", "name": "T2", "page": "difficulty", "isRequired": true,
+        "title": "Wobei hast du Unterstützung benötigt?", "description": "Mehrfachauswahl",
+        "choices": ["Keine Unterstützung benötigt", "Aufgabenstellung oder fachliche Zusammenhänge verstehen", "Modellierungskonzepte oder Notationsregeln anwenden", "Entscheiden, wie ich beim Modellieren weiter vorgehe", "Fehler erkennen oder automatisches Feedback verstehen", "Lernplattform bedienen", "Mit Unsicherheit, Frustration oder Zeitdruck umgehen", "Sonstiges"],
+        "exclusiveChoices": ["Keine Unterstützung benötigt"]
+      },
+      {
+        "type": "comment", "name": "T2_other", "page": "difficulty", "isRequired": true,
+        "title": "Sonstiges: Wobei hast du Unterstützung benötigt?",
+        "visibleIf": "{T2} contains 'Sonstiges'"
+      },
+      {
+        "type": "checkbox", "name": "T3", "page": "strategies", "isRequired": true,
+        "title": "Wie bist du überwiegend vorgegangen, wenn du nicht weiterwusstest?", "description": "Mehrfachauswahl",
+        "choices": ["Ich habe eigenständig verschiedene Lösungen ausprobiert.", "Ich habe mein Modell systematisch überprüft oder korrigiert.", "Ich habe gezielt verfügbare Hinweise oder Materialien genutzt.", "Ich habe außerhalb der Lernplattform Unterstützung gesucht.", "Ich habe den schwierigen Teil zunächst übersprungen oder die Bearbeitung beendet.", "Unterschiedlich / keine Vorgehensweise überwog"]
+      },
+      {
+        "type": "checkbox", "name": "T5", "page": "support", "isRequired": true,
+        "title": "Welche Unterstützungsquellen hast du während dieser Aufgabe tatsächlich genutzt?", "description": "Mehrfachauswahl",
+        "choices": ["Keine zusätzliche Unterstützung", "Automatische Modellprüfung / Fortschrittsanzeige der Plattform", "Bereitgestellte Lehrmaterialien oder Beispiele", "Kommilitoninnen oder Kommilitonen", "Lehrende oder Tutorinnen und Tutoren", "Internetrecherche, Tutorials oder Foren", "Generative KI, z. B. ChatGPT", "Sonstiges"],
+        "exclusiveChoices": ["Keine zusätzliche Unterstützung"]
+      },
+      {
+        "type": "comment", "name": "T5_other", "page": "support", "isRequired": true,
+        "title": "Sonstiges: Welche Unterstützungsquelle hast du genutzt?",
+        "visibleIf": "{T5} contains 'Sonstiges'"
+      },
+      {
+        "type": "radiogroup", "name": "T6", "page": "support", "isRequired": true,
+        "title": "Gab es während der Aufgabe Situationen, in denen du Unterstützung gebraucht hättest, aber keine passende erhalten hast?",
+        "choices": ["Nein", "Selten", "Manchmal", "Häufig", "Kann ich nicht beurteilen"]
+      },
+      {
+        "type": "radiogroup", "name": "T7", "page": "completion", "isRequired": true,
+        "title": "Was war der wichtigste Grund dafür, dass du die Aufgabe jetzt beendet hast?",
+        "choices": ["Ich bin mit meinem Modell zufrieden.", "Ich habe das Gefühl, das Lernziel ausreichend erreicht zu haben.", "Ich wusste nicht mehr, wie ich mein Modell verbessern könnte.", "Ich wollte nicht noch mehr Zeit investieren.", "Ich wollte mit der nächsten Aufgabe weitermachen.", "Ich hatte keine Zeit mehr.", "Technische oder andere Gründe"]
+      },
+      {
+        "type": "comment", "name": "T7_other", "page": "completion", "isRequired": true,
+        "title": "Technische oder andere Gründe:",
+        "visibleIf": "{T7} = 'Technische oder andere Gründe'"
+      },
+      {
+        "type": "rating", "name": "T8", "page": "confidence", "isRequired": true,
+        "title": "Wie sicher bist du, dass du eine vergleichbare Modellierungsaufgabe ohne konkrete Hinweise im Text selbstständig lösen könntest?",
+        "rateMin": 1, "rateMax": 5,
+        "minRateDescription": "überhaupt nicht sicher", "maxRateDescription": "vollkommen sicher"
+      },
+      {
+        "type": "radiogroup", "name": "F1", "page": "feature_help", "isRequired": true,
+        "title": "Ist dir während der Modellierungsaufgaben der Button „Ich brauche Hilfe“ aufgefallen?",
+        "choices": ["Ja", "Nein", "Bin mir nicht sicher"]
+      },
+      {
+        "type": "radiogroup", "name": "F3", "page": "feature_help", "isRequired": true,
+        "title": "Wie hoch empfandest du den zusätzlichen Aufwand durch die Nutzung des Buttons „Ich brauche Hilfe“?",
+        "visibleWhen": "help_requested",
+        "choices": ["Sehr gering", "Eher gering", "Mittel", "Eher hoch", "Sehr hoch"]
+      },
+      {
+        "type": "radiogroup", "name": "F4", "page": "feature_pulse", "isRequired": true,
+        "title": "Hast du während der Modellierungsaufgaben mindestens eine spontane Zwischenfrage des Piraten beantwortet?",
+        "choices": ["Ja", "Nein", "Bin mir nicht sicher"]
+      },
+      {
+        "type": "radiogroup", "name": "F5", "page": "feature_pulse", "isRequired": true,
+        "title": "Wie hast du die Häufigkeit der spontanen Zwischenfragen des Piraten empfunden?",
+        "choices": ["Viel zu selten", "Eher zu selten", "Genau richtig", "Eher zu häufig", "Viel zu häufig", "Ich habe keine Zwischenfragen wahrgenommen"]
+      },
+      {
+        "type": "radiogroup", "name": "F6", "page": "feature_pulse", "isRequired": true,
+        "title": "Die spontanen Zwischenfragen des Piraten haben meine eigentliche Modellierungsarbeit spürbar unterbrochen.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – Stimme überhaupt nicht zu", "2": "2 – Stimme eher nicht zu", "3": "3 – Weder noch", "4": "4 – Stimme eher zu", "5": "5 – Stimme vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "F7", "page": "feature_pulse", "isRequired": true,
+        "title": "Wie hoch empfandest du den zusätzlichen Aufwand durch die Beantwortung der spontanen Zwischenfragen des Piraten?",
+        "visibleWhen": "pulse_answered",
+        "choices": ["Sehr gering", "Eher gering", "Mittel", "Eher hoch", "Sehr hoch"]
+      },
+      {
+        "type": "radiogroup", "name": "F8", "page": "feature_pulse", "isRequired": true,
+        "title": "Die spontanen Zwischenfragen des Piraten haben mich gelegentlich dazu angeregt, meinen aktuellen Hilfebedarf bewusster wahrzunehmen.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – Stimme überhaupt nicht zu", "2": "2 – Stimme eher nicht zu", "3": "3 – Weder noch", "4": "4 – Stimme eher zu", "5": "5 – Stimme vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "F9", "page": "feature_incentives", "isRequired": true,
+        "title": "Die Möglichkeit, für beantwortete Zwischenfragen des Piraten Coins zu erhalten, hat mich motiviert, diese Fragen zu beantworten.",
+        "choices": ["1", "2", "3", "4", "5"],
+        "choiceLabels": { "1": "1 – Stimme überhaupt nicht zu", "2": "2 – Stimme eher nicht zu", "3": "3 – Weder noch", "4": "4 – Stimme eher zu", "5": "5 – Stimme vollständig zu" }
+      },
+      {
+        "type": "radiogroup", "name": "F12", "page": "feature_overall", "isRequired": true,
+        "title": "Insgesamt empfand ich den zusätzlichen Aufwand durch die Studienteilnahme, einschließlich des „Ich brauche Hilfe“-Buttons und der spontanen Zwischenfragen des Piraten, angesichts der angebotenen Klausurbonuspunkte und Coins als angemessen.",
+        "choices": ["1", "2", "3", "4", "5"],
+        "choiceLabels": { "1": "1 – Stimme überhaupt nicht zu", "2": "2 – Stimme eher nicht zu", "3": "3 – Weder noch", "4": "4 – Stimme eher zu", "5": "5 – Stimme vollständig zu" }
+      }
+    ]
+  }
+}

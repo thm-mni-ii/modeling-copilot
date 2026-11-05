@@ -1,6 +1,6 @@
 import { CellHighlight, type Graph } from '@maxgraph/core'
 import { notifyWarning } from '@/composables/useNotifications'
-import type { Session } from '@/collab/connection/collabKitV1'
+import type { Session } from '@/collab/kit/collabKitV1'
 
 /** How long a cell whose change was lost stays framed. */
 const FRAME_MS = 4000

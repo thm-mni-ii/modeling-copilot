@@ -15,12 +15,44 @@ from modeling_api.schemas.models import (
     ModelVersionInfo,
     SortOrder,
     TaskEditDocument,
+    TaskEditVersionInfo,
     UpdateModel,
     UpdateTaskEdit,
 )
 from modeling_api.services import models as service
+from modeling_api.services import model_activity
+from modeling_api.schemas.model_activity import ActivitySession, SaveActivitySession, StoredActivityInteraction
 
 router = APIRouter(prefix="/models", tags=["Models"])
+
+
+@router.put("/{model_id}/activity/sessions/{session_id}", status_code=204,
+            summary="Save an editor session and its pending interactions")
+async def save_activity_session(
+    model_id: UUID, session_id: UUID, body: SaveActivitySession, user: CurrentUser,
+) -> None:
+    await model_activity.save_session(model_id, session_id, body, user)
+
+
+@router.get("/{model_id}/activity/sessions", response_model=Page[ActivitySession],
+            summary="List model sessions (administrators only)")
+async def list_activity_sessions(model_id: UUID, user: CurrentUser, skip: Skip = 0, limit: Limit = 100):
+    return await model_activity.list_sessions(model_id, skip, limit, user)
+
+
+@router.get("/{model_id}/activity/sessions/{session_id}", response_model=ActivitySession,
+            summary="Get an editor session (administrators only)")
+async def activity_session(model_id: UUID, session_id: UUID, user: CurrentUser):
+    return await model_activity.get_session(model_id, session_id, user)
+
+
+@router.get("/{model_id}/activity/sessions/{session_id}/interactions",
+            response_model=Page[StoredActivityInteraction],
+            summary="List session interactions chronologically (administrators only)")
+async def activity_interactions(
+    model_id: UUID, session_id: UUID, user: CurrentUser, skip: Skip = 0, limit: Limit = 100,
+):
+    return await model_activity.list_interactions(model_id, session_id, skip, limit, user)
 
 
 @router.get(
@@ -104,9 +136,9 @@ async def get_task_edit(model_id: UUID, user: CurrentUser) -> TaskEditDocument |
 
 @router.put(
     "/{model_id}/task-edit",
-    summary="Replace current task edits",
+    summary="Save local task editing actions",
     description=(
-        "Validates and replaces the complete task-edit document. The original task text, "
+        "Publishes an idempotent batch of task editing patches as checkpoints with automatic full releases. The original task text, "
         "structure, formatting, and task references cannot be changed. A stale baseRevision "
         "returns HTTP 409."
     ),
@@ -118,6 +150,16 @@ async def update_task_edit(
     user: CurrentUser,
 ) -> TaskEditDocument:
     return TaskEditDocument.model_validate(await service.update_task_edit(model_id, body, user))
+
+
+@router.get("/{model_id}/task-edit/history", response_model=Page[TaskEditVersionInfo])
+async def task_edit_history(model_id: UUID, user: CurrentUser, skip: Skip = 0, limit: Limit = 100):
+    return await service.list_task_edit_history(model_id, skip, limit, user)
+
+
+@router.get("/{model_id}/task-edit/history/{version_id}", response_model=TaskEditDocument)
+async def task_edit_version(model_id: UUID, version_id: UUID, user: CurrentUser):
+    return await service.get_task_edit_version(model_id, version_id, user)
 
 
 @router.get(

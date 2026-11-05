@@ -1,15 +1,16 @@
 import { InternalEvent, type Cell, type Graph } from '@maxgraph/core'
 import { notifyWarning } from '@/composables/useNotifications'
 import { exportModelAsXml, importModelFromXml } from '@/utils/modelPersistence'
-import type { Session } from '@/collab/connection/collabKitV1'
+import type { Session } from '@/collab/kit/collabKitV1'
 import { applyCells, cellsOfUndoneEdit, type HeldText } from './applyCells'
 import { watchGraphChanges } from './graphChanges'
-import { joinModel, splitModel, type SharedCell } from './modelCells'
+import { joinModel, splitModel } from '@/collab/storage/modelCells'
+import { cellsOf, isCellKey, type ModelUnit } from '@/collab/storage/modelUnits'
 import { lockGraph } from './readOnly'
 import { sharedHistory } from './sharedHistory'
 
 /** Keeps the model in the units of the session one cell per key, so edits on different cells merge. */
-export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text: string) => void) => {
+export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: (text: string) => void) => {
   const model = graph.getDataModel()
   let stopRemote: (() => void) | null = null
   let ready = false
@@ -20,7 +21,8 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
   // Text another changed while it is edited here, with the text before; the own text wins.
   const heldBack = new Map<Cell, unknown>()
 
-  const known = () => new Map(session.units.entries())
+  // Only the cells; push would else delete what lies beside them, and joinModel read it as cell XML.
+  const known = () => cellsOf(session.units.entries())
 
   // Cells created in this session get IDs no one else creates; maxGraph's counter follows only numeric IDs.
   // A new client comes with a change of the own anonymity, so new cells never tie the open and the anonymous one.
@@ -177,8 +179,9 @@ export const bindGraph = (graph: Graph, session: Session<SharedCell>, log: (text
       if (cells.size > 0) applyRemote(`received model · ${cells.size} cells`)
       else if (session.mayWrite) push(false)
       stopRemote = session.units.onChange((keys, remote) => {
-        if (!remote) return
-        applyChanged(keys, `received ${keys.length} of ${session.units.entries().length} cells`)
+        const cellKeys = keys.filter(isCellKey)
+        if (!remote || cellKeys.length === 0) return
+        applyChanged(cellKeys, `received ${cellKeys.length} of ${known().size} cells`)
         if (heldBack.size > 0) takeOverHeld()
       })
       ready = true

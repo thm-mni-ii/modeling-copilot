@@ -20,8 +20,11 @@ export interface TaskEditListEntry {
   createdAt: string
   updatedAt: string | null
   color: string | null
-  fragments: string[]
+  fragments: TaskEditFragment[]
 }
+
+export interface TaskEditFragment { text: string; from: number; to: number }
+export interface TaskEditFocus { id: string; from?: number; to?: number }
 
 interface JsonNode extends JsonObject {
   type?: string
@@ -37,9 +40,24 @@ interface JsonMark extends JsonObject {
 
 export const cloneTaskDocument = (document: JsonObject): JsonObject => JSON.parse(JSON.stringify(document)) as JsonObject
 
+export const flashTaskEdits = (host: HTMLElement, ids: readonly string[]) => {
+  for (const id of new Set(ids)) {
+    host.querySelectorAll<HTMLElement>(`[data-task-edit-id="${CSS.escape(id)}"]`).forEach((element) => element.animate([
+      { outline: '2px solid rgb(25, 118, 210)' },
+      { outline: '2px solid transparent' }
+    ], { duration: 1400 }))
+  }
+}
+
 const normalizeNode = (node: JsonNode | null): JsonNode | null => {
   if (!node) return null
   const result = { ...node }
+  if (node.attrs) {
+    const attrs = Object.fromEntries(Object.entries(node.attrs).filter(([, value]) => value !== null).sort(([a], [b]) => a.localeCompare(b)))
+    if (Object.keys(attrs).length) result.attrs = attrs
+    else delete result.attrs
+  }
+  if (node.marks?.length) result.marks = node.marks.map((mark) => normalizeNode(mark as JsonNode) as JsonMark).sort((a, b) => (a.type ?? '').localeCompare(b.type ?? ''))
   if (Array.isArray(node.content)) {
     const content: JsonNode[] = []
     for (const child of node.content) {
@@ -53,7 +71,7 @@ const normalizeNode = (node: JsonNode | null): JsonNode | null => {
     else delete result.content
   }
   if (result.type === 'text' && !result.text) return null
-  return result
+  return Object.fromEntries(Object.entries(result).sort(([a], [b]) => a.localeCompare(b))) as JsonNode
 }
 
 export const stripTaskEdits = (document: JsonObject): JsonObject => {
@@ -75,7 +93,7 @@ export const taskDocumentsEqual = (left: JsonObject, right: JsonObject) => JSON.
 export const collectTaskEdits = (document: JsonObject | null | undefined): TaskEditListEntry[] => {
   if (!document) return []
   const entries = new Map<string, TaskEditListEntry>()
-  const visit = (node: JsonNode) => {
+  const visit = (node: JsonNode, position: number): number => {
     const text = typeof node.text === 'string' ? node.text : ''
     for (const mark of Array.isArray(node.marks) ? node.marks : []) {
       if (!mark.type || !(mark.type in TASK_EDIT_MARKS)) continue
@@ -90,12 +108,20 @@ export const collectTaskEdits = (document: JsonObject | null | undefined): TaskE
         color: typeof attrs.color === 'string' ? attrs.color : null,
         fragments: []
       }
-      if (text) current.fragments.push(text)
+      if (text) {
+        const previous = current.fragments[current.fragments.length - 1]
+        if (previous?.to === position) { previous.text += text; previous.to += text.length }
+        else current.fragments.push({ text, from: position, to: position + text.length })
+      }
       entries.set(id, current)
     }
-    node.content?.forEach(visit)
+    if (node.type === 'text') return position + text.length
+    if (!node.content) return position + (node.type === 'doc' ? 0 : node.type === 'hardBreak' || node.type === 'horizontalRule' ? 1 : 2)
+    let next = position + (node.type === 'doc' ? 0 : 1)
+    for (const child of node.content) next = visit(child, next)
+    return next + (node.type === 'doc' ? 0 : 1)
   }
-  visit(document as JsonNode)
+  visit(document as JsonNode, 0)
   return [...entries.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id))
 }
 

@@ -1,0 +1,1143 @@
+{
+  "elements": [
+    {
+      "type": "serm-entity",
+      "defaultLabel": "E-Type",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 100,
+      "height": 50,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "foldable": false,
+        "spacingTop": 4
+      },
+      "anchorPoints": [
+        {
+          "x": 1,
+          "y": 0.25
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 1,
+          "y": 0.75
+        }
+      ],
+      "children": [
+        {
+          "type": "serm-attribute-list",
+          "defaultLabel": "",
+          "renderMode": "swimlane",
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 100,
+            "height": 20,
+            "relative": true
+          },
+          "style": {
+            "strokeColor": "#9e9e9e",
+            "fillColor": "none",
+            "strokeWidth": 1,
+            "dashed": true,
+            "fontSize": 11,
+            "fontColor": "#000000",
+            "fontFamily": "Arial",
+            "align": "left",
+            "verticalAlign": "top",
+            "startSize": 0,
+            "horizontal": true,
+            "swimlaneLine": false,
+            "labelBackgroundColor": "transparent",
+            "layoutPreset": "list",
+            "containerLayout": "list",
+            "listDirection": "vertical",
+            "listItemSpacing": 0,
+            "listCrossPadding": 2,
+            "listStretchCrossAxis": true,
+            "resizeMainAxis": true,
+            "resizeCrossAxis": false,
+            "minHeight": 20,
+            "foldable": false
+          },
+          "children": [],
+          "connectable": false,
+          "allowLabelEdit": false
+        }
+      ],
+      "connectable": true,
+      "resizable": false,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "rectangle"
+    },
+    {
+      "type": "serm-er",
+      "defaultLabel": "ER-Type",
+      "renderMode": "canvas2d",
+      "x": 50,
+      "y": 50,
+      "width": 100,
+      "height": 50,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "foldable": false,
+        "spacingTop": 4
+      },
+      "anchorPoints": [
+        {
+          "x": 0,
+          "y": 0.25
+        },
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 0,
+          "y": 0.75
+        },
+        {
+          "x": 1,
+          "y": 0.25
+        },
+        {
+          "x": 1,
+          "y": 0.5
+        },
+        {
+          "x": 1,
+          "y": 0.75
+        }
+      ],
+      "children": [
+        {
+          "type": "serm-attribute-list",
+          "defaultLabel": "",
+          "renderMode": "swimlane",
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 100,
+            "height": 20,
+            "relative": true
+          },
+          "style": {
+            "strokeColor": "#9e9e9e",
+            "fillColor": "none",
+            "strokeWidth": 1,
+            "dashed": true,
+            "fontSize": 11,
+            "fontColor": "#000000",
+            "fontFamily": "Arial",
+            "align": "left",
+            "verticalAlign": "top",
+            "startSize": 0,
+            "horizontal": true,
+            "swimlaneLine": false,
+            "labelBackgroundColor": "transparent",
+            "layoutPreset": "list",
+            "containerLayout": "list",
+            "listDirection": "vertical",
+            "listItemSpacing": 0,
+            "listCrossPadding": 2,
+            "listStretchCrossAxis": true,
+            "resizeMainAxis": true,
+            "resizeCrossAxis": false,
+            "minHeight": 20,
+            "foldable": false
+          },
+          "children": [],
+          "connectable": false,
+          "allowLabelEdit": false
+        }
+      ],
+      "connectable": true,
+      "resizable": false,
+      "movable": true,
+      "allowLabelEdit": true,
+      "canvas": "RECT 0 0 1 1\nMOVE 0.16 0\nLINE 0 0.5\nLINE 0.16 1"
+    },
+    {
+      "type": "serm-relationship",
+      "defaultLabel": "R-Type",
+      "renderMode": "canvas2d",
+      "x": 50,
+      "y": 50,
+      "width": 100,
+      "height": 50,
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 14,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "foldable": false,
+        "spacingTop": 4
+      },
+      "anchorPoints": [
+        {
+          "x": 0,
+          "y": 0.25
+        },
+        {
+          "x": 0,
+          "y": 0.5
+        },
+        {
+          "x": 0,
+          "y": 0.75
+        }
+      ],
+      "children": [
+        {
+          "type": "serm-attribute-list",
+          "defaultLabel": "",
+          "renderMode": "swimlane",
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 100,
+            "height": 20,
+            "relative": true
+          },
+          "style": {
+            "strokeColor": "#9e9e9e",
+            "fillColor": "none",
+            "strokeWidth": 1,
+            "dashed": true,
+            "fontSize": 11,
+            "fontColor": "#000000",
+            "fontFamily": "Arial",
+            "align": "left",
+            "verticalAlign": "top",
+            "startSize": 0,
+            "horizontal": true,
+            "swimlaneLine": false,
+            "labelBackgroundColor": "transparent",
+            "layoutPreset": "list",
+            "containerLayout": "list",
+            "listDirection": "vertical",
+            "listItemSpacing": 0,
+            "listCrossPadding": 2,
+            "listStretchCrossAxis": true,
+            "resizeMainAxis": true,
+            "resizeCrossAxis": false,
+            "minHeight": 20,
+            "foldable": false
+          },
+          "children": [],
+          "connectable": false,
+          "allowLabelEdit": false
+        }
+      ],
+      "connectable": true,
+      "resizable": false,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "rhombus",
+      "canvas": "RECT 0 0 1 1\nMOVE 0.16 0\nLINE 0 0.5\nLINE 0.16 1\nMOVE 0.84 0\nLINE 1 0.5\nLINE 0.84 1"
+    },
+    {
+      "type": "serm-attribute",
+      "defaultLabel": "Attribute",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 100,
+      "height": 20,
+      "style": {
+        "strokeColor": "transparent",
+        "fillColor": "transparent",
+        "strokeWidth": 0,
+        "fontSize": 11,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "left",
+        "verticalAlign": "middle",
+        "spacingLeft": 4,
+        "spacingTop": 4
+      },
+      "anchorPoints": [],
+      "children": [],
+      "connectable": false,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "label"
+    },
+    {
+      "type": "serm-key-attribute",
+      "defaultLabel": "Key Attribute",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 100,
+      "height": 20,
+      "style": {
+        "strokeColor": "transparent",
+        "fillColor": "transparent",
+        "strokeWidth": 0,
+        "fontSize": 11,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "left",
+        "verticalAlign": "middle",
+        "spacingLeft": 4,
+        "spacingTop": 4,
+        "fontStyle": 4
+      },
+      "anchorPoints": [],
+      "children": [],
+      "connectable": false,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "label"
+    }
+  ],
+  "connections": [
+    {
+      "type": "serm-0-1",
+      "label": "(0,1)",
+      "defaultLabel": "",
+      "connectionType": "0-1",
+      "connectable": true,
+      "style": {
+        "shape": "connector",
+        "strokeColor": "#000000",
+        "strokeWidth": 1,
+        "strokeOpacity": 100,
+        "dashed": false,
+        "startArrow": "none",
+        "endArrow": "none",
+        "startFill": true,
+        "endFill": true,
+        "align": "center",
+        "verticalAlign": "middle",
+        "labelPosition": "center",
+        "fontColor": "#000000",
+        "fontSize": 10
+      },
+      "additionalLabels": [
+        {
+          "type": "role",
+          "text": "",
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "relative": true,
+            "offsetX": 0,
+            "offsetY": -14,
+            "width": 60,
+            "height": 20
+          },
+          "style": {
+            "fontSize": 11,
+            "fontColor": "#000000"
+          },
+          "connectable": false,
+          "allowLabelEdit": true
+        }
+      ]
+    },
+    {
+      "type": "serm-0-n",
+      "label": "(0,*)",
+      "defaultLabel": "",
+      "connectionType": "0-n",
+      "connectable": true,
+      "style": {
+        "shape": "connector",
+        "strokeColor": "#000000",
+        "strokeWidth": 1,
+        "strokeOpacity": 100,
+        "dashed": false,
+        "startArrow": "none",
+        "endArrow": "classic",
+        "startFill": true,
+        "endFill": true,
+        "align": "center",
+        "verticalAlign": "middle",
+        "labelPosition": "center",
+        "fontColor": "#000000",
+        "fontSize": 10
+      },
+      "additionalLabels": [
+        {
+          "type": "role",
+          "text": "",
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "relative": true,
+            "offsetX": 0,
+            "offsetY": -14,
+            "width": 60,
+            "height": 20
+          },
+          "style": {
+            "fontSize": 11,
+            "fontColor": "#000000"
+          },
+          "connectable": false,
+          "allowLabelEdit": true
+        }
+      ]
+    },
+    {
+      "type": "serm-1-1",
+      "label": "(1,1)",
+      "defaultLabel": "",
+      "connectionType": "1-1",
+      "connectable": true,
+      "style": {
+        "shape": "doubleLine",
+        "strokeColor": "#000000",
+        "strokeWidth": 1,
+        "strokeOpacity": 100,
+        "dashed": false,
+        "startArrow": "none",
+        "endArrow": "none",
+        "startFill": true,
+        "align": "center",
+        "verticalAlign": "middle",
+        "labelPosition": "center",
+        "fontColor": "#000000",
+        "fontSize": 10,
+        "fillColor": "#ffffff",
+        "startSize": 2
+      },
+      "additionalLabels": [
+        {
+          "type": "role",
+          "text": "",
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "relative": true,
+            "offsetX": 0,
+            "offsetY": -14,
+            "width": 60,
+            "height": 20
+          },
+          "style": {
+            "fontSize": 11,
+            "fontColor": "#000000"
+          },
+          "connectable": false,
+          "allowLabelEdit": true
+        }
+      ]
+    },
+    {
+      "type": "serm-1-n",
+      "label": "(1,*)",
+      "defaultLabel": "",
+      "connectionType": "1-n",
+      "connectable": true,
+      "style": {
+        "shape": "doubleLine",
+        "strokeColor": "#000000",
+        "strokeWidth": 1,
+        "strokeOpacity": 100,
+        "dashed": false,
+        "startArrow": "none",
+        "endArrow": "classic",
+        "startFill": true,
+        "endFill": true,
+        "align": "center",
+        "verticalAlign": "middle",
+        "labelPosition": "center",
+        "fontColor": "#000000",
+        "fontSize": 10,
+        "fillColor": "#ffffff",
+        "startSize": 2,
+        "endSize": 8
+      },
+      "additionalLabels": [
+        {
+          "type": "role",
+          "text": "",
+          "geometry": {
+            "x": 0,
+            "y": 0,
+            "relative": true,
+            "offsetX": 0,
+            "offsetY": -14,
+            "width": 60,
+            "height": 20
+          },
+          "style": {
+            "fontSize": 11,
+            "fontColor": "#000000"
+          },
+          "connectable": false,
+          "allowLabelEdit": true
+        }
+      ]
+    }
+  ],
+  "syntax": [
+    {
+      "ruleType": "multiplicity",
+      "config": {
+        "messageTemplate": "The connection {source} -> {target} ({connection}) violates the cardinality ({min}..{max}).",
+        "relations": [
+          {
+            "sourceType": "serm-entity",
+            "targetType": "serm-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-entity",
+            "targetType": "serm-er",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-entity",
+            "targetType": "serm-relationship",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-er",
+            "targetType": "serm-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-er",
+            "targetType": "serm-er",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-er",
+            "targetType": "serm-relationship",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-relationship",
+            "targetType": "serm-entity",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-relationship",
+            "targetType": "serm-er",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          },
+          {
+            "sourceType": "serm-relationship",
+            "targetType": "serm-relationship",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "feedback": {
+    "elements": {
+      "serm-entity": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "serm-er": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "serm-relationship": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "serm-attribute": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "serm-key-attribute": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      }
+    },
+    "connections": {
+      "serm-0-1": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "serm-0-n": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "serm-1-1": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "serm-1-n": {
+        "correct": {
+          "image": {
+            "src": "/images/checkmark.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "/images/error.gif",
+            "width": 26,
+            "height": 26
+          },
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "/images/warning.gif",
+            "width": 28,
+            "height": 28
+          },
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      }
+    },
+    "canvas": {
+      "activeElementId": "feedback-element-1",
+      "configurableElements": [
+        {
+          "id": "feedback-element-1",
+          "element": {
+            "type": "__feedback_label___1",
+            "defaultLabel": "Feedback",
+            "renderMode": "swimlane",
+            "predefinedShape": "rectangle",
+            "x": 0,
+            "y": 0,
+            "width": 180,
+            "height": 72,
+            "style": {
+              "shape": "swimlane",
+              "rounded": 0,
+              "strokeColor": "#f57c00",
+              "fillColor": "#fff8e1",
+              "strokeWidth": 1,
+              "fontSize": 12,
+              "fontColor": "#5d4037",
+              "fontFamily": "Arial",
+              "fontStyle": 1,
+              "align": "left",
+              "verticalAlign": "middle",
+              "startSize": 28,
+              "horizontal": true,
+              "labelBackgroundColor": "#ffe0b2",
+              "spacingLeft": 10,
+              "whiteSpace": "wrap",
+              "cellRole": "feedback",
+              "lockToLayer": 1
+            },
+            "anchorPoints": [
+              {
+                "x": 0.5,
+                "y": 0
+              },
+              {
+                "x": 1,
+                "y": 0.5
+              },
+              {
+                "x": 0.5,
+                "y": 1
+              },
+              {
+                "x": 0,
+                "y": 0.5
+              }
+            ],
+            "children": [],
+            "connectable": true,
+            "resizable": true,
+            "movable": true,
+            "allowLabelEdit": false
+          },
+          "connection": {
+            "type": "__feedback_note_link___1",
+            "label": "Feedback Connection",
+            "defaultLabel": "",
+            "connectionType": "feedback-note",
+            "connectable": false,
+            "style": {
+              "shape": "connector",
+              "strokeColor": "#9e9e9e",
+              "strokeWidth": 1,
+              "strokeOpacity": 100,
+              "dashed": true,
+              "dashPattern": "4 4",
+              "startArrow": "none",
+              "endArrow": "none",
+              "startFill": true,
+              "endFill": true,
+              "align": "center",
+              "verticalAlign": "middle",
+              "labelPosition": "center",
+              "fontColor": "#9e9e9e",
+              "fontSize": 9
+            },
+            "additionalLabels": []
+          }
+        }
+      ],
+      "rules": {
+        "onlyFeedbackAsSource": true,
+        "allowTargetElements": true,
+        "allowTargetConnections": true,
+        "forbidFeedbackAsTarget": true,
+        "enforceDedicatedConnection": true,
+        "preventContainerDrop": true
+      }
+    }
+  }
+}

@@ -7,7 +7,15 @@ from uuid import UUID
 from modeling_api.core.auth import User
 from modeling_api.core.errors import conflict, not_found
 from modeling_api.db.client import db
-from modeling_api.db.store import Document, insert, list_page, save_version, to_api, utcnow
+from modeling_api.db.store import (
+    Document,
+    insert,
+    list_page,
+    save_version,
+    sort_stages,
+    to_api,
+    utcnow,
+)
 from modeling_api.schemas.models import (
     CreateModel,
     CreateModelVersion,
@@ -17,8 +25,9 @@ from modeling_api.schemas.models import (
     UpdateModel,
 )
 from modeling_api.services.languages import check_language_refs
+from modeling_api.services.learning_path_access import require_model_access
 from modeling_api.services.xml_patches import apply_patches, validate_model_xml
-from modeling_api.services.task_edits import validate_task_edit_document
+from modeling_api.services import task_edit_history
 
 
 async def list_models(
@@ -37,45 +46,82 @@ async def list_models(
         filters["taskVersion"] = {"$ne": None} if task_bound else None
     if q and q.strip():
         filters["name"] = {"$regex": escape(q.strip()), "$options": "i"}
-    return await list_page(
-        db.models,
-        filters,
-        skip,
-        limit,
-        sort_field=sort,
-        sort_desc=order != "asc",
-        omit=("taskEditBaseSignature", "taskEdit"),
+    cursor = await db.models.aggregate(
+        [
+            {"$match": filters},
+            {
+                "$lookup": {
+                    "from": "learning_path_run_steps",
+                    "localField": "_id",
+                    "foreignField": "modelId",
+                    "as": "_pathSteps",
+                }
+            },
+            {"$match": {"_pathSteps": {"$eq": []}}},
+            {
+                "$facet": {
+                    "items": [
+                        *sort_stages(sort, descending=order != "asc"),
+                        {"$skip": skip},
+                        {"$limit": limit},
+                        {
+                            "$project": {
+                                "_pathSteps": 0,
+                                "taskEditBaseSignature": 0,
+                                "taskEdit": 0,
+                            }
+                        },
+                    ],
+                    "count": [{"$count": "total"}],
+                }
+            },
+        ]
     )
+    result = await cursor.to_list(length=1)
+    page = result[0]
+    return {
+        "items": [to_api(item) for item in page["items"]],
+        "total": page["count"][0]["total"] if page["count"] else 0,
+    }
 
 
 async def create_model(body: CreateModel, user: User) -> Document:
     if body.task_version is not None:
         from modeling_api.services.tasks import ensure_release_reference
 
-        await ensure_release_reference(body.task_version.task_id, body.task_version.version_id, user)
-    return await insert(
-        db.models,
-        {
-            "name": body.name,
-            "ownerId": user.id,
-            "latestVersionId": None,
-            "taskVersion": body.task_version.model_dump(mode="json", by_alias=True)
+        await ensure_release_reference(
+            body.task_version.task_id, body.task_version.version_id, user
+        )
+    return await insert(db.models, model_fields(body, user))
+
+
+def model_fields(body: CreateModel, user: User) -> Document:
+    """Shared initialization for ordinary and path-owned task models."""
+    return {
+        "name": body.name,
+        "ownerId": user.id,
+        "latestVersionId": None,
+        "taskVersion": (
+            body.task_version.model_dump(mode="json", by_alias=True)
             if body.task_version
-            else None,
-            "taskEdit": None,
-            "preferences": {},
-            "updatedAt": utcnow(),
-            "archivedAt": None,
-        },
-    )
+            else None
+        ),
+        "taskEditVersionId": None,
+        "taskEditRevision": 0,
+        "preferences": {},
+        "updatedAt": utcnow(),
+        "archivedAt": None,
+    }
 
 
 async def get_model(model_id: UUID, user: User) -> Document:
     result = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
     if result is None:
         raise not_found()
+    await require_model_access(model_id, user)
     api_model = to_api(result)
     api_model.pop("taskEditBaseSignature", None)
+    api_model["taskEdit"] = await task_edit_history.snapshot(result.get("taskEditVersionId"), str(model_id))
     return api_model
 
 
@@ -96,8 +142,14 @@ async def delete_model(model_id: UUID, user: User) -> None:
     """Administrative hard delete; the regular UI archives models instead."""
     await get_model(model_id, user)
     model_id_str = str(model_id)
+    if await db.learning_path_run_steps.find_one({"modelId": model_id_str}):
+        raise conflict("Models referenced by a learning-path step cannot be deleted.")
     await db.feedback.delete_many({"modelId": model_id_str})
     await db.model_versions.delete_many({"modelId": model_id_str})
+    await db.task_edit_versions.delete_many({"modelId": model_id_str})
+    session_ids = await db.model_activity_sessions.distinct("_id", {"modelId": model_id_str})
+    await db.model_activity_interactions.delete_many({"sessionId": {"$in": session_ids}})
+    await db.model_activity_sessions.delete_many({"modelId": model_id_str})
     await db.models.delete_one({"_id": model_id_str, "ownerId": user.id})
 
 
@@ -106,55 +158,39 @@ async def get_task_edit(model_id: UUID, user: User) -> Document | None:
     return model.get("taskEdit")
 
 
+async def ensure_task_questionnaire_completed(model_id):
+    from modeling_api.services.learning_path_store import (
+        template_document, run_by_model, run_sessions, linked_session,
+    )
+
+    found = await run_by_model(model_id)
+    if not found:
+        return
+    run, state = found
+    if state.get("completedAt"):
+        return
+    template = await template_document(run["templateId"])
+    step = next((s for s in template["steps"] if s["id"] == state["stepId"]), None)
+    survey_id = step.get("task", {}).get("beforeSurveyId") if step else None
+    assignment = {"surveyId": survey_id} if survey_id else None
+    if assignment:
+        session = linked_session(state, assignment, await run_sessions(run), "before")
+        if not session or session["status"] != "submitted":
+            raise conflict("Complete the questionnaire before working on the task.")
+
+
 async def update_task_edit(model_id: UUID, body: UpdateTaskEdit, user: User) -> Document:
     model = await get_model(model_id, user)
-    stored_model = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
-    if stored_model is None:
-        raise not_found()
-    task_reference = model.get("taskVersion")
-    if task_reference is None:
-        raise conflict("A model without an assigned task cannot have task edits.")
-    current = model.get("taskEdit")
-    current_revision = int(current.get("revision", 0)) if current else 0
-    if body.base_revision != current_revision:
-        raise conflict("Task edits changed concurrently. Reload them before saving again.")
+    await ensure_task_questionnaire_completed(model_id)
+    return await task_edit_history.publish(model, body, user)
 
-    task_version = await db.task_version.find_one(
-        {
-            "_id": task_reference["versionId"],
-            "taskId": task_reference["taskId"],
-            "kind": "release",
-        }
-    )
-    if task_version is None:
-        raise not_found()
-    signature = validate_task_edit_document(
-        body.document,
-        task_version.get("data", {}).get("contentHtml", ""),
-        stored_model.get("taskEditBaseSignature"),
-    )
-    now = utcnow()
-    task_edit = {
-        "schemaVersion": 1,
-        "revision": current_revision + 1,
-        "updatedAt": now,
-        "document": body.document,
-    }
-    updated = await db.models.update_one(
-        {"_id": str(model_id), "ownerId": user.id, "taskEdit.revision": current_revision}
-        if current
-        else {"_id": str(model_id), "ownerId": user.id, "taskEdit": None},
-        {
-            "$set": {
-                "taskEdit": task_edit,
-                "taskEditBaseSignature": signature,
-                "updatedAt": now,
-            }
-        },
-    )
-    if updated.matched_count == 0:
-        raise conflict("Task edits changed concurrently. Reload them before saving again.")
-    return task_edit
+
+async def list_task_edit_history(model_id, skip, limit, user):
+    return await task_edit_history.list_history(await get_model(model_id, user), skip, limit)
+
+
+async def get_task_edit_version(model_id, version_id, user):
+    return await task_edit_history.get_snapshot(await get_model(model_id, user), str(version_id))
 
 
 async def list_versions(model_id: UUID, skip: int, limit: int, user: User) -> Document:
@@ -175,7 +211,9 @@ async def get_version(model_id: UUID, version_id: UUID, user: User) -> Document:
     )
     if version is None:
         raise not_found()
-    return to_api(await _materialize_version(version))
+    result = await _materialize_version(version)
+    result["taskEditSnapshot"] = await task_edit_history.snapshot(version.get("taskEditVersionId"), str(model_id))
+    return to_api(result)
 
 
 async def _materialize_version(version: Document) -> Document:
@@ -225,6 +263,8 @@ async def _materialize_version(version: Document) -> Document:
 
 async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -> Document:
     model = await get_model(model_id, user)
+    if model.get("latestVersionId"):
+        await ensure_task_questionnaire_completed(model_id)
     # Models store direct language selections only. Dependencies are resolved
     # from the selected language versions when needed.
     await check_language_refs(body.workspace_languages)
@@ -267,7 +307,12 @@ async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -
         by_alias=True,
         exclude={"base_version_id", "base_release_id"},
     )
-    fields["taskEditSnapshot"] = deepcopy(model.get("taskEdit")) if model_task else None
+    task_edit_id = model.get("taskEditVersionId") if model_task else None
+    if "task_edit_version_id" in body.model_fields_set:
+        task_edit_id = str(body.task_edit_version_id) if body.task_edit_version_id else None
+        if task_edit_id:
+            await task_edit_history.get_snapshot(model, task_edit_id)
+    fields["taskEditVersionId"] = task_edit_id
     if body.kind == "release":
         validate_model_xml(body.data["xml"])
         fields.pop("patches", None)
@@ -301,4 +346,6 @@ async def create_version(model_id: UUID, body: CreateModelVersion, user: User) -
     stored = await db.model_versions.find_one({"_id": str(result["id"])})
     if stored is None:
         raise not_found()
-    return to_api(await _materialize_version(stored))
+    result = await _materialize_version(stored)
+    result["taskEditSnapshot"] = await task_edit_history.snapshot(stored.get("taskEditVersionId"), str(model_id))
+    return to_api(result)

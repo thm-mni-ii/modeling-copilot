@@ -30,6 +30,9 @@
             <a v-if="feedbacksystemUrl" class="feedbacksystem-login__url d-inline-block mt-2" :href="feedbacksystemUrl" target="_blank" rel="noopener noreferrer">{{ feedbacksystemUrl }}</a>
 
             <template v-if="isDevelopment">
+              <h2 class="text-subtitle-2 mt-5 mb-2">Development login</h2>
+              <p>The default admin login is username <code>admin</code> and password <code>admin123</code> (all lowercase). If you need other users to test different roles, create them in the Feedbacksystem with a username and password.</p>
+
               <h2 class="text-subtitle-2 mt-5 mb-2">Local setup</h2>
               <p>Start the Feedbacksystem, the Copilot frontend and its API. In the Feedbacksystem application management, register the Copilot with these settings:</p>
               <dl class="feedbacksystem-login__settings mt-3">
@@ -40,7 +43,7 @@
                 <dt>Mode</dt>
                 <dd>IFRAME or EXTERNAL</dd>
                 <dt>OIDC</dt>
-                <dd>Enabled · PUBLIC client · no secret</dd>
+                <dd>Enabled · PUBLIC with PKCE (API secret empty), or CONFIDENTIAL with OIDC_CLIENT_SECRET set in the API</dd>
                 <dt>Redirect URI</dt>
                 <dd>{{ fbsRedirectUri }}</dd>
                 <dt>Scopes</dt>

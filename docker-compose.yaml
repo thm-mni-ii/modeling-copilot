@@ -26,6 +26,15 @@ services:
       JWT_ALGORITHM: RS256
       JWT_JWKS_URI: http://host.docker.internal:8080/oauth2/jwks
       JWT_ISSUER: http://localhost:8083
+      # Sign-in without the Feedbacksystem: the API exchanges and renews the
+      # tokens through the same shell as the browser's authorization request.
+      # Going directly to port 8080 can select a different issuer. For a PUBLIC
+      # client leave OIDC_CLIENT_SECRET empty; a CONFIDENTIAL client's secret
+      # goes into a git-ignored .env next to this file.
+      OIDC_TOKEN_URI: http://host.docker.internal:8083/oauth2/token
+      # Preserve the public origin when connecting through Docker's host alias.
+      OIDC_TOKEN_HOST: localhost:8083
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       DOCS_ENABLED: "true"
       CORS_ORIGINS: http://localhost:5173
       DAGU_BASE_URL: http://dagu:8080
@@ -84,7 +93,7 @@ services:
     restart: unless-stopped
 
   collab-kit:
-    image: ghcr.io/thm-mni-ii/collab-kit:v0.5.1
+    image: ghcr.io/thm-mni-ii/collab-kit:v0.6.1
     ports:
       - "127.0.0.1:24202:24202"
     environment:

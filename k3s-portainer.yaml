@@ -16,6 +16,82 @@ data:
 
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: modeling-copilot-backup
+  namespace: modeling-copilot
+data:
+  # Used only in archive names, never to decide whether a backup is needed.
+  BACKUP_RELEASE_VERSION: latest
+  backup.sh: |
+    #!/bin/sh
+    set -eu
+    umask 077
+
+    : "${POD_UID:?POD_UID is required}"
+    : "${MONGODB_DATABASE:?MONGODB_DATABASE is required}"
+    : "${DB_USER:?DB_USER is required}"
+    : "${DB_PASSWORD:?DB_PASSWORD is required}"
+    case "$POD_UID" in
+      *[!a-zA-Z0-9-]*) echo "Invalid pod UID." >&2; exit 1 ;;
+    esac
+
+    backup_root=${BACKUP_ROOT:-/backups}
+    backup_dir="$backup_root/pod-$POD_UID"
+    if [ -d "$backup_dir" ]; then
+      # Init containers can run again; only reuse a complete, intact backup.
+      cd "$backup_dir"
+      sha256sum -c SHA256SUMS
+      gzip -t ./*.archive.gz
+      echo "Verified existing pre-migration backup: $backup_dir"
+      exit 0
+    fi
+
+    version=$(printf '%s' "${BACKUP_RELEASE_VERSION:-unversioned}" | tr -c 'A-Za-z0-9._-' '_')
+    timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+    archive="modeling_${version}_${timestamp}.archive.gz"
+    staging=$(mktemp -d "$backup_root/.partial-$POD_UID-XXXXXX")
+    cd "$staging"
+
+    # A failed dump stays in a hidden staging directory and cannot be reused.
+    mongodump --host "${MONGODB_HOST:-mongo}:27017" \
+      --username "$DB_USER" --password "$DB_PASSWORD" \
+      --authenticationDatabase admin --db "$MONGODB_DATABASE" \
+      --archive="$archive" --gzip
+    test -s "$archive"
+    gzip -t "$archive"
+    sha256sum "$archive" > SHA256SUMS
+    sha256sum -c SHA256SUMS
+    {
+      printf 'database=%s\n' "$MONGODB_DATABASE"
+      printf 'releaseVersion=%s\n' "$version"
+      printf 'createdAtUtc=%s\n' "$timestamp"
+      printf 'podUid=%s\n' "$POD_UID"
+      printf 'archive=%s\n' "$archive"
+      mongodump --version
+    } > metadata.txt
+    # Publish the whole backup atomically only after its files are persisted.
+    sync
+    mv "$staging" "$backup_dir"
+    sync
+    echo "Created pre-migration backup: $backup_dir/$archive"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: modeling-copilot-backups
+  namespace: modeling-copilot
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: mongo
@@ -122,6 +198,9 @@ metadata:
   namespace: modeling-copilot
 spec:
   replicas: 1
+  # Stop the old API before the new pod backs up and migrates the database.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: modeling-copilot
@@ -132,6 +211,47 @@ spec:
         app.kubernetes.io/name: modeling-copilot
         app.kubernetes.io/component: api
     spec:
+      initContainers:
+        - name: database-backup
+          # Includes Database Tools compatible with the production MongoDB.
+          image: mongo:4.4.29
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "/etc/modeling-backup/backup.sh"]
+          env:
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: modeling-copilot-api-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: modeling-copilot-api-secrets
+                  key: DB_PASSWORD
+            - name: BACKUP_RELEASE_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: modeling-copilot-backup
+                  key: BACKUP_RELEASE_VERSION
+          envFrom:
+            - configMapRef:
+                name: modeling-copilot-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: database-backups
+              mountPath: /backups
+            - name: database-backup-script
+              mountPath: /etc/modeling-backup
+              readOnly: true
       containers:
         - name: api
           image: ghcr.io/thm-mni-ii/modeling-copilot-api:latest
@@ -164,6 +284,20 @@ spec:
             # Client id the tokens are issued to; blank means not checked.
             - name: JWT_AUDIENCE
               value: ''
+            # Sign-in without the feedback system: the API exchanges the tokens there.
+            # Only a CONFIDENTIAL app gets a secret here and renews with it; for a
+            # PUBLIC app leave it unset, the web app then renews in a hidden frame.
+            - name: OIDC_TOKEN_URI
+              value: https://feedback.mni.thm.de/oauth2/token
+            - name: OIDC_CLIENT_ID
+              value: modeling-copilot
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: modeling-copilot-api-secrets
+                  key: OIDC_CLIENT_SECRET
+                  # Optional, so the API also starts before the secret exists.
+                  optional: true
           envFrom:
             - configMapRef:
                 name: modeling-copilot-config
@@ -189,6 +323,16 @@ spec:
               memory: 128Mi
             limits:
               memory: 512Mi
+      volumes:
+        - name: database-backups
+          persistentVolumeClaim:
+            claimName: modeling-copilot-backups
+        - name: database-backup-script
+          configMap:
+            name: modeling-copilot-backup
+            items:
+              - key: backup.sh
+                path: backup.sh
 
 ---
 apiVersion: v1
@@ -291,6 +435,8 @@ spec:
 ---
 # Collab-Kit, the published image with its own database. The secret collab-kit-secrets
 # holds DB_USER, DB_PASSWORD and MONGO_KEYFILE.
+# MONGO_KEYFILE is raw secret material (prefer a random value of 32-768 bytes).
+# The init container encodes it as base64 for MongoDB's keyfile format.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -338,10 +484,22 @@ spec:
     spec:
       initContainers:
         # A replica set with a password needs a key file that only mongod may read.
-        # A secret volume cannot set the owner, so the key is copied with owner and mode.
+        # A secret volume cannot set the owner, so the encoded key gets owner and mode here.
         - name: keyfile
           image: mongo:4.4.29
-          command: ["install", "-m", "400", "-o", "999", "-g", "999", "/secret/keyfile", "/keyfile/"]
+          command:
+            - sh
+            - -ec
+            - |
+              umask 077
+              base64 -w 0 /secret/keyfile > /keyfile/keyfile
+              key_length=$(wc -c < /keyfile/keyfile)
+              if [ "$key_length" -lt 6 ] || [ "$key_length" -gt 1024 ]; then
+                echo "MONGO_KEYFILE must encode to 6-1024 base64 characters." >&2
+                exit 1
+              fi
+              chown 999:999 /keyfile/keyfile
+              chmod 400 /keyfile/keyfile
           volumeMounts:
             - name: secret
               mountPath: /secret
@@ -378,8 +536,12 @@ spec:
                 - >-
                   mongo --quiet --authenticationDatabase admin
                   -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD"
-                  --eval "rs.status().ok || rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] });
-                  db.isMaster().ismaster" | grep -q true
+                  --eval 'var status = rs.status();
+                  if (status.code === 94) {
+                    var result = rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "localhost:27017" }] });
+                    if (!result.ok) { printjson(result); quit(1); }
+                  } else if (!status.ok) { printjson(status); quit(1); }
+                  quit(db.isMaster().ismaster ? 0 : 1);'
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 10
@@ -459,7 +621,7 @@ spec:
       containers:
         - name: collab-kit
           # Fixed version; an update means changing the tag here and in docker-compose.yaml.
-          image: ghcr.io/thm-mni-ii/collab-kit:v0.5.1
+          image: ghcr.io/thm-mni-ii/collab-kit:v0.6.1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

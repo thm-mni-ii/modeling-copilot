@@ -7,3 +7,4 @@ pymongo>=4.13,<5
 PyJWT[crypto]>=2.10,<3
 lxml>=5.3,<7
 httpx>=0.28,<1
+tzdata>=2025.2

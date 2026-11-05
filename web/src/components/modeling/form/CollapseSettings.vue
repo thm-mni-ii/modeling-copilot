@@ -67,11 +67,11 @@
 <script setup lang="ts">
 /* eslint-disable vue/no-mutating-props */
 import { computed, watch } from 'vue'
-import type { DiagramElement, ChildElement, ElementStyle } from '@/model/Element'
+import type { DiagramElement, ElementStyle } from '@/model/Element'
 import ColorPickerField from './ColorPickerField.vue'
 
 interface Props {
-  element: DiagramElement | ChildElement
+  element: DiagramElement
 }
 
 const props = defineProps<Props>()
@@ -97,8 +97,8 @@ function cloneStyle(style: ElementStyle): ElementStyle {
 
 function ensureCollapsedConfig() {
   if (!localElement.value.collapsed) {
-    const baseWidth = 'width' in localElement.value ? localElement.value.width : localElement.value.position?.width || 120
-    const baseHeight = 'height' in localElement.value ? localElement.value.height : localElement.value.position?.height || 80
+    const baseWidth = localElement.value.width ?? 120
+    const baseHeight = localElement.value.height ?? 80
 
     localElement.value.collapsed = {
       width: Math.floor(baseWidth * 0.6),

@@ -1,7 +1,7 @@
 """Schemas for models, model versions, and task edits."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -28,6 +28,7 @@ class TaskEditDocument(ApiSchema):
         default=1,
         description="Task-edit document format version.",
     )
+    version_id: UUID | None = None
     revision: int = Field(
         ge=0,
         description="Monotonically increasing revision used for optimistic concurrency.",
@@ -38,20 +39,59 @@ class TaskEditDocument(ApiSchema):
     )
 
 
+class JsonPatch(ApiSchema):
+    op: Literal["add", "remove", "replace"]
+    path: str = Field(max_length=20000)
+    value: Any = None
+
+    @model_validator(mode="after")
+    def valid_operation(self):
+        if self.path and not self.path.startswith("/"):
+            raise ValueError("A JSON patch requires a JSON Pointer path.")
+        if self.op != "remove" and "value" not in self.model_fields_set:
+            raise ValueError("An add or replace operation requires a value.")
+        return self
+
+
+class TaskEditPatch(ApiSchema):
+    """One locally recorded editing action."""
+
+    id: UUID
+    created_at: datetime
+    operations: list[JsonPatch] = Field(min_length=1, max_length=10000)
+
+
+class TaskEditChange(ApiSchema):
+    kind: Literal["create", "remove", "update"]
+    edit_id: UUID
+    edit_type: str
+    text: str
+
+
+class TaskEditVersionInfo(ApiSchema):
+    id: UUID
+    revision: int
+    created_at: datetime
+    saved_at: datetime
+    changes: list[TaskEditChange]
+
+
 class UpdateTaskEdit(ApiSchema):
-    """Optimistic-concurrency request for replacing the current task-edit document."""
+    """Publish a batch of locally recorded actions with optimistic concurrency."""
 
     base_revision: int = Field(
         ge=0,
         description="Revision edited by the client; a stale revision returns HTTP 409.",
     )
-    document: JsonObject = Field(description="Complete replacement Tiptap JSON document.")
+    patches: list[TaskEditPatch] = Field(min_length=1, max_length=10000)
 
 
 class Model(Identity):
     """Model identity and mutable metadata."""
 
     name: Name
+    task_edit_version_id: UUID | None = None
+    task_edit_revision: int = 0
     latest_version_id: UUID | None = Field(
         description="Identifier of the latest model version, if one exists."
     )
@@ -123,6 +163,7 @@ class ModelVersionInfo(VersionInfo):
     """Model-version metadata returned by version lists."""
 
     model_id: UUID = Field(description="Owning model identifier.")
+    task_edit_version_id: UUID | None = None
     base_release_id: UUID | None = Field(
         default=None, description="Release on which this checkpoint is based."
     )
@@ -160,6 +201,7 @@ class CreateModelVersion(ApiSchema):
     base_version_id: UUID | None = Field(
         description="Current latest version for optimistic concurrency, or null initially."
     )
+    task_edit_version_id: UUID | None = Field(default=None, description="Published task state selected for this model snapshot.")
     base_release_id: UUID | None = Field(
         default=None, description="Release on which a checkpoint is based."
     )

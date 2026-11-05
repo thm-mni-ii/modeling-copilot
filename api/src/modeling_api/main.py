@@ -10,14 +10,24 @@ from modeling_api.core.auth import get_user
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ErrorResponse, register_error_handlers
 from modeling_api.db.client import client, create_indexes, db
-from modeling_api.db.initial_data import seed_initial_data
-from modeling_api.routes import auth, evaluations, feedback, languages, models, server_time, tasks
+from modeling_api.db.migrations import require_current
+from modeling_api.routes import (
+    learning_paths,
+    surveys,
+    auth,
+    evaluations,
+    feedback,
+    languages,
+    models,
+    server_time,
+    tasks,
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await create_indexes()
-    await seed_initial_data()
+    await require_current()
     yield
     await client.close()
 
@@ -38,13 +48,15 @@ app = FastAPI(
 register_error_handlers(app)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
+    allow_origins=[
+        origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()
+    ],
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
     expose_headers=["Location"],
 )
 
-# Public token-inspection route without the /v1 authentication dependency.
+# Public token routes without the /v1 authentication dependency.
 app.include_router(auth.router)
 
 # All domain routes use the /v1 prefix and require JWT authentication.
@@ -57,6 +69,8 @@ api = APIRouter(
 )
 api.include_router(languages.router)
 api.include_router(tasks.router)
+api.include_router(learning_paths.router)
+api.include_router(surveys.router)
 api.include_router(models.router)
 api.include_router(feedback.router)
 api.include_router(evaluations.router)

@@ -1,7 +1,7 @@
-﻿<template>
-  <v-card class="pa-2" height="100%" width="100%">
+<template>
+  <v-card class="px-2 py-1" height="100%" width="100%">
     <v-card-text class="pa-1 canvas-content">
-      <ModelingHeader v-if="props.showToolbar && props.modelManagement" class="mb-2">
+      <ModelingHeader v-if="props.showToolbar && props.modelManagement" class="mb-1" :inert="props.helpSelectionMode || undefined">
         <template #controls>
           <CanvasToolbar
             ref="canvasToolbar"
@@ -19,6 +19,7 @@
             @align-top="alignTop"
             @align-middle-v="alignMiddleV"
             @align-bottom="alignBottom"
+            @format-text="formatSelectedText"
             @select-connection="onConnectionSelected"
             @update:connection-preferences="updateConnectionPreferences"
           />
@@ -27,14 +28,19 @@
           <v-btn icon="mdi-undo" size="x-small" :disabled="!(sharedHistory?.canUndo ?? canUndo)" title="Undo (Ctrl+Z)" @click="undoGraph" />
           <v-btn icon="mdi-redo" size="x-small" :disabled="!(sharedHistory?.canRedo ?? canRedo)" title="Redo (Ctrl+Y)" @click="redoGraph" />
         </template>
-        <template #sidebar-toggle>
-          <v-btn icon="mdi-dock-right" size="x-small" variant="text" :title="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-label="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-expanded="!rightSidebarCollapsed" @click="rightSidebarCollapsed = !rightSidebarCollapsed" />
+        <template v-if="showRightSidebar && !$slots['sidebar-top']" #sidebar-toggle>
+          <v-btn-group size="small" density="compact" variant="outlined"><v-btn icon="mdi-dock-right" :color="rightSidebarCollapsed ? 'medium-gray' : undefined" :title="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-label="rightSidebarCollapsed ? 'Expand right sidebar' : 'Collapse right sidebar'" :aria-controls="rightSidebarId" :aria-expanded="!rightSidebarCollapsed" @click="rightSidebarCollapsed = !rightSidebarCollapsed" /></v-btn-group>
         </template>
-        <template #autonomy><AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" /></template>
+        <template #autonomy>
+          <div class="canvas-mode-controls">
+            <AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" />
+            <ConnectionPreviewControl v-if="props.connectionPreviewAllowed" :model-value="connectionPreviewEnabled" :allowed="props.connectionPreviewAllowed" @update:model-value="connectionPreview = $event" />
+          </div>
+        </template>
       </ModelingHeader>
 
       <!-- Erweiterte Toolbar für Einbettungen ohne Modellverwaltung -->
-      <div v-else-if="props.showToolbar" class="toolbar-actions mb-2">
+      <div v-else-if="props.showToolbar" class="toolbar-actions mb-2" :inert="props.helpSelectionMode || undefined">
         <CanvasToolbar
           ref="canvasToolbar"
           v-model:layer-view="activeLayerView"
@@ -51,55 +57,52 @@
           @align-top="alignTop"
           @align-middle-v="alignMiddleV"
           @align-bottom="alignBottom"
+          @format-text="formatSelectedText"
           @select-connection="onConnectionSelected"
           @update:connection-preferences="updateConnectionPreferences"
         />
-        <AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" />
+        <div class="canvas-mode-controls">
+          <AutonomyControls :mode="autonomyMode" :disabled="props.lockAutonomyMode" @update:mode="updateAutonomyMode" />
+          <ConnectionPreviewControl v-if="props.connectionPreviewAllowed" :model-value="connectionPreviewEnabled" :allowed="props.connectionPreviewAllowed" @update:model-value="connectionPreview = $event" />
+        </div>
       </div>
 
       <!-- Canvas Area: Sidebar + Graph -->
-      <div class="canvas-area">
+      <div class="canvas-area" :class="{ 'canvas-area--help-selection': props.helpSelectionMode }">
         <!-- Elements Sidebar -->
-        <SidebarContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && (props.modelManagement || sidebarLanguages.length > 0)" :languages="sidebarLanguages" :model-management="props.modelManagement" />
+        <SidebarContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && (props.modelManagement || sidebarLanguages.length > 0)" :inert="props.helpSelectionMode || undefined" :languages="sidebarLanguages" :model-management="props.modelManagement" />
 
         <!-- Graph Container -->
         <div ref="graphWrapper" class="graph-wrapper">
           <div v-if="$slots['canvas-top']" class="canvas-top">
             <slot name="canvas-top" />
           </div>
-          <div ref="graphContainer" class="graph-container" tabindex="0" @pointerdown="focusGraphContainer">
+          <div class="graph-viewport">
             <!-- Separater Grid Container -->
             <div class="grid-container">
               <canvas ref="canvasGrid" class="grid-canvas"></canvas>
             </div>
+
+            <!-- Only maxGraph owns this node's children. Fixed UI stays outside
+                 its temporary panning preview containers. -->
+            <div ref="graphContainer" class="graph-container" tabindex="0" @pointerdown="focusGraphContainer"></div>
+
+            <ConnectionSuggestions v-if="graph && connectionPreviewEnabled && props.allowEdit && !props.helpSelectionMode && !props.previewConnection" :graph="graph" :elements="sidebarLanguages.flatMap((language) => language.elements)" :connections="languageConnections" :syntax="props.languageSyntax ?? []" />
+
+            <div v-if="$slots['canvas-top-right']" class="canvas-top-right" @pointerdown.stop @click.stop @wheel.stop>
+              <slot name="canvas-top-right" />
+            </div>
+
+            <!-- Messages without a cell of their own (validateCell of the root), e.g. "at least one cycle" -->
+            <v-alert v-if="diagramWarnings.length" type="warning" variant="tonal" density="compact" class="canvas-diagram-warnings" @pointerdown.stop>
+              <div v-for="message in diagramWarnings" :key="message">{{ message }}</div>
+            </v-alert>
 
             <GraphControls @zoom-in="zoomIn" @zoom-out="zoomOut" @fit-to-window="fitToWindow" @toggle-grid="toggleGrid" @force-grid-repaint="forceGridRepaint" />
 
             <!-- Graph Settings Component -->
             <GraphSettings @update:grid-size="updateGridSize" @update:tolerance="updateTolerance" @update:snap-to-grid="updateSnapToGrid" @update:use-grid-for-panning="updateUseGridForPanning" />
 
-            <div class="shortcut-help-anchor" :class="{ 'hidden-during-pan': isPanning }">
-              <v-tooltip location="left" transition="scale-transition">
-                <template #activator="{ props: activatorProps }">
-                  <v-btn v-bind="activatorProps" icon size="small" color="primary" variant="flat" class="shortcut-help-btn" aria-label="Show keyboard shortcuts">
-                    <v-icon size="18">mdi-information-outline</v-icon>
-                  </v-btn>
-                </template>
-
-                <div class="shortcut-tooltip-content">
-                  <div><strong>Keyboard shortcuts</strong></div>
-                  <div>Ctrl+A: Select all</div>
-                  <div>Ctrl+C: Copy</div>
-                  <div>Ctrl+V: Paste</div>
-                  <div>Ctrl+D: Duplicate</div>
-                  <div>Ctrl+Z: Undo</div>
-                  <div>Ctrl+Y: Redo</div>
-                  <div>Del: Delete</div>
-                  <div>Esc: Clear selection</div>
-                  <div>Mouse wheel on canvas: Zoom in/out</div>
-                </div>
-              </v-tooltip>
-            </div>
           </div>
 
           <CanvasWindowHost ref="canvasWindowHost" :graph-container="graphContainer ?? null" :windows="props.canvasWindows" @window-removed="onWindowRemoved">
@@ -119,7 +122,9 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement" :collapsed="rightSidebarCollapsed" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)" />
+        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :selected-task-edit-ids="props.selectedTaskEditIds" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
+          <template v-if="$slots['sidebar-top']" #top><slot name="sidebar-top" /></template>
+        </SidebarRightContainer>
         <CollabConnector v-if="props.modelManagement" />
       </div>
       <!-- /canvas-area -->
@@ -130,11 +135,11 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
-import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorHandler, SelectionCellsHandler, SelectionHandler, CellState, EdgeStyle, GraphDataModel, PanningHandler, ImageBox, Client, KeyHandler, TooltipHandler, FitPlugin, Clipboard, ConnectionConstraint } from '@maxgraph/core'
-import type { GraphPluginConstructor } from '@maxgraph/core'
+import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorHandler, SelectionCellsHandler, SelectionHandler, CellState, EdgeStyle, GraphDataModel, PanningHandler, ImageBox, Client, KeyHandler, TooltipHandler, FitPlugin, Clipboard, ConnectionConstraint, Point } from '@maxgraph/core'
+import { CellHighlight, eventUtils, type EdgeStyleFunction, type MouseListenerSet, type GraphPluginConstructor } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
-import type { TaskEditSyncState } from '@/utils/taskEdits'
+import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
 import { provideGraphContext } from '@/composables/useGraphContext'
 import { useGraphOperations } from '@/composables/useGraphOperations'
 import { useZoomOperations } from '@/composables/useZoomOperations'
@@ -142,19 +147,24 @@ import { useGridSettings } from '@/composables/useGridSettings'
 import { useCanvasOverlays } from '@/composables/useCanvasOverlays'
 import { notifyError } from '@/composables/useNotifications'
 import { setupDynamicGrid } from '@/utils/setupDynamicGrid'
+import { StablePanningHandler } from '@/utils/StablePanningHandler'
 import { createDefaultShapes, buildShapesFromElements, ensureGraphDropHandlers } from '@/utils/setupToolbar'
-import { setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
-import { clearConnectionPreview, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview } from '@/utils/connectionPreview'
-import { CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
+import { isContainerSectionTarget, setupSwimlaneSupport } from '@/utils/setupSwimlaneSupport'
+import { clearConnectionPreview, isPreviewEdge, renderScenarioConnectionPreview, renderSimpleConnectionPreview, renderRoutingConnectionPreview, updateConnectionPreview } from '@/utils/connectionPreview'
+import { AnchorConstraintHandler, CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
 import { setupUndoManager, type UndoManagerApi, type UndoManagerState } from '@/utils/setupUndoManager'
 import { alignHorizontal, alignVertical } from '@/utils/alignCells'
 import { clearValidationWarningOverlays, getGraphValidationMode, isValidationPassActive, setGraphValidationMode } from '@/utils/graphValidationRuntime'
 import { createCellFromElement } from '@/utils/elementFactory'
+import { registerElementShapes } from '@/utils/shapeRegistry'
+import { editorHtmlToLabel, enableLabelPadding, formatText, labelToEditorHtml, protectHtmlLabels, type TextFormat } from '@/utils/htmlLabels'
 import GraphSettings from './GraphSettings.vue'
 import CanvasWindowHost from './CanvasWindowHost.vue'
 import CanvasToolbar from '@/components/modeling/controls/CanvasToolbar.vue'
 import GraphControls from '@/components/modeling/controls/GraphControls.vue'
 import AutonomyControls from '@/components/modeling/controls/AutonomyControls.vue'
+import ConnectionPreviewControl from '@/components/modeling/controls/ConnectionPreviewControl.vue'
+import { useConnectionPreviewPreference } from '@/composables/useConnectionPreviewPreference'
 import type { CanvasLayerView } from '@/components/modeling/controls/LayerVisibilityControls.vue'
 import ModelingHeader from '@/components/modeling/controls/ModelingHeader.vue'
 import SidebarContainer from '@/components/modeling/sidebars/SidebarContainer.vue'
@@ -166,7 +176,11 @@ import type { DiagramElement } from '@/model/Element'
 import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connection'
 import type { DiagramSyntax } from '@/model/Syntax'
 import type { CanvasWindowDefinition, CanvasWindowPatch } from '@/model/CanvasWindow'
-import { buildValidationRulesFromSyntax, DiagramValidator } from '@/utils/multiplicity'
+import { buildValidationRulesForLanguages, DiagramValidator, type ValidationLanguage } from '@/utils/multiplicity'
+import { constraintStyle, elementTypeOf, pointId } from '@/utils/connectionPoints'
+import ConnectionSuggestions from './ConnectionSuggestions.vue'
+import { buildContainmentFromSyntax, canContain, type ContainmentMap } from '@/utils/containment'
+import { buildAcyclicFromSyntax, closesCycle, isOnCycle, renderAcyclicMessage, renderCycleRequiredMessage, type AcyclicSettings } from '@/utils/acyclic'
 import type { AutonomyMode } from '@/model/Autonomy'
 import type { DiagramFeedbackConfig, FeedbackCanvasOverlayEntry } from '@/model/Feedback'
 import { createDefaultFeedbackCanvasConfig } from '@/utils/feedbackConfig'
@@ -197,11 +211,30 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
   override stopEditing(cancel: boolean) {
     super.stopEditing(cancel)
   }
+
+  // Rich Text: Formatierungen (Cmd/Strg+B, I, U) bleiben im Label erhalten
+  override getInitialValue(state: CellState, trigger: MouseEvent | null): string {
+    if (!this.graph.isHtmlLabel(state.cell)) return super.getInitialValue(state, trigger)
+    return labelToEditorHtml(this.graph.getEditingValue(state.cell, trigger) ?? '')
+  }
+
+  override getCurrentValue(state: CellState): string | null {
+    if (!this.textarea || !this.graph.isHtmlLabel(state.cell)) return super.getCurrentValue(state)
+    return editorHtmlToLabel(this.textarea)
+  }
 }
+
+// Containment rules of the syntax, read by MyCustomGraph.isValidDropTarget
+let containment: ContainmentMap = new Map()
+
+// Cycle rules of every language, read by the native graph validation hooks.
+let acyclic: AcyclicSettings[] = []
 
 class MyCustomGraph extends Graph {
   constructor(container: HTMLElement, model?: GraphDataModel, plugins?: GraphPluginConstructor[]) {
     super(container, model, plugins)
+    // getEdgeValidationError decides loops per connection instead of globally
+    this.setAllowLoops(true)
     this.overlayAddedCallback = undefined
     this.overlayRemovedCallback = undefined
 
@@ -222,9 +255,18 @@ class MyCustomGraph extends Graph {
     }
   }
 
-  override getAllConnectionConstraints = (terminal: CellState | null, _source: boolean) => {
+  override getAllConnectionConstraints = (terminal: CellState | null, _source: boolean): ConnectionConstraint[] | null => {
     void _source
+    const element = sidebarLanguages.value.flatMap((language) => language.elements).find((e) => e.type === elementTypeOf(terminal?.cell ?? null))
+    if (element) return element.anchorPoints.map((p) => new ConnectionConstraint(new Point(p.x, p.y), false, pointId(p)))
     return (terminal?.cell?.geometry as any)?.constraints ?? null
+  }
+
+  override setConnectionConstraint = (edge: Cell, terminal: Cell | null, source = false, constraint: ConnectionConstraint | null = null) => {
+    this.batchUpdate(() => {
+      super.setConnectionConstraint(edge, terminal, source, constraint)
+      if (constraint) this.getDataModel().setStyle(edge, { ...edge.getStyle(), [source ? 'exitPointId' : 'entryPointId']: constraint.name ?? undefined })
+    })
   }
 
   /**
@@ -233,6 +275,9 @@ class MyCustomGraph extends Graph {
    */
   override getConnectionConstraint = (edge: CellState, terminal: CellState | null, source: boolean): ConnectionConstraint => {
     const constraint = super.getConnectionConstraint(edge, terminal, source)
+    const id = (edge.cell.getStyle() as Record<string, unknown>)[source ? 'exitPointId' : 'entryPointId']
+    const named = id ? this.getAllConnectionConstraints(terminal, source)?.find((c) => c.name === id) : null
+    if (named) return new ConnectionConstraint(named.point, named.perimeter, named.name, constraint.dx, constraint.dy)
     const p = (constraint as any).perimeter
     if (p === '0' || p === 0) {
       ;(constraint as any).perimeter = false
@@ -241,7 +286,8 @@ class MyCustomGraph extends Graph {
   }
 
   override isCellEditable = (cell: Cell) => {
-    const allow = (cell as any).allowLabelEdit
+    // Edges: "Label Editable on Canvas" of the connection; elements and additional labels: their own allowLabelEdit
+    const allow = cell.isEdge() ? this.getConnectionOf(cell)?.allowLabelEdit : (cell as any).allowLabelEdit
 
     if (allow === false) {
       return false
@@ -252,17 +298,104 @@ class MyCustomGraph extends Graph {
     return super.isCellEditable(cell)
   }
 
+  /**
+   * Only containers accept elements, and only the types the containment rule allows.
+   * MaxGraph would otherwise accept any cell with children, e.g. a SERM entity because of its attribute list.
+   */
+  override isValidDropTarget = (cell: Cell, cells?: Cell[]): boolean => {
+    return !!cell && !cell.isEdge() && (this.isSwimlane(cell) || isContainerSectionTarget(cell)) && canContain(containment, cell, cells ?? [])
+  }
+
+  /**
+   * Edges only accept connections if their connection allows "Connectable Line".
+   * setConnectableEdges(true) would otherwise apply to all edges of every language.
+   */
+  override isValidSource = (cell: Cell | null): boolean => {
+    if (cell?.isEdge() && this.getConnectionOf(cell)?.connectable === false) return false
+    return super.isValidSource(cell)
+  }
+
+  getConnectionOf = (edge: Cell) => languageConnections.value.find((c) => c.type === (edge as any).connectionId)
+
+  // Without "Allow Loose Ends" an edge stays connected at both ends; the editor preview stays freely deformable
+  allowsLooseEnds = (edge: Cell) => isPreviewEdge(edge) || this.getConnectionOf(edge)?.allowLooseEnds !== false
+
+  // Moving the whole edge only detaches its ends if loose ends are allowed
+  override disconnectGraph = (cells: Cell[]) => {
+    super.disconnectGraph(cells.filter((cell) => !cell.isEdge() || this.allowsLooseEnds(cell)))
+  }
+
+  /**
+   * Reconnecting edge ends snaps like new edges (Connection Docking of the element).
+   * outline = false: maxGraph hardcodes it to true and would otherwise place the end at the mouse position, even inside the element.
+   */
+  override createEdgeHandler = (state: CellState, edgeStyle: EdgeStyleFunction | null) => {
+    const handler = super.createEdgeHandler(state, edgeStyle)
+    handler.constraintHandler.onDestroy()
+    handler.constraintHandler = new AnchorConstraintHandler(this)
+    handler.outline = false
+    handler.validateConnection = (source, target) => {
+      const edge = state.cell
+      const probe = edge.clone()
+      probe.setTerminal(source, true)
+      probe.setTerminal(target, false)
+      probe.setStyle({ ...edge.getStyle(), ...constraintStyle(handler.constraintHandler.currentConstraint, handler.isSource), [handler.isSource ? 'exitPointId' : 'entryPointId']: handler.constraintHandler.currentConstraint?.name ?? '' })
+      if (!handler.constraintHandler.currentConstraint?.point) probe.setStyle({ ...probe.getStyle(), [handler.isSource ? 'exitX' : 'entryX']: undefined, [handler.isSource ? 'exitY' : 'entryY']: undefined })
+      // Ignore the original edge while counting an operation that only reconnects it.
+      ;(probe as any).replacesEdge = edge
+      return this.getEdgeValidationError(probe, source, target)
+    }
+    // Dragging an end into empty space snaps back without "Allow Loose Ends"
+    const changeTerminalPoint = handler.changeTerminalPoint.bind(handler)
+    handler.changeTerminalPoint = (edge, point, isSource, clone) => (this.allowsLooseEnds(edge) ? changeTerminalPoint(edge, point, isSource, clone) : edge)
+    return handler
+  }
+
   override convertValueToString = (cell: Cell) => {
     return super.convertValueToString(cell)
   }
 
   override getEdgeValidationError = (edge: Cell | null, source: Cell | null, target: Cell | null): string | null => {
-    const error = super.getEdgeValidationError(edge, source, target)
+    // Edges that must not be docked onto block in every mode, also when reconnecting an edge end
+    if ((source?.isEdge() && !this.isValidSource(source)) || (target?.isEdge() && !this.isValidTarget(target))) return ''
+    // Like the native allowLoops check (ValidationMixin.js:35), but per connection: "Allow Loops" (default: blocked).
+    // With a message instead of '', because ConnectionHandler.mouseUp treats an empty error as valid
+    const connection = edge ? this.getConnectionOf(edge) : undefined
+    const blockedLoop = !!source && source === target && connection?.allowLoops !== true
+    const blockedLooseEnd = edge && !isPreviewEdge(edge) && connection?.allowLooseEnds === false && (!source || !target)
+    const error = blockedLooseEnd ? 'This connection must be attached at both ends.\n' : blockedLoop ? `The Connection ${connection?.type ?? '-'} may not connect ${(source as any).diagramElementType ?? '-'} to itself.\n` : super.getEdgeValidationError(edge, source, target)
     const mode = getGraphValidationMode(this)
     if (mode === 'preventive') {
       return error
     }
     return isValidationPassActive(this) ? error : null
+  }
+
+  // Extend native validation with every active language's cycle rules.
+  override validateEdge = (edge: Cell, source: Cell, target: Cell): string | null => {
+    const errors = [super.validateEdge(edge, source, target)]
+    if (!source.isEdge() && !target.isEdge()) {
+      for (const settings of acyclic) {
+        if (settings.mode === 'forbid' && closesCycle(edge, source, target, settings.connectionTypes, settings.ignoreDirection, settings.scopeConnectionTypes)) errors.push(renderAcyclicMessage(settings.message, source, target))
+      }
+    }
+    return errors.filter(Boolean).join('') || null
+  }
+
+  override validateCell = (cell: Cell, context: CellState): string | null => {
+    const errors = [super.validateCell(cell, context)]
+    const isElement = (candidate: Cell) => candidate.isVertex() && candidate.isConnectable() && !!elementTypeOf(candidate)
+    for (const settings of acyclic) {
+      const inScope = (candidate: Cell) => !settings.scopeElementTypes || settings.scopeElementTypes.includes(elementTypeOf(candidate) ?? '')
+      if (settings.mode === 'every' && isElement(cell) && inScope(cell) && (!settings.elementTypes.length || settings.elementTypes.includes(elementTypeOf(cell)!)) && !isOnCycle(cell, settings)) {
+        errors.push(renderCycleRequiredMessage(settings.message, cell))
+      }
+      if (settings.mode === 'any' && cell === this.getDataModel().getRoot()) {
+        const hasCycle = Object.values(this.getDataModel().cells ?? {}).some((candidate) => isElement(candidate) && inScope(candidate) && isOnCycle(candidate, settings))
+        if (!hasCycle) errors.push(renderCycleRequiredMessage(settings.message))
+      }
+    }
+    return errors.filter(Boolean).join('') || null
   }
 
   private overlayAddedCallback?: (cell: Cell, overlay: CellOverlay) => void
@@ -313,6 +446,9 @@ const props = withDefaults(
   defineProps<{
     model?: GraphDataModel
     allowEdit?: boolean
+    helpSelectionMode?: boolean
+    helpFlowActive?: boolean
+    helpCellIds?: string[]
     showToolbar?: boolean
     showElements?: boolean
     showModelSidebar?: boolean
@@ -324,12 +460,14 @@ const props = withDefaults(
     connectionGroups?: DiagramConnectionGroup[]
     connectionPreferences?: JsonObject
     languageSyntax?: DiagramSyntax[]
-    languages?: SidebarLanguage[]
+    languages?: (SidebarLanguage & Partial<ValidationLanguage>)[]
     autonomyMode?: AutonomyMode
+    connectionPreviewAllowed?: boolean
     lockAutonomyMode?: boolean
     taskActive?: boolean
     taskEdit?: TaskEditDocument | null
     taskEditSyncState?: TaskEditSyncState
+    selectedTaskEditIds?: string[]
     modelId?: string | null
     openEvaluationId?: string | null
     previewConnection?: DiagramConnection
@@ -340,6 +478,8 @@ const props = withDefaults(
   }>(),
   {
     allowEdit: true,
+    helpSelectionMode: false,
+    helpCellIds: () => [],
     showToolbar: true,
     showElements: true,
     showModelSidebar: true,
@@ -353,10 +493,12 @@ const props = withDefaults(
     languageSyntax: undefined,
     languages: undefined,
     autonomyMode: 'free',
+    connectionPreviewAllowed: false,
     lockAutonomyMode: false,
     taskActive: false,
     taskEdit: null,
     taskEditSyncState: 'synced',
+    selectedTaskEditIds: () => [],
     modelId: null,
     openEvaluationId: null,
     previewConnection: undefined,
@@ -374,12 +516,17 @@ const emit = defineEmits<{
   'window-removed': [id: string]
   'removeTaskEdit': [id: string]
   'updateTaskEditDocument': [document: JsonObject]
-  'focusTaskEdit': [id: string]
+  'update:helpCellIds': [ids: string[]]
+  'focusTaskEdit': [target: TaskEditFocus]
 }>()
 
 const autonomyMode = ref<AutonomyMode>(props.autonomyMode ?? 'free')
+const connectionPreview = useConnectionPreviewPreference()
+const connectionPreviewEnabled = computed(() => props.connectionPreviewAllowed && connectionPreview.value)
 const activeLayerView = ref<CanvasLayerView>('both')
 const rightSidebarCollapsed = ref(false)
+const rightSidebarId = `model-tools-${globalThis.crypto.randomUUID()}`
+const showRightSidebar = computed(() => props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement)
 
 // Reaktive Variablen für Konfiguration
 const gridSize = ref(10)
@@ -393,6 +540,7 @@ const canRedo = ref(false)
 const graphWrapper = ref<HTMLElement | null>(null)
 const graphContainer = ref<HTMLElement>()
 const canvasGrid = ref<HTMLCanvasElement>()
+let cleanupGrid: (() => void) | undefined
 const canvasWindowHost = ref<CanvasWindowHostApi | null>(null)
 const canvasToolbar = ref<CanvasToolbarApi | null>(null)
 // shallowRef verhindert, dass Vue die Graph-Instanz in einen reactive()-Proxy einwickelt.
@@ -407,8 +555,42 @@ const modelLayerCell = shallowRef<Cell>()
 const feedbackLayerCell = shallowRef<Cell>()
 const keyHandler = shallowRef<KeyHandler>()
 const customConnectionHandler = shallowRef<CustomConnectionHandler>()
+const helpHighlights: CellHighlight[] = []
+const refreshHelpHighlights = () => {
+  helpHighlights.splice(0).forEach((highlight) => highlight.destroy())
+  const current = graph.value
+  if (!current || !props.helpSelectionMode) return
+  for (const id of props.helpCellIds) {
+    const cell = current.getDataModel().getCell(id)
+    const state = cell ? current.view.getState(cell) : null
+    if (!state) continue
+    const highlight = new CellHighlight(current, '#b27b20', 3)
+    highlight.highlight(state)
+    if (highlight.shape?.node) highlight.shape.node.style.pointerEvents = 'none'
+    helpHighlights.push(highlight)
+  }
+}
+const helpMouseListener: MouseListenerSet = {
+  mouseDown(_sender, me) {
+    if (!props.helpSelectionMode || !eventUtils.isLeftMouseButton(me.getEvent())) return
+    const cell = me.getCell()
+    const id = cell?.getId()
+    if (cell && id && (cell.isVertex() || cell.isEdge())) {
+      const ids = props.helpCellIds.includes(id) ? props.helpCellIds.filter((value) => value !== id) : [...props.helpCellIds, id]
+      emit('update:helpCellIds', ids)
+    }
+    me.consume()
+  },
+  mouseMove() {}, mouseUp() {}
+}
+watch([() => props.helpSelectionMode, () => props.allowEdit], () => {
+  graph.value?.setEnabled(props.allowEdit && !props.helpSelectionMode)
+  if (props.helpSelectionMode) graph.value?.clearSelection()
+  refreshHelpHighlights()
+})
+watch(() => props.helpCellIds, refreshHelpHighlights, { deep: true })
 let pendingPersistedModel: Record<string, unknown> | null = null
-const plugins = ref<GraphPluginConstructor[]>([MyCustomCellEditorHandler, TooltipHandler, CustomConnectionHandler as unknown as GraphPluginConstructor, PanningHandler, SelectionCellsHandler, SelectionHandler, RubberBandHandler, FitPlugin])
+const plugins = ref<GraphPluginConstructor[]>([MyCustomCellEditorHandler, TooltipHandler, CustomConnectionHandler as unknown as GraphPluginConstructor, StablePanningHandler, SelectionCellsHandler, SelectionHandler, RubberBandHandler, FitPlugin])
 const toolbarShapes = ref(
   createDefaultShapes({
     rectangle: img_rectangle,
@@ -426,6 +608,8 @@ const overlayEntries = computed(() => props.overlays ?? [])
 const { overlayTooltip, overlayTooltipAnchorStyle, registerGraph, cleanup: cleanupCanvasOverlays } = useCanvasOverlays(graphWrapper, overlayEntries)
 // Zentraler Validator für alle Diagramm-Regeln
 const diagramValidator = new DiagramValidator()
+// Validation messages for the whole diagram, shown as a notice above the canvas
+const diagramWarnings = ref<string[]>([])
 
 const normalizeErrorLines = (rawMessage: string): string[] =>
   rawMessage
@@ -462,10 +646,16 @@ const applyValidationRulesToGraph = () => {
   diagramValidator.applyToGraph(currentGraph, {
     liveValidation: autonomyMode.value !== 'free'
   })
+  diagramWarnings.value = autonomyMode.value !== 'free' ? diagramValidator.validateGraph(currentGraph) : []
 }
 
 const rebuildValidationRules = (rules?: DiagramSyntax[]) => {
-  const validationRules = buildValidationRulesFromSyntax(rules ?? [])
+  const languages: ValidationLanguage[] = props.languages?.length && props.languages.every((language) => language.syntax !== undefined && language.connections !== undefined)
+    ? props.languages.map((language) => ({ syntax: language.syntax!, elements: language.elements, connections: language.connections! }))
+    : [{ syntax: rules ?? [], elements: sidebarLanguages.value.flatMap((language) => language.elements), connections: languageConnections.value }]
+  containment = buildContainmentFromSyntax(languages.flatMap((language) => language.syntax))
+  acyclic = languages.flatMap((language) => buildAcyclicFromSyntax(language.syntax, { elementTypes: language.elements.map((element) => element.type), connectionTypes: language.connections.map((connection) => connection.type) }))
+  const validationRules = buildValidationRulesForLanguages(languages)
   diagramValidator.addRules(validationRules)
   applyValidationRulesToGraph()
 }
@@ -524,6 +714,8 @@ const alignRight = () => graph.value && alignHorizontal(graph.value, 'right')
 const alignTop = () => graph.value && alignVertical(graph.value, 'top')
 const alignMiddleV = () => graph.value && alignVertical(graph.value, 'middle')
 const alignBottom = () => graph.value && alignVertical(graph.value, 'bottom')
+
+const formatSelectedText = (format: TextFormat) => props.allowEdit && graph.value && formatText(graph.value, format)
 
 const applyUndoState = (state: UndoManagerState) => {
   canUndo.value = state.canUndo
@@ -661,13 +853,23 @@ const sidebarLanguages = computed<SidebarLanguage[]>(() => {
   return []
 })
 
+// Canvas2D-Formen der Sprachen registrieren, damit auch geladene Modelle sie zeichnen
+watch(
+  sidebarLanguages,
+  (languages) => {
+    languages.forEach((language) => language.elements.forEach((element) => registerElementShapes(element)))
+    graph.value?.refresh()
+  },
+  { immediate: true, deep: true }
+)
+
 // Computed für Verbindungen
 const languageConnections = computed(() => props.languageConnections ?? [])
 
 watch(
-  () => props.languageSyntax,
-  (newSyntax) => {
-    rebuildValidationRules(newSyntax ?? [])
+  [() => props.languageSyntax, sidebarLanguages, languageConnections],
+  () => {
+    rebuildValidationRules(props.languageSyntax ?? [])
   },
   { deep: true, immediate: true }
 )
@@ -714,8 +916,9 @@ onMounted(() => {
     currentGraph?.view.validate()
 
     if (currentGraph && autonomyMode.value !== 'free') {
-      diagramValidator.validateGraph(currentGraph)
+      diagramWarnings.value = diagramValidator.validateGraph(currentGraph)
     } else if (currentGraph) {
+      diagramWarnings.value = []
       clearValidationWarningOverlays(currentGraph)
     }
 
@@ -744,15 +947,21 @@ onUnmounted(() => {
   canUndo.value = false
   canRedo.value = false
   cleanupCanvasOverlays()
+  cleanupGrid?.()
+  cleanupGrid = undefined
+  helpHighlights.splice(0).forEach((highlight) => highlight.destroy())
+  graph.value?.destroy()
+  graph.value = undefined
 })
 
-// Watch für previewConnection (nur für Preview-Modus)
+// Watch for previewConnection (preview mode only): apply changes to the existing preview,
+// so moved elements stay in place. It is only rebuilt when there is no preview yet.
 watch(
   () => props.previewConnection,
   (newConn) => {
-    if (graph.value) {
-      renderConnectionPreviewOnly(newConn)
-    }
+    if (!graph.value) return
+    if (newConn && updateConnectionPreview(graph.value, newConn)) return
+    renderConnectionPreviewOnly(newConn)
   },
   { immediate: true, deep: true }
 )
@@ -889,7 +1098,8 @@ const initGraph = () => {
   }
 
   // Enable editing
-  graph.value.setEnabled(props.allowEdit)
+  graph.value.setEnabled(props.allowEdit && !props.helpSelectionMode)
+  graph.value.addMouseListener(helpMouseListener)
   graph.value.setConnectable(true)
   graph.value.setConnectableEdges(true)
   graph.value.setCellsEditable(props.allowEdit)
@@ -899,6 +1109,8 @@ const initGraph = () => {
   graph.value.setCellsCloneable(props.allowEdit)
   graph.value.setAllowNegativeCoordinates(false)
   graph.value.setHtmlLabels(true)
+  protectHtmlLabels(graph.value)
+  enableLabelPadding(graph.value)
   graph.value.border = 20
 
   undoManagerApi?.destroy()
@@ -920,12 +1132,6 @@ const initGraph = () => {
 
     panningHandler.addListener(InternalEvent.PAN_END, () => {
       isPanning.value = false
-
-      // Graph nach Panning aktualisieren und validieren
-      if (graph.value) {
-        graph.value.refresh()
-        graph.value.view.validate()
-      }
     })
   }
 
@@ -1041,20 +1247,8 @@ const initGraph = () => {
   parent.value = modelLayerCell.value ?? graph.value.getDefaultParent()
 
   // Setup dynamisches Grid
-  setupDynamicGrid(graph, canvasGrid, graphContainer, gridSize, snapToGrid)
-
-  // Forciere das Raster sofort nach der Graph-Initialisierung
-  nextTick(() => {
-    setTimeout(() => {
-      if (graph.value && snapToGrid.value) {
-        graph.value.view.validateBackground()
-        // Zusätzlicher direkter Repaint-Aufruf
-        if ((graph.value as any).repaintGrid) {
-          ;(graph.value as any).repaintGrid()
-        }
-      }
-    }, 100)
-  })
+  cleanupGrid?.()
+  cleanupGrid = setupDynamicGrid(graph, canvasGrid, graphContainer, gridSize, snapToGrid)
 
   applyValidationRulesToGraph()
 
@@ -1115,7 +1309,7 @@ const feedbackShapes = computed(() =>
           if (feedbackCell) {
             ;(feedbackCell as any).feedbackElementId = entry.id
             ;(feedbackCell as any).feedbackConnectionId = entry.connection.type
-            ;(feedbackCell as any).feedbackConnectionType = entry.connection.connectionType ?? entry.connection.type
+            ;(feedbackCell as any).feedbackConnectionType = entry.connection.type
             ;(feedbackCell as any).lockToLayer = activeFeedbackRules.value.preventContainerDrop ? 1 : 0
             ;(feedbackCell as any).cellRole = 'feedback'
             ;(feedbackCell as any).canvasRole = 'feedback'
@@ -1211,7 +1405,6 @@ const selectConnectionByType = (languageId: string, connectionType: string): boo
   const parentCell = modelLayerCell.value ?? graphInstance.getDefaultParent()
   const edges = parentCell.filterDescendants((cell) => cell.isEdge())
   const matchingEdge = edges.find((edge) => (edge as any).connectionId === connectionType)
-    ?? edges.find((edge) => (edge as any).connectionType === connectionType)
   if (!matchingEdge) return false
 
   graphInstance.setSelectionCell(matchingEdge)
@@ -1272,16 +1465,27 @@ defineExpose({
   overflow: hidden;
 }
 
-.graph-container {
+.graph-viewport {
   position: relative;
   width: 100%;
-  height: auto;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   border: 1px solid #ddd;
   border-radius: 4px;
-  background-color: transparent;
   overflow: hidden;
+  isolation: isolate;
+}
+
+.canvas-area--help-selection .graph-viewport { outline: 2px solid #c79b4b; outline-offset: -2px; }
+.canvas-area--help-selection .graph-container { cursor: crosshair; }
+
+.graph-container {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  background: transparent;
 }
 
 .graph-wrapper {
@@ -1314,30 +1518,22 @@ defineExpose({
   z-index: 5;
 }
 
-.shortcut-help-anchor {
+.canvas-top-right {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 8;
+  top: 0;
+  right: 5px;
+  z-index: 10;
+  max-width: calc(100% - 20px);
 }
 
-.shortcut-help-btn {
-  min-width: 30px !important;
-  width: 30px;
-  height: 30px;
-}
-
-.hidden-during-pan {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-}
-
-.shortcut-tooltip-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
+.canvas-diagram-warnings {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: max-content;
+  max-width: calc(100% - 16px);
 }
 
 .canvas-window-default-content {
@@ -1363,7 +1559,7 @@ defineExpose({
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
   overflow: hidden;
 }
@@ -1374,7 +1570,7 @@ defineExpose({
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: -1;
+  display: block;
   pointer-events: none;
   opacity: 1;
   background: transparent;
@@ -1393,10 +1589,7 @@ defineExpose({
   flex-wrap: wrap;
 }
 
-/* Responsives Design für kleinere Bildschirme */
-@media (max-width: 768px) {
-  .graph-container {
-    height: calc(100vh - 250px);
-  }
-}
+.toolbar-actions :deep(.canvas-toolbar) { flex: 1 1 400px; }
+.canvas-mode-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; align-self: flex-end; order: 99; }
+
 </style>

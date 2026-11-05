@@ -5,6 +5,10 @@
       <v-switch v-model="localStyle.noLabel" color="primary" density="compact" class="mb-4" label="Hide Label" hint="Completely suppresses the label display." persistent-hint @update:model-value="emit('update')" />
     </FieldWithIndicator>
 
+    <FieldWithIndicator>
+      <v-switch v-model="allowLabelEditValue" color="primary" density="compact" class="mb-4" label="Label Editable on Canvas" hint="Double-click on the Connection opens the label editor when enabled." persistent-hint @update:model-value="emit('update')" />
+    </FieldWithIndicator>
+
     <template v-if="!noLabel">
       <!-- 2. Label Text -->
       <FieldWithIndicator>
@@ -90,8 +94,8 @@
         <div class="mb-4">
           <div class="text-caption mb-2">Label Position on the Connection</div>
           <div class="d-flex gap-4">
-            <v-text-field v-model="labelOffsetXValue" label="Offset X" variant="outlined" density="compact" type="number" step="0.1" class="flex-grow-1" hint="Horizontal: negative = left, 0 = center, positive = right" persistent-hint />
-            <v-text-field v-model="labelOffsetYValue" label="Offset Y" variant="outlined" density="compact" type="number" step="1" class="flex-grow-1" hint="Vertical: negative = top, 0 = middle, positive = bottom" persistent-hint />
+            <v-text-field v-model="labelOffsetXValue" label="Offset X" variant="outlined" density="compact" type="number" step="0.1" min="-1" max="1" class="flex-grow-1" hint="Position along the Connection: -1 = start, 0 = middle, 1 = end" persistent-hint />
+            <v-text-field v-model="labelOffsetYValue" label="Offset Y" variant="outlined" density="compact" type="number" step="1" suffix="px" class="flex-grow-1" hint="Positive moves the label up" persistent-hint />
           </div>
         </div>
       </FieldWithIndicator>
@@ -99,6 +103,10 @@
       <!-- Label Hintergrund & Rahmen -->
       <FieldWithIndicator :config="{ minComplexity: 'expert' }">
         <ColorPickerField v-model="localStyle.labelBackgroundColor" label="Label Background" hint="Background color behind the label." class="mb-4" @update:model-value="emit('update')" />
+      </FieldWithIndicator>
+
+      <FieldWithIndicator :config="{ minComplexity: 'expert' }">
+        <v-text-field v-model.number="localStyle.labelPadding" label="Label Padding" variant="outlined" density="compact" type="number" min="0" step="1" suffix="px" hint="Space between the label text and the edge of its background." persistent-hint class="mb-4" @update:model-value="emit('update')" />
       </FieldWithIndicator>
 
       <FieldWithIndicator :config="{ minComplexity: 'expert' }">
@@ -139,6 +147,14 @@ const { setOptionalString } = useStyleHelpers(localStyle, emit)
 
 const noLabel = computed(() => localStyle.value.noLabel === true)
 
+const allowLabelEditValue = computed({
+  get: () => props.connection.allowLabelEdit ?? true,
+  set: (value: boolean) => {
+    // eslint-disable-next-line vue/no-mutating-props
+    props.connection.allowLabelEdit = value
+  }
+})
+
 // Label Text
 const labelTextValue = computed({
   get: () => props.connection.defaultLabel ?? '',
@@ -155,7 +171,7 @@ const setLabelOffset = (axis: 'x' | 'y', value: string | number | null | undefin
     if (props.connection.labelOffset) {
       // eslint-disable-next-line vue/no-mutating-props
       delete props.connection.labelOffset[axis]
-      if (!props.connection.labelOffset.x && !props.connection.labelOffset.y) {
+      if (props.connection.labelOffset.x === undefined && props.connection.labelOffset.y === undefined) {
         // eslint-disable-next-line vue/no-mutating-props
         delete props.connection.labelOffset
       }

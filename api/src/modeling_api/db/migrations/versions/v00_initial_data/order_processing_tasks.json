@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "32c2bb0f-6298-4fe7-8380-b63e4fa0ed91",
+      "name": "Bestellabwicklung – ERM",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "e9fa46c9-c82e-4dd9-a9ae-84d016bd0743",
+      "latestReleaseId": "e9fa46c9-c82e-4dd9-a9ae-84d016bd0743",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "e9fa46c9-c82e-4dd9-a9ae-84d016bd0743",
+        "taskId": "32c2bb0f-6298-4fe7-8380-b63e4fa0ed91",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Annotierter Text",
+        "description": "Markierter Aufgabentext mit Verweisen auf Modellelemente und Verbindungen.",
+        "workspaceLanguages": [
+          {
+            "languageId": "b20cd790-923c-4c79-b308-e154cdad331b",
+            "versionId": "4dc5862b-2138-48dc-bf3a-c36dbe80dcb8",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Aufgabe: Bestellabwicklung als ERM</h2><p>Erstelle das ER-Modell aus den markierten Begriffen. Markierte Modellelemente lassen sich direkt auf den Canvas ziehen. Dieselbe Aufgabe gibt es auch als SERM: Vergleiche danach die beiden Modelle.</p><p>Ein <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-entity\">Kunde</span></mark> wird über eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-key-attribute\">Kundennummer</span></mark> identifiziert und hat einen <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Namen</span></mark> und eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">E-Mail-Adresse</span></mark>. Ein Kunde <mark data-color=\"#FFE0B2\" style=\"background-color: #FFE0B2;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-relationship\">erteilt</span></mark> beliebig viele <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-entity\">Bestellungen</span></mark>. Jede Bestellung stammt von genau einem Kunden und hat eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-key-attribute\">Bestellnummer</span></mark> und ein <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Bestelldatum</span></mark>.<br>Jeder <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-entity\">Artikel</span></mark> hat eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-key-attribute\">Artikelnummer</span></mark>, eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Bezeichnung</span></mark> und einen <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Preis</span></mark> und <mark data-color=\"#FFE0B2\" style=\"background-color: #FFE0B2;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-relationship\">gehört zu</span></mark> genau einer <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-entity\">Kategorie</span></mark>. Eine Kategorie hat eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-key-attribute\">Kategorienummer</span></mark> und eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Bezeichnung</span></mark> und kann beliebig viele Artikel enthalten.<br>Eine Bestellung umfasst mindestens einen Artikel, ein Artikel kann in beliebig vielen Bestellungen vorkommen. Zu jeder <mark data-color=\"#FFE0B2\" style=\"background-color: #FFE0B2;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-relationship\">Bestellposition</span></mark> wird die <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-element-type=\"erm-attribute\">Menge</span></mark> erfasst.</p><h3>Verbindungen</h3><ul><li>Verbinde jedes Entity über eine <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-connection-type=\"erm-association\">Association</span></mark> mit seinen Beziehungen und trage die Kardinalität ein (1, c, m oder mc): Wie viele Objekte dieses Entity-Typs gehören zu einem Objekt auf der anderen Seite?</li><li>Verbinde jedes Attribut über einen <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"b20cd790-923c-4c79-b308-e154cdad331b\" data-task-connection-type=\"erm-attribute-link\">Attribute Link</span></mark> mit seinem Entity oder seiner Beziehung. Schlüsselattribute sind unterstrichen.</li><li>Zeichne die Kanten immer vom Entity zur Beziehung und vom Attribut zu seinem Objekt.</li></ul>",
+          "autonomyMode": "validating",
+          "sampleSolutions": []
+        }
+      }
+    },
+    {
+      "id": "a9365611-715b-4903-968f-b390ce2f68cf",
+      "name": "Bestellabwicklung – SERM",
+      "parent": null,
+      "ownerId": "",
+      "latestVersionId": "ec83d3b1-e9f5-4edc-bea7-8c15ef5334f9",
+      "latestReleaseId": "ec83d3b1-e9f5-4edc-bea7-8c15ef5334f9",
+      "visibility": "published",
+      "archivedAt": null,
+      "version": {
+        "id": "ec83d3b1-e9f5-4edc-bea7-8c15ef5334f9",
+        "taskId": "a9365611-715b-4903-968f-b390ce2f68cf",
+        "versionNumber": "1.0",
+        "createdBy": "",
+        "kind": "release",
+        "releaseName": "Annotierter Text",
+        "description": "Markierter Aufgabentext mit Verweisen auf Modellelemente und Verbindungen.",
+        "workspaceLanguages": [
+          {
+            "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+            "versionId": "6f4031c2-8fd1-402c-9a33-50deb8901496",
+            "source": "required"
+          }
+        ],
+        "data": {
+          "contentHtml": "<h2>Aufgabe: Bestellabwicklung als SERM</h2><p>Erstelle das SERM aus den markierten Begriffen. Markierte Objekttypen lassen sich direkt auf den Canvas ziehen. Dieselbe Aufgabe gibt es auch als ERM: Vergleiche danach die beiden Modelle.</p><p>Ein <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-entity\">Kunde</span></mark> wird über eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-key-attribute\">Kundennummer</span></mark> identifiziert und hat einen <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Namen</span></mark> und eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">E-Mail-Adresse</span></mark>. Ein Kunde erteilt beliebig viele <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-er\">Bestellungen</span></mark>. Jede Bestellung stammt von genau einem Kunden und hat eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-key-attribute\">Bestellnummer</span></mark> und ein <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Bestelldatum</span></mark>.<br>Jeder <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-er\">Artikel</span></mark> hat eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-key-attribute\">Artikelnummer</span></mark>, eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Bezeichnung</span></mark> und einen <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Preis</span></mark> und gehört zu genau einer <mark data-color=\"#BBDEFB\" style=\"background-color: #BBDEFB;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-entity\">Kategorie</span></mark>. Eine Kategorie hat eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-key-attribute\">Kategorienummer</span></mark> und eine <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Bezeichnung</span></mark> und kann beliebig viele Artikel enthalten.<br>Eine Bestellung umfasst mindestens einen Artikel, ein Artikel kann in beliebig vielen Bestellungen vorkommen. Zu jeder <mark data-color=\"#FFE0B2\" style=\"background-color: #FFE0B2;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-relationship\">Bestellposition</span></mark> wird die <mark data-color=\"#C8E6C9\" style=\"background-color: #C8E6C9;\"><span data-task-element-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-element-type=\"serm-attribute\">Menge</span></mark> erfasst.</p><h3>Hinweise</h3><ul><li>Ordne die Objekttypen nach ihrer Existenzabhängigkeit von links nach rechts an: unabhängige E-Typen links, abhängige ER-Typen in der Mitte, R-Typen rechts.</li><li>Ziehe die Attribute in die Attributliste unter ihrem Objekttyp. Schlüsselattribute sind unterstrichen, geerbte Schlüssel werden nicht wiederholt.</li><li>Die Kardinalität steckt in der Kante: <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-connection-type=\"serm-0-n\">(0,*)</span></mark> für „beliebig viele“, <mark data-color=\"#E1BEE7\" style=\"background-color: #E1BEE7;\"><span data-task-connection-language-id=\"a09ff8fb-5a26-4621-91e7-003cee10c555\" data-task-connection-type=\"serm-1-n\">(1,*)</span></mark> für „mindestens einer“. Kanten verlaufen immer von links (Quelle) nach rechts (Senke).</li></ul>",
+          "autonomyMode": "validating",
+          "sampleSolutions": []
+        }
+      }
+    }
+  ]
+}

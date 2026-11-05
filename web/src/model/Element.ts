@@ -37,6 +37,9 @@ export interface ElementStyle {
   // Allgemeine Shape-Feinabstimmung
   rounded?: boolean | number
   spacingLeft?: number
+  spacingRight?: number
+  spacingTop?: number
+  spacingBottom?: number
   whiteSpace?: string
   // Optional: semantische Rollen/Layer-Bindungen (z.B. fuer Feedback-Elemente)
   cellRole?: string
@@ -44,9 +47,16 @@ export interface ElementStyle {
 }
 
 export interface AnchorPoint {
+  id?: string
+  name?: string
+  groups?: string[]
+  role?: 'input' | 'output' | 'bidirectional'
   x: number
   y: number
 }
+
+// Where edges snap onto the element: the nearest anchor point or freely on the outline
+export type ConnectionDocking = 'anchors' | 'outline'
 
 export interface CollapsedAppearance {
   width?: number
@@ -64,18 +74,18 @@ interface BaseElement<TChild> {
   style: ElementStyle
   children: TChild[]
   connectable?: boolean // Optional mit Default false für ChildElements
-  // Collapse-Konfiguration
-  collapsible?: boolean // Ob das Element zusammenklappbar ist
-  collapsed?: CollapsedAppearance // Darstellung im zusammengeklappten Zustand
   allowLabelEdit?: boolean // Ob das Label im Canvas bearbeitet werden darf (Standard: true)
 }
 
 export interface DiagramElement extends BaseElement<ChildElement> {
+  collapsible?: boolean
+  collapsed?: CollapsedAppearance
   x: number
   y: number
   width: number
   height: number
   anchorPoints: AnchorPoint[]
+  docking?: ConnectionDocking // Default: 'anchors'
   resizable: boolean
   movable: boolean
   connectable: boolean // Überschreibt das optionale connectable von BaseElement

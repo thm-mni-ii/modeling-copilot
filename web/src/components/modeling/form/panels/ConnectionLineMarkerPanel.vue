@@ -193,7 +193,7 @@ const arrowOptions = [
   { title: 'Diamond Thin', value: 'diamondThin' }
 ]
 
-const shapeOptions = ['connector', 'flexArrow', 'arrow', 'link']
+const shapeOptions = ['connector', 'doubleLine', 'arrow', 'arrowConnector']
 
 // Watchers
 watch(

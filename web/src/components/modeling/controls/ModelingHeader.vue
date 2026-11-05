@@ -1,27 +1,42 @@
 <template>
   <header class="modeling-header">
-    <ModelingToolbarGroup title="Model" class="modeling-header__identity">
-      <div class="modeling-header__identity-actions">
-        <span class="modeling-header__name" :title="modelName">{{ modelName }}</span>
-        <v-btn icon="mdi-pencil-outline" size="x-small" variant="text" aria-label="Change model name" @click="openRename" />
+    <div class="modeling-header__main">
+      <ModelingToolbarGroup title="Model" class="modeling-header__identity">
+        <div class="modeling-header__identity-actions">
+          <span class="modeling-header__name" :title="modelName">{{ modelName }}</span>
+          <v-btn icon="mdi-pencil-outline" size="x-small" variant="text" aria-label="Change model name" @click="openRename" />
+        </div>
+      </ModelingToolbarGroup>
+
+      <ModelingToolbarGroup title="Save" class="modeling-header__save-group">
+        <v-btn-group size="small" density="compact" variant="outlined">
+          <v-btn :icon="saveIcon" :color="saveColor" :loading="workspace.saving" :title="`${stateLabel} — Save model`" @click="saveCheckpoint" />
+          <v-menu v-model="releaseMenu" :close-on-content-click="false" location="bottom start" :offset="8" :transition="{ name: 'fade-transition', onAfterEnter: () => releaseInput?.focus() }">
+            <template #activator="{ props }">
+              <v-btn v-bind="props" icon="mdi-tag-plus-outline" color="medium-gray" :disabled="!workspace.canRelease" :title="workspace.canRelease ? 'Release version' : 'Change the model before creating another release'" aria-label="Release version" @click="releaseName = ''" />
+            </template>
+            <v-card class="modeling-release" width="320" rounded="lg">
+              <v-text-field ref="releaseInput" v-model="releaseName" label="Release name (optional)" placeholder="Automatic release number" variant="outlined" density="compact" maxlength="256" hide-details :disabled="workspace.saving" @keydown.enter.prevent="saveRelease">
+                <template #append-inner>
+                  <v-btn icon="mdi-check" color="primary" size="small" variant="text" :loading="workspace.saving" :disabled="!workspace.canRelease" title="Create release" aria-label="Create release" @click="saveRelease" />
+                </template>
+              </v-text-field>
+              <p class="text-caption text-medium-emphasis mt-2 mb-0">Enter or ✓ to release. Leave empty for V1, V2, …</p>
+            </v-card>
+          </v-menu>
+          <v-btn icon="mdi-timeline-clock-outline" :color="workspace.pendingPatches.length ? 'warning' : 'medium-gray'" :disabled="!workspace.model" title="Version timeline" aria-label="Open version timeline" @click="timelineDialog = true" />
+          <slot name="save-tools" />
+        </v-btn-group>
+      </ModelingToolbarGroup>
+
+      <div class="modeling-header__tools">
+        <slot name="controls" />
       </div>
-    </ModelingToolbarGroup>
-
-    <ModelingToolbarGroup title="Save" class="modeling-header__save-group">
-      <v-btn-group size="small" density="compact" variant="outlined">
-        <v-btn :icon="saveIcon" :color="saveColor" :loading="workspace.syncState === 'saving'" :title="`${stateLabel} — Save model`" @click="saveCheckpoint" />
-        <v-btn icon="mdi-tag-plus-outline" color="medium-gray" :disabled="!workspace.canRelease" :title="workspace.canRelease ? 'Release version' : 'Save the latest checkpoint before releasing'" @click="openRelease" />
-        <v-btn icon="mdi-timeline-clock-outline" :color="workspace.pendingPatches.length ? 'warning' : 'medium-gray'" :disabled="!workspace.model" title="Version timeline" aria-label="Open version timeline" @click="timelineDialog = true" />
-        <slot name="save-tools" />
-      </v-btn-group>
-    </ModelingToolbarGroup>
-
-    <div class="modeling-header__tools">
-      <slot name="controls" />
     </div>
-    <div class="modeling-header__spacer" />
-    <div class="modeling-header__autonomy"><slot name="autonomy" /></div>
-    <div class="modeling-header__sidebar-toggle"><slot name="sidebar-toggle" /></div>
+    <div class="modeling-header__right">
+      <slot name="autonomy" />
+      <slot name="sidebar-toggle" />
+    </div>
 
     <v-dialog v-model="renameDialog" max-width="460">
       <v-card>
@@ -33,23 +48,12 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="releaseDialog" max-width="520">
-      <v-card>
-        <v-card-title>Release version</v-card-title>
-        <v-card-text>
-          <v-text-field v-model="releaseName" label="Release name" autofocus @keyup.enter="saveRelease" />
-          <v-textarea v-model="releaseDescription" label="Description (optional)" />
-          <p class="text-caption text-medium-emphasis mb-0">A release can only be created after all local changes have been saved as a checkpoint.</p>
-        </v-card-text>
-        <v-card-actions><v-spacer /><v-btn @click="releaseDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!releaseName.trim() || !workspace.canRelease" @click="saveRelease">Release</v-btn></v-card-actions>
-      </v-card>
-    </v-dialog>
     <ModelTimelineDialog v-model="timelineDialog" />
   </header>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { exportModelAsXml } from '@/utils/modelPersistence'
@@ -62,14 +66,15 @@ const { graph } = useGraphContext()
 const modelName = computed(() => workspace.model?.name ?? workspace.data.name)
 const renameDialog = ref(false)
 const editedName = ref('')
-const releaseDialog = ref(false)
+const releaseMenu = ref(false)
 const releaseName = ref('')
-const releaseDescription = ref('')
+const releaseInput = ref<{ focus: () => void } | null>(null)
 const timelineDialog = ref(false)
-const stateLabel = computed(() => ({ synced: 'Saved', dirty: 'Unsaved changes', saving: 'Saving...', offline: 'Offline - saved locally', conflict: 'Conflict' })[workspace.syncState])
-const canSave = computed(() => workspace.dirty && workspace.syncState !== 'saving' && workspace.syncState !== 'conflict')
-const saveColor = computed(() => ({ synced: 'success', dirty: 'warning', saving: 'primary', offline: 'warning', conflict: 'error' })[workspace.syncState])
-const saveIcon = computed(() => (workspace.syncState === 'dirty' ? 'mdi-content-save-alert' : 'mdi-content-save-outline'))
+const effectiveSyncState = computed(() => workspace.syncState === 'synced' && workspace.taskEditDirty ? workspace.taskEditSyncState : workspace.syncState)
+const stateLabel = computed(() => ({ synced: 'Saved', dirty: 'Unsaved changes', saving: 'Saving...', offline: 'Offline - saved locally', conflict: 'Conflict' })[effectiveSyncState.value])
+const canSave = computed(() => (workspace.dirty || workspace.taskEditDirty) && !workspace.saving && workspace.syncState !== 'conflict')
+const saveColor = computed(() => ({ synced: 'success', dirty: 'warning', saving: 'primary', offline: 'warning', conflict: 'error' })[effectiveSyncState.value])
+const saveIcon = computed(() => (effectiveSyncState.value === 'dirty' ? 'mdi-content-save-alert' : 'mdi-content-save-outline'))
 
 const saveCheckpoint = async () => {
   if (!canSave.value) return
@@ -84,18 +89,17 @@ const saveCheckpoint = async () => {
     }
     await workspace.save()
   } catch {
-    notifyError('Unable to save this model.')
+    notifyError(workspace.taskEditError ?? 'Unable to save this model.')
   }
 }
 
-const openRelease = () => {
+watch(() => workspace.model?.id, () => {
+  releaseMenu.value = false
   releaseName.value = ''
-  releaseDescription.value = ''
-  releaseDialog.value = true
-}
+})
 
 const saveRelease = async () => {
-  if (!releaseName.value.trim()) return
+  if (!workspace.canRelease) return
   try {
     if (graph.value) {
       workspace.setData({
@@ -105,8 +109,8 @@ const saveRelease = async () => {
         name: modelName.value
       })
     }
-    await workspace.save('release', releaseName.value, releaseDescription.value)
-    releaseDialog.value = false
+    await workspace.release(releaseName.value)
+    releaseMenu.value = false
   } catch {
     notifyError('Unable to release this version.')
   }
@@ -131,29 +135,72 @@ const saveName = async () => {
 <style scoped>
 .modeling-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
   min-height: 48px;
-  padding: 8px 12px;
+  padding: 4px 12px;
   background: #ffffff;
   border: 1px solid rgba(var(--v-theme-outline), 0.14);
   border-radius: 4px;
   flex-wrap: wrap;
 }
 
+.modeling-release {
+  padding: 12px;
+  border-top: 3px solid rgb(var(--v-theme-primary));
+}
+
+.modeling-header__main {
+  display: contents;
+}
+
+.modeling-header__right {
+  display: flex;
+  align-items: center;
+  align-self: flex-end;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-left: auto;
+  order: 99;
+}
+
+.modeling-header__right :deep(.canvas-mode-controls) {
+  order: 0;
+  margin-left: 0;
+}
+
+.modeling-header__right :deep(.v-btn-group) {
+  height: 32px;
+  border-radius: 4px;
+}
+
+.modeling-header__right :deep(.v-btn-group .v-btn) {
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
+}
+
+.modeling-header__right :deep(.v-btn-group .v-icon) {
+  font-size: 20px;
+}
+
 .modeling-header__identity {
   min-width: 150px;
-  max-width: min(30vw, 320px);
+  max-width: min(30vw, 240px);
+}
+
+.modeling-header__identity :deep(.modeling-toolbar-group__content) {
+  width: 100%;
 }
 
 .modeling-header__tools,
-.modeling-header__sidebar-toggle,
-.modeling-header__autonomy {
-  display: flex;
-  align-items: center;
+.modeling-header__tools :deep(.canvas-toolbar) {
+  display: contents;
 }
 
 .modeling-header__name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -168,18 +215,10 @@ const saveName = async () => {
   align-items: center;
   gap: 2px;
   min-width: 0;
+  width: 100%;
 }
 
-.modeling-header__spacer {
-  flex: 1;
-}
-
-@media (max-width: 900px) {
-  .modeling-header__spacer {
-    display: none;
-  }
-  .modeling-header__autonomy {
-    margin-left: auto;
-  }
+.modeling-header__identity-actions > .v-btn {
+  flex-shrink: 0;
 }
 </style>

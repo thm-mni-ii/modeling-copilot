@@ -10,8 +10,7 @@ receive deterministic dummy data so the workflow can be played through:
 - exit code `0` on success, non-zero on failure
 
 `TEMPLATE_INPUT` may include `step`, `input`, and `demoDelaySeconds`. Output
-always contains `status`, `summary`, and `result`; it stays compatible with the
-original `echo` field used by the template test.
+always contains `status`, `summary`, and `result`, as well as the `echo` field.
 
 ## Build
 
@@ -25,8 +24,3 @@ docker build -t template-service:0.1.0 .
 docker run --rm -e TEMPLATE_INPUT='{"message":"hi"}' template-service:0.1.0
 ```
 
-## Test
-
-```bash
-python -m pytest tests/
-```

@@ -16,6 +16,12 @@
       <v-btn-group size="small" density="compact" variant="outlined"><v-btn icon="mdi-format-horizontal-align-left" title="Align left" @click="emit('align-left')" /><v-btn icon="mdi-format-horizontal-align-center" title="Align horizontally" @click="emit('align-center-h')" /><v-btn icon="mdi-format-horizontal-align-right" title="Align right" @click="emit('align-right')" /></v-btn-group>
       <v-btn-group size="small" density="compact" variant="outlined"><v-btn icon="mdi-format-vertical-align-top" title="Align top" @click="emit('align-top')" /><v-btn icon="mdi-format-vertical-align-center" title="Align vertically" @click="emit('align-middle-v')" /><v-btn icon="mdi-format-vertical-align-bottom" title="Align bottom" @click="emit('align-bottom')" /></v-btn-group>
     </ModelingToolbarGroup>
+    <v-divider vertical class="canvas-toolbar__divider" />
+
+    <!-- mousedown.prevent: der offene Label-Editor behält Fokus und Markierung -->
+    <ModelingToolbarGroup title="Text">
+      <v-btn-group size="small" density="compact" variant="outlined"><v-btn icon="mdi-format-bold" title="Bold (Ctrl+B)" @mousedown.prevent @click="emit('format-text', 'bold')" /><v-btn icon="mdi-format-italic" title="Italic (Ctrl+I)" @mousedown.prevent @click="emit('format-text', 'italic')" /><v-btn icon="mdi-format-underline" title="Underline (Ctrl+U)" @mousedown.prevent @click="emit('format-text', 'underline')" /></v-btn-group>
+    </ModelingToolbarGroup>
   </div>
 </template>
 
@@ -26,6 +32,7 @@ import LayerVisibilityControls, { type CanvasLayerView } from './LayerVisibility
 import ModelingToolbarGroup from './ModelingToolbarGroup.vue'
 import type { JsonObject } from '@/services/api/types/common'
 import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connection'
+import type { TextFormat } from '@/utils/htmlLabels'
 
 withDefaults(
   defineProps<{
@@ -48,6 +55,7 @@ const emit = defineEmits<{
   'align-top': []
   'align-middle-v': []
   'align-bottom': []
+  'format-text': [format: TextFormat]
   'select-connection': [connection: DiagramConnection]
   'update:connection-preferences': [preferences: JsonObject]
   'update:layer-view': [view: CanvasLayerView]

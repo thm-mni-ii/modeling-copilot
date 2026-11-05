@@ -10,4 +10,4 @@ COPY src ./src
 ENV PYTHONPATH=/app/src
 
 EXPOSE 8000
-CMD ["uvicorn", "modeling_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-ec", "python -m modeling_api.db.migrations --apply && exec uvicorn modeling_api.main:app --host 0.0.0.0 --port 8000"]

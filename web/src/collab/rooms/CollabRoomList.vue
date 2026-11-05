@@ -40,9 +40,9 @@ let openedFor: string | null = null
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
-import { collabErrorMessage } from '@/collab/connection/collabApi'
-import { loadCollabKit } from '@/collab/connection/collabKit'
-import type { Room, Workpiece } from '@/collab/connection/collabKitV1'
+import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
+import type { Room, Workpiece } from '@/collab/kit/collabKitV1'
+import { compareNames } from '@/utils/sorting'
 
 const props = defineProps<{ activeWorkpieceId: string | null; connected: boolean }>()
 const emit = defineEmits<{ open: [room: Room, workpiece: Workpiece] }>()
@@ -56,7 +56,7 @@ const load = async () => {
   loading.value = true
   try {
     const ck = await loadCollabKit()
-    rooms.value = (await ck.me.rooms()).sort((a, b) => a.name.localeCompare(b.name))
+    rooms.value = (await ck.me.rooms()).sort((a, b) => compareNames(a.name, b.name))
     const entries = await Promise.all(
       rooms.value.map(async (room) => {
         const found = await Promise.allSettled(room.workpieces.map((id) => ck.workpieces.get(id)))

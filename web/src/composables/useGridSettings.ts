@@ -1,5 +1,5 @@
-import { nextTick, type Ref } from 'vue'
-import type { Graph } from '@maxgraph/core'
+import { type Ref } from 'vue'
+import type { Graph, PanningHandler } from '@maxgraph/core'
 
 /**
  * Composable für Grid- und Snap-Einstellungen
@@ -19,6 +19,7 @@ import type { Graph } from '@maxgraph/core'
  * @param useGridForPanning - Ref auf den UseGrid Status für Panning
  */
 export function useGridSettings(graph: Ref<Graph | undefined>, gridSize: Ref<number>, snapToGrid: Ref<boolean>, tolerance: Ref<number>, useGridForPanning: Ref<boolean>) {
+  const forceGridRepaint = () => (graph.value as (Graph & { repaintGrid?: () => void }) | undefined)?.repaintGrid?.()
   /**
    * Aktualisiert die Grid-Größe und zeichnet das Raster neu
    */
@@ -31,18 +32,7 @@ export function useGridSettings(graph: Ref<Graph | undefined>, gridSize: Ref<num
     graph.value.gridSize = gridSize.value
     graph.value.setGridSize(gridSize.value)
     graph.value.setGridEnabled(snapToGrid.value)
-    graph.value.refresh()
-    graph.value.view.validate()
-
-    // Trigger repaint des Canvas-Rasters mit kurzer Verzögerung
-    setTimeout(() => {
-      graph.value?.view.validateBackground()
-
-      // Zusätzlicher direkter Aufruf der Repaint-Funktion
-      if ((graph.value as any).repaintGrid) {
-        ;(graph.value as any).repaintGrid()
-      }
-    }, 50)
+    forceGridRepaint()
   }
 
   /**
@@ -63,18 +53,7 @@ export function useGridSettings(graph: Ref<Graph | undefined>, gridSize: Ref<num
       graph.value.setGridSize(gridSize.value)
     }
 
-    graph.value.refresh()
-    graph.value.view.validate()
-
-    // Trigger repaint des Canvas-Rasters mit kurzer Verzögerung
-    setTimeout(() => {
-      graph.value?.view.validateBackground()
-
-      // Zusätzlicher direkter Aufruf der Repaint-Funktion
-      if ((graph.value as any).repaintGrid) {
-        ;(graph.value as any).repaintGrid()
-      }
-    }, 50)
+    forceGridRepaint()
   }
 
   /**
@@ -103,7 +82,7 @@ export function useGridSettings(graph: Ref<Graph | undefined>, gridSize: Ref<num
     if (!graph.value) return
 
     // Aktualisiere PanningHandler
-    const panningHandler = graph.value.getPlugin('PanningHandler') as any
+    const panningHandler = graph.value.getPlugin<PanningHandler>('PanningHandler')
     if (panningHandler) {
       panningHandler.useGrid = useGridForPanning.value
     }
@@ -117,31 +96,6 @@ export function useGridSettings(graph: Ref<Graph | undefined>, gridSize: Ref<num
     snapToGrid.value = !snapToGrid.value
     updateSnapToGrid()
 
-    nextTick(() => {
-      graph.value?.view.validate()
-      graph.value?.refresh()
-    })
-  }
-
-  /**
-   * Erzwingt ein sofortiges Neuzeichnen des Grids
-   * Nützlich für Debugging oder nach manuellen Änderungen
-   */
-  const forceGridRepaint = () => {
-    if (!graph.value) return
-
-    setTimeout(() => {
-      graph.value?.view.validateBackground()
-
-      if ((graph.value as any).repaintGrid) {
-        ;(graph.value as any).repaintGrid()
-      }
-    }, 100)
-
-    nextTick(() => {
-      graph.value?.view.validate()
-      graph.value?.refresh()
-    })
   }
 
   return {

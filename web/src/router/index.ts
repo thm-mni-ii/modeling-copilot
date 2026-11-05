@@ -3,7 +3,7 @@ import { useBearerToken } from '@/composables/useBearerToken'
 import authService from '@/services/auth/auth.service'
 import { isEmbedded, requestFbsToken, startFbsBridge, fbsAuthenticated, fbsConnectionError, fbsTargetPath, fbsConnecting } from '@/services/auth/fbsBridge'
 import { useUserStore } from '@/stores/userStore'
-import { isFeedbacksystemCallback, completeFeedbacksystemSignIn } from '@/services/auth/fbsOidc'
+import { isFeedbacksystemCallback, completeFeedbacksystemSignIn, renewFeedbacksystemToken } from '@/services/auth/fbsOidc'
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -17,6 +17,11 @@ const router = createRouter({
       path: '/',
       name: 'Home',
       component: () => import('../views/ViewHome.vue')
+    },
+    {
+      path: '/models',
+      name: 'Models',
+      component: () => import('../views/ViewModels.vue')
     },
     {
       path: '/modeling/:modelId?',
@@ -33,6 +38,31 @@ const router = createRouter({
       path: '/diagramLanguages',
       name: 'DiagramLanguages',
       component: () => import('../views/ViewDiagramLanguageOverview.vue')
+    },
+    {
+      path: '/learning-path-templates/:id?/edit',
+      name: 'LearningPathEditor',
+      component: () => import('../views/ViewLearningPathEditor.vue')
+    },
+    {
+      path: '/learning-path-templates',
+      name: 'LearningPathTemplates',
+      component: () => import('../views/ViewLearningPaths.vue')
+    },
+    {
+      path: '/learning-path-runs/:id?',
+      name: 'LearningPathRuns',
+      component: () => import('../views/ViewLearningPaths.vue')
+    },
+    {
+      path: '/surveys/:id?/edit',
+      name: 'SurveyEditor',
+      component: () => import('../views/ViewSurveyEditor.vue')
+    },
+    {
+      path: '/surveys',
+      name: 'Surveys',
+      component: () => import('../views/ViewSurveys.vue')
     },
     {
       path: '/tasks',
@@ -56,7 +86,8 @@ const router = createRouter({
   ]
 })
 
-const nonAdminPages = ['Login', 'Home', 'Modeling', 'View404Page', 'Collab']
+// Everything outside this list requires ADMIN, including direct URL navigation.
+const nonAdminPages = ['LearningPathRuns', 'Login', 'Home', 'Models', 'Modeling', 'View404Page']
 
 router.beforeEach(async (to) => {
   if (!isEmbedded && isFeedbacksystemCallback()) {
@@ -85,7 +116,7 @@ router.beforeEach(async (to) => {
   try {
     if (bearerToken.value) {
       loginValid = (await authService.validateToken()).data === true
-      if (!loginValid && isEmbedded && (await requestFbsToken())) {
+      if (!loginValid && (await (isEmbedded ? requestFbsToken() : renewFeedbacksystemToken()))) {
         loginValid = (await authService.validateToken()).data === true
       }
     }

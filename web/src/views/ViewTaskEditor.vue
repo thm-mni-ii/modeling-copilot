@@ -68,7 +68,7 @@
             </div>
             <div class="task-behavior-field">
               <span id="task-modeling-behavior-label" class="task-setting-field__label">Modeling behavior</span>
-              <AutonomyControls :mode="autonomyMode" @update:mode="autonomyMode = $event" />
+              <AutonomyControls :mode="autonomyMode" :connection-preview-allowed="connectionPreviewAllowed" @update:mode="autonomyMode = $event" @update:connection-preview-allowed="connectionPreviewAllowed = $event" />
             </div>
             <div class="task-setting-field">
               <span id="task-sample-solutions-label" class="task-setting-field__label">Sample solution releases</span>
@@ -85,10 +85,10 @@
           <TaskRichEditor v-model="contentModel" :element-options="elementOptions" :connection-options="connectionOptions" class="task-rich-editor" />
 
           <div class="d-flex align-center ga-2 mt-3">
-            <v-select v-model="selectedVersionId" :items="versionOptions" label="Loaded version" density="compact" variant="outlined" hide-details class="version-select" @update:model-value="loadVersion" />
+            <v-select v-model="selectedVersionId" :items="versionOptions" label="Loaded version" density="compact" variant="outlined" hide-details class="version-select" :disabled="saving || versionLoading" @update:model-value="loadVersion" />
             <v-spacer />
-            <v-btn :loading="saving" variant="tonal" prepend-icon="mdi-content-save-outline" @click="saveVersion('checkpoint')">Save checkpoint</v-btn>
-            <v-btn :loading="saving" color="primary" prepend-icon="mdi-tag-outline" @click="releaseDialog = true">Create release</v-btn>
+            <v-btn :loading="saving" :disabled="!canSaveCheckpoint" variant="tonal" prepend-icon="mdi-content-save-outline" @click="saveVersion('checkpoint')">Save checkpoint</v-btn>
+            <v-btn :loading="saving" :disabled="!canRelease" color="primary" prepend-icon="mdi-tag-outline" @click="releaseDialog = true">Create release</v-btn>
           </div>
         </v-card-text>
       </v-card>
@@ -109,23 +109,16 @@
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="releaseDialog" max-width="560">
-      <v-card>
-        <v-card-title>Create task release</v-card-title>
-        <v-card-text>
-          <v-text-field v-model="releaseName" label="Release name" autofocus />
-          <v-textarea v-model="releaseDescription" label="Description (optional)" rows="2" />
-        </v-card-text>
-        <v-card-actions><v-spacer /><v-btn @click="releaseDialog = false">Cancel</v-btn><v-btn color="primary" :disabled="!releaseName.trim()" @click="saveVersion('release')">Release</v-btn></v-card-actions>
-      </v-card>
-    </v-dialog>
+    <DialogReleaseVersion v-if="nextReleaseVersion" v-model="releaseDialog" subject="task" :version-number="nextReleaseVersion" :busy="saving" @confirm="saveVersion('release', $event)" />
   </v-container>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { generateJSON } from '@tiptap/core'
 import TaskRichEditor from '@/components/tasks/TaskRichEditor.vue'
-import { buildTaskConnectionOptions, buildTaskElementOptions, type TaskOptionLanguage } from '@/components/tasks/taskEditorExtensions'
+import DialogReleaseVersion from '@/components/dialog/DialogReleaseVersion.vue'
+import { buildTaskConnectionOptions, buildTaskElementOptions, createTaskEditorExtensions, type TaskOptionLanguage } from '@/components/tasks/taskEditorExtensions'
 import AutonomyControls from '@/components/modeling/controls/AutonomyControls.vue'
 import type { AutonomyMode } from '@/model/Autonomy'
 import type { DiagramLanguage } from '@/model/DiagramLanguage'
@@ -140,10 +133,16 @@ import type { Task, TaskVersion, TaskVersionInfo, TaskVersionKind, TaskVisibilit
 import { notifyError } from '@/composables/useNotifications'
 import evaluationService from '@/services/evaluation/evaluation.service'
 import type { EvaluationWorkflow } from '@/services/api/types/evaluation'
+import { linkOf } from '@/collab/storage/workpiece'
+import { nextReleaseVersionNumber, releaseVersionLabel } from '@/utils/versions'
 
 const tasks = ref<Task[]>([])
 const currentTask = ref<Task | null>(null)
 const currentVersion = ref<TaskVersion | null>(null)
+const latestVersion = ref<TaskVersion | null>(null)
+const latestRelease = ref<TaskVersion | null>(null)
+const comparisonsLoaded = ref(false)
+const versionLoading = ref(false)
 const versions = ref<TaskVersionInfo[]>([])
 const languages = ref<LanguageOverview[]>([])
 const availableLanguageOptions = ref<{ title: string; value: string }[]>([])
@@ -156,6 +155,7 @@ const saving = ref(false)
 const titleModel = ref('')
 const contentModel = ref('')
 const autonomyMode = ref<AutonomyMode>('free')
+const connectionPreviewAllowed = ref(false)
 const selectedLanguageKeys = ref<string[]>([])
 const selectedSolutionKeys = ref<string[]>([])
 const selectedEvaluationWorkflow = ref<string | null>(null)
@@ -164,8 +164,11 @@ const selectedVersionId = ref<string | null>(null)
 const createDialog = ref(false)
 const newTaskName = ref('')
 const releaseDialog = ref(false)
-const releaseName = ref('')
-const releaseDescription = ref('')
+const nextReleaseVersion = computed(() => {
+  const latestId = currentTask.value?.latestVersionId
+  const latest = versions.value.find((version) => version.id === latestId)
+  return latestId && !latest ? null : nextReleaseVersionNumber(latest?.versionNumber)
+})
 const visibilityModel = ref<TaskVisibility>('private')
 const userStore = useUserStore()
 
@@ -200,7 +203,7 @@ const ownerLabel = (ownerId: string | null | undefined) => ownerId || 'System ca
 const visibilityIcon = (visibility: TaskVisibility) => (visibility === 'published' ? 'mdi-earth' : 'mdi-lock-outline')
 const visibilityColor = (visibility: TaskVisibility) => (visibility === 'published' ? 'success' : 'warning')
 
-const versionLabel = (version: TaskVersionInfo) => (version.kind === 'release' ? `${version.releaseName} · v${version.versionNumber}` : `Checkpoint · v${version.versionNumber}`)
+const versionLabel = (version: TaskVersionInfo) => (version.kind === 'release' ? releaseVersionLabel(version) : `Checkpoint · v${version.versionNumber}`)
 const workspaceLanguages = (): WorkspaceLanguageReference[] =>
   selectedLanguageKeys.value.map((key) => {
     const { entityId: languageId, versionId } = parseReferenceKey(key)
@@ -211,6 +214,26 @@ const sampleSolutions = (): ModelVersionReference[] =>
     const { entityId: modelId, versionId } = parseReferenceKey(key)
     return { modelId, versionId }
   })
+
+const contentExtensions = createTaskEditorExtensions()
+const versionContent = (version: Pick<TaskVersion, 'data' | 'workspaceLanguages'>) => JSON.stringify([
+  generateJSON(version.data.contentHtml, contentExtensions),
+  version.data.autonomyMode,
+  version.data.connectionPreviewAllowed ?? false,
+  version.workspaceLanguages.map((reference) => [reference.languageId, reference.versionId, reference.source]),
+  version.data.sampleSolutions.map((reference) => [reference.modelId, reference.versionId]),
+  version.data.evaluationWorkflows ?? []
+])
+const editorContent = computed(() => ({
+  workspaceLanguages: workspaceLanguages(),
+  data: { contentHtml: contentModel.value, autonomyMode: autonomyMode.value, connectionPreviewAllowed: connectionPreviewAllowed.value, sampleSolutions: sampleSolutions(), evaluationWorkflows: selectedEvaluationWorkflow.value ? [selectedEvaluationWorkflow.value] : [] }
+}))
+const editorState = computed(() => versionContent(editorContent.value))
+const latestState = computed(() => latestVersion.value ? versionContent(latestVersion.value) : null)
+const releaseState = computed(() => latestRelease.value ? versionContent(latestRelease.value) : null)
+const canSaveVersion = computed(() => Boolean(currentTask.value) && comparisonsLoaded.value && !saving.value && !versionLoading.value)
+const canSaveCheckpoint = computed(() => canSaveVersion.value && editorState.value !== latestState.value)
+const canRelease = computed(() => canSaveVersion.value && Boolean(nextReleaseVersion.value) && editorState.value !== releaseState.value)
 
 const loadTasks = async () => {
   loading.value = true
@@ -239,34 +262,60 @@ const searchTasks = () => {
   searchTimer = setTimeout(() => void loadTasks(), 250)
 }
 const selectTask = async (task: Task) => {
+  if (saving.value) return
+  comparisonsLoaded.value = false
+  latestVersion.value = null
+  latestRelease.value = null
   currentTask.value = task
   titleModel.value = task.name
   visibilityModel.value = task.visibility
-  versions.value = (await taskService.listVersions(task.id, 0, 100)).data.items
-  const target = task.latestVersionId ?? versions.value[0]?.id ?? null
-  selectedVersionId.value = target
-  if (target) await loadVersion(target)
-  else resetEditor()
+  try {
+    const entries = (await taskService.listVersions(task.id, 0, 100)).data.items
+    if (currentTask.value?.id !== task.id) return
+    versions.value = entries
+    const target = task.latestVersionId ?? versions.value[0]?.id ?? null
+    selectedVersionId.value = target
+    if (target) await loadVersion(target)
+    else resetEditor()
+    if (currentTask.value?.id !== task.id) return
+    const saved = currentVersion.value
+    const released = task.latestReleaseId === target ? saved : task.latestReleaseId ? (await taskService.getVersion(task.id, task.latestReleaseId)).data : null
+    if (currentTask.value?.id !== task.id) return
+    latestVersion.value = saved
+    latestRelease.value = released
+    comparisonsLoaded.value = true
+  } catch {
+    notifyError('The task versions could not be loaded.')
+  }
 }
 const resetEditor = () => {
   currentVersion.value = null
   contentModel.value = '<p></p>'
   autonomyMode.value = 'free'
+  connectionPreviewAllowed.value = false
   selectedLanguageKeys.value = []
   selectedSolutionKeys.value = []
   selectedEvaluationWorkflow.value = null
 }
 const loadVersion = async (versionId: string | null) => {
-  if (!currentTask.value || !versionId) return
-  const version = (await taskService.getVersion(currentTask.value.id, versionId)).data
-  currentVersion.value = version
-  selectedVersionId.value = version.id
-  contentModel.value = version.data.contentHtml
-  autonomyMode.value = version.data.autonomyMode
-  selectedLanguageKeys.value = version.workspaceLanguages.map((item) => versionReferenceKey(item.languageId, item.versionId))
-  selectedSolutionKeys.value = version.data.sampleSolutions.map((item) => versionReferenceKey(item.modelId, item.versionId))
-  selectedEvaluationWorkflow.value = version.data.evaluationWorkflows?.[0] ?? null
-  await loadSelectedLanguages()
+  if (!currentTask.value || !versionId || saving.value) return
+  versionLoading.value = true
+  try {
+    const taskId = currentTask.value.id
+    const version = (await taskService.getVersion(taskId, versionId)).data
+    if (currentTask.value?.id !== taskId) return
+    currentVersion.value = version
+    selectedVersionId.value = version.id
+    contentModel.value = version.data.contentHtml
+    autonomyMode.value = version.data.autonomyMode
+    connectionPreviewAllowed.value = version.data.connectionPreviewAllowed ?? false
+    selectedLanguageKeys.value = version.workspaceLanguages.map((item) => versionReferenceKey(item.languageId, item.versionId))
+    selectedSolutionKeys.value = version.data.sampleSolutions.map((item) => versionReferenceKey(item.modelId, item.versionId))
+    selectedEvaluationWorkflow.value = version.data.evaluationWorkflows?.[0] ?? null
+    await loadSelectedLanguages()
+  } finally {
+    versionLoading.value = false
+  }
 }
 const loadSelectedLanguages = async () => {
   await Promise.all(
@@ -315,27 +364,26 @@ const toggleVisibility = () => {
   visibilityModel.value = visibilityModel.value === 'published' ? 'private' : 'published'
   void saveVisibility()
 }
-const saveVersion = async (kind: TaskVersionKind) => {
-  if (!currentTask.value) return
+const saveVersion = async (kind: TaskVersionKind, releaseName?: string) => {
+  if (!currentTask.value || (kind === 'release' ? !canRelease.value : !canSaveCheckpoint.value)) return
   saving.value = true
   try {
     const saved = (
       await taskService.createVersion(currentTask.value.id, {
         baseVersionId: currentTask.value.latestVersionId,
         kind,
-        ...(kind === 'release' ? { releaseName: releaseName.value.trim(), description: releaseDescription.value.trim() || null } : {}),
-        workspaceLanguages: workspaceLanguages(),
-        data: { contentHtml: contentModel.value, autonomyMode: autonomyMode.value, sampleSolutions: sampleSolutions(), evaluationWorkflows: selectedEvaluationWorkflow.value ? [selectedEvaluationWorkflow.value] : [] }
+        ...(kind === 'release' ? { releaseName: releaseName?.trim() || null } : {}),
+        ...editorContent.value
       })
     ).data
+    latestVersion.value = saved
+    if (kind === 'release') latestRelease.value = saved
     currentTask.value = (await taskService.get(currentTask.value.id)).data
     visibilityModel.value = currentTask.value.visibility
     versions.value = (await taskService.listVersions(currentTask.value.id, 0, 100)).data.items
     currentVersion.value = saved
     selectedVersionId.value = saved.id
     releaseDialog.value = false
-    releaseName.value = ''
-    releaseDescription.value = ''
     await loadTasks()
   } catch (caught) {
     notifyError((caught as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'The task version could not be saved.')
@@ -367,9 +415,10 @@ const loadCatalogs = async () => {
   evaluationWorkflows.value = (await evaluationService.listWorkflows()).data
   languages.value = (await languageService.list(0, 100, { archived: false })).data.items
   const languageReleases = await Promise.all(languages.value.map(async (language) => ({ language, versions: (await languageService.listVersions(language.id, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
-  availableLanguageOptions.value = languageReleases.flatMap(({ language, versions: entries }) => entries.map((version) => ({ title: `${language.name} · ${version.releaseName ?? 'Release'} · v${version.versionNumber}`, value: versionReferenceKey(language.id, version.id) })))
-  const models = (await modelService.list(0, 100, { archived: false })).data.items
-  const releases = await Promise.all(models.map(async (model) => ({ model, versions: (await modelService.listVersions(model.id, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
+  availableLanguageOptions.value = languageReleases.flatMap(({ language, versions: entries }) => entries.map((version) => ({ title: `${language.name} · ${releaseVersionLabel(version)}`, value: versionReferenceKey(language.id, version.id) })))
+  // A shared model keeps its releases in collab-kit, where the API cannot check or read a sample solution.
+  const models = (await modelService.list(0, 100, { archived: false })).data.items.filter((model) => !linkOf(model.preferences))
+  const releases = await Promise.all(models.map(async (model) => ({ model, versions: (await modelService.listVersions(model, 0, 100)).data.items.filter((version) => version.kind === 'release') })))
   solutionOptions.value = releases.flatMap(({ model, versions: entries }) => entries.map((version) => ({ title: `${model.name} · ${version.releaseName ?? `v${version.versionNumber}`}`, value: versionReferenceKey(model.id, version.id) })))
 }
 

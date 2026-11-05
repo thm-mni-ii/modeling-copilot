@@ -1,15 +1,16 @@
 <template>
-  <SidebarFrame v-model:width="sidebarWidth" side="right" :collapsed="collapsed">
+  <SidebarFrame v-model:width="sidebarWidth" side="right" :class="{ 'sidebar-help-active': helpFlowActive }" :show-tabs="!helpFlowActive" :collapsed="hasJourney ? false : collapsed" :min-width="hasJourney ? 280 : 105" :max-width="hasJourney ? 440 : 315">
+    <template v-if="hasJourney" #top><slot name="top" /></template>
     <template #tabs>
-      <SidebarTabs :model-value="activeTab" :tabs="tabs" icons-only aria-label="Model tools" @update:model-value="selectTab" />
+      <SidebarTabs :inert="toolsDisabled || undefined" :model-value="activeTab" :tabs="tabs" icons-only aria-label="Model tools" @update:model-value="selectTab" />
     </template>
     <template #default>
-      <SidebarPanelHeader :title="activeTabLabel" />
-      <div class="sidebar-tab-content">
+      <SidebarPanelHeader v-show="!helpFlowActive" :title="activeTabLabel" />
+      <div v-show="!helpFlowActive" class="sidebar-tab-content" :inert="toolsDisabled || undefined">
         <FeedbackSidebar v-if="activeTab === 'feedback'" :feedback-shapes="feedbackShapes" :show-header="false" />
         <SidebarPersistence v-else-if="activeTab === 'persistence'" :show-header="false" />
         <SidebarSync v-else-if="activeTab === 'sync'" :show-header="false" />
-        <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" @restore-document="emit('update-task-edit-document', $event)" />
+        <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" :selected-edit-ids="selectedTaskEditIds" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" />
         <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="modelId ?? null" :open-evaluation-id="openEvaluationId ?? null" />
         <SidebarLibrary v-else />
       </div>
@@ -21,7 +22,7 @@
 import { computed, ref, watch } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
-import type { TaskEditSyncState } from '@/utils/taskEdits'
+import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
 import SidebarLibrary from './SidebarLibrary.vue'
 import SidebarFrame from './SidebarFrame.vue'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
@@ -36,9 +37,13 @@ type SidebarTab = 'feedback' | 'persistence' | 'sync' | 'languages' | 'task' | '
 
 const props = defineProps<{
   collapsed: boolean
+  toolsDisabled?: boolean
+  helpFlowActive?: boolean
+  hasJourney?: boolean
   taskActive?: boolean
   taskEdit?: TaskEditDocument | null
   taskEditSyncState?: TaskEditSyncState
+  selectedTaskEditIds?: string[]
   modelId?: string | null
   openEvaluationId?: string | null
   feedbackShapes?: Array<{
@@ -51,7 +56,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'remove-task-edit': [id: string]
   'update-task-edit-document': [document: JsonObject]
-  'focus-task-edit': [id: string]
+  'focus-task-edit': [target: TaskEditFocus]
 }>()
 
 const baseTabs: SidebarTabItem[] = [
@@ -64,6 +69,9 @@ const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'tas
 
 const DEFAULT_WIDTH = 210
 const sidebarWidth = ref(DEFAULT_WIDTH)
+watch(() => props.hasJourney, (hasJourney) => {
+  sidebarWidth.value = hasJourney ? Math.max(280, sidebarWidth.value) : DEFAULT_WIDTH
+}, { immediate: true })
 const activeTab = ref<SidebarTab>('languages')
 const activeTabLabel = computed(() => tabs.value.find((tab) => tab.value === activeTab.value)?.label ?? '')
 const selectTab = (value: string) => {
@@ -82,6 +90,10 @@ watch(
 </script>
 
 <style scoped>
+.sidebar-help-active :deep(.sidebar-frame__top) {
+  max-height: 100%;
+}
+
 .sidebar-tab-content {
   flex: 1;
   min-height: 0;

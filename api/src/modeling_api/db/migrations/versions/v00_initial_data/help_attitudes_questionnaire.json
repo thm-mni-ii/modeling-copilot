@@ -1,0 +1,86 @@
+{
+  "title": "Hilfe bei Datenmodellierungsaufgaben",
+  "definition": {
+    "introduction": "Wie sehr treffen die folgenden Aussagen auf dich zu, wenn du Datenmodellierungsaufgaben bearbeitest? Mit „Hilfe“ ist Unterstützung durch andere Personen gemeint, zum Beispiel durch Lehrende oder Mitstudierende. Wenn du eine Situation nicht beurteilen kannst, wähle die entsprechende Option.",
+    "showQuestionNumbers": "off",
+    "pages": [
+      { "name": "items_1_4", "title": "Aussagen 1–4" },
+      { "name": "items_5_8", "title": "Aussagen 5–8" },
+      { "name": "items_9_12", "title": "Aussagen 9–12" }
+    ],
+    "elements": [
+      {
+        "type": "radiogroup", "name": "H1", "page": "items_1_4", "isRequired": true,
+        "title": "Wenn ich um Hilfe bei einer Modellierungsaufgabe bitte, möchte ich lieber Hinweise als die fertige Antwort erhalten.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H2", "page": "items_1_4", "isRequired": true,
+        "title": "Wenn ich bei einer Modellierungsaufgabe etwas nicht verstehe, bitte ich um eine Erklärung statt nur um die Antwort.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H3", "page": "items_1_4", "isRequired": true,
+        "title": "Wenn ich um Hilfe bei einer Modellierungsaufgabe bitte, möchte ich nur so viel Hilfe bekommen, dass ich die Aufgabe selbst fertig bearbeiten kann.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H4", "page": "items_1_4", "isRequired": true,
+        "title": "Wenn ich um Hilfe bitte, möchte ich die zugrunde liegenden Ideen verstehen, statt nur die Antwort genannt zu bekommen.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H5", "page": "items_5_8", "isRequired": true,
+        "title": "Wenn ich um Hilfe bei einer Modellierungsaufgabe bitte, ist es mir lieber, wenn die andere Person die Aufgabe für mich erledigt, statt mir das Vorgehen zu erklären.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H6", "page": "items_5_8", "isRequired": true,
+        "title": "Wenn ich bei einer Modellierungsaufgabe etwas nicht verstehe, möchte ich lieber direkt die Antwort bekommen als eine Erklärung.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H7", "page": "items_5_8", "isRequired": true,
+        "title": "Wenn ich um Hilfe bitte, möchte ich, dass die Arbeit für mich erledigt wird, statt dass ich lerne, sie selbst fertigzustellen.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H8", "page": "items_5_8", "isRequired": true,
+        "title": "Wenn ich um Hilfe bei einer Modellierungsaufgabe bitte, möchte ich lieber die Antwort erhalten als eine Erklärung, wie ich die Aufgabe selbst lösen kann.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H9", "page": "items_9_12", "isRequired": true,
+        "title": "Ich bitte bei Modellierungsaufgaben auch dann nicht um Hilfe, wenn sie für mich allein zu schwierig sind.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H10", "page": "items_9_12", "isRequired": true,
+        "title": "Wenn ich Hilfe für eine Modellierungsaufgabe brauche, lasse ich sie lieber aus, als um Hilfe zu bitten.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H11", "page": "items_9_12", "isRequired": true,
+        "title": "Wenn ich bei einer Modellierungsaufgabe etwas nicht verstehe, rate ich lieber, als jemanden um Hilfe zu bitten.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      },
+      {
+        "type": "radiogroup", "name": "H12", "page": "items_9_12", "isRequired": true,
+        "title": "Wenn eine Modellierungsaufgabe zu schwierig ist, bearbeite ich sie lieber nicht, als um Hilfe zu bitten.",
+        "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+        "choiceLabels": { "1": "1 – trifft überhaupt nicht zu", "2": "2 – trifft eher nicht zu", "3": "3 – teils/teils", "4": "4 – trifft eher zu", "5": "5 – trifft vollständig zu", "cannot_judge": "Kann ich nicht beurteilen" }
+      }
+    ]
+  }
+}

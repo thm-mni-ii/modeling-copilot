@@ -10,7 +10,7 @@ from modeling_api.core.errors import ApiError, not_found
 from modeling_api.db.client import db
 from modeling_api.db.store import Document, insert, list_page, to_api, utcnow
 from modeling_api.services import dagu
-from modeling_api.services.models import get_version
+from modeling_api.services.models import get_version, ensure_task_questionnaire_completed
 from modeling_api.services.tasks import ensure_release_reference
 
 
@@ -104,6 +104,7 @@ async def start(model_id: UUID, user: User) -> Document:
     model = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
     if model is None or not model.get("taskVersion"):
         raise not_found()
+    await ensure_task_questionnaire_completed(model_id)
     task_ref = model["taskVersion"]
     task_version = await ensure_release_reference(UUID(task_ref["taskId"]), UUID(task_ref["versionId"]), user)
     allowed = task_version.get("data", {}).get("evaluationWorkflows", [])
