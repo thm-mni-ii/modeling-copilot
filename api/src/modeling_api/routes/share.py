@@ -4,9 +4,9 @@ from fastapi import APIRouter, Response
 
 from modeling_api.core.errors import ApiError
 from modeling_api.routes.deps import CurrentUser
-from modeling_api.schemas.share import JoinedRoom, JoinRoom, SetJoinable, SetOpen, ShareModel, SharedRoom
+from modeling_api.schemas.share import JoinedRoom, JoinRoom, SetJoinable, SetOpen, ShareModel, SharedRoom, ShareState
 from modeling_api.services import models
-from modeling_api.services.collab_kit import share as service
+from modeling_api.services.collab_kit import share as service, sweep
 
 router = APIRouter(prefix="/share", tags=["Share"])
 
@@ -35,7 +35,31 @@ async def share_model(body: ShareModel, user: CurrentUser, response: Response) -
         user.id, body.name, body.contract, body.units, body.anonymous, body.edit, body.comment, task
     )
     response.status_code = 201 if created else 200
+    if created:
+        # From now on someone looks that no visitor stays behind and that the host is not gone for long.
+        sweep.ensure_running()
     return SharedRoom(room_id=room_id, workpiece_id=workpiece_id, host_id=user.id, created=created)
+
+
+@router.get(
+    "",
+    summary="The share of the host as it stands",
+    description=(
+        "The share the current user hosts, with whether its room is locked and whether the sweep "
+        "locked it because the host was gone. Asking also makes sure that the sweep looks after "
+        "the share again, which is how a host who comes back wakes it. No share is a 404."
+    ),
+)
+async def own_share(user: CurrentUser) -> ShareState:
+    current = await service.own_share(user.id)
+    if current["workpieceId"]:
+        sweep.ensure_running()
+    return ShareState(
+        room_id=current["roomId"],
+        workpiece_id=current["workpieceId"],
+        open=current["open"],
+        auto_locked=current["autoLocked"],
+    )
 
 
 @router.post(
@@ -53,6 +77,20 @@ async def join_room(body: JoinRoom, user: CurrentUser) -> JoinedRoom:
     return JoinedRoom(room_id=body.room_id, workpiece_id=workpiece_id, role=role, host_id=host_id)
 
 
+@router.post(
+    "/leave",
+    summary="Leave a shared room as visitor",
+    description=(
+        "Takes the current user out of the visitors of the room, so they can go at any time. "
+        "A room that is closed or gone, or a user who is no visitor, changes nothing; "
+        "repeating the call is harmless."
+    ),
+    status_code=204,
+)
+async def leave_room(body: JoinRoom, user: CurrentUser) -> None:
+    await service.leave(user.id, body.room_id)
+
+
 @router.put(
     "/open",
     summary="Lock or reopen the room of the host",
@@ -65,6 +103,9 @@ async def join_room(body: JoinRoom, user: CurrentUser) -> JoinedRoom:
 )
 async def set_open(body: SetOpen, user: CurrentUser) -> None:
     await service.set_open(user.id, body.open)
+    if body.open:
+        # The room is open again, so the sweep has to look after it again.
+        sweep.ensure_running()
 
 
 @router.put(

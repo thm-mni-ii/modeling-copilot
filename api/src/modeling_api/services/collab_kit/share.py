@@ -62,6 +62,23 @@ async def join(user_id: str, room_id: str) -> tuple[str, str, str]:
     return current["workpieceId"], "visitor", current["hostId"]
 
 
+async def leave(user_id: str, room_id: str) -> None:
+    """Takes the user out of the visitors of the room; a visitor can always go, whatever the host does.
+
+    A room that is closed, gone or never shared is nothing to leave, and whoever is no visitor
+    (the host included) is not touched, so the call can be repeated.
+    """
+    try:
+        current = await store.read(room_id)
+    except ApiError as error:
+        if error.status != 404:
+            raise
+        return
+    visitors = await client.get_group(current["groups"][store.VISITORS])
+    if user_id in visitors["members"]:
+        await client.remove_member(visitors["_id"], user_id)
+
+
 async def share(
     host_id: str,
     name: str,
@@ -121,8 +138,15 @@ async def share(
     workpiece = await client.create_workpiece(
         {"name": name, "roomId": room_id, "contract": contract, "units": units}
     )
+    # A new share starts clean: nothing remembered from a lock before may carry over.
     await store.save(
-        room_id, open=True, joinable=True, workpieceId=workpiece["_id"], taskWorkpieceId=task_workpiece_id
+        room_id,
+        open=True,
+        joinable=True,
+        workpieceId=workpiece["_id"],
+        taskWorkpieceId=task_workpiece_id,
+        before=None,
+        autoLocked=False,
     )
     return room_id, workpiece["_id"], True
 
@@ -134,17 +158,25 @@ async def _own_share(host_id: str) -> dict[str, Any]:
     return current
 
 
+async def own_share(host_id: str) -> dict[str, Any]:
+    """The share of the host as stored; a host who never shared gets a 404."""
+    return await _own_share(host_id)
+
+
 def _restored(before: dict[str, Any]) -> list[str]:
     """The remembered rights, cleaned up: `see` always, otherwise only what visitors may have."""
     rights = before.get("rights")
     return ["see", *[r for r in RESTORABLE[1:] if isinstance(rights, list) and r in rights]]
 
 
-async def set_open(host_id: str, open_: bool) -> None:
+async def set_open(host_id: str, open_: bool, auto: bool = False) -> None:
     """Locks the room or opens it again (aborted while leaving).
 
     Locked, nobody gets in and the visitors can no longer edit, so that everyone sees the same
     state while the host saves. The room remembers their rights from before.
+
+    Two ends are kept apart: what the host does is orderly and never counts as `auto`; only the sweep
+    locks with `auto=True`, because the host is gone, and only such a lock does it open again.
     """
     current = await _own_share(host_id)
     room_id, visitors = current["roomId"], current["groups"][store.VISITORS]
@@ -156,7 +188,8 @@ async def set_open(host_id: str, open_: bool) -> None:
                 (g for g in await client.list_grants(room_id) if g["groupId"] == visitors), {}
             )
             before = {"rights": granted.get("rights", ["see"]), "anonymous": granted.get("anonymous") is True}
-        await store.save(room_id, open=False, before=before)
+        # Without `auto` the lock is the host's, so the sweep never opens it.
+        await store.save(room_id, open=False, before=before, autoLocked=auto)
         frozen = [right for right in _restored(before) if right != "edit"]
         await client.set_grant(visitors, frozen, room_id, before.get("anonymous") is True)
         return
@@ -166,7 +199,7 @@ async def set_open(host_id: str, open_: bool) -> None:
         await client.set_grant(
             visitors, _restored(current["before"]), room_id, current["before"].get("anonymous") is True
         )
-    await store.save(room_id, open=True, before=None)
+    await store.save(room_id, open=True, before=None, autoLocked=False)
 
 
 async def set_joinable(host_id: str, joinable: bool) -> None:
@@ -193,4 +226,4 @@ async def close(host_id: str) -> None:
     for workpiece_id in (current["workpieceId"], current["taskWorkpieceId"]):
         if workpiece_id in room["workpieces"]:
             await client.remove_workpiece_from_room(room_id, workpiece_id)
-    await store.save(room_id, workpieceId=None, taskWorkpieceId=None, before=None)
+    await store.save(room_id, workpieceId=None, taskWorkpieceId=None, before=None, autoLocked=False)

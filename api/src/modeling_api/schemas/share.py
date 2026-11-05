@@ -66,3 +66,14 @@ class SharedRoom(ApiSchema):
     created: bool = Field(
         description="False if the host was already sharing and this is the workpiece in use."
     )
+
+
+class ShareState(ApiSchema):
+    """The share of the host as it stands, so a host who comes back learns what happened."""
+
+    room_id: str
+    workpiece_id: str | None = Field(description="None once the share has ended.")
+    open: bool = Field(description="False while the room is locked, by the host or by the sweep.")
+    auto_locked: bool = Field(
+        description="True if the room was locked because the host was gone, not by the host."
+    )

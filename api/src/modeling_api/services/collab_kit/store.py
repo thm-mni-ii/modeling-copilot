@@ -6,7 +6,8 @@ groups of this room. Otherwise a host could enter the ID of a foreign group.
 
 Raum:   {"share": {"open": true, "joinable": true, "workpieceId": "…", "taskWorkpieceId": "…" | null,
                    "groups": {"hosts": "…", "visitors": "…"},
-                   "before": {"rights": […], "anonymous": false} (only while locked)}}
+                   "before": {"rights": […], "anonymous": false} (only while locked),
+                   "autoLocked": true (only while the sweep keeps it locked for a missing host)}}
 Gruppe: {"share": {"role": "hosts" | "visitors", "roomId": "…", "ownerId": "…" (hosts only)}}
 """
 
@@ -48,6 +49,24 @@ async def find_by_owner(owner_id: str) -> dict[str, Any] | None:
     return await read(_share_of(oldest["settings"])["roomId"])
 
 
+async def open_rooms() -> list[dict[str, Any]]:
+    """The shares that have a workpiece right now, locked ones included; a room that cannot be read is skipped."""
+    rooms = []
+    for group in await client.list_groups():
+        share = _share_of(group["settings"])
+        if share.get("role") != HOSTS:
+            continue
+        try:
+            current = await read(share["roomId"])
+        except ApiError as error:
+            if error.status not in (404, 409):
+                raise
+            continue
+        if current["workpieceId"]:
+            rooms.append(current)
+    return rooms
+
+
 async def read(room_id: str) -> dict[str, Any]:
     """The share of a room with verified groups; a room without a share is a 404."""
     room = await client.get_room(room_id)
@@ -78,11 +97,13 @@ async def read(room_id: str) -> dict[str, Any]:
         "hostId": host_id,
         # The rights of the visitors before the lock, as long as the room is locked.
         "before": share.get("before") if isinstance(share.get("before"), dict) else None,
+        # Whether the sweep locked the room because the host was gone, and so may open it again when they are back.
+        "autoLocked": share.get("autoLocked") is True,
     }
 
 
 async def save(room_id: str, **fields: Any) -> None:
-    """Sets `open`, `joinable`, `workpieceId`, `taskWorkpieceId`, `groups` or `before` and leaves all other settings of the room alone."""
+    """Sets `open`, `joinable`, `workpieceId`, `taskWorkpieceId`, `groups`, `before` or `autoLocked` and leaves all other settings of the room alone."""
     room = await client.get_room(room_id)
     current = room["settings"] if isinstance(room["settings"], dict) else {}
     await client.update_room_settings(

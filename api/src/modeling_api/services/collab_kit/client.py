@@ -50,6 +50,11 @@ async def get_room(room_id: str) -> dict:
     return await _request("GET", f"/rooms/{room_id}")
 
 
+async def room_presence(room_id: str) -> list[dict]:
+    """Who is connected to which workpiece of the room right now: `workpieceId`, `actorId`, `connections`."""
+    return await _request("GET", f"/rooms/{room_id}/presence")
+
+
 async def update_room_settings(room_id: str, settings: dict[str, Any]) -> dict:
     """CK replaces the settings as a whole; the caller must send foreign keys along."""
     return await _request("PATCH", f"/rooms/{room_id}", {"settings": settings})
