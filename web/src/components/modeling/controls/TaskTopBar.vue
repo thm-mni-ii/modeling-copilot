@@ -31,7 +31,7 @@
             <v-icon size="16" color="primary">mdi-open-in-new</v-icon>
             The task text is open in a window. Close the window to display it here.
           </div>
-          <TaskEditEditor v-else :base-html="contentHtml" :base-document="baseDocument" :model-value="helpSelectionMode ? helpTaskDocument ?? null : taskEdit?.document ?? null" :mode="helpSelectionMode ? 'help' : editMode ? 'edit' : 'read'" :shared="shared" :help-text-ranges="helpTextRanges" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="$slots.default ? undefined : editorStyle" @mark-help-text="emit('mark-help-text', $event)" @select-connection="emit('select-connection', $event)" @select-edits="emit('select-task-edits', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
+          <TaskEditEditor v-else :base-html="contentHtml" :base-document="baseDocument" :model-value="helpSelectionMode ? helpTaskDocument ?? null : taskEdit?.document ?? null" :mode="helpSelectionMode ? 'help' : editMode ? 'edit' : 'read'" :shared="shared" :history="history" :help-text-ranges="helpTextRanges" :element-options="props.elementOptions" :connection-options="props.connectionOptions" class="task-topbar__editor" :style="$slots.default ? undefined : editorStyle" @mark-help-text="emit('mark-help-text', $event)" @select-connection="emit('select-connection', $event)" @select-edits="emit('select-task-edits', $event)" @update:model-value="emit('update:taskEditDocument', $event)" />
           <!-- Im Raum: die Notizen unter dem Text. -->
           <slot />
 
@@ -68,6 +68,8 @@ const props = withDefaults(
     helpTextRanges?: HelpTextRange[]
     /** Im Raum: ohne Undo im Editor, mit Notizen im Slot. */
     shared?: boolean
+    /** Im Raum: Undo und Redo der eigenen Schritte. */
+    history?: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void }
   }>(),
   {
     shared: false,

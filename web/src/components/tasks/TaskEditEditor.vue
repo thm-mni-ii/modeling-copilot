@@ -5,10 +5,10 @@
       <v-btn size="small" color="warning" variant="tonal" prepend-icon="mdi-marker" :disabled="!hasSelection" @mousedown.prevent @click="markHelpText">Textstelle markieren</v-btn>
     </div>
     <div v-if="editor && mode === 'edit'" class="task-edit-toolbar">
-      <template v-if="!shared">
+      <template v-if="!shared || history">
         <v-btn-group size="x-small" density="compact" variant="outlined">
-          <v-btn :disabled="!editor.can().undo()" title="Undo Edit" @click="editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
-          <v-btn :disabled="!editor.can().redo()" title="Redo Edit" @click="editor.chain().focus().redo().run()"><v-icon>mdi-redo</v-icon></v-btn>
+          <v-btn :disabled="history ? !history.canUndo : !editor.can().undo()" title="Undo Edit" @click="history ? history.undo() : editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
+          <v-btn :disabled="history ? !history.canRedo : !editor.can().redo()" title="Redo Edit" @click="history ? history.redo() : editor.chain().focus().redo().run()"><v-icon>mdi-redo</v-icon></v-btn>
         </v-btn-group>
         <v-divider vertical class="mx-1" />
       </template>
@@ -21,17 +21,14 @@
       </v-btn-group>
       <TaskColorPicker title="Text color Edit" icon="mdi-format-color-text" :colors="TASK_TEXT_COLORS" size="x-small" :disabled="!hasSelection" :active="isFormatActive('taskEditTextColor')" @select="applyFormat('taskEditTextColor', 'textColor', $event)" />
       <TaskColorPicker title="Highlight Edit" icon="mdi-marker" :colors="TASK_HIGHLIGHT_COLORS" size="x-small" :disabled="!hasSelection" :active="isFormatActive('taskEditHighlight')" @select="applyFormat('taskEditHighlight', 'highlight', $event)" />
-      <!-- Im Raum wird nur markiert: Eingefügter Text verschöbe die Stellen der geteilten Markierungen. -->
-      <template v-if="!shared">
-        <v-divider vertical class="mx-1" />
-        <v-tooltip :text="commentHint" location="bottom">
-          <template #activator="{ props: tooltipProps }">
-            <span v-bind="tooltipProps" class="task-comment-action" :tabindex="canAddComment ? undefined : 0">
-              <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-comment-plus-outline" :disabled="!canAddComment" @mousedown.prevent @click="openInsertion">Add Comment</v-btn>
-            </span>
-          </template>
-        </v-tooltip>
-      </template>
+      <v-divider vertical class="mx-1" />
+      <v-tooltip :text="commentHint" location="bottom">
+        <template #activator="{ props: tooltipProps }">
+          <span v-bind="tooltipProps" class="task-comment-action" :tabindex="canAddComment ? undefined : 0">
+            <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-comment-plus-outline" :disabled="!canAddComment" @mousedown.prevent @click="openInsertion">Add Comment</v-btn>
+          </span>
+        </template>
+      </v-tooltip>
     </div>
 
     <editor-content :editor="editor" class="task-edit-body" @click="onTaskReferenceClick" @dragstart="onDragStart" @mouseleave="hideReferencePreview" @mouseover="onTaskReferenceMouseOver" />
@@ -74,8 +71,9 @@ const props = withDefaults(
     baseDocument?: JsonObject | null
     modelValue: JsonObject | null
     mode?: 'read' | 'edit' | 'help'
-    /** Im Raum: kein Undo, weil die Marks geteilt sind und der Verlauf fremde Änderungen zurücknehmen würde. */
+    /** Im Raum: kein eigener Verlauf, weil er fremde Änderungen zurücknehmen würde; `history` nimmt nur die eigenen Schritte. */
     shared?: boolean
+    history?: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void }
     helpTextRanges?: HelpTextRange[]
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
@@ -110,10 +108,10 @@ const EditShortcutGuard = Extension.create({
     'Mod-u': () => true,
     'Mod-Shift-s': () => true,
     'Mod-e': () => true,
-    // Im Raum gibt es keinen Verlauf, siehe `shared`.
-    'Mod-z': () => props.shared,
-    'Mod-Shift-z': () => props.shared,
-    'Mod-y': () => props.shared
+    // Im Raum gibt es keinen eigenen Verlauf, siehe `shared`.
+    'Mod-z': () => (props.history ? (props.history.undo(), true) : props.shared),
+    'Mod-Shift-z': () => (props.history ? (props.history.redo(), true) : props.shared),
+    'Mod-y': () => (props.history ? (props.history.redo(), true) : props.shared)
   })
 })
 

@@ -1,6 +1,6 @@
 <template>
   <div v-if="task">
-    <TaskTopBar :task="task" :window-open="false" :content-html="contentHtml" :task-edit="taskEdit" :element-options="elementOptions" :connection-options="connectionOptions" shared @select-connection="emit('select-connection', $event)" @update:task-edit-document="write">
+    <TaskTopBar :task="task" :window-open="false" :content-html="contentHtml" :task-edit="taskEdit" :element-options="elementOptions" :connection-options="connectionOptions" :history="history" shared @select-connection="emit('select-connection', $event)" @select-task-edits="emit('select-task-edits', $event)" @update:task-edit-document="write">
       <div class="shared-notes">
         <div class="shared-notes__toolbar">
           <span class="text-caption">Notes</span>
@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import TaskTopBar from '@/components/modeling/controls/TaskTopBar.vue'
 import TaskColorPicker from '@/components/tasks/TaskColorPicker.vue'
@@ -35,6 +35,7 @@ import { bindNotes, notesExtensions } from '@/collab/worksheet/notesBinding'
 import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/converters/task/marks'
 import { MARKS_MAP, NOTES_TEXT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { baseOf } from '@/collab/sharing/shareTask'
+import { sharedTaskEdit, writeSharedTask } from './sharedTask'
 
 /**
  * The task shared along with a model of a room: its text fixed in a CK task, the marks on it as
@@ -52,6 +53,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'select-connection': [reference: { languageId: string; connectionType: string }]
+  'select-task-edits': [ids: string[]]
 }>()
 
 const task = ref<DiagramTask | null>(null)
@@ -62,6 +64,26 @@ const notes = useEditor({ extensions: notesExtensions('Notes for everyone in the
 
 // The editor of the task reads a whole document; the marks are laid over the fixed text for it.
 const taskEdit = computed<TaskEditDocument | null>(() => (document.value ? { schemaVersion: 1, revision: 0, updatedAt: '', document: document.value } : null))
+
+// The sidebar lists the edits of the room as it does the private ones.
+watch(taskEdit, (value) => (sharedTaskEdit.value = value), { immediate: true })
+
+// Undo and redo take back the own steps only; what others set since stays.
+const canUndo = ref(false)
+const canRedo = ref(false)
+const refreshHistory = () => {
+  canUndo.value = session?.units.canUndo() ?? false
+  canRedo.value = session?.units.canRedo() ?? false
+}
+const step = (kind: 'undo' | 'redo') => {
+  try {
+    session?.units[kind]()
+  } catch (error) {
+    notifyWarning(`Nothing could be taken back: ${collabErrorMessage(error)}`)
+  }
+  refreshHistory()
+}
+const history = computed(() => ({ canUndo: canUndo.value, canRedo: canRedo.value, undo: () => step('undo'), redo: () => step('redo') }))
 
 let base: JsonObject = { type: 'doc' }
 // The marks as the editor was last given them or last wrote them.
@@ -95,6 +117,9 @@ const write = (next: JsonObject) => {
   try {
     session.units.update({ set, delete: removed })
     shown = after
+    // Also from the sidebar: the editor and the list take what was written.
+    document.value = next
+    refreshHistory()
   } catch (error) {
     notifyError(`The mark could not be saved: ${collabErrorMessage(error)}`)
     show()
@@ -123,6 +148,7 @@ onMounted(async () => {
       opened.units.onChange((_, remote) => {
         // Own marks are in the editor already; loading them again would only move the selection.
         if (remote && !sameMarks(Object.fromEntries(opened.units.entries()), shown)) show()
+        refreshHistory()
       })
     )
     // Locked while the host leaves, edit comes back on reopening; the session tells after reconnecting.
@@ -138,8 +164,12 @@ onMounted(async () => {
   }
 })
 
+writeSharedTask.value = write
+
 onBeforeUnmount(() => {
   unmounted = true
+  sharedTaskEdit.value = null
+  writeSharedTask.value = null
   unbindNotes?.()
   stops.forEach((stop) => stop())
   stops = []
