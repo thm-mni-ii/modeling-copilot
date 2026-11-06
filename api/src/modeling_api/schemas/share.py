@@ -1,0 +1,79 @@
+"""Schemas for sharing a model in a Collab-Kit room."""
+
+from typing import Literal
+from uuid import UUID
+
+from pydantic import Field
+
+from modeling_api.schemas.common import ApiSchema, JsonObject, Name
+
+
+class ShareModel(ApiSchema):
+    """What the host shares and what the visitors may do; they always see."""
+
+    name: Name = Field(description="Name of the room and of the workpiece in it.")
+    contract: JsonObject = Field(description="Contract of the workpiece, as the web app builds it.")
+    units: list[JsonObject] = Field(
+        max_length=16, description="Units of the workpiece, as the web app builds them."
+    )
+    anonymous: bool = Field(description="Whether visitors appear anonymously.")
+    edit: bool = Field(description="Whether visitors may edit.")
+    comment: bool = Field(description="Whether visitors may comment.")
+    model_id: UUID | None = Field(default=None, description="The own model that is shared.")
+    task: bool = Field(
+        default=False, description="Whether the task of the model comes along, read from the model."
+    )
+
+
+class JoinRoom(ApiSchema):
+    """The room a link points to."""
+
+    # An ObjectId from CK; it goes into the path of the request to CK, so no other form.
+    room_id: str = Field(pattern=r"^[0-9a-f]{24}$", description="ID of the room, as in the link.")
+
+
+class JoinedRoom(ApiSchema):
+    """The workpiece to open and how the user takes part."""
+
+    room_id: str
+    workpiece_id: str
+    role: Literal["host", "visitor"] = Field(description="Whether the user is the host of the room.")
+    host_id: str = Field(description="The ID of the host, so visitors can tell whose cursor is whose.")
+
+
+class SetOpen(ApiSchema):
+    """Whether the host's room takes part again or is locked."""
+
+    open: bool = Field(
+        description="False locks the room while the host leaves, true opens it again after a cancel."
+    )
+
+
+class SetJoinable(ApiSchema):
+    """Whether new visitors may still join through the link."""
+
+    joinable: bool = Field(
+        description="False closes the link for new visitors; those already in stay."
+    )
+
+
+class SharedRoom(ApiSchema):
+    """The room and the workpiece the host shares in."""
+
+    room_id: str
+    workpiece_id: str
+    host_id: str = Field(description="The ID of the host, the user who shares.")
+    created: bool = Field(
+        description="False if the host was already sharing and this is the workpiece in use."
+    )
+
+
+class ShareState(ApiSchema):
+    """The share of the host as it stands, so a host who comes back learns what happened."""
+
+    room_id: str
+    workpiece_id: str | None = Field(description="None once the share has ended.")
+    open: bool = Field(description="False while the room is locked, by the host or by the sweep.")
+    auto_locked: bool = Field(
+        description="True if the room was locked because the host was gone, not by the host."
+    )

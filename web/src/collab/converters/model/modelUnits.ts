@@ -1,7 +1,7 @@
 import type { WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { UnitChange, Workpiece } from '@/collab/kit/collabKitV1'
 import { joinModel, type SharedCell } from './modelCells'
-import { languagesOf } from './workpiece'
+import { languagesOf } from '@/collab/storage/workpiece'
 
 /** The languages of the model, as one unit beside the cells. */
 export const LANGUAGES_KEY = '@languages'
@@ -29,3 +29,6 @@ export const languagesIn = (units: ReadonlyMap<string, ModelUnit>, workpiece: Wo
 
 /** The change that writes the languages. */
 export const languagesChange = (languages: WorkspaceLanguageReference[]): UnitChange<ModelUnit> => ({ set: { [LANGUAGES_KEY]: languages } })
+
+/** Whether collab-kit holds every unit as the session has it, so nothing of the own is on its way. */
+export const sameUnits = <Value>(stored: ReadonlyMap<string, Value>, own: [string, Value][]) => stored.size === own.length && own.every(([key, unit]) => JSON.stringify(stored.get(key)) === JSON.stringify(unit))

@@ -8,10 +8,12 @@ import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabKitApi, Room, Session, Workpiece } from '@/collab/kit/collabKitV1'
 import { holdSession } from '@/collab/kit/liveSession'
-import { showConflicts } from '@/collab/editing/conflicts'
-import { bindGraph } from '@/collab/editing/graphBinding'
-import { LANGUAGES_KEY, languagesChange, type ModelUnit } from '@/collab/storage/modelUnits'
+import { showConflicts } from '@/collab/graph/conflicts'
+import { bindGraph } from '@/collab/graph/graphBinding'
+import { LANGUAGES_KEY, languagesChange, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { CELLS_MAP, linkOf } from '@/collab/storage/workpiece'
+import { checkShareGone, resumeShare } from '@/collab/sharing/shareModel'
+import { watchShare } from '@/collab/sharing/watchShare'
 import { openWorkpiece } from './openWorkpiece'
 import { startPresence, type Person } from '@/collab/presence/presence'
 
@@ -32,6 +34,7 @@ const editorGraph = shallowRef<Graph>()
 let unbind: (() => void) | null = null
 let stopPresence: (() => void) | null = null
 let stopConflicts: (() => void) | null = null
+let stopShare: (() => void) | null = null
 let session: Session<ModelUnit> | null = null
 let lastLiveStatus = ''
 let lastOnline = ''
@@ -53,6 +56,8 @@ const closeSession = () => {
   stopPresence = null
   stopConflicts?.()
   stopConflicts = null
+  stopShare?.()
+  stopShare = null
   session?.close()
   session = null
   holdSession(null)
@@ -90,8 +95,12 @@ const connect = async (id: string) => {
     const workpiece = await ck.workpieces.get(id)
     anonymousHere = await ck.me.anonymous({ kind: 'workpiece', id })
     log(`collab-kit · workpiece "${workpiece.name}"${anonymousHere ? ' · anonymous' : ''}`)
+    // A host who is back wakes the sweep of the backend, which then opens a room it had locked.
+    void resumeShare()
   } catch (error) {
     log(`collab-kit · workpiece ${id}: ${collabErrorMessage(error)}`)
+    // A visitor who cannot reach the workpiece any more, e.g. after a reload into a closed room, must not sit here.
+    void checkShareGone()
     return
   } finally {
     connecting.value = false
@@ -118,6 +127,8 @@ const connect = async (id: string) => {
     // Before synced the doc never held the state of collab-kit, so the next connect starts afresh.
     if (synced) isConnected.value = false
     else closeSession()
+    // Ends the stay of a visitor whose room is gone, also when the host left without the lock.
+    void checkShareGone()
   })
   // Rejected when the session ends before; closed tells why.
   opened.synced.then(
@@ -129,6 +140,7 @@ const connect = async (id: string) => {
   )
   unbind = bindGraph(graph, opened, log)
   stopConflicts = showConflicts(graph, opened, log)
+  stopShare = watchShare(opened)
   lastOnline = ''
   stopPresence = startPresence(graph, opened, (list, clients) => {
     people.value = list

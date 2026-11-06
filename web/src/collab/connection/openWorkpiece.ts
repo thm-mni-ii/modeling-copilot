@@ -3,7 +3,7 @@ import type { Model } from '@/services/api/types/model'
 import modelService from '@/services/model/model.service'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { Room, Workpiece } from '@/collab/kit/collabKitV1'
-import { languagesOf, linkOf } from '@/collab/storage/workpiece'
+import { languagesOf, linkOf, type HostLink } from '@/collab/storage/workpiece'
 
 const PAGE = 100
 
@@ -22,7 +22,7 @@ const findLinkedModel = async (workpieceId: string): Promise<Model | null> => {
  * loads a model when it mounts, and it writes its canvas into the workspace store meanwhile, so it
  * is left first; the new model is set up in between.
  */
-export const openWorkpiece = async (router: Router, room: Room, workpiece: Workpiece) => {
+export const openWorkpiece = async (router: Router, room: Room, workpiece: Workpiece, host?: HostLink) => {
   const workspace = useModelWorkspaceStore()
   const existing = await findLinkedModel(workpiece._id)
   await router.replace('/')
@@ -32,7 +32,7 @@ export const openWorkpiece = async (router: Router, room: Room, workpiece: Workp
   }
   await workspace.startNew(workpiece.name, languagesOf(workpiece))
   // Linked before the first save, so its version comes from the workpiece and none is stored in the Copilot.
-  await workspace.updatePreferences({ ...workspace.preferences, collab: { workpieceId: workpiece._id, roomId: room._id } })
+  await workspace.updatePreferences({ ...workspace.preferences, collab: { workpieceId: workpiece._id, roomId: room._id, ...(host ? { host } : {}) } })
   await workspace.save()
   if (workspace.model) await router.push(`/modeling/${workspace.model.id}`)
 }

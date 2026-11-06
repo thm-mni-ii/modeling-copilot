@@ -1,5 +1,5 @@
 <template>
-  <v-dialog :model-value="modelValue" max-width="1000" persistent @update:model-value="emit('update:modelValue', $event)">
+  <v-dialog :model-value="modelValue" max-width="1000" :persistent="busy" @update:model-value="emit('update:modelValue', $event)">
     <v-card>
       <v-card-title class="d-flex align-center">
         Version timeline
@@ -8,15 +8,19 @@
       </v-card-title>
       <v-progress-linear v-if="loading" indeterminate />
       <v-card-text>
-        <v-checkbox v-if="workspace.taskVersion" v-model="includeTaskEdits" label="Include task edit history" hide-details />
-        <v-expansion-panels v-if="timelineTaskEditSnapshot && workspace.taskVersion" class="mt-3" variant="accordion">
+        <v-checkbox v-if="task.active" v-model="includeTaskEdits" label="Include task edit history" hide-details />
+        <v-expansion-panels v-if="timelineTaskEditSnapshot && task.active" class="mt-3" variant="accordion">
           <v-expansion-panel title="Edits in this model state">
-            <v-expansion-panel-text><TaskEditEditor :base-html="workspace.taskVersion.data.contentHtml" :base-document="workspace.taskVersion.data.contentDocument" :model-value="timelineTaskEditSnapshot.document" mode="read" class="timeline-task-edits" /></v-expansion-panel-text>
+            <v-expansion-panel-text><TaskEditEditor :base-html="task.baseHtml" :base-document="task.baseDocument" :model-value="timelineTaskEditSnapshot.document" mode="read" class="timeline-task-edits" /></v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>
-        <ModelSnapshotPreview :data="timelineData" :height="520" />
-        <div v-if="timelineSteps.length > 1" class="timeline-slider-wrap">
-          <v-slider v-model="timelineStep" :min="0" :max="timelineSteps.length - 1" :step="1" :ticks="timelineTicks" show-ticks="always" :tick-size="8" :color="timelineIsUnsaved ? 'warning' : 'primary'" :track-fill-color="timelineIsUnsaved ? 'warning' : 'primary'" :class="['timeline-slider', 'mt-7', { 'timeline-slider--has-unsaved': hasUnsavedTimeline }]" :style="timelineSliderStyle" />
+        <ModelSnapshotPreview :data="timelineData" :height="520" fit />
+        <div v-if="timelineSteps.length > 1" ref="sliderWrap" class="timeline-slider-wrap" :style="tickLayoutStyle">
+          <v-slider v-model="timelineStep" :min="0" :max="timelineSteps.length - 1" :step="1" :ticks="timelineTicks" show-ticks="always" :tick-size="8" :color="timelineIsUnsaved ? 'warning' : 'primary'" :track-fill-color="timelineIsUnsaved ? 'warning' : 'primary'" :class="['timeline-slider', 'mt-7', { 'timeline-slider--has-unsaved': hasUnsavedTimeline }]" :style="timelineSliderStyle">
+            <template #tick-label="{ tick }">
+              <span class="timeline-tick-text" :class="{ 'timeline-tick-text--lowered': (tickLanes[tick.value] ?? 0) > 0, 'timeline-tick-text--saved': tick.value === lastSavedIndex }" :data-tick="tick.value" :data-position="tick.position" :data-align="tickAlign(tick.value)" :style="{ '--tick-lane': tickLanes[tick.value] ?? 0 }" @mousedown="keepStep($event, tick.value)" @touchstart="keepStep($event, tick.value)">{{ tick.label }}</span>
+            </template>
+          </v-slider>
         </div>
         <div class="d-flex align-center ga-2 mt-2">
           <v-chip v-if="timelineIsUnsaved" color="warning" size="x-small" variant="tonal">Unsaved</v-chip>
@@ -39,7 +43,7 @@
       <v-card-text>
         <v-text-field v-model="branchName" label="New model name" maxlength="256" counter autofocus @keyup.enter="createBranch" />
         <p class="text-caption text-medium-emphasis mb-0">The selected state becomes the initial release of a new model.</p>
-        <v-checkbox v-if="timelineTaskEditSnapshot" v-model="branchEdits" label="Use task edits from the selected position" hide-details />
+        <v-checkbox v-if="timelineTaskEditSnapshot && workspace.taskVersion" v-model="branchEdits" label="Use task edits from the selected position" hide-details />
       </v-card-text>
       <v-card-actions><v-spacer /><v-btn :disabled="branching" @click="branchDialog = false">Cancel</v-btn><v-btn color="primary" :loading="branching" :disabled="!branchName.trim()" @click="createBranch">Create branch</v-btn></v-card-actions>
     </v-card>
@@ -58,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGraphContext } from '@/composables/useGraphContext'
 import modelService from '@/services/model/model.service'
@@ -70,12 +74,14 @@ import { importModelFromXml } from '@/utils/modelPersistence'
 import { appendUnsavedTimelinePatches, buildModelTimeline, patchesForTimelineStep } from '@/utils/modelTimeline'
 import ModelSnapshotPreview from './ModelSnapshotPreview.vue'
 import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
-import { buildTaskEditTimeline, loadTaskEditHistory } from '@/utils/taskEditTimeline'
+import { buildTaskEditTimeline } from '@/utils/taskEditTimeline'
+import { useTaskHistory } from '@/collab/historyBuilder/useTaskHistory'
 import { notifyError } from '@/composables/useNotifications'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 const workspace = useModelWorkspaceStore()
+const task = useTaskHistory()
 const { graph } = useGraphContext()
 const router = useRouter()
 
@@ -109,7 +115,7 @@ const timelineSteps = computed(() => {
     saved: step.kind === 'release' || step.saved
   }))
   if (!includeTaskEdits.value) return positions
-  for (const taskStep of buildTaskEditTimeline(taskHistory.value, workspace.pendingTaskEditPatches, workspace.model?.taskEdit?.document ?? workspace.taskVersion?.data.contentDocument)) {
+  for (const taskStep of buildTaskEditTimeline(taskHistory.value, task.pending, task.start)) {
     let modelIndex = 0
     for (let index = 0; index < modelSteps.value.length; index++) {
       const step = modelSteps.value[index]
@@ -126,9 +132,46 @@ const lastSavedIndex = computed(() => {
 })
 const timelineTicks = computed(() => Object.fromEntries(timelineSteps.value.flatMap((position, index) => {
   const step = modelSteps.value[position.modelIndex]
-  const label = !position.taskStep && step?.kind === 'release' ? `Release v${step.versionNumber}` : ''
-  return label || index === lastSavedIndex.value ? [[index, [label, index === lastSavedIndex.value ? 'Last save' : ''].filter(Boolean).join(' ? ')]] : []
+  // Ein Release trägt immer eine volle Zahl; ohne ".0" bleibt das Label kurz.
+  const label = !position.taskStep && step?.kind === 'release' ? `v${step.versionNumber.replace(/\.0$/, '')}` : ''
+  return label || index === lastSavedIndex.value ? [[index, [label, index === lastSavedIndex.value ? 'Last save' : ''].filter(Boolean).join(' · ')]] : []
 })))
+
+// Überlappen sich Labels, rutscht das spätere in eine tiefere Zeile. Breiten, Spur und Zeilenhöhe kommen aus dem DOM, nichts ist fest.
+const sliderWrap = ref<HTMLElement | null>(null)
+const tickLanes = ref<Record<number, number>>({})
+const tickRowHeight = ref(0)
+// Die Pille von Last save ist nur Anzeige: ein Klick darauf springt nicht zu der Stelle unter dem Mauszeiger.
+const keepStep = (event: Event, value: number) => {
+  if (value === lastSavedIndex.value) event.stopPropagation()
+}
+const tickLayoutStyle = computed(() => ({ '--tick-row-height': `${tickRowHeight.value}px`, '--tick-lanes-height': `${Math.max(0, ...Object.values(tickLanes.value)) * tickRowHeight.value}px` }))
+// Das erste Label beginnt am Tick, das letzte endet dort, die anderen sind zentriert (wie bei Vuetify).
+const tickAlign = (value: number) => (value === 0 ? 'start' : value === timelineSteps.value.length - 1 ? 'end' : 'center')
+const layoutTickLabels = () => {
+  const track = sliderWrap.value?.querySelector<HTMLElement>('.v-slider-track')
+  const labels = Array.from(sliderWrap.value?.querySelectorAll<HTMLElement>('.timeline-tick-text') ?? [])
+  if (!track || labels.length === 0) return
+  const gap = parseFloat(getComputedStyle(labels[0]).fontSize)
+  const ends: number[] = []
+  const lanes: Record<number, number> = {}
+  for (const label of labels) {
+    const width = label.offsetWidth
+    const at = (Number(label.dataset.position) / 100) * track.offsetWidth
+    const start = label.dataset.align === 'start' ? at : label.dataset.align === 'end' ? at - width : at - width / 2
+    const lane = ends.findIndex((end) => start >= end + gap)
+    lanes[Number(label.dataset.tick)] = lane === -1 ? ends.push(start + width) - 1 : ((ends[lane] = start + width), lane)
+  }
+  tickRowHeight.value = labels[0].offsetHeight
+  if (JSON.stringify(lanes) !== JSON.stringify(tickLanes.value)) tickLanes.value = lanes
+}
+const tickObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(layoutTickLabels)
+watch(sliderWrap, (element, before) => {
+  if (before) tickObserver?.unobserve(before)
+  if (element) tickObserver?.observe(element)
+}, { flush: 'post' })
+watch(timelineTicks, () => void nextTick(layoutTickLabels), { flush: 'post' })
+onBeforeUnmount(() => tickObserver?.disconnect())
 const selectedPosition = computed(() => timelineSteps.value[timelineStep.value] ?? null)
 const selectedStep = computed(() => modelSteps.value[selectedPosition.value?.modelIndex ?? -1] ?? null)
 const hasUnsavedTimeline = computed(() => timelineSteps.value.some((step) => !step.saved))
@@ -147,7 +190,8 @@ const timelineLabel = computed(() => {
   if (!step) return 'No version history is available.'
   if (step.kind === 'release') {
     const name = step.releaseName ? `${step.releaseName} · ` : ''
-    return `${name}Release v${step.versionNumber} · ${new Date(step.createdAt).toLocaleString('en-GB')}`
+    const same = step.sameAsCheckpoint ? ` = Checkpoint v${step.sameAsCheckpoint}` : ''
+    return `${name}Release v${step.versionNumber}${same} · ${new Date(step.createdAt).toLocaleString('en-GB')}`
   }
   if (!step.saved) return `Local patch ${step.patchNumber} · ${new Date(step.patch.createdAt).toLocaleString('en-GB')}`
   return `Checkpoint v${step.checkpointVersionNumber}, patch ${step.patchNumber} · ${new Date(step.patch.createdAt).toLocaleString('en-GB')}`
@@ -179,7 +223,6 @@ const getReleaseData = async (releaseId: string) => {
 const updatePreview = async () => {
   const request = ++timelineRequest
   materializedStepIndex.value = -1
-  selectedTaskSnapshot.value = null
   const step = selectedStep.value
   if (!step) {
     timelineData.value = null
@@ -201,10 +244,10 @@ const updatePreview = async () => {
     } else timelineVersion.value = null
     const taskStep = selectedPosition.value?.taskStep
     let taskSnapshot = taskStep?.patch ? { schemaVersion: 1 as const, revision: workspace.taskEdit?.revision ?? 0, updatedAt: taskStep.createdAt, document: taskStep.patch.document }
-      : taskStep && workspace.model ? (await modelService.getTaskEditVersion(workspace.model.id, taskStep.id)).data
+      : taskStep ? await task.stateOf(taskStep.id)
       : timelineIsUnsaved.value ? workspace.taskEdit : timelineVersion.value?.taskEditSnapshot ?? null
     if (request !== timelineRequest) return
-    if (!taskSnapshot && workspace.taskVersion?.data.contentDocument) taskSnapshot = { schemaVersion: 1, revision: 0, updatedAt: workspace.taskVersion.createdAt, document: workspace.taskVersion.data.contentDocument }
+    if (!taskSnapshot && task.baseDocument) taskSnapshot = { schemaVersion: 1, revision: 0, updatedAt: workspace.taskVersion?.createdAt ?? new Date().toISOString(), document: task.baseDocument }
     selectedTaskSnapshot.value = taskSnapshot
     materializedStepIndex.value = timelineStep.value
   } catch {
@@ -220,7 +263,7 @@ const openTimeline = async () => {
   materializedStepIndex.value = -1
   try {
     await loadHistory()
-    taskHistory.value = workspace.model && workspace.taskVersion ? await loadTaskEditHistory(workspace.model.id) : []
+    taskHistory.value = task.active ? await task.list() : []
     timelineStep.value = Math.max(0, timelineSteps.value.length - 1)
     await updatePreview()
   } catch {
@@ -241,7 +284,7 @@ const confirmRestore = async () => {
   restoring.value = true
   try {
     await workspace.restoreSnapshot(timelineData.value, step.workspaceLanguages)
-    if (restoreEdits.value && timelineTaskEditSnapshot.value) await workspace.adoptTaskEditSnapshot(timelineTaskEditSnapshot.value)
+    if (restoreEdits.value && timelineTaskEditSnapshot.value) await task.restore(timelineTaskEditSnapshot.value)
     importModelFromXml(graph.value, workspace.data.xml)
     await workspace.save()
     restoreDialog.value = false
@@ -298,7 +341,7 @@ watch(includeTaskEdits, () => { timelineStep.value = Math.max(0, timelineSteps.v
   width: 100%;
   min-width: 0;
   overflow: hidden;
-  padding: 0 clamp(40px, 6vw, 64px) 24px;
+  padding: 0 clamp(40px, 6vw, 64px) calc(24px + var(--tick-lanes-height, 0px));
 }
 .timeline-slider {
   width: 100%;
@@ -314,6 +357,31 @@ watch(includeTaskEdits, () => { timelineStep.value = Math.max(0, timelineSteps.v
   font-weight: 700;
   white-space: nowrap;
 }
+.timeline-tick-text {
+  display: inline-block;
+  position: relative;
+  transform: translateY(calc(var(--tick-lane, 0) * var(--tick-row-height, 0px)));
+}
+/* Last save hebt sich als Pille in der Farbe der Zeitleiste von den Releases ab. */
+.timeline-tick-text--saved {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-on-primary));
+  cursor: default;
+}
+/* Eine dünne Linie führt von einem abgesenkten Label zu seinem Tick zurück. */
+.timeline-tick-text--lowered::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  height: calc(var(--tick-lane, 0) * var(--tick-row-height, 0px));
+  border-left: 1px solid rgb(var(--v-theme-primary));
+  opacity: 0.35;
+}
+.timeline-tick-text--lowered[data-align='center']::before { left: 50%; }
+.timeline-tick-text--lowered[data-align='start']::before { left: 0; }
+.timeline-tick-text--lowered[data-align='end']::before { right: 0; }
 .timeline-slider--has-unsaved :deep(.v-slider-track__background) {
   opacity: 0.38;
   background: linear-gradient(to right, rgba(var(--v-theme-on-surface), 0.28) 0 var(--last-save-position), rgb(var(--v-theme-warning)) var(--last-save-position) 100%) !important;
