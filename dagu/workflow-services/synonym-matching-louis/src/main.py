@@ -11,7 +11,7 @@ import jsonschema
 
 from synonym_matching import match
 
-SERVICE = 'synonym-matching'
+SERVICE = 'synonym-matching-louis'
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / 'schemas/input.schema.json'
 
 

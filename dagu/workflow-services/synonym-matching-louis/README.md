@@ -13,7 +13,7 @@ Schemas und Vorbereitungsskripte. Forschungsergebnisse verändern den Standard n
 
 ## Lokal starten
 
-Alle folgenden Befehle im Ordner `dagu/workflow-services/synonym-matching`:
+Alle folgenden Befehle im Ordner `dagu/workflow-services/synonym-matching-louis`:
 
 ```bash
 python3.12 -m venv .venv
@@ -281,8 +281,8 @@ optional eine vollständige Kopie. Die Formatierung liegt in `rank_results.py`.
 Im Serviceverzeichnis:
 
 ```bash
-docker build -t modeling-copilot/synonym-matching:0.1.1 .
-docker run --rm --network none -i modeling-copilot/synonym-matching:0.1.1 < examples/order-management-input.json
+docker build -t modeling-copilot/synonym-matching-louis:0.1.1 .
+docker run --rm --network none -i modeling-copilot/synonym-matching-louis:0.1.1 < examples/order-management-input.json
 python -m pytest -q
 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 RUN_MODEL_TESTS=1 RUN_LEXICON_TESTS=1 python -m pytest -q
 ```
