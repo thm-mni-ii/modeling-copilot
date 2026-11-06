@@ -73,7 +73,8 @@ async def list_workflows() -> list[dict[str, Any]]:
     entries = _items(await _request("GET", "/dags"))
     names = [workflow["name"] for workflow in map(normalize_workflow, entries) if workflow["name"]]
     details = await gather(*(_request("GET", f"/dags/{name}") for name in names))
-    return [workflow for workflow in map(normalize_workflow, details) if workflow["name"]]
+    return [workflow for workflow in map(normalize_workflow, details)
+            if workflow["name"] and workflow["labels"].get("visibility") != "internal"]
 
 
 async def start_workflow(name: str, params: dict[str, Any]) -> str:
@@ -102,11 +103,32 @@ async def get_run(name: str, run_id: str) -> dict[str, Any]:
     return await _request("GET", f"/dag-runs/{name}/{run_id}")
 
 
-async def get_step_log(name: str, run_id: str, step_name: str) -> str:
+async def get_sub_run(name: str, run_id: str, sub_run_id: str) -> dict[str, Any]:
+    return await _request("GET", f"/dag-runs/{name}/{run_id}/sub-dag-runs/{sub_run_id}")
+
+
+async def get_sub_run_artifact(name: str, run_id: str, sub_run_id: str, *, path: str, capability: str) -> dict[str, Any]:
+    """Read a persisted service result instead of reconstructing it from logs."""
+    try:
+        result = await _request(
+            "GET", f"/dag-runs/{name}/{run_id}/sub-dag-runs/{sub_run_id}/artifacts/download",
+            params={"path": path},
+        )
+    except ValueError as error:
+        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The stored service result is not valid JSON.") from error
+    if not isinstance(result, dict) or result.get("capability") != capability or not isinstance(result.get("result"), dict):
+        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The stored artifact does not contain the expected service result.")
+    return result
+
+
+async def get_step_log(name: str, run_id: str, step_name: str, *, sub_run_id: str | None = None, stream: str = "stdout") -> str:
     """Return the stdout emitted by one workflow step."""
+    run_path = f"/dag-runs/{name}/{run_id}"
+    if sub_run_id:
+        run_path += f"/sub-dag-runs/{sub_run_id}"
     payload = await _request(
         "GET",
-        f"/dag-runs/{name}/{run_id}/steps/{step_name}/log",
-        params={"stream": "stdout", "tail": 100},
+        f"{run_path}/steps/{step_name}/log",
+        params={"stream": stream, "tail": 100},
     )
     return str(payload.get("content") or "") if isinstance(payload, dict) else ""

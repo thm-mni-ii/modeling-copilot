@@ -1,0 +1,19 @@
+{
+  "taskId": "task-05",
+  "versionId": "1",
+  "workspaceLanguages": [
+    {
+      "languageId": "language-1",
+      "versionId": "1",
+      "source": "required"
+    }
+  ],
+  "data": {
+    "contentHtml": "<p>Neutrale Testaufgabe 5: Vergleiche das Modell mit den bereitgestellten Referenzen.</p>",
+    "autonomyMode": "validating",
+    "sampleSolutions": [],
+    "evaluationWorkflows": [
+      "model-evaluation-graph-matching"
+    ]
+  }
+}
