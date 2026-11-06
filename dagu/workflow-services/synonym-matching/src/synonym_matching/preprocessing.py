@@ -128,6 +128,8 @@ STEPS = {
     'remove_stopwords': remove_stopwords,
     'split_compounds': split_compounds,
 }
+# Kein Eintrag in STEPS: Übersetzen braucht Modell und Stapel, deshalb handelt es der Preprocessor.
+TRANSLATE = 'translate'
 
 
 def apply_pipeline(text, steps, language=None):
@@ -159,15 +161,49 @@ def build_pipeline(config=None):
 
 
 class Preprocessor:
-    """Verwaltet eine Verarbeitungskette und ihren Cache, ohne eigene Textumformung."""
-    def __init__(self, config=None):
-        """Erstelle die geordnete Verarbeitungskette und einen leeren Cache."""
-        self.steps = build_pipeline(config)
+    """Verwaltet eine Verarbeitungskette und ihren Cache, ohne eigene Textumformung.
+
+    In einer Schrittliste darf einmal 'translate' stehen: Schritte davor laufen auf
+    dem Originaltext, dann wird gebündelt DE→EN übersetzt, Schritte danach laufen
+    auf dem englischen Text (Sprache 'en'). Dafür braucht es einen Übersetzer.
+    """
+    def __init__(self, config=None, translator=None):
+        """Erstelle die geordnete Verarbeitungskette und leere Caches."""
+        steps = list(config) if isinstance(config, (list, tuple)) else None
+        if steps is not None and steps.count(TRANSLATE) > 1:
+            raise ValueError("translate may appear only once")
+        self.after = None
+        if steps is not None and TRANSLATE in steps:
+            position = steps.index(TRANSLATE)
+            self.steps = build_pipeline(steps[:position])
+            self.after = build_pipeline(steps[position + 1:])
+        else:
+            self.steps = build_pipeline(config)
+        self.translator = translator
         self.cache = {}
+        self.after_cache = {}
 
     def process(self, text, language=None):
         """Verarbeite jeden Text pro Sprache nur einmal."""
+        if self.after is not None:
+            return self.process_many([text], [language])[0][0]
+        return self._apply(self.steps, self.cache, text, language)
+
+    def process_many(self, texts, languages):
+        """Verarbeite viele Labels; liefere Texte und die Sprachen nach der Verarbeitung."""
+        texts = [self._apply(self.steps, self.cache, text, language)
+                 for text, language in zip(texts, languages)]
+        if self.after is None:
+            return texts, list(languages)
+        if self.translator is None:
+            raise ValueError("the translate step needs a translator")
+        translated = self.translator.translate(texts, languages)
+        return ([self._apply(self.after, self.after_cache, text, 'en') for text in translated],
+                ['en'] * len(translated))
+
+    @staticmethod
+    def _apply(steps, cache, text, language):
         key = (text, language)
-        if key not in self.cache:
-            self.cache[key] = apply_pipeline(text, self.steps, language)
-        return self.cache[key]
+        if key not in cache:
+            cache[key] = apply_pipeline(text, steps, language)
+        return cache[key]

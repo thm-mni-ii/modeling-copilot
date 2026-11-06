@@ -120,9 +120,17 @@ die Synonymmatrix, der Forschungslauf speichert seine vollständigen Ergebnisse.
 ## Verfahren und Modelle
 
 - `methods.py`: String-/Tokenvergleiche, Exact Match, Wortreihenfolge,
-  übersetzte Strings, Embeddings und Lexikonadapter.
+  übersetzte Strings, Embeddings und Lexikonadapter. `METHOD_TRAITS` legt fest, was die
+  Engine für ein Verfahren vorbereitet (`translate`, `german_only`, `original_text`);
+  ein neues Verfahren trägt sich dort ein, die Engine bleibt unverändert.
 - `preprocessing.py`: `normalize`, `lowercase`, `split_identifiers`, `lemmatize`,
   `stem`, `remove_stopwords`, `split_compounds`. Geordnete Liste, `[]` für Rohtexte.
+  Zusätzlich darf einmal `translate` (DE→EN, gebündelt) in der Liste stehen, z. B.
+  `"preprocessing": ["normalize", "translate", "lowercase"]`: Schritte davor laufen auf
+  dem Originaltext, Schritte danach auf dem englischen Text. Das gilt für jedes
+  Verfahren (`embedding_preprocessing` entsprechend für Embeddings). Nach `translate`
+  wird nicht ein zweites Mal übersetzt; Sprachen außer de/en ergeben einen Fehler.
+  Das ist dieselbe Schreibweise wie in den Ketten der Forschung.
 - `combinations.py`: Mean, Max, Weighted Mean sowie feste
   Kombinationen und Regeln. `config.combiner` wählt die Kombination.
 - `service.py`: `compute_scores()` liefert ungerundete NumPy-Matrizen;

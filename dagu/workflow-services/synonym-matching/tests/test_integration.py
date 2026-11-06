@@ -25,6 +25,16 @@ def test_real_model_path(method):
     assert engine.cache.misses == misses
 
 
+def test_translate_step_with_real_translation_model():
+    engine = MatchingEngine({'methods': ['levenshtein'],
+                             'preprocessing': ['normalize', 'lowercase', 'translate']})
+    result = engine.match([{'id': 'r', 'label': 'Kunde', 'language': 'de'}],
+                          [{'id': 's', 'label': 'Customer', 'language': 'en'}])
+    assert result['processedLabels']['levenshtein']['reference'][0] == 'customer'
+    assert result['scores']['levenshtein'][0][0] == pytest.approx(1)
+    assert engine.translator.revision
+
+
 def test_default_pipeline_combines_strings_and_multilingual_embedding():
     result = MatchingEngine().match(['Kunde'], ['Customer', 'Kund', 'Lieferant'], threshold=.5)
     scores = result['scores']

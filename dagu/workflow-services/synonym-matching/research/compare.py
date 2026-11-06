@@ -22,12 +22,11 @@ from synonym_matching.service import MatchingEngine
 from . import word_matching
 from .evaluation import evaluate_case, select_matches, global_ranking
 from .experiments import (DEFAULT_CONFIG, ROOT, configurations, is_wordvec, load_config,
-                          split_chain, unsupported)
+                          unsupported)
 from synonym_matching.lexicons import DATA_DIR, OpenThesaurus, WordNet
 from synonym_matching.combinations import combine
 from synonym_matching.methods import EmbeddingMethod
 from synonym_matching.cache import Cache
-from synonym_matching.preprocessing import Preprocessor
 from synonym_matching.translation import Translator
 
 
@@ -142,28 +141,16 @@ def score_statistics(features):
 def make_engine(name, method, steps, translator, models):
     """Einzige Stelle, an der Wortvektoren und Servicemethoden unterschieden werden.
 
-    Beide Arten liefern danach dasselbe Objekt mit compute_scores(). Die Schritte
-    gelten für den Text, den das Verfahren selbst sieht (nach 'translate').
+    Beide Arten liefern danach dasselbe Objekt mit compute_scores() und verarbeiten
+    die Schritte der Kette (inklusive 'translate') mit demselben Preprocessor.
     """
     if is_wordvec(method):
         from .word_matching import WordMatching
         files = {lang: str(ROOT / path) for lang, path in method['files'].items()}
         return WordMatching({**method, 'files': files, 'preprocessing': steps},
-                            name=name, models=models)
-    engine = MatchingEngine({'methods': [name], 'preprocessing': steps,
-                             'embedding_preprocessing': steps})
-    if name in {'wordnet', 'translated_string', 'translated_embedding'}:
-        engine.translator = translator
-        if name == 'translated_embedding':
-            engine.backends[name].translator = translator
-    return engine
-
-
-def translate_elements(elements, preprocessor, translator):
-    """Wende die Schritte vor 'translate' an und übersetze; danach ist jedes Label englisch."""
-    texts = [preprocessor.process(e['label'], e.get('language')) for e in elements]
-    translated = translator.translate(texts, [e.get('language') for e in elements])
-    return [{**e, 'label': text, 'language': 'en'} for e, text in zip(elements, translated)]
+                            translator, name=name, models=models)
+    return MatchingEngine({'methods': [name], 'preprocessing': steps,
+                           'embedding_preprocessing': steps}, translator)
 
 
 def calculate_features(cases, definitions, methods):
@@ -180,8 +167,6 @@ def calculate_features(cases, definitions, methods):
     for method in sorted(tasks, key=lambda name: not is_wordvec(methods[name])):
         models = {}
         for key, chain in tasks[method].items():
-            before, after, _ = split_chain(chain)
-            preprocessor = Preprocessor(before) if after is not None else None
             engine = None
             for case in cases:
                 reason = unsupported(methods[method], chain, case)
@@ -190,19 +175,15 @@ def calculate_features(cases, definitions, methods):
                     continue
                 try:
                     if engine is None:
-                        engine = make_engine(method, methods[method],
-                                             before if after is None else after, translator, models)
+                        engine = make_engine(method, methods[method], list(chain[:-1]),
+                                             translator, models)
                         if is_wordvec(methods[method]):
                             word_backends[method] = engine
                         else:
                             engines[key] = engine
-                    reference, student = case['reference'], case['student']
                     load_before = LOAD_SECONDS[0]
                     started = time.perf_counter()
-                    if after is not None:
-                        reference = translate_elements(reference, preprocessor, translator)
-                        student = translate_elements(student, preprocessor, translator)
-                    result = engine.compute_scores(reference, student)
+                    result = engine.compute_scores(case['reference'], case['student'])
                     elapsed = time.perf_counter() - started
                     load = LOAD_SECONDS[0] - load_before
                     features[key, case['id']] = {

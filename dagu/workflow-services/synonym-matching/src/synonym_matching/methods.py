@@ -139,6 +139,15 @@ METHODS = {
     'multilingual': multilingual_embedding,
     'translated_embedding': translated_embedding,
 }
+# Was die Engine für ein Verfahren vorbereitet, statt Namensabfragen in der Engine:
+# translate = Texte vorher DE→EN übersetzen, german_only = Sprache de verlangen,
+# original_text = nur normalisierten Originaltext verwenden (Preprocessing ignorieren).
+METHOD_TRAITS = {
+    'translated_string': {'translate'},
+    'wordnet': {'translate'},
+    'openthesaurus': {'german_only'},
+    'exact_match': {'original_text'},
+}
 # Die bisherige String-Baseline bleibt ausdrücklich auswählbar.
 STRING_BASELINES = [
     'levenshtein', 'damerau_levenshtein', 'jaro_winkler',

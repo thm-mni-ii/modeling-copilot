@@ -48,12 +48,13 @@ def load_vectors(path, fmt):
 class WordMatching:
     """Lade Vektoren einmal je Sprache und bereite jedes Label nur einmal vor."""
 
-    def __init__(self, config, name="word_matching", models=None):
+    def __init__(self, config, translator=None, name="word_matching", models=None):
         self.config = {'format': 'word2vec_text', 'delta': .2, 'nouns_only': False,
                        'lowercase': True, 'preprocessing': ['normalize', 'split_identifiers'],
                        **config}
         self.name = name
-        self.preprocessor = Preprocessor(self.config['preprocessing'])
+        # Dieselbe Vorverarbeitung wie im Service, inklusive des Schritts 'translate'.
+        self.preprocessor = Preprocessor(self.config['preprocessing'], translator)
         self.files = config.get('files', {})
         if not self.files:
             raise ValueError('word vectors require files mapped by language')
@@ -64,11 +65,23 @@ class WordMatching:
         self.labels = {}
 
     def prepare(self, element):
-        key = (element['label'], element.get('language'))
-        if key in self.labels:
-            return self.labels[key]
-        language = element.get('language')
-        text = self.preprocessor.process(element['label'], language)
+        return self.prepare_all([element])[0]
+
+    def prepare_all(self, elements):
+        """Bereite alle noch unbekannten Labels gebündelt vor (die Übersetzung läuft im Stapel)."""
+        pending = {}
+        for element in elements:
+            key = (element['label'], element.get('language'))
+            if key not in self.labels:
+                pending[key] = element
+        if pending:
+            texts, languages = self.preprocessor.process_many(
+                [label for label, _ in pending], [language for _, language in pending])
+            for key, text, language in zip(pending, texts, languages):
+                self.labels[key] = self._words_and_vectors(text, language)
+        return [self.labels[(e['label'], e.get('language'))] for e in elements]
+
+    def _words_and_vectors(self, text, language):
         if not text:
             return [], []
         if language not in self.files:
@@ -97,13 +110,12 @@ class WordMatching:
                 vectors.append(value / length)
             except KeyError:
                 vectors.append(None)
-        self.labels[key] = (words, vectors)
         return words, vectors
 
     def matrix(self, reference, student):
         result = np.zeros((len(reference), len(student)))
-        left = [self.prepare(element) for element in reference]
-        right = [self.prepare(element) for element in student]
+        left = self.prepare_all(reference)
+        right = self.prepare_all(student)
         for i, first in enumerate(left):
             for j, second in enumerate(right):
                 if not reference[i]['label'].strip() or not student[j]['label'].strip():

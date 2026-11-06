@@ -12,7 +12,7 @@ from .cache import Cache
 from .combinations import combine
 from .config import validate_config
 from .lexicons import OpenThesaurus, WordNet
-from .methods import EMBEDDING_MODELS, METHODS, EmbeddingMethod
+from .methods import EMBEDDING_MODELS, METHODS, METHOD_TRAITS, EmbeddingMethod
 from .preprocessing import Preprocessor, normalize
 from .translation import Translator
 
@@ -120,13 +120,22 @@ class MatchingEngine:
     Übersetzungen/Embeddings bleiben dabei im Speicher und werden wiederverwendet.
     """
 
-    def __init__(self, config=None):
-        """Prüfe die Konfiguration und bereite die ausgewählten Verfahren vor."""
+    def __init__(self, config=None, translator=None):
+        """Prüfe die Konfiguration und bereite die ausgewählten Verfahren vor.
+
+        Ein übergebener Übersetzer wird mitbenutzt, damit mehrere Engines das
+        Übersetzungsmodell nur einmal laden.
+        """
         self.config = validate_config(config)
         self.cache = Cache()
-        self.string_preprocessor = Preprocessor(self.config['preprocessing'])
+        translation_options = self.config['embedding'].get(
+            'translated_embedding', {}
+        )
+        # Alle übersetzenden Teile (Schritt 'translate', Verfahren) teilen sich einen Übersetzer.
+        self.translator = translator or Translator(translation_options, self.cache)
+        self.string_preprocessor = Preprocessor(self.config['preprocessing'], self.translator)
         self.embedding_preprocessor = Preprocessor(
-            self.config['embedding_preprocessing']
+            self.config['embedding_preprocessing'], self.translator
         )
         self.methods = {}
         self.backends = {}
@@ -140,29 +149,28 @@ class MatchingEngine:
             elif name == 'openthesaurus':
                 path = self.config['lexicons'].get(name)
                 self.backends[name] = OpenThesaurus(path)
-
-        translation_options = self.config['embedding'].get(
-            'translated_embedding', {}
-        )
-        self.translator = Translator(translation_options, self.cache)
         if 'translated_embedding' in self.backends:
-            # Alle übersetzenden Methoden teilen sich denselben Übersetzer.
             self.backends['translated_embedding'].translator = self.translator
 
     def _prepare_texts(self, name, labels, string_texts, embedding_texts,
-                       languages, has_pairs):
-        """Bereite Texte nur für das gerade ausgeführte Verfahren vor."""
-        texts = string_texts
+                       string_languages, embedding_languages, has_pairs):
+        """Bereite Texte nur für das gerade ausgeführte Verfahren vor.
+
+        Die Sprachen sind die nach dem Preprocessing: Ein Text nach dem Schritt
+        'translate' gilt als englisch und wird nicht ein zweites Mal übersetzt.
+        """
+        texts, languages = string_texts, string_languages
+        traits = METHOD_TRAITS.get(name, ())
         backend = self.backends.get(name)
         if isinstance(backend, EmbeddingMethod) and has_pairs:
-            texts = backend.prepare(embedding_texts, languages)
-        if name in {'translated_string', 'wordnet'} and has_pairs:
-            texts = self.translator.translate(string_texts, languages)
-        if name == 'openthesaurus' and has_pairs:
+            texts = backend.prepare(embedding_texts, embedding_languages)
+        if 'translate' in traits and has_pairs:
+            texts = self.translator.translate(string_texts, string_languages)
+        if 'german_only' in traits and has_pairs:
             for text, language in zip(texts, languages):
                 if text.strip() and language != 'de':
                     raise ValueError('OpenThesaurus requires explicit de language')
-        if name == 'exact_match':
+        if 'original_text' in traits:
             # Stemming oder Lowercasing dürfen keinen exakten Treffer erzeugen.
             texts = [normalize(element['label']) for element in labels]
         return texts
@@ -178,18 +186,17 @@ class MatchingEngine:
         labels = reference + student
         split = len(reference)
         shape = (len(reference), len(student))
+        label_texts = [element['label'] for element in labels]
         languages = [element.get('language') for element in labels]
 
-        string_texts = [
-            self.string_preprocessor.process(element['label'], element.get('language'))
-            for element in labels
-        ]
-        embedding_texts = None
+        string_texts, string_languages = self.string_preprocessor.process_many(
+            label_texts, languages
+        )
+        embedding_texts = embedding_languages = None
         if any(name in EMBEDDING_MODELS for name in self.methods):
-            embedding_texts = [
-                self.embedding_preprocessor.process(element['label'], element.get('language'))
-                for element in labels
-            ]
+            embedding_texts, embedding_languages = self.embedding_preprocessor.process_many(
+                label_texts, languages
+            )
 
         valid = nonempty_pairs(
             [element['label'] for element in reference],
@@ -200,8 +207,8 @@ class MatchingEngine:
         usable_pairs = {}
         for name, function in self.methods.items():
             texts = self._prepare_texts(
-                name, labels, string_texts, embedding_texts, languages,
-                bool(reference and student),
+                name, labels, string_texts, embedding_texts, string_languages,
+                embedding_languages, bool(reference and student),
             )
             left = texts[:split]
             right = texts[split:]

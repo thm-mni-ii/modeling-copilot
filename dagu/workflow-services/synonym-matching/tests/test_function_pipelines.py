@@ -47,3 +47,60 @@ def test_invalid_ngram_size_and_step():
         char_ngram(['a'], ['a'], n=0)
     with pytest.raises(ValueError):
         Preprocessor(['unknown'])
+
+
+class FakeTranslator:
+    """Übersetzt nur deutsche Labels; merkt sich die Sprachen jedes Aufrufs."""
+    revision = None
+
+    def __init__(self):
+        self.calls = []
+
+    def translate(self, texts, languages):
+        self.calls.append(list(languages))
+        table = {'kunde': 'customer', 'Kunde': 'Customer'}
+        return [table.get(text, text) if language == 'de' else text
+                for text, language in zip(texts, languages, strict=True)]
+
+
+def test_translate_step_splits_pipeline_and_switches_language():
+    translator = FakeTranslator()
+    processor = Preprocessor(['normalize', 'lowercase', 'translate', 'stem'], translator)
+    texts, languages = processor.process_many([' Kunde ', 'Customer', ''], ['de', 'en', 'de'])
+    assert texts[0].startswith('custom') and languages == ['en', 'en', 'en']
+    # Nach 'translate' gilt der Text als englisch und wird kein zweites Mal übersetzt.
+    assert translator.calls == [['de', 'en', 'de']]
+    with pytest.raises(ValueError, match='translator'):
+        Preprocessor(['translate']).process_many(['Kunde'], ['de'])
+    with pytest.raises(ValueError, match='only once'):
+        Preprocessor(['translate', 'translate'])
+
+
+def test_engine_translate_step_works_for_any_method_and_never_translates_twice():
+    translator = FakeTranslator()
+    config = {'methods': ['levenshtein', 'translated_string'],
+              'preprocessing': ['normalize', 'translate']}
+    engine = MatchingEngine(config, translator)
+    result = engine.compute_scores([{'id': 'r', 'label': 'Kunde', 'language': 'de'}],
+                                   [{'id': 's', 'label': 'Customer', 'language': 'en'}])
+    assert result['scores']['levenshtein'][0, 0] == pytest.approx(1)
+    # Das implizit übersetzende Verfahren erhält bereits englische Labels.
+    assert result['processedLabels']['translated_string']['reference'] == ['Customer']
+    assert result['scores']['translated_string'][0, 0] == pytest.approx(1)
+    assert all(set(languages) == {'en'} for languages in translator.calls[1:])
+
+
+def test_method_traits_replace_name_checks_in_engine(monkeypatch):
+    from synonym_matching.methods import METHOD_TRAITS
+    seen = {}
+
+    def xy(left, right):
+        seen['texts'] = (left, right)
+        return np.zeros((len(left), len(right)))
+
+    monkeypatch.setitem(METHODS, 'xy', xy)
+    monkeypatch.setitem(METHOD_TRAITS, 'xy', {'translate'})
+    MatchingEngine({'methods': ['xy']}, FakeTranslator()).compute_scores(
+        [{'id': 'r', 'label': 'kunde', 'language': 'de'}],
+        [{'id': 's', 'label': 'customer', 'language': 'en'}])
+    assert seen['texts'] == (['customer'], ['customer'])
