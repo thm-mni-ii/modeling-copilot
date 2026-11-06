@@ -1,0 +1,1283 @@
+{
+  "languageId": "language-3",
+  "versionId": "1",
+  "name": "UML Class Diagram",
+  "data": {
+    "elements": [
+      {
+        "type": "uml-class",
+        "defaultLabel": "ClassName",
+        "renderMode": "swimlane",
+        "x": 50,
+        "y": 50,
+        "width": 180,
+        "height": 150,
+        "style": {
+          "strokeColor": "#0d47a1",
+          "fillColor": "#e3f2fd",
+          "strokeWidth": 2,
+          "fontSize": 13,
+          "fontColor": "#0d47a1",
+          "fontFamily": "Arial",
+          "align": "center",
+          "verticalAlign": "top",
+          "startSize": 28,
+          "horizontal": true,
+          "labelBackgroundColor": "#ffffff",
+          "layoutPreset": "custom",
+          "containerLayout": "list",
+          "listItemSpacing": 0,
+          "listCrossPadding": 0
+        },
+        "anchorPoints": [
+          {
+            "x": 0,
+            "y": 0.5
+          },
+          {
+            "x": 1,
+            "y": 0.5
+          },
+          {
+            "x": 0.5,
+            "y": 0
+          },
+          {
+            "x": 0.5,
+            "y": 1
+          }
+        ],
+        "children": [],
+        "connectable": true,
+        "resizable": true,
+        "movable": true,
+        "allowLabelEdit": true,
+        "collapsible": true,
+        "collapsed": {
+          "width": 160,
+          "height": 60,
+          "label": "Class",
+          "style": {
+            "shape": "rectangle",
+            "strokeColor": "#0d47a1",
+            "fillColor": "#bbdefb",
+            "strokeWidth": 2,
+            "fontSize": 12,
+            "fontColor": "#0d47a1",
+            "fontFamily": "Arial",
+            "align": "center",
+            "verticalAlign": "middle"
+          }
+        }
+      },
+      {
+        "type": "uml-abstract-class",
+        "defaultLabel": "<<abstract>>\nAbstractClass",
+        "renderMode": "swimlane",
+        "x": 50,
+        "y": 50,
+        "width": 180,
+        "height": 150,
+        "style": {
+          "strokeColor": "#bf360c",
+          "fillColor": "#fff3e0",
+          "strokeWidth": 2,
+          "fontSize": 12,
+          "fontColor": "#bf360c",
+          "fontFamily": "Arial",
+          "align": "center",
+          "verticalAlign": "top",
+          "startSize": 38,
+          "horizontal": true,
+          "labelBackgroundColor": "#ffffff",
+          "layoutPreset": "custom",
+          "containerLayout": "list",
+          "listItemSpacing": 0,
+          "listCrossPadding": 0
+        },
+        "anchorPoints": [
+          {
+            "x": 0,
+            "y": 0.5
+          },
+          {
+            "x": 1,
+            "y": 0.5
+          },
+          {
+            "x": 0.5,
+            "y": 0
+          },
+          {
+            "x": 0.5,
+            "y": 1
+          }
+        ],
+        "children": [],
+        "connectable": true,
+        "resizable": true,
+        "movable": true,
+        "allowLabelEdit": true,
+        "collapsible": true,
+        "collapsed": {
+          "width": 160,
+          "height": 60,
+          "label": "Abstract",
+          "style": {
+            "shape": "rectangle",
+            "strokeColor": "#bf360c",
+            "fillColor": "#ffe0b2",
+            "strokeWidth": 2,
+            "fontSize": 12,
+            "fontColor": "#bf360c",
+            "fontFamily": "Arial",
+            "align": "center",
+            "verticalAlign": "middle"
+          }
+        }
+      },
+      {
+        "type": "uml-interface",
+        "defaultLabel": "<<interface>>\nInterfaceName",
+        "renderMode": "swimlane",
+        "x": 50,
+        "y": 50,
+        "width": 180,
+        "height": 120,
+        "style": {
+          "strokeColor": "#00695c",
+          "fillColor": "#e0f2f1",
+          "strokeWidth": 1,
+          "fontSize": 12,
+          "fontColor": "#004d40",
+          "fontFamily": "Arial",
+          "align": "center",
+          "verticalAlign": "top",
+          "startSize": 38,
+          "horizontal": true,
+          "labelBackgroundColor": "#ffffff",
+          "layoutPreset": "custom",
+          "containerLayout": "list",
+          "listItemSpacing": 0,
+          "listCrossPadding": 0
+        },
+        "anchorPoints": [
+          {
+            "x": 0,
+            "y": 0.5
+          },
+          {
+            "x": 1,
+            "y": 0.5
+          },
+          {
+            "x": 0.5,
+            "y": 0
+          },
+          {
+            "x": 0.5,
+            "y": 1
+          }
+        ],
+        "children": [],
+        "connectable": true,
+        "resizable": true,
+        "movable": true,
+        "allowLabelEdit": true,
+        "collapsible": true,
+        "collapsed": {
+          "width": 160,
+          "height": 50,
+          "label": "Interface",
+          "style": {
+            "shape": "rectangle",
+            "strokeColor": "#00695c",
+            "fillColor": "#b2dfdb",
+            "strokeWidth": 1,
+            "fontSize": 12,
+            "fontColor": "#004d40",
+            "fontFamily": "Arial",
+            "align": "center",
+            "verticalAlign": "middle"
+          }
+        }
+      },
+      {
+        "type": "uml-enum",
+        "defaultLabel": "<<enumeration>>\nEnumName",
+        "renderMode": "swimlane",
+        "x": 50,
+        "y": 50,
+        "width": 180,
+        "height": 100,
+        "style": {
+          "strokeColor": "#4a148c",
+          "fillColor": "#f3e5f5",
+          "strokeWidth": 1,
+          "fontSize": 12,
+          "fontColor": "#4a148c",
+          "fontFamily": "Arial",
+          "align": "center",
+          "verticalAlign": "top",
+          "startSize": 38,
+          "horizontal": true,
+          "labelBackgroundColor": "#ffffff",
+          "layoutPreset": "custom",
+          "containerLayout": "list",
+          "listItemSpacing": 0,
+          "listCrossPadding": 0
+        },
+        "anchorPoints": [
+          {
+            "x": 0,
+            "y": 0.5
+          },
+          {
+            "x": 1,
+            "y": 0.5
+          },
+          {
+            "x": 0.5,
+            "y": 0
+          },
+          {
+            "x": 0.5,
+            "y": 1
+          }
+        ],
+        "children": [],
+        "connectable": true,
+        "resizable": true,
+        "movable": true,
+        "allowLabelEdit": true,
+        "collapsible": true,
+        "collapsed": {
+          "width": 160,
+          "height": 50,
+          "label": "Enum",
+          "style": {
+            "shape": "rectangle",
+            "strokeColor": "#4a148c",
+            "fillColor": "#e1bee7",
+            "strokeWidth": 1,
+            "fontSize": 12,
+            "fontColor": "#4a148c",
+            "fontFamily": "Arial",
+            "align": "center",
+            "verticalAlign": "middle"
+          }
+        }
+      },
+      {
+        "type": "uml-package",
+        "defaultLabel": "package",
+        "renderMode": "swimlane",
+        "x": 100,
+        "y": 100,
+        "width": 300,
+        "height": 220,
+        "style": {
+          "strokeColor": "#546e7a",
+          "fillColor": "#eceff1",
+          "strokeWidth": 2,
+          "fontSize": 13,
+          "fontColor": "#263238",
+          "fontFamily": "Arial",
+          "align": "left",
+          "verticalAlign": "top",
+          "startSize": 40,
+          "horizontal": true,
+          "labelBackgroundColor": "transparent",
+          "layoutPreset": "custom",
+          "containerLayout": "list",
+          "listItemSpacing": 0,
+          "listCrossPadding": 0
+        },
+        "anchorPoints": [],
+        "children": [],
+        "connectable": false,
+        "resizable": true,
+        "movable": true,
+        "allowLabelEdit": true,
+        "collapsible": true,
+        "collapsed": {
+          "width": 200,
+          "height": 80,
+          "label": "Package",
+          "style": {
+            "shape": "rectangle",
+            "strokeColor": "#546e7a",
+            "fillColor": "#cfd8dc",
+            "strokeWidth": 2,
+            "fontSize": 12,
+            "fontColor": "#263238",
+            "fontFamily": "Arial",
+            "align": "left",
+            "verticalAlign": "middle"
+          }
+        }
+      },
+      {
+        "type": "uml-note",
+        "defaultLabel": "Note",
+        "renderMode": "canvas2d",
+        "x": 40,
+        "y": 40,
+        "width": 160,
+        "height": 100,
+        "canvas": "MOVE 0 0\nLINE 0.85 0\nLINE 1 0.15\nLINE 1 1\nLINE 0 1\nCLOSE\nMOVE 0.85 0\nLINE 0.85 0.15\nLINE 1 0.15",
+        "style": {
+          "strokeColor": "#757575",
+          "fillColor": "#fffde7",
+          "strokeWidth": 1,
+          "fontSize": 11,
+          "fontColor": "#424242",
+          "fontFamily": "Arial",
+          "align": "left",
+          "verticalAlign": "top"
+        },
+        "anchorPoints": [
+          {
+            "x": 0,
+            "y": 0.5
+          },
+          {
+            "x": 1,
+            "y": 0.5
+          },
+          {
+            "x": 0.5,
+            "y": 0
+          },
+          {
+            "x": 0.5,
+            "y": 1
+          }
+        ],
+        "children": [],
+        "connectable": false,
+        "resizable": true,
+        "movable": true,
+        "allowLabelEdit": true
+      },
+      {
+        "type": "uml-text-label",
+        "defaultLabel": "+ attribute: Type",
+        "renderMode": "predefined",
+        "x": 0,
+        "y": 0,
+        "width": 160,
+        "height": 20,
+        "predefinedShape": "label",
+        "style": {
+          "strokeColor": "transparent",
+          "fillColor": "transparent",
+          "strokeWidth": 0,
+          "fontSize": 11,
+          "fontColor": "#000000",
+          "fontFamily": "Courier New",
+          "align": "left",
+          "verticalAlign": "middle"
+        },
+        "anchorPoints": [],
+        "children": [],
+        "connectable": false,
+        "resizable": true,
+        "movable": true,
+        "allowLabelEdit": true
+      }
+    ],
+    "connections": [
+      {
+        "type": "uml-inheritance",
+        "label": "Inheritance",
+        "defaultLabel": "",
+        "connectionType": "inheritance",
+        "connectable": true,
+        "style": {
+          "shape": "connector",
+          "strokeColor": "#000000",
+          "strokeWidth": 2,
+          "strokeOpacity": 100,
+          "dashed": false,
+          "startArrow": "none",
+          "endArrow": "classic",
+          "startFill": true,
+          "endFill": true,
+          "align": "center",
+          "verticalAlign": "middle",
+          "labelPosition": "center",
+          "fontColor": "#000000",
+          "fontSize": 10
+        },
+        "additionalLabels": []
+      },
+      {
+        "type": "uml-realization",
+        "label": "Realization",
+        "defaultLabel": "",
+        "connectionType": "realization",
+        "connectable": true,
+        "style": {
+          "shape": "connector",
+          "strokeColor": "#000000",
+          "strokeWidth": 1,
+          "strokeOpacity": 100,
+          "dashed": true,
+          "dashPattern": "6 4",
+          "startArrow": "none",
+          "endArrow": "classic",
+          "startFill": true,
+          "endFill": true,
+          "align": "center",
+          "verticalAlign": "middle",
+          "labelPosition": "center",
+          "fontColor": "#000000",
+          "fontSize": 10
+        },
+        "additionalLabels": []
+      },
+      {
+        "type": "uml-association",
+        "label": "Association",
+        "defaultLabel": "",
+        "connectionType": "association",
+        "connectable": true,
+        "style": {
+          "shape": "connector",
+          "strokeColor": "#000000",
+          "strokeWidth": 1,
+          "strokeOpacity": 100,
+          "dashed": false,
+          "startArrow": "none",
+          "endArrow": "none",
+          "startFill": true,
+          "endFill": true,
+          "align": "center",
+          "verticalAlign": "middle",
+          "labelPosition": "center",
+          "fontColor": "#000000",
+          "fontSize": 10
+        },
+        "additionalLabels": []
+      },
+      {
+        "type": "uml-directed-association",
+        "label": "Directed Association",
+        "defaultLabel": "",
+        "connectionType": "directed-association",
+        "connectable": true,
+        "style": {
+          "shape": "connector",
+          "strokeColor": "#000000",
+          "strokeWidth": 1,
+          "strokeOpacity": 100,
+          "dashed": false,
+          "startArrow": "none",
+          "endArrow": "open",
+          "startFill": true,
+          "endFill": false,
+          "align": "center",
+          "verticalAlign": "middle",
+          "labelPosition": "center",
+          "fontColor": "#000000",
+          "fontSize": 10
+        },
+        "additionalLabels": []
+      },
+      {
+        "type": "uml-aggregation",
+        "label": "Aggregation",
+        "defaultLabel": "",
+        "connectionType": "aggregation",
+        "connectable": true,
+        "style": {
+          "shape": "connector",
+          "strokeColor": "#000000",
+          "strokeWidth": 1,
+          "strokeOpacity": 100,
+          "dashed": false,
+          "startArrow": "diamond",
+          "startFill": false,
+          "endArrow": "none",
+          "endFill": true,
+          "align": "center",
+          "verticalAlign": "middle",
+          "labelPosition": "center",
+          "fontColor": "#000000",
+          "fontSize": 10
+        },
+        "additionalLabels": []
+      },
+      {
+        "type": "uml-composition",
+        "label": "Composition",
+        "defaultLabel": "",
+        "connectionType": "composition",
+        "connectable": true,
+        "style": {
+          "shape": "connector",
+          "strokeColor": "#000000",
+          "strokeWidth": 2,
+          "strokeOpacity": 100,
+          "dashed": false,
+          "startArrow": "diamond",
+          "startFill": true,
+          "endArrow": "none",
+          "endFill": true,
+          "align": "center",
+          "verticalAlign": "middle",
+          "labelPosition": "center",
+          "fontColor": "#000000",
+          "fontSize": 10
+        },
+        "additionalLabels": []
+      },
+      {
+        "type": "uml-dependency",
+        "label": "Dependency",
+        "defaultLabel": "<<use>>",
+        "connectionType": "dependency",
+        "connectable": true,
+        "style": {
+          "shape": "connector",
+          "strokeColor": "#666666",
+          "strokeWidth": 1,
+          "strokeOpacity": 100,
+          "dashed": true,
+          "dashPattern": "6 4",
+          "startArrow": "none",
+          "endArrow": "open",
+          "startFill": true,
+          "endFill": false,
+          "align": "center",
+          "verticalAlign": "middle",
+          "labelPosition": "center",
+          "fontColor": "#666666",
+          "fontSize": 9
+        },
+        "additionalLabels": []
+      },
+      {
+        "type": "uml-note-link",
+        "label": "Note Connection",
+        "defaultLabel": "",
+        "connectionType": "note",
+        "connectable": false,
+        "style": {
+          "shape": "connector",
+          "strokeColor": "#9e9e9e",
+          "strokeWidth": 1,
+          "strokeOpacity": 100,
+          "dashed": true,
+          "dashPattern": "4 4",
+          "startArrow": "none",
+          "endArrow": "none",
+          "startFill": true,
+          "endFill": true,
+          "align": "center",
+          "verticalAlign": "middle",
+          "labelPosition": "center",
+          "fontColor": "#9e9e9e",
+          "fontSize": 9
+        },
+        "additionalLabels": []
+      }
+    ],
+    "syntax": [
+      {
+        "ruleType": "multiplicity",
+        "config": {
+          "relations": [
+            {
+              "sourceType": "uml-class",
+              "targetType": "uml-class",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "inheritance",
+                  "association",
+                  "directed-association",
+                  "aggregation",
+                  "composition",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-class",
+              "targetType": "uml-abstract-class",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "inheritance",
+                  "association",
+                  "directed-association",
+                  "aggregation",
+                  "composition",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-class",
+              "targetType": "uml-interface",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "realization",
+                  "association",
+                  "directed-association",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-class",
+              "targetType": "uml-enum",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "association",
+                  "directed-association",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-class",
+              "targetType": "uml-note",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "note"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-class",
+              "targetType": "uml-package",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-class",
+              "targetType": "uml-text-label",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-abstract-class",
+              "targetType": "uml-class",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "association",
+                  "directed-association",
+                  "aggregation",
+                  "composition",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-abstract-class",
+              "targetType": "uml-abstract-class",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "inheritance",
+                  "association",
+                  "directed-association",
+                  "aggregation",
+                  "composition",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-abstract-class",
+              "targetType": "uml-interface",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "realization",
+                  "association",
+                  "directed-association",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-abstract-class",
+              "targetType": "uml-enum",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "association",
+                  "directed-association",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-abstract-class",
+              "targetType": "uml-note",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "note"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-abstract-class",
+              "targetType": "uml-package",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-abstract-class",
+              "targetType": "uml-text-label",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-interface",
+              "targetType": "uml-interface",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "inheritance",
+                  "association",
+                  "directed-association",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-interface",
+              "targetType": "uml-class",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "association",
+                  "directed-association",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-interface",
+              "targetType": "uml-abstract-class",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "association",
+                  "directed-association",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-interface",
+              "targetType": "uml-enum",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-interface",
+              "targetType": "uml-note",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "note"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-interface",
+              "targetType": "uml-package",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-interface",
+              "targetType": "uml-text-label",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-enum",
+              "targetType": "uml-class",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "association",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-enum",
+              "targetType": "uml-abstract-class",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "association",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-enum",
+              "targetType": "uml-interface",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-enum",
+              "targetType": "uml-enum",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "association",
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-enum",
+              "targetType": "uml-note",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "note"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-enum",
+              "targetType": "uml-package",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-enum",
+              "targetType": "uml-text-label",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-package",
+              "targetType": "uml-package",
+              "state": "allowed",
+              "refinement": {
+                "connectionTypes": [
+                  "dependency"
+                ],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-package",
+              "targetType": "uml-class",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-package",
+              "targetType": "uml-abstract-class",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-package",
+              "targetType": "uml-interface",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-package",
+              "targetType": "uml-enum",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-package",
+              "targetType": "uml-note",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-package",
+              "targetType": "uml-text-label",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-note",
+              "targetType": "uml-class",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-note",
+              "targetType": "uml-abstract-class",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-note",
+              "targetType": "uml-interface",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-note",
+              "targetType": "uml-enum",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-note",
+              "targetType": "uml-package",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-note",
+              "targetType": "uml-note",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-note",
+              "targetType": "uml-text-label",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-text-label",
+              "targetType": "uml-class",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-text-label",
+              "targetType": "uml-abstract-class",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-text-label",
+              "targetType": "uml-interface",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-text-label",
+              "targetType": "uml-enum",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-text-label",
+              "targetType": "uml-package",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-text-label",
+              "targetType": "uml-note",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            },
+            {
+              "sourceType": "uml-text-label",
+              "targetType": "uml-text-label",
+              "state": "forbidden",
+              "refinement": {
+                "connectionTypes": [],
+                "cardinality": {
+                  "min": 0,
+                  "max": null
+                }
+              }
+            }
+          ],
+          "messageTemplate": "The Connection {source} -> {target} with Connection type {connection} violates the cardinality ({min}..{max})."
+        }
+      }
+    ],
+    "feedback": {
+      "elements": {},
+      "connections": {},
+      "canvas": {
+        "configurableElements": [],
+        "rules": {
+          "onlyFeedbackAsSource": true,
+          "allowTargetElements": true,
+          "allowTargetConnections": true,
+          "forbidFeedbackAsTarget": true,
+          "enforceDedicatedConnection": true,
+          "preventContainerDrop": true
+        }
+      }
+    }
+  },
+  "includedLanguageVersions": []
+}

@@ -19,3 +19,16 @@ kind: ServiceAccount
 metadata:
   name: workflow-runner
   namespace: workflow-runtime
+automountServiceAccountToken: false
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: workflow-data
+  namespace: workflow-runtime
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi

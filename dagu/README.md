@@ -6,8 +6,8 @@ Account `workflow-runner`.
 
 ## Struktur
 
-- `workflows/`: versionierte DAGs; aktuell enthält `hello.yaml` einen einfachen
-  parallelen Beispiel-Workflow.
+- `workflows/`: Hauptworkflow für die Modellauswertung und `hello.yaml` als
+  einfacher Testworkflow.
 - `workflow-services/`: Container für Workflow-Schritte. `template-service/`
   zeigt den vorgesehenen Vertrag für JSON-Eingabe, JSON-Ausgabe und Exit-Codes.
 - `infra/base.yaml`: gemeinsame Kubernetes-Vorgaben für Dev und Prod inklusive
@@ -51,6 +51,23 @@ Ordner `dagu/` wird unter `/app/dagu` eingebunden. Dagu liest die Workflows aus
 `/app/dagu/infra/base.yaml`. Ein Host-seitiger Checkout ist nicht nötig, da
 Portainer nur das Manifest anwendet. Laufdaten, Logs und Wiki liegen auf dem
 PVC `dagu-data`.
+
+### Datenfluss einer Auswertung
+
+Das Backend übergibt Modelle und Sprachversionen als vollständigen Snapshot.
+`workflow-data` speichert ihn auf dem gemeinsamen PVC unter
+`/work/evaluations/<evaluationId>/inputs/evaluation-input.json`.
+`model-evaluation-graph-matching` ist der Hauptworkflow: Initialisierung,
+Graph-Parsing und Label-Extraktion als getrennte Phasen, jeweils mit Ergebnissen
+pro Modell. Graphen liegen unter `graphs/<modelKey>.json`, Bezeichnungen unter
+`labels/<modelKey>.json`. Die internen Modellschritte sind in derselben
+Workflow-Datei eingebettet. `hello` bleibt der einfache Testworkflow.
+
+`WORKFLOW_EVALUATION_ID` wählt den Laufordner, `MODEL_KEY` das Parsermodell.
+`WORKFLOW_INPUT_PATH` und `WORKFLOW_OUTPUT_PATH` wählen relative JSON-Dateipfade;
+`WORKFLOW_DATA_ROOT` überschreibt das Basisverzeichnis. Dienste benötigen keinen
+Datenbankzugriff. Details: [Graph Parser](workflow-services/graph-parser/README.md)
+und [Init](workflow-services/workflow-data/README.md).
 
 ## Produktion (K3s/Portainer)
 

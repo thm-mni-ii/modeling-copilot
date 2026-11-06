@@ -1,4 +1,4 @@
-# Synonym Matching
+# Synonym Matching Louis
 
 Zwei Labelmengen hinein, eine Synonymmatrix mit Original-IDs, Einzelscores und
 Combined Score heraus. Der Service verarbeitet extrahierte Labels, kein Graph-XML.

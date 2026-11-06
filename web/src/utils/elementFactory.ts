@@ -161,12 +161,19 @@ export function addCellToGraph(graph: Graph, cell: Cell, element: DiagramElement
     }
   }
 
-  // Füge Haupt-Element hinzu
-  graph.addCell(cell, parent)
+  // Add element and children in one transaction so only a single change event (and patch) is emitted
+  const model = graph.getDataModel()
+  model.beginUpdate()
+  try {
+    // Add the main element
+    graph.addCell(cell, parent)
 
-  // Child-Elemente rekursiv hinzufügen
-  if (Array.isArray(element.children) && element.children.length > 0) {
-    element.children.forEach((child: any) => addChildRecursive(cell, child))
+    // Add child elements recursively
+    if (Array.isArray(element.children) && element.children.length > 0) {
+      element.children.forEach((child: any) => addChildRecursive(cell, child))
+    }
+  } finally {
+    model.endUpdate()
   }
 }
 

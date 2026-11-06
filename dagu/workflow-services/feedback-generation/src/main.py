@@ -1,32 +1,38 @@
 #!/usr/bin/env python3
-"""Stub service boundary for future feedback aggregation."""
-import json
+"""Demo aggregation of explicitly named result files, without fixed predecessors."""
 import os
 import sys
-import time
+
+from workflow_io import Workspace, read_input, workspace, write_output
 
 SERVICE = "feedback-generation"
 
 
-def read_input() -> dict:
-    raw = os.environ.get("TEMPLATE_INPUT")
-    if raw is None: raw = sys.stdin.read()
-    if not raw.strip(): raise ValueError("TEMPLATE_INPUT or stdin JSON is required")
-    value = json.loads(raw)
-    if not isinstance(value, dict): raise ValueError("a JSON object is required")
-    return value
+def run(payload: dict, store: Workspace | None = None) -> dict:
+    paths = payload.get("input", {})
+    if not isinstance(paths, dict) or not all(isinstance(path, str) for path in paths.values()):
+        raise ValueError("input must map result names to relative JSON file paths")
+    if paths and store is None:
+        raise ValueError("reading result paths requires WORKFLOW_EVALUATION_ID")
+    services = {name: store.read(path) for name, path in paths.items()}
+    result = {"status": "not_implemented", "assessmentAvailable": False, "services": services}
+    if store is not None:
+        result.update(evaluationId=store.evaluation_id, inputSnapshot="inputs/evaluation-input.json")
+    return {"schemaVersion": 1, "schema": "workflow-result/v1", "status": "ok", "mode": "demo",
+            "capability": SERVICE, "summary": "Demo-Ergebnisse zusammengeführt; keine fachliche Bewertung", "result": result}
 
 
 def main() -> int:
     try:
-        payload = read_input(); delay = float(payload.get("demoDelaySeconds", 0))
-        if not 0 <= delay <= 30: raise ValueError("demoDelaySeconds must be between 0 and 30")
-    except (ValueError, TypeError, json.JSONDecodeError) as error:
-        print(f"[{SERVICE}] invalid input: {error}", file=sys.stderr); return 1
-    print(f"[{SERVICE}] dummy feedback aggregation started", file=sys.stderr); time.sleep(delay)
-    result = {"score": 0.8, "feedback": [{"level": "info", "message": "Dummy-Feedback für den durchspielbaren Workflow."}]}
-    print(json.dumps({"status": "ok", "capability": SERVICE, "step": payload.get("step", SERVICE), "summary": "Dummy-Ergebnis: Modell wurde verarbeitet", "result": result}))
-    return 0
+        store = workspace() if os.environ.get("WORKFLOW_EVALUATION_ID") else None
+        if store is not None:
+            store.snapshot()
+        write_output(run(read_input(), store))
+        return 0
+    except (ValueError, TypeError, KeyError, OSError) as error:
+        print(f"[{SERVICE}] invalid input: {error}", file=sys.stderr)
+        return 1
 
 
-if __name__ == "__main__": sys.exit(main())
+if __name__ == "__main__":
+    sys.exit(main())

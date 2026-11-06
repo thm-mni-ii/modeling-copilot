@@ -7,6 +7,8 @@ export interface ReleaseTimelineStep {
   releaseName: string | null
   createdAt: string
   workspaceLanguages: WorkspaceLanguageReference[]
+  /** Nummer des Checkpoints, dessen Endstand dieses Release hält und der deshalb nicht angezeigt wird. */
+  sameAsCheckpoint: string | null
 }
 
 export interface PatchTimelineStep {
@@ -33,15 +35,19 @@ export const buildModelTimeline = (versions: readonly ModelVersionInfo[]): Model
   const checkpoints = versions.filter((entry) => entry.kind === 'checkpoint').sort(chronological)
   const steps: ModelTimelineStep[] = []
 
-  for (const release of releases) {
+  let sameAsCheckpoint: string | null = null
+  for (const [index, release] of releases.entries()) {
     steps.push({
       kind: 'release',
       releaseId: release.id,
       versionNumber: release.versionNumber,
       releaseName: release.releaseName,
       createdAt: release.createdAt,
-      workspaceLanguages: release.workspaceLanguages
+      workspaceLanguages: release.workspaceLanguages,
+      sameAsCheckpoint
     })
+    sameAsCheckpoint = null
+    const groupStart = steps.length
 
     for (const checkpoint of checkpoints.filter((entry) => entry.baseReleaseId === release.id)) {
       checkpoint.patches.forEach((patch, patchIndex) => {
@@ -56,6 +62,12 @@ export const buildModelTimeline = (versions: readonly ModelVersionInfo[]): Model
           workspaceLanguages: checkpoint.workspaceLanguages
         })
       })
+    }
+
+    // Folgt ein Release, hält es den Endstand des letzten Patches schon; der Patch wird nur nicht angezeigt.
+    if (index < releases.length - 1 && steps.length > groupStart) {
+      const hidden = steps.pop()
+      if (hidden?.kind === 'patch') sameAsCheckpoint = hidden.checkpointVersionNumber
     }
   }
 
