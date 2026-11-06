@@ -162,10 +162,14 @@ def calculate_features(cases, definitions, methods):
     features, engines, errors = {}, {}, []
     translator = Translator({}, Cache())
     word_backends = {}
-    # Große Wortmodelle zuerst: ein Modell wird einmal geladen, für alle
-    # Ketten wiederverwendet und danach freigegeben.
-    for method in sorted(tasks, key=lambda name: not is_wordvec(methods[name])):
-        models = {}
+    # Große Wortmodelle zuerst; Verfahren mit denselben Modelldateien stehen hintereinander
+    # und teilen das geladene Modell. Es wird freigegeben, sobald andere Dateien folgen.
+    models, loaded_files = {}, None
+    for method in sorted(tasks, key=lambda name: (not is_wordvec(methods[name]),
+                                                  str(methods[name].get('files')))):
+        if methods[method].get('files') != loaded_files:
+            models.clear()
+            loaded_files = methods[method].get('files')
         for key, chain in tasks[method].items():
             engine = None
             for case in cases:
@@ -197,8 +201,8 @@ def calculate_features(cases, definitions, methods):
                     reason = f'{type(error).__name__}: {error}'
                     features[key, case['id']] = {'status': 'error', 'reason': reason}
                     errors.append({'chain': list(chain), 'case': case['id'], 'reason': reason})
-        # Die Kombinationen verwenden danach nur noch die gespeicherten Scores.
-        models.clear()
+    # Die Kombinationen verwenden danach nur noch die gespeicherten Scores.
+    models.clear()
     word_vectors = {}
     for name, backend in word_backends.items():
         word_vectors[name] = {'config': methods[name], 'sha256': {}, 'sha256_source': {}}

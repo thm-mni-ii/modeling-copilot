@@ -132,7 +132,10 @@ die Synonymmatrix, der Forschungslauf speichert seine vollständigen Ergebnisse.
   wird nicht ein zweites Mal übersetzt; Sprachen außer de/en ergeben einen Fehler.
   Das ist dieselbe Schreibweise wie in den Ketten der Forschung.
 - `combinations.py`: Mean, Max, Weighted Mean sowie feste
-  Kombinationen und Regeln. `config.combiner` wählt die Kombination.
+  Kombinationen und Regeln. `config.combiner` wählt die Kombination. Dazu gehört
+  `consensus_fusion`: Übersetzungs- und multilinguales Embedding werden gemittelt, wenn
+  sie höchstens `max_gap` (Standard 0.2, fest und nicht getunt) auseinanderliegen,
+  sonst gilt der niedrigere Wert.
 - `service.py`: `compute_scores()` liefert ungerundete NumPy-Matrizen;
   `match()` ergänzt Kombination und Kandidatenlisten. Keine globalen Seed-Änderungen.
 - `cache.py`, `translation.py`, `lexicons.py`: Wiederverwendung pro Label und Engine.
@@ -398,7 +401,14 @@ hinweg wiederverwendet.
 Optionen je Modell: das Preprocessing kommt aus der Kette (`$pre` für alle Pipelines
 in `experiments.json`, wie bei den Stringverfahren),
 `lowercase` (Standard true, passend zum Vokabular des Modells und nach der Kette
-angewendet), `nouns_only` (Standard false), `delta` (Standard 0.2).
+angewendet), `nouns_only` (Standard false), `delta` (Standard 0.2) und `matching`:
+`greedy` (Standard, siehe oben), `optimal` (die 1:1-Wortpaare maximieren die Summe,
+Hungarian auf Wortebene) oder `bidirectional` (jedes Wort sucht sein bestes Gegenstück,
+Mittel beider Richtungen, nicht 1:1, symmetrisch). Eine Variante eines Modells schreibst
+du mit `"based_on"`: `{"based_on": "fasttext_de_matching", "matching": "optimal"}`
+übernimmt Dateien und Optionen; das Modell wird für Varianten mit denselben Dateien
+nur einmal geladen. Bei den kurzen Labels (1–3 Wörter) ergaben `greedy` und `optimal`
+in den synthetischen Fällen praktisch dieselben Werte.
 Jedes Modell wird einmal geladen, für alle Preprocessing-Varianten verwendet und
 danach freigegeben. Die frühere feste Vorverarbeitung (normalize, split_identifiers)
 entspricht der Pipeline `identifiers_cased`; die Ergebnisse stimmen mit den früheren

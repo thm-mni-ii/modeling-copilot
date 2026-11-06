@@ -20,6 +20,41 @@ def archive(path, words, vectors):
     return str(path)
 
 
+def test_optimal_matching_beats_greedy_and_bidirectional_is_symmetric():
+    from research.word_matching import optimal_matching, bidirectional_matching
+
+    scores = np.array([[.9, .8], [.85, .1]])
+    assert greedy_matching(scores) == pytest.approx(.5)
+    assert optimal_matching(scores) == pytest.approx((.8 + .85) / 2)
+    assert optimal_matching(scores) >= greedy_matching(scores)
+    # Rechteckig: nicht zugeordnete Wörter zählen mit delta.
+    assert optimal_matching(np.array([[.9, .4, .1]])) == pytest.approx((.9 + 2 * .2) / 3)
+    # Jedes Wort wählt sein bestes Gegenstück; (0.9 + 0.85)/2 und (0.9 + 0.8)/2 gemittelt.
+    expected = ((.9 + .85) / 2 + (.9 + .8) / 2) / 2
+    assert bidirectional_matching(scores) == pytest.approx(expected)
+    assert bidirectional_matching(scores.T) == pytest.approx(expected)
+    for function in (optimal_matching, bidirectional_matching):
+        assert function(np.zeros((0, 3))) == .2
+        assert function(np.zeros((0, 0))) == 0
+        with pytest.raises(ValueError):
+            function([[float('nan')]])
+
+
+def test_matching_option_is_validated_and_variant_inherits_from_base(tmp_path):
+    from research.compare import load_config
+
+    config = load_config()['methods']
+    optimal = config['fasttext_de_optimal_matching']
+    assert optimal['files'] == config['fasttext_de_matching']['files']
+    assert optimal['matching'] == 'optimal' and 'based_on' not in optimal
+    path = archive(tmp_path / 'de.vec', ['kunde'], [[1, 0]])
+    with pytest.raises(ValueError, match='unknown matching'):
+        WordMatching({'files': {'de': path}, 'matching': 'nope'})
+    elements = [{'label': 'kunde lieferant', 'language': 'de'}]
+    assert WordMatching({'files': {'de': path}, 'matching': 'bidirectional'}).matrix(
+        elements, elements)[0, 0] == pytest.approx((.5 + .5) / 2 * 1)
+
+
 def test_greedy_is_not_hungarian_and_does_not_mutate_matrix():
     scores = np.array([[.9, .8], [.85, .1]])
     before = scores.copy()

@@ -23,6 +23,12 @@ def is_wordvec(method):
 def load_config(path=DEFAULT_CONFIG):
     """Lese und prüfe die Experimentkonfiguration."""
     config = json.loads(Path(path).read_text())
+    # Eine Variante übernimmt alle Eigenschaften ihres Basisverfahrens (z. B. dieselben
+    # Modelldateien) und überschreibt nur das Genannte.
+    for name, method in config['methods'].items():
+        if 'based_on' in method:
+            base = config['methods'][method['based_on']]
+            config['methods'][name] = {**base, **{k: v for k, v in method.items() if k != 'based_on'}}
     if not 0 <= config['threshold'] <= 1:
         raise ValueError('threshold must be in [0,1]')
     if not config['preprocessing'] or not config['methods'] or not config['chains']:

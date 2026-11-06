@@ -25,6 +25,12 @@ METHOD_NAMES = {
     'word2vec_de_matching': 'Word2Vec (DE) → Greedy-1:1-Wort-Matching',
     'fasttext_de_matching': 'FastText (DE) → Greedy-1:1-Wort-Matching',
     'fasttext_en_matching': 'FastText (EN) → Greedy-1:1-Wort-Matching',
+    'word2vec_de_optimal_matching': 'Word2Vec (DE) → optimales 1:1-Wort-Matching',
+    'fasttext_de_optimal_matching': 'FastText (DE) → optimales 1:1-Wort-Matching',
+    'fasttext_en_optimal_matching': 'FastText (EN) → optimales 1:1-Wort-Matching',
+    'word2vec_de_bidirectional_matching': 'Word2Vec (DE) → bidirektionales Wort-Matching',
+    'fasttext_de_bidirectional_matching': 'FastText (DE) → bidirektionales Wort-Matching',
+    'fasttext_en_bidirectional_matching': 'FastText (EN) → bidirektionales Wort-Matching',
 }
 
 
@@ -84,6 +90,7 @@ def describe_pipeline(spec):
         'geometric_fusion': f'Geometrisches Mittel({strings}; {multi})',
         'exact_match_fusion': f'Exakt-Regel (bei Textgleichheit 1, sonst {hybrid})',
         'context_aware': f'Kandidatenkonkurrenz-Korrektur({hybrid}; penalty=0.5)',
+        'consensus_fusion': f'Konsens({translated}; {multi}; Mittel bei Abweichung ≤ 0.2, sonst Minimum)',
     }
     combiner = spec.get('combiner', {})
     name = combiner.get('name', spec.get('function', spec.get('name', '')))

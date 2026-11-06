@@ -65,7 +65,13 @@
       "source": "https://huggingface.co/facebook/fasttext-en-vectors",
       "revision": "a80392390daaee1a91000da45c376d512e1dc555",
       "license": "CC BY-SA 3.0"
-    }
+    },
+    "word2vec_de_optimal_matching": {"based_on": "word2vec_de_matching", "matching": "optimal"},
+    "word2vec_de_bidirectional_matching": {"based_on": "word2vec_de_matching", "matching": "bidirectional"},
+    "fasttext_de_optimal_matching": {"based_on": "fasttext_de_matching", "matching": "optimal"},
+    "fasttext_de_bidirectional_matching": {"based_on": "fasttext_de_matching", "matching": "bidirectional"},
+    "fasttext_en_optimal_matching": {"based_on": "fasttext_en_matching", "matching": "optimal"},
+    "fasttext_en_bidirectional_matching": {"based_on": "fasttext_en_matching", "matching": "bidirectional"}
   },
   "chains": {
     "lev": ["$pre", "levenshtein"],
@@ -85,6 +91,12 @@
     "w2v_de": ["$pre", "word2vec_de_matching"],
     "ft_de": ["$pre", "fasttext_de_matching"],
     "ft_en": ["$pre", "translate", "fasttext_en_matching"],
+    "w2v_de_opt": ["$pre", "word2vec_de_optimal_matching"],
+    "w2v_de_bi": ["$pre", "word2vec_de_bidirectional_matching"],
+    "ft_de_opt": ["$pre", "fasttext_de_optimal_matching"],
+    "ft_de_bi": ["$pre", "fasttext_de_bidirectional_matching"],
+    "ft_en_opt": ["$pre", "translate", "fasttext_en_optimal_matching"],
+    "ft_en_bi": ["$pre", "translate", "fasttext_en_bidirectional_matching"],
     "lev_en": ["normalize", "translate", "levenshtein"],
     "jw_en": ["normalize", "translate", "jaro_winkler"],
     "trigram_en": ["normalize", "translate", "char_trigram"],
@@ -128,6 +140,12 @@
     {"name": "wordnet_openthesaurus", "weights": {"wordnet": 1, "thesaurus": 1}},
     {"name": "fasttext_de_levenshtein", "weights": {"ft_de": 1, "lev": 1}},
     {"name": "fasttext_en_levenshtein", "weights": {"ft_en": 1, "lev": 1}},
+    {"name": "fasttext_order_embedding", "weights": {"ft_de": 1, "order": 1, "multi": 1}},
+    {"name": "word2vec_order_embedding", "weights": {"w2v_de": 1, "order": 1, "multi": 1}},
+    {"name": "fasttext_en_order_embedding", "weights": {"ft_en": 1, "order": 1, "multi": 1}},
+    {"name": "fasttext_embedding_thesaurus", "weights": {"ft_de": 1, "multi": 1, "thesaurus": 1}},
+    {"name": "fasttext_embedding_wordnet", "weights": {"ft_de": 1, "multi": 1, "wordnet": 1}},
+    {"name": "consensus_fusion", "variant": "consensus_fusion", "parts": ["trans_emb", "multi"]},
     {"weights": {"lev_stem": 1, "multi": 3}},
     {"weights": {"jw_en": 1, "multi": 1}}
   ]

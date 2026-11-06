@@ -134,6 +134,21 @@ def exact_match_fusion(scores):
     return np.where(exact == 1, 1.0, base)
 
 
+def consensus_fusion(scores, *, max_gap=0.2):
+    """Mittle beide Embedding-Pfade, wenn sie sich einig sind; sonst gilt der niedrigere.
+
+    Einig heißt: Die Werte weichen höchstens um max_gap ab (fester Wert, nicht getunt).
+    Bei Uneinigkeit erzeugt ein einzelner Pfad keinen hohen Combined Score.
+    """
+    if (type(max_gap) not in (float, int) or not np.isfinite(max_gap)
+            or not 0 <= max_gap <= 1):
+        raise ValueError('max_gap must be in [0,1]')
+    values = _select(scores, EMBEDDINGS)
+    first, second = values['translated_embedding'], values['multilingual']
+    return np.where(np.abs(first - second) <= max_gap,
+                    (first + second) / 2, np.minimum(first, second))
+
+
 def context_aware(scores, *, penalty=0.5):
     """Senke Scores gegenüber stärkeren Kandidaten derselben Aufgabe ab.
 
@@ -166,6 +181,7 @@ VARIANTS = {
     'maximum_fusion': maximum_fusion,
     'geometric_fusion': geometric_fusion,
     'exact_match_fusion': exact_match_fusion,
+    'consensus_fusion': consensus_fusion,
     'context_aware': context_aware,
 }
 
@@ -184,6 +200,7 @@ REQUIRES = {
     'maximum_fusion': ('levenshtein', 'jaro_winkler', 'char_trigram', 'multilingual'),
     'geometric_fusion': ('levenshtein', 'jaro_winkler', 'char_trigram', 'multilingual'),
     'exact_match_fusion': STRINGS + ('multilingual', 'exact_match'),
+    'consensus_fusion': EMBEDDINGS,
     'context_aware': ('levenshtein', 'jaro_winkler', 'char_trigram', 'multilingual'),
 }
 

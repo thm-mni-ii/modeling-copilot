@@ -27,8 +27,20 @@ def test_every_variant_returns_a_matrix_without_changing_inputs(name):
 
 
 def test_active_catalog():
-    assert len(VARIANTS) == 15
+    assert len(VARIANTS) == 16
     assert VARIANTS.keys() == REQUIRES.keys()
+
+
+def test_consensus_averages_agreeing_paths_and_takes_minimum_otherwise():
+    scores = {'translated_embedding': np.array([[.8, .9, .0]]),
+              'multilingual': np.array([[.7, .3, .0]])}
+    result = evaluate_variant('consensus_fusion', scores)
+    np.testing.assert_allclose(result, [[.75, .3, 0]])
+    # Abweichungen bis max_gap gelten als einig; außerhalb [0,1] ist ungültig.
+    wide = evaluate_variant('consensus_fusion', scores, max_gap=.7)
+    np.testing.assert_allclose(wide, [[.75, .6, 0]])
+    with pytest.raises(ValueError):
+        evaluate_variant('consensus_fusion', scores, max_gap=2)
 
 
 @pytest.mark.parametrize('name', list(VARIANTS))

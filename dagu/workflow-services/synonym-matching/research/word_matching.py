@@ -1,11 +1,25 @@
-"""Greedy-Wort-Matching mit lokalen, vortrainierten Vektoren. Kein Modelltraining."""
+"""Wort-Matching mit lokalen, vortrainierten Vektoren. Kein Modelltraining."""
 
 import re
 
 import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 from synonym_matching.preprocessing import Preprocessor, _language_model
 from synonym_matching.service import nonempty_pairs
+
+
+def _checked(scores, delta):
+    """Prüfe die Wortmatrix; liefere sie und das feste Ergebnis für leere Wortmengen."""
+    matrix = np.asarray(scores, dtype=float)
+    if matrix.ndim != 2 or not np.isfinite(matrix).all() or not 0 <= delta <= 1:
+        raise ValueError('finite matrix and delta in [0,1] required')
+    m, n = matrix.shape
+    if max(m, n) == 0:
+        return matrix, 0.0
+    if min(m, n) == 0:
+        return matrix, float(delta)
+    return matrix, None
 
 
 def greedy_matching(scores, delta=.2):
@@ -14,14 +28,10 @@ def greedy_matching(scores, delta=.2):
     Zeilen/Spalten werden bei Gleichstand in Eingabereihenfolge gewählt.
     Einseitig leer ergibt nach der Formel delta, beidseitig leer explizit 0.
     """
-    matrix = np.asarray(scores, dtype=float)
-    if matrix.ndim != 2 or not np.isfinite(matrix).all() or not 0 <= delta <= 1:
-        raise ValueError('finite matrix and delta in [0,1] required')
+    matrix, empty = _checked(scores, delta)
+    if empty is not None:
+        return empty
     m, n = matrix.shape
-    if max(m, n) == 0:
-        return 0.0
-    if min(m, n) == 0:
-        return float(delta)
     remaining = matrix.copy()
     total = abs(m - n) * delta
     for _ in range(min(m, n)):
@@ -29,6 +39,32 @@ def greedy_matching(scores, delta=.2):
         total += remaining[row, column]
         remaining = np.delete(np.delete(remaining, row, axis=0), column, axis=1)
     return float(total / max(m, n))
+
+
+def optimal_matching(scores, delta=.2):
+    """Wie greedy_matching, aber die 1:1-Wortpaare maximieren die Gesamtsumme (Hungarian)."""
+    matrix, empty = _checked(scores, delta)
+    if empty is not None:
+        return empty
+    m, n = matrix.shape
+    rows, columns = linear_sum_assignment(matrix, maximize=True)
+    return float((matrix[rows, columns].sum() + abs(m - n) * delta) / max(m, n))
+
+
+def bidirectional_matching(scores, delta=.2):
+    """Jedes Wort sucht sein bestes Gegenstück, in beide Richtungen; Mittel beider Richtungen.
+
+    Kein 1:1: Mehrere Wörter dürfen dasselbe Gegenstück wählen. Dadurch ist der Wert
+    symmetrisch. Leere Wortmengen verhalten sich wie bei greedy_matching.
+    """
+    matrix, empty = _checked(scores, delta)
+    if empty is not None:
+        return empty
+    return float((matrix.max(axis=1).mean() + matrix.max(axis=0).mean()) / 2)
+
+
+MATCHING = {'greedy': greedy_matching, 'optimal': optimal_matching,
+            'bidirectional': bidirectional_matching}
 
 
 def load_vectors(path, fmt):
@@ -50,8 +86,10 @@ class WordMatching:
 
     def __init__(self, config, translator=None, name="word_matching", models=None):
         self.config = {'format': 'word2vec_text', 'delta': .2, 'nouns_only': False,
-                       'lowercase': True, 'preprocessing': ['normalize', 'split_identifiers'],
-                       **config}
+                       'lowercase': True, 'matching': 'greedy',
+                       'preprocessing': ['normalize', 'split_identifiers'], **config}
+        if self.config['matching'] not in MATCHING:
+            raise ValueError(f"unknown matching: {self.config['matching']}")
         self.name = name
         # Dieselbe Vorverarbeitung wie im Service, inklusive des Schritts 'translate'.
         self.preprocessor = Preprocessor(self.config['preprocessing'], translator)
@@ -127,7 +165,8 @@ class WordMatching:
                             if vector_a.shape != vector_b.shape:
                                 raise ValueError('word vectors must have the same dimension')
                             scores[a, b] = np.dot(vector_a, vector_b)
-                result[i, j] = greedy_matching(np.clip(scores, 0, 1), self.config['delta'])
+                result[i, j] = MATCHING[self.config['matching']](
+                    np.clip(scores, 0, 1), self.config['delta'])
         return result
 
     def compute_scores(self, reference, student):
