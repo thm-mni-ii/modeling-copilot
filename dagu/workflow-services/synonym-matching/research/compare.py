@@ -41,22 +41,12 @@ def load_config(path=DEFAULT_CONFIG):
     config = json.loads(Path(path).read_text())
     if not 0 <= config['threshold'] <= 1:
         raise ValueError('threshold must be in [0,1]')
-    if not config['preprocessing'] or not config['methods']:
-        raise ValueError('nonempty preprocessing and methods required')
+    if not config['preprocessing'] or not config['methods'] or not config['chains']:
+        raise ValueError('nonempty preprocessing, methods and chains required')
     allowed = {'threshold', 'mutual_best', 'hungarian'}
     if not config['strategies'] or set(config['strategies']) - allowed:
         raise ValueError('unknown or empty assignment strategies')
     return config
-
-
-def combination_spec(entry):
-    """Übersetze einen Konfigurationseintrag in Methodenliste und Kombinierer."""
-    if 'variant' in entry:
-        combiner = {'kind': 'variant', 'name': entry['variant']}
-        if 'options' in entry:
-            combiner['options'] = entry['options']
-        return list(REQUIRES[entry['variant']]), combiner
-    return list(entry['weights']), {'kind': 'weighted_mean', 'weights': entry['weights']}
 
 
 def chain_name(chain):
@@ -65,18 +55,17 @@ def chain_name(chain):
 
 
 def check_chain(chain, methods):
-    """Alle Glieder außer dem letzten sind Preprocessing oder 'translate', das letzte ein Verfahren."""
+    """Alle Glieder außer dem letzten sind '$pre', Preprocessing oder 'translate', das letzte ein Verfahren."""
     *steps, method = chain
-    unknown = [s for s in steps if s != 'translate' and s not in PREPROCESSING_STEPS]
-    if method not in methods or unknown or steps.count('translate') > 1:
+    unknown = [s for s in steps if s not in ('$pre', 'translate') and s not in PREPROCESSING_STEPS]
+    if (method not in methods or unknown or steps.count('translate') > 1
+            or steps.count('$pre') > 1):
         raise ValueError(f'invalid chain {chain}')
 
 
-def chain_for(method, steps, methods):
-    """Kette eines Verfahrens im Raster: Preprocessing, optional translate, Verfahren."""
-    options = methods[method]
-    steps = steps if options.get('ablate') else ['normalize']
-    return [*steps, *(['translate'] if options.get('translate') else []), method]
+def expand(chain, steps):
+    """Ersetze den Platzhalter '$pre' durch die Schritte einer Preprocessing-Pipeline."""
+    return [step for token in chain for step in (steps if token == '$pre' else [token])]
 
 
 def definition(name, chains, combiner, steps=(), **extra):
@@ -114,51 +103,61 @@ def configurations(config):
             seen[key] = identifier
             result[identifier] = spec
 
-    def pipelines(needed):
-        ablate = any(methods[name].get('ablate') for name in needed)
-        return config['preprocessing'] if ablate else {'fixed': ['normalize']}
+    def pipelines(chains):
+        """Ohne '$pre' läuft ein Versuch einmal, mit '$pre' einmal je Pipeline."""
+        if any('$pre' in chain for chain in chains):
+            return config['preprocessing']
+        return {None: []}
 
-    for name in methods:
-        if name in enabled:
-            for steps in pipelines([name]).values():
-                chain = chain_for(name, steps, methods)
-                add(chain_name(chain), definition(chain_name(chain), {name: chain},
-                                                  {'kind': 'mean'}, steps, chain_based=True))
-    for entry in config['combinations']:
-        needed, combiner = combination_spec(entry)
-        unknown = set(needed) - set(methods)
-        if unknown:
-            raise ValueError(f"{entry['name']}: unknown methods {sorted(unknown)}")
-        if not set(needed) <= enabled:
-            skipped.append({'name': entry['name'], 'reason': 'Verfahren deaktiviert'})
-            continue
-        for label, steps in pipelines(needed).items():
-            chains = {name: chain_for(name, steps, methods) for name in needed}
-            add(label + '/' + entry['name'],
-                definition(entry['name'], chains, combiner, steps,
-                           **({'global_ranking': True} if entry.get('global_ranking') else {})))
-    for chain in config.get('chains', []):
+    blocks = config['chains']
+    for chain in blocks.values():
         check_chain(chain, methods)
+    for alias, chain in blocks.items():
         if chain[-1] not in enabled:
-            skipped.append({'name': chain_name(chain), 'reason': 'Verfahren deaktiviert'})
+            skipped.append({'name': alias, 'reason': 'Verfahren deaktiviert'})
             continue
-        add(chain_name(chain), definition(chain_name(chain), {chain[-1]: chain},
-                                          {'kind': 'mean'}, chain[:-1], chain_based=True))
-    for entry in config.get('mixes', []):
-        chains = {}
-        for part in entry['parts']:
-            check_chain(part['chain'], methods)
-            chains[chain_name(part['chain'])] = part['chain']
-        if len(chains) != len(entry['parts']):
-            raise ValueError('a mix may use each chain only once')
-        weights = {chain_name(part['chain']): part['weight'] for part in entry['parts']}
-        total = sum(weights.values())
-        name = entry.get('name') or ' + '.join(f'{100 * w / total:g}% {n}' for n, w in weights.items())
-        if not {chain[-1] for chain in chains.values()} <= enabled:
-            skipped.append({'name': name, 'reason': 'Verfahren deaktiviert'})
+        for steps in pipelines([chain]).values():
+            full = expand(chain, steps)
+            add(chain_name(full), definition(chain_name(full), {chain[-1]: full},
+                                             {'kind': 'mean'}, steps, chain_based=True))
+    for entry in config['mixes']:
+        aliases = list(entry['weights']) if 'weights' in entry else entry['parts']
+        unknown = [alias for alias in aliases if alias not in blocks]
+        if unknown:
+            raise ValueError(f'mix uses unknown chains {unknown}')
+        if not {blocks[alias][-1] for alias in aliases} <= enabled:
+            skipped.append({'name': entry.get('name', ' + '.join(aliases)),
+                            'reason': 'Verfahren deaktiviert'})
             continue
-        add(name, definition(name, chains, {'kind': 'weighted_mean', 'weights': weights},
-                             chain_based=True))
+        for label, steps in pipelines([blocks[alias] for alias in aliases]).items():
+            full = {alias: expand(blocks[alias], steps) for alias in aliases}
+            if 'variant' in entry:
+                # Varianten des Service erwarten die Matrizen unter dem Verfahrensnamen.
+                chains = {chain[-1]: chain for chain in full.values()}
+                missing = set(REQUIRES[entry['variant']]) - set(chains)
+                if len(chains) != len(full) or missing:
+                    raise ValueError(f"{entry['name']}: needs exactly one chain per method {sorted(missing)}")
+                combiner = {'kind': 'variant', 'name': entry['variant']}
+                if 'options' in entry:
+                    combiner['options'] = entry['options']
+                extra = {}
+                # Ohne '$pre' tragen alle Ketten ihr Preprocessing selbst.
+                shown = steps if label else full[aliases[0]][:-1]
+            else:
+                chains = {chain_name(chain): chain for chain in full.values()}
+                if len(chains) != len(full):
+                    raise ValueError('a mix may use each chain only once')
+                weights = {chain_name(full[alias]): weight
+                           for alias, weight in (entry.get('weights') or dict.fromkeys(aliases, 1)).items()}
+                combiner = {'kind': 'weighted_mean', 'weights': weights}
+                extra = {'chain_based': True}
+                shown = steps
+            if entry.get('global_ranking'):
+                extra['global_ranking'] = True
+            name = entry.get('name') or ' + '.join(
+                f'{100 * w / sum(weights.values()):g}% {n}' for n, w in weights.items())
+            add(f'{label}/{name}' if label else name,
+                definition(name, chains, combiner, shown, **extra))
     return result, skipped
 
 

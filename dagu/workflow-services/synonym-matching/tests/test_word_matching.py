@@ -99,7 +99,7 @@ def test_translate_step_comes_before_vector_lookup(tmp_path, monkeypatch):
              'reference': [{'id': 'r', 'label': 'Cliente', 'language': 'es'}],
              'student': [{'id': 's', 'label': 'Customer', 'language': 'en'}],
              'annotations': [['correct']]}]}
-    config = only(load_config(), 'fasttext_en_matching')
+    config = only(load_config(), 'ft_en')
     config['languages'] = ['de', 'en', 'es']
     config['preprocessing'] = {'lower': ['normalize', 'lowercase']}
     config['methods']['fasttext_en_matching'].update({
@@ -175,7 +175,7 @@ def test_new_comparison_reuses_fasttext_for_hungarian_and_marks_missing_resource
                     {'id': 's2', 'label': 'Lieferant', 'language': 'de'}],
         'annotations': [['correct', 'incorrect']]}]}
     output = tmp_path / 'run.json'
-    config = only(load_config(), 'fasttext_de_matching', 'word2vec_de_matching')
+    config = only(load_config(), 'ft_de', 'w2v_de')
     config['preprocessing'] = {'raw': []}
     config['methods']['fasttext_de_matching'].update({'files': {'de': path}, 'format': 'word2vec_text'})
     config['methods']['word2vec_de_matching']['files'] = {'de': str(tmp_path / 'fehlt.bin')}
@@ -202,7 +202,7 @@ def test_word_vectors_use_pipeline_preprocessing_and_load_model_once(tmp_path, m
         'reference': [{'id': 'r', 'label': 'Kunde', 'language': 'de'}],
         'student': [{'id': 's', 'label': 'Kunde', 'language': 'de'}],
         'annotations': [['correct']]}]}
-    config = only(load_config(), 'word2vec_de_matching')
+    config = only(load_config(), 'w2v_de')
     config['preprocessing'] = {'raw': [], 'lower': ['lowercase']}
     config['methods']['word2vec_de_matching'].update({'files': {'de': path}, 'format': 'word2vec_text'})
     output = tmp_path / 'run.json'

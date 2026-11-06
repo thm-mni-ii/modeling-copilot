@@ -35,11 +35,11 @@ def test_mutual_best_ties_and_invalid_cells():
     assert select_matches(np.ones((2, 2)), np.ones((2, 2)), .5, 'mutual_best').all()
 
 
-def only(config, *names):
-    """Aktiviere nur die genannten Verfahren, ohne die zusätzlichen Ketten und Mischungen."""
-    for name, method in config['methods'].items():
-        method['enabled'] = name in names
-    config['chains'], config['mixes'] = [], []
+def only(config, *aliases):
+    """Nutze nur die genannten Ketten; Mischungen nur, wenn alle ihre Ketten dabei sind."""
+    config['chains'] = {a: c for a, c in config['chains'].items() if a in aliases}
+    config['mixes'] = [m for m in config['mixes']
+                       if set(m.get('weights') or m['parts']) <= set(aliases)]
     return config
 
 
@@ -83,7 +83,7 @@ def test_run_experiments_stores_load_seconds_separately_from_compute(tmp_path):
             'reference': [{'id': 'r', 'label': 'Kunde', 'language': 'de'}],
             'student': [{'id': 's', 'label': 'Kunde', 'language': 'de'}],
             'annotations': [['correct']]}]}
-    config = only(load_config(), 'levenshtein')
+    config = only(load_config(), 'lev')
     config['preprocessing'] = {'raw': []}
     output = tmp_path / 'run.json'
     run_experiments(data, output, config)
@@ -108,41 +108,46 @@ def test_research_configurations_use_service_methods_and_combiners():
 
 
 def test_duplicate_pipelines_are_skipped_but_real_ablations_stay():
-    config = only(load_config(), 'levenshtein', 'jaro_winkler')
+    config = load_config()
     config['preprocessing'] = {'a': ['normalize'], 'b': ['normalize'], 'c': ['normalize', 'lowercase']}
-    config['combinations'] = [
-        {'name': 'x', 'weights': {'levenshtein': 1, 'jaro_winkler': 1}},
-        {'name': 'y', 'weights': {'levenshtein': 2, 'jaro_winkler': 2}}]
-    config['chains'] = [['normalize', 'levenshtein']]
-    config['mixes'] = []
+    config['chains'] = {'lev': ['$pre', 'levenshtein'], 'jw': ['$pre', 'jaro_winkler'],
+                        'lev_plain': ['normalize', 'levenshtein']}
+    config['mixes'] = [{'name': 'x', 'weights': {'lev': 1, 'jw': 1}},
+                       {'name': 'y', 'weights': {'lev': 2, 'jw': 2}}]
     definitions, skipped = configurations(config)
     assert {'a/x', 'c/x', 'normalize → levenshtein',
             'normalize+lowercase → levenshtein'} <= set(definitions)
     assert 'a/y' not in definitions and 'b/x' not in definitions
+    # 'b' wiederholt 'a'; 'lev_plain' wiederholt 'normalize → levenshtein' aus dem Platzhalter.
     assert {s['name'] for s in skipped} >= {'b/x', 'a/y', 'normalize → levenshtein'}
 
 
 def test_chains_and_mixes_are_validated_and_named_automatically():
-    config = only(load_config(), 'levenshtein', 'multilingual')
+    config = load_config()
     config['preprocessing'] = {'raw': []}
-    config['combinations'] = []
-    config['chains'] = [['normalize', 'stem', 'translate', 'levenshtein']]
-    config['mixes'] = [{'parts': [{'chain': ['normalize', 'levenshtein'], 'weight': 1},
-                                  {'chain': ['normalize', 'multilingual'], 'weight': 3}]}]
+    config['chains'] = {'lev': ['normalize', 'levenshtein'],
+                        'multi': ['normalize', 'multilingual'],
+                        'lev_en': ['normalize', 'stem', 'translate', 'levenshtein']}
+    config['mixes'] = [{'weights': {'lev': 1, 'multi': 3}}]
     definitions, _ = configurations(config)
     assert 'normalize+stem+translate → levenshtein' in definitions
     mix = definitions['25% normalize → levenshtein + 75% normalize → multilingual']
     assert mix['combiner']['weights'] == {'normalize → levenshtein': 1, 'normalize → multilingual': 3}
     for bad in (['normalize', 'nope', 'levenshtein'], ['translate', 'translate', 'levenshtein'],
-                ['normalize', 'unknown_method']):
-        config['chains'] = [bad]
+                ['normalize', 'unknown_method'], ['$pre', '$pre', 'levenshtein']):
+        config['chains'] = {'bad': bad}
+        config['mixes'] = []
         with pytest.raises(ValueError):
             configurations(config)
 
 
-def test_unknown_method_in_combination_is_an_error():
+def test_mix_with_unknown_chain_or_missing_variant_part_is_an_error():
     config = load_config()
-    config['combinations'] = [{'name': 'bad', 'weights': {'nope': 1}}]
+    config['mixes'] = [{'name': 'bad', 'weights': {'nope': 1}}]
+    with pytest.raises(ValueError):
+        configurations(config)
+    config = load_config()
+    config['mixes'] = [{'name': 'bad', 'variant': 'weighted_fusion', 'parts': ['lev', 'jw']}]
     with pytest.raises(ValueError):
         configurations(config)
 
@@ -162,7 +167,7 @@ def test_run_stores_raw_features_once_and_api_unchanged(tmp_path):
                         {'id': 's2', 'label': 'Lieferant', 'language': 'de'}],
             'annotations': [['correct', 'incorrect']]}]}
     output = tmp_path / 'run.json'
-    config = only(load_config(), 'levenshtein', 'jaro_winkler', 'char_trigram', 'exact_match')
+    config = only(load_config(), 'lev', 'jw', 'trigram', 'exact')
     config['preprocessing'] = {'raw': [], 'lower': ['lowercase']}
     assert run_experiments(data, output, config) == []
     run = json.loads(output.read_text())

@@ -165,35 +165,41 @@ Ein Befehl führt **alle** in `research/experiments.json` aktivierten Verfahren,
 Kombinationen und Preprocessing-Ablationen aus. Optional: `--config` (andere
 Konfigurationsdatei) und `--data` (andere Testdaten). Es gibt keine Flags je Verfahren.
 
-**Änderungen an Experimenten:** nur `research/experiments.json` bearbeiten.
+**Änderungen an Experimenten (Baukasten):** nur `research/experiments.json` bearbeiten.
+Die Datei besteht aus vier Bausteinarten, die zusammengesteckt werden:
 
+- `preprocessing`: benannte Schrittlisten (Preprocessing-Bausteine), z. B.
+  `"lemma": ["normalize", "lemmatize", "lowercase"]`.
+- `methods`: die verfügbaren Verfahren mit ihren Eigenschaften.
+  `"enabled": false` schaltet ein Verfahren samt aller Ketten ab,
+  `"languages"` begrenzt die unterstützten Sprachen. Ein Eintrag mit `files` ist ein
+  Wortvektormodell (Pfade relativ zum Serviceverzeichnis, Revision und Quelle angeben).
+- `chains`: benannte Ketten. Eine Kette ist die Liste der Schritte der Reihe nach,
+  das **letzte Glied ist das Verfahren**: `"jw": ["$pre", "jaro_winkler"]`.
+  Erlaubt sind Preprocessing-Schritte, `translate` (DE→EN, höchstens einmal) und der
+  Platzhalter `$pre`. `$pre` steht für *jede* Pipeline aus `preprocessing`; eine
+  Kette mit `$pre` läuft also einmal je Pipeline (so entsteht die Ablation).
+  `["normalize", "translate", "levenshtein"]` übersetzt nach `normalize` und rechnet
+  Levenshtein auf dem englischen Text; Schritte hinter `translate` gelten für den
+  englischen Text. Jede Kette läuft auch allein; ihr Name entsteht automatisch
+  (`normalize+stem → levenshtein`). Eine Kette ergibt genau **eine** Matrix.
+- `mixes`: Mischungen von Ketten, die über ihren Namen aus `chains` verwendet werden.
+  - Gewichtet: `{"weights": {"lev": 1, "multi": 3}}` (25 % / 75 %). Mit `"name"` selbst
+    benennen, sonst entsteht der Name aus den Anteilen.
+  - Service-Variante: `{"name": "string_multi_50_50", "variant": "weighted_fusion",
+    "options": {...}, "parts": ["lev", "jw", "trigram", "multi"]}` mit einer Variante
+    aus `src/synonym_matching/combinations.py` (für nichtlineare Regeln wie
+    `maximum_fusion`); je Verfahren genau eine Kette.
+  - Enthält eine Mischung eine Kette mit `$pre`, läuft sie einmal je Pipeline
+    (`lemma/string_multi_50_50`), sonst einmal. `"global_ranking": true` ergänzt die
+    Rangheuristik.
 - `languages`: erlaubte Sprachen (Standard `["de", "en"]`, wie im Studium gemischt).
   Fälle mit anderen Sprachen (hier die spanischen Fälle 11 und 22) werden nicht
   ausgewertet, aber im Terminal und unter `excluded_cases` im JSON aufgeführt.
   Damit sind zwei der 28 ursprünglichen Falltypen standardmäßig nicht Teil der
   Rankings; `"es"` ergänzen, um sie wieder aufzunehmen.
-- `preprocessing`: benannte Schrittlisten für die Ablation der Stringverfahren.
-- `methods`: Einzelverfahren. `"enabled": false` schaltet ein Verfahren ab,
-  `"ablate": true` lässt es alle Preprocessing-Varianten durchlaufen,
-  `"languages"` begrenzt unterstützte Sprachen. Ein Eintrag mit `files` ist ein
-  Wortvektormodell (Pfade relativ zum Serviceverzeichnis, Revision und Quelle mit angeben).
-- `combinations`: entweder `"variant"` (+ `"options"`) aus
-  `src/synonym_matching/combinations.py` oder `"weights"` (gewichtetes Mittel über
-  beliebige Methoden). Eine neue Gewichtung ist ein neuer Eintrag, keine neue Funktion.
-- `chains`: einzelne Versuche als Liste der Schritte der Reihe nach, das **letzte Glied
-  ist das Verfahren**, z. B. `["normalize", "stem", "levenshtein"]`. Erlaubt sind die
-  Preprocessing-Schritte und `translate` (DE→EN) an beliebiger Stelle, höchstens einmal:
-  `["normalize", "translate", "levenshtein"]` übersetzt nach `normalize`, danach läuft
-  Levenshtein auf dem englischen Text. Schritte hinter `translate` gelten für den
-  englischen Text. Der Name entsteht automatisch (`normalize+stem → levenshtein`).
-- `mixes`: gewichtete Mischung mehrerer Ketten, jede mit ihrem eigenen Preprocessing:
-  `{"parts": [{"chain": [...], "weight": 1}, {"chain": [...], "weight": 3}]}`.
-  Der Name entsteht aus den normierten Anteilen, oder mit `"name"` selbst gesetzt.
-  Eine Kette ergibt immer genau **eine** Matrix; die Mischung verrechnet mehrere.
-- Das Raster (`preprocessing` × `methods`) erzeugt dieselben Ketten automatisch
-  (`Pipeline-Schritte, [translate], Verfahren`), die Namen sind identisch aufgebaut.
 - Identische Konfigurationen (gleiche Ketten, normierte Gewichte) werden nur einmal
-  ausgeführt und unter `skipped_definitions` vermerkt. Kombinationen mit deaktivierten
+  ausgeführt und unter `skipped_definitions` vermerkt. Mischungen mit deaktivierten
   Verfahren werden ebenfalls übersprungen.
 - Fehlende Dateien und nicht unterstützte Sprachen erscheinen als „nicht verfügbar“
   mit Grund, nie als Nullergebnis.
@@ -373,15 +379,15 @@ FastText-Binärmodell kann unbekannte Wörter über Subwords repräsentieren.
 
 Getrennte Sprachdateien müssen im selben ausgerichteten Raum liegen und benötigen
 `aligned: true`. Gleiche Dimension allein reicht nicht. Alternativ steht in der Kette
-der Schritt `translate` (DE→EN) vor dem englischen Wortvektor-Verfahren; im Raster
-setzt `"translate": true` am Verfahren diesen Schritt hinter die Pipeline-Schritte.
+der Schritt `translate` (DE→EN) vor dem englischen Wortvektor-Verfahren
+(`["$pre", "translate", "fasttext_en_matching"]`).
 Andere Sprachen als de/en werden dabei nicht unterstützt (nicht verfügbar).
 Englische Labels bleiben unverändert. Die Übersetzung wird über alle Verfahren
 hinweg wiederverwendet.
 
-Optionen je Modell: `ablate` (Preprocessing kommt aus den Pipelines in
-`experiments.json`, wie bei den Stringverfahren; ohne `ablate` gilt `normalize`),
-`lowercase` (Standard true, passend zum Vokabular des Modells und nach der Pipeline
+Optionen je Modell: das Preprocessing kommt aus der Kette (`$pre` für alle Pipelines
+in `experiments.json`, wie bei den Stringverfahren),
+`lowercase` (Standard true, passend zum Vokabular des Modells und nach der Kette
 angewendet), `nouns_only` (Standard false), `delta` (Standard 0.2).
 Jedes Modell wird einmal geladen, für alle Preprocessing-Varianten verwendet und
 danach freigegeben. Die frühere feste Vorverarbeitung (normalize, split_identifiers)
@@ -393,7 +399,8 @@ englischen Zieltext bestimmt. Für einen fairen Vergleich die Vorverarbeitung
 zwischen Vektormodellen gleich halten. Die vollständigen Optionen werden gespeichert.
 
 Ein weiteres Modell ist ein neuer Eintrag mit `files`, `format`, Quelle und Revision
-unter `methods` plus optional ein Eintrag unter `combinations`; der Befehl bleibt gleich.
+unter `methods`, eine Kette dafür unter `chains` und optional eine Mischung unter
+`mixes`; der Befehl bleibt gleich.
 
 Modellgröße/RAM-Bedarf, Quelle und Lizenz vor dem Download prüfen. Eigene Felder
 wie `model`, `source` und `license` werden mit der Ressourcenkonfiguration gespeichert.

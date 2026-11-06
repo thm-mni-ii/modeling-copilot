@@ -38,7 +38,7 @@ def test_single_research_command_writes_json_and_rankings(tmp_path):
     data['cases'] = [case for case in data['cases'] if case['case_number'] in (20, 28)]
     source = tmp_path / 'cases.json'
     source.write_text(json.dumps(data))
-    config = only(load_config(), 'levenshtein', 'jaro_winkler', 'char_trigram', 'exact_match')
+    config = only(load_config(), 'lev', 'jw', 'trigram', 'exact')
     config['preprocessing'] = {'normalize': ['normalize']}
     config_path = tmp_path / 'config.json'
     config_path.write_text(json.dumps(config))
@@ -62,7 +62,7 @@ def test_single_research_command_writes_json_and_rankings(tmp_path):
 def test_cases_with_other_languages_are_excluded_and_reported(tmp_path):
     data = json.loads((EXAMPLES / 'model-cases.json').read_text())
     data['cases'] = [c for c in data['cases'] if c['case_number'] in (1, 10, 11, 22)]
-    config = only(load_config(), 'levenshtein')
+    config = only(load_config(), 'lev')
     config['preprocessing'] = {'raw': []}
     out = tmp_path / 'run.json'
     experiments.run_experiments(data, out, config)
@@ -89,7 +89,7 @@ def test_spanish_translation_explicit_and_other_variants_continue(tmp_path, monk
     data = json.loads((EXAMPLES / 'model-cases.json').read_text())
     data['cases'] = [c for c in data['cases'] if c['case_number'] == 11]
     out = tmp_path / 'run.json'
-    config = only(load_config(), 'levenshtein', 'multilingual', 'translated_embedding', 'translated_string')
+    config = only(load_config(), 'lev', 'multi', 'trans_emb', 'trans_str')
     config['preprocessing'] = {'raw': []}
     config['languages'] = ['de', 'en', 'es']
     assert experiments.run_experiments(data, out, config) == []
