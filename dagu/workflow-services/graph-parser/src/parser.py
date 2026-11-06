@@ -1,7 +1,8 @@
-"""Draft maxGraph adapter. Only containment is a forest; connections are unrestricted."""
+"""Normalize maxGraph snapshots without validating the modeled content."""
 import json
 import xml.etree.ElementTree as ET
 from typing import Literal, NotRequired, TypedDict
+
 
 class LanguageReference(TypedDict):
     languageId: str
@@ -13,14 +14,28 @@ class LanguageVersion(LanguageReference):
     includedLanguageVersions: list[LanguageReference]
 
 
+class DefinitionReference(LanguageReference):
+    # JSON Pointer relative to LanguageVersion.data.
+    path: str
+
+
+DefinitionEntry = tuple[DefinitionReference, dict]
 Scalar = str | int | float | bool | None
 
 
 class Anchor(TypedDict, total=False):
+    cellId: str | None
     pointId: str
+    name: str
+    groups: list[str]
     role: Literal["input", "output", "bidirectional"]
-    x: str
-    y: str
+    x: str | float
+    y: str | float
+    dx: str
+    dy: str
+    perimeter: str
+    position: dict[str, str]
+    pointSource: Literal["language", "model"]
 
 
 class Endpoints(TypedDict, total=False):
@@ -28,14 +43,21 @@ class Endpoints(TypedDict, total=False):
     target: Anchor
 
 
-class GraphNode(TypedDict):
+class DefinitionBinding(TypedDict):
+    language: LanguageReference | None
+    definition: DefinitionReference | None
+    definitionCandidates: list[DefinitionReference]
+
+
+class GraphNode(DefinitionBinding):
     id: str
     kind: Literal["element", "connection"]
     type: str
     label: str
-    language: LanguageReference | None
+    parentId: str | None
     properties: dict[str, Scalar]
     directed: NotRequired[bool | None]
+    storedUndirected: NotRequired[str | None]
 
 
 class GraphEdge(TypedDict):
@@ -48,24 +70,21 @@ class GraphEdge(TypedDict):
     label: str
     language: LanguageReference | None
     properties: dict[str, Scalar]
+    definition: NotRequired[DefinitionReference | None]
+    definitionCandidates: NotRequired[list[DefinitionReference]]
+    role: NotRequired[Literal["structural"]]
+    relation: NotRequired[Literal["component", "content"] | None]
+    parentId: NotRequired[str | None]
+    storedUndirected: NotRequired[str | None]
     originId: NotRequired[str]
     endpoints: NotRequired[Endpoints]
 
 
 class Graph(TypedDict):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[2]
     languages: list[LanguageReference]
-    complete: bool
     nodes: list[GraphNode]
     edges: list[GraphEdge]
-
-
-class Diagnostic(TypedDict):
-    severity: Literal["warning", "error"]
-    code: str
-    cellId: str
-    message: str
-    details: dict
 
 
 def resolve_languages(bundle: dict, references: list[LanguageReference]) -> list[LanguageVersion]:
@@ -136,26 +155,23 @@ def language_catalog(languages: object) -> tuple[dict, dict, set, set, list]:
         if not isinstance(data, dict):
             raise ValueError("each language needs its definition in data")
 
-        def register(definitions: object, catalog: dict, nested: bool = False) -> None:
+        def register(definitions: object, catalog: dict, path: str, nested: bool = False) -> None:
             if not isinstance(definitions, list):
                 raise ValueError("language elements/connections/children must be arrays")
-            for definition in definitions:
+            for index, definition in enumerate(definitions):
                 if not isinstance(definition, dict) or not isinstance(definition.get("type"), str) or not definition["type"]:
                     raise ValueError("each language definition needs a non-empty type")
-                entry = (reference, definition)
+                definition_path = f"{path}/{index}"
+                entry = ({**reference, "path": definition_path}, definition)
                 candidates = catalog.setdefault(definition["type"], [])
-                # A child type may occur in multiple compositions of one language.
-                if entry not in candidates:
-                    candidates.append(entry)
+                candidates.append(entry)
                 if nested:
-                    register(definition.get("children", []), catalog, True)
+                    register(definition.get("children", []), catalog, definition_path + "/children", True)
 
-        register(data.get("elements"), elements, True)
-        register(data.get("connections"), connections)
-        for connection in data.get("connections", []):
-            if "undirected" in connection and not isinstance(connection["undirected"], bool):
-                raise ValueError("connection.undirected must be boolean")
-            register(connection.get("additionalLabels", []), elements)
+        register(data.get("elements"), elements, "/elements", True)
+        register(data.get("connections"), connections, "/connections")
+        for index, connection in enumerate(data.get("connections", [])):
+            register(connection.get("additionalLabels", []), elements, f"/connections/{index}/additionalLabels")
         feedback = data.get("feedback", {})
         if not isinstance(feedback, dict) or not isinstance(feedback.get("canvas", {}), dict):
             raise ValueError("language feedback/canvas must be objects")
@@ -175,7 +191,7 @@ def language_catalog(languages: object) -> tuple[dict, dict, set, set, list]:
     return elements, connections, feedback_elements, feedback_connections, references
 
 
-def parse_model(value: object) -> tuple[Graph, list[Diagnostic]]:
+def parse_model(value: object) -> Graph:
     if not isinstance(value, dict) or not isinstance(value.get("model"), dict):
         raise ValueError("input.model must be a complete model snapshot")
     model = value["model"]
@@ -202,23 +218,6 @@ def parse_model(value: object) -> tuple[Graph, list[Diagnostic]]:
             raise ValueError("every Cell needs a unique non-empty id")
         cells[identity] = cell
 
-    diagnostics = []
-
-    def diagnose(code: str, cell_id: str, message: str, severity: str = "error", **details: object) -> None:
-        diagnostics.append({"severity": severity, "code": code, "cellId": cell_id, "message": message, "details": details})
-
-    # Reject cycles, including cycles hidden by technical/feedback cells.
-    visited = set()
-    for start in sorted(cells):
-        path = set()
-        current = start
-        while current in cells and current not in visited:
-            if current in path:
-                raise ValueError(f"containment cycle at Cell {current}")
-            path.add(current)
-            current = cells[current].get("parent")
-        visited.update(path)
-
     excluded = set()
     for identity, cell in cells.items():
         style = style_of(cell)
@@ -239,10 +238,25 @@ def parse_model(value: object) -> tuple[Graph, list[Diagnostic]]:
     retained = {identity: cell for identity, cell in cells.items() if identity not in excluded}
     model_cells = {identity: cell for identity, cell in retained.items()
                    if flag(cell.get("vertex")) or flag(cell.get("edge")) or type_of(cell)}
+
+    def model_parent(cell: ET.Element) -> str | None:
+        parent, visited = cell.get("parent"), set()
+        # Root/layer cells are transparent. Keep malformed parent cycles finite.
+        while parent in retained and parent not in model_cells:
+            if parent in visited:
+                return None
+            visited.add(parent)
+            parent = retained[parent].get("parent")
+        return parent
+
+    parents = {identity: model_parent(cell) for identity, cell in model_cells.items()}
     # A connection with children, or serving as another connection's terminal,
     # needs a node representation to keep the output an ordinary multigraph.
-    relation_nodes = {cell.get("parent") for cell in model_cells.values()
-                      if cell.get("parent") in model_cells and flag(model_cells[cell.get("parent")].get("edge"))}
+    # Connections inside model containers also need an addressable contains target.
+    relation_nodes = {parent for parent in parents.values()
+                      if parent in model_cells and flag(model_cells[parent].get("edge"))}
+    relation_nodes.update(identity for identity, cell in model_cells.items()
+                          if flag(cell.get("edge")) and parents[identity] in model_cells)
     relation_nodes.update(cell.get(end) for cell in model_cells.values() if flag(cell.get("edge"))
                           for end in ("source", "target") if cell.get(end) in model_cells and flag(model_cells[cell.get(end)].get("edge")))
     nodes, edges = {}, []
@@ -255,100 +269,166 @@ def parse_model(value: object) -> tuple[Graph, list[Diagnostic]]:
         reserved_ids.add(identity)
         return identity
 
-    def definition_for(identity: str, cell: ET.Element) -> tuple[dict | None, dict]:
+    definitions: dict[str, DefinitionEntry | None] = {}
+    candidates_by_cell: dict[str, list[DefinitionEntry]] = {}
+
+    def candidates_for(cell: ET.Element) -> list[DefinitionEntry]:
         catalog = connections if flag(cell.get("edge")) else elements
         candidates = catalog.get(type_of(cell), [])
-        # Label type names (e.g. 'role') can be shared across languages. A label
-        # belongs to its parent connection's definition, not to the global set.
-        parent = cells.get(cell.get("parent"))
-        if cell.get("connectionLabelId") and parent is not None and flag(parent.get("edge")):
-            candidates = [(reference, label)
-                          for reference, connection in connections.get(type_of(parent), [])
-                          for label in connection.get("additionalLabels", [])
-                          if label["type"] == type_of(cell)]
-        owners = {(entry[0]["languageId"], entry[0]["versionId"]) for entry in candidates}
-        if len(owners) != 1:
-            diagnose("unknown_type" if not candidates else "ambiguous_type", identity,
-                     "Element type is missing/unknown or belongs to multiple language versions.", type=type_of(cell))
-            return None, {}
-        reference = candidates[0][0]
-        if flag(cell.get("edge")) and len({entry[1].get("undirected", False) for entry in candidates}) > 1:
-            diagnose("ambiguous_direction", identity, "Connection definitions disagree about direction.")
-            return reference, {}
-        return reference, candidates[0][1]
+        return [entry for entry in candidates
+                if ("/additionalLabels/" in entry[0]["path"]) == bool(cell.get("connectionLabelId"))]
 
-    definitions = {}
+    def belongs_to(child: DefinitionReference, parent: DefinitionReference, section: str) -> bool:
+        return (all(child[key] == parent[key] for key in ("languageId", "versionId"))
+                and child["path"].rsplit("/", 2)[0] == parent["path"]
+                and child["path"].rsplit("/", 2)[1] == section)
+
+    def resolve_definition(identity: str) -> None:
+        cell = model_cells[identity]
+        candidates = candidates_for(cell)
+        parent = definitions.get(parents[identity])
+        section = "additionalLabels" if cell.get("connectionLabelId") else "children"
+        contextual = [entry for entry in candidates if parent and belongs_to(entry[0], parent[0], section)]
+        roots = [entry for entry in candidates if entry[0]["path"].count("/") == 2]
+        if parent is None:
+            possible_parents = candidates_by_cell.get(parents[identity], [])
+            possible_children = [entry for entry in candidates
+                                 if any(belongs_to(entry[0], possible[0], section) for possible in possible_parents)]
+            if possible_children:
+                candidates_by_cell[identity] = possible_children + roots
+                definitions[identity] = None
+                return
+        selected = contextual or roots
+        candidates_by_cell[identity] = selected or candidates
+        definitions[identity] = selected[0] if len(selected) == 1 else None
+
+    # Resolve parents first, independently of XML order and cell IDs. Cycles stay
+    # in the graph; they only prevent a context-dependent definition lookup.
+    for start in sorted(model_cells):
+        chain, active = [], set()
+        current = start
+        while current in model_cells and current not in definitions:
+            if current in active:
+                for identity in chain[chain.index(current):]:
+                    definitions[identity] = None
+                    candidates_by_cell[identity] = candidates_for(model_cells[identity])
+                break
+            chain.append(current)
+            active.add(current)
+            current = parents[current]
+        for identity in reversed(chain):
+            if identity not in definitions:
+                resolve_definition(identity)
+
+    def binding(identity: str) -> DefinitionBinding:
+        entry = definitions[identity]
+        result = {"language": {key: entry[0][key] for key in ("languageId", "versionId")} if entry else None,
+                  "definition": entry[0] if entry else None,
+                  "definitionCandidates": [] if entry else [candidate[0] for candidate in candidates_by_cell[identity]]}
+        return result
+
     for identity, cell in sorted(model_cells.items()):
-        definitions[identity] = definition_for(identity, cell)
         if not flag(cell.get("edge")) or identity in relation_nodes:
-            reference, _ = definitions[identity]
             nodes[identity] = {"id": identity, "kind": "connection" if flag(cell.get("edge")) else "element",
                                "type": type_of(cell) or "__unknown__", "label": label_of(cell),
-                               "language": reference, "properties": scalar_properties(cell)}
-
-    def terminal(identity: str, cell: ET.Element, end: str) -> str | None:
-        target = cell.get(end)
-        if target in nodes:
-            return target
-        diagnose("invalid_endpoint", identity, "Connection endpoint is missing or not an addressable model node.", endpoint=end, originalId=target)
-        return None
+                               "parentId": cell.get("parent"), "properties": scalar_properties(cell), **binding(identity)}
 
     def anchor(cell: ET.Element, end: str) -> dict:
         style = style_of(cell)
         prefix = "exit" if end == "source" else "entry"
-        if style.get(prefix + "PointId"):
-            result = {"pointId": style[prefix + "PointId"]}
-            endpoint_id = cell.get(end)
-            if endpoint_id in definitions:
-                points = definitions[endpoint_id][1].get("anchorPoints", [])
-                for point in points if isinstance(points, list) else []:
-                    if not isinstance(point, dict):
-                        continue
-                    point_id = point.get("id", f"point-{point.get('x')}-{point.get('y')}")
-                    if point_id == result["pointId"] and point.get("role") in ("input", "output", "bidirectional"):
-                        result["role"] = point["role"]
-            return result
-        # Older exports can lack point IDs; retain anchor coordinates as fallback.
-        return {key: style[prefix + suffix] for key, suffix in (("x", "X"), ("y", "Y")) if prefix + suffix in style}
+        result = {"cellId": cell.get(end)}
+        for key, suffix in (("pointId", "PointId"), ("x", "X"), ("y", "Y"),
+                            ("dx", "Dx"), ("dy", "Dy"), ("perimeter", "Perimeter")):
+            if prefix + suffix in style:
+                result[key] = style[prefix + suffix]
+        geometry = next((child for child in cell if child.get("as") == "geometry"), None)
+        if geometry is not None:
+            point = next((child for child in geometry if child.get("as") == end + "Point"), None)
+            if point is not None:
+                result["position"] = {axis: point.get("_" + axis, point.get(axis, "0")) for axis in ("x", "y")}
+
+        entry = definitions.get(cell.get(end))
+        points = entry[1].get("anchorPoints", []) if entry else []
+        point_source = "language"
+        # Retain instance anchor metadata when no definition could be resolved.
+        if not entry and cell.get(end) in cells:
+            try:
+                points = json.loads(cells[cell.get(end)].get("connectionPointsJson", "[]"))
+            except (ValueError, TypeError):
+                points = []
+            point_source = "model"
+
+        def number_text(value: object) -> str:
+            # Legacy editor IDs omit .0 for integers; keep other coordinates precise.
+            return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+
+        def point_id(point: dict) -> str:
+            return point.get("id") or f"point-{number_text(point.get('x'))}-{number_text(point.get('y'))}"
+
+        def matches(point: dict) -> bool:
+            if result.get("pointId"):
+                return point_id(point) == result["pointId"]
+            try:
+                return all(abs(float(result[axis]) - float(point[axis])) < 0.000001 for axis in ("x", "y"))
+            except (KeyError, TypeError, ValueError):
+                return False
+
+        matches_found = [point for point in points if isinstance(point, dict) and matches(point)] if isinstance(points, list) else []
+        if len(matches_found) == 1:
+            point = matches_found[0]
+            result["pointId"] = point_id(point)
+            result["pointSource"] = point_source
+            for key in ("name", "groups", "role"):
+                if key in point:
+                    result[key] = point[key]
+            for axis in ("x", "y"):
+                if axis in point:
+                    result.setdefault(axis, point[axis])
+        return result
 
     for identity, cell in sorted(model_cells.items()):
         if not flag(cell.get("edge")):
             continue
-        reference, definition = definitions[identity]
+        entry = definitions[identity]
+        definition = entry[1] if entry else {}
         stored_direction = cell.get("connectionUndirected")
-        directed = not flag(stored_direction) if stored_direction is not None else (not definition.get("undirected", False) if definition else None)
-        if stored_direction is not None and stored_direction not in ("0", "1", "true", "false"):
-            directed = None
-        if directed is None:
-            diagnose("unknown_direction", identity, "No valid stored direction or unambiguous connection definition.")
-        elif stored_direction is not None and definition and directed == definition.get("undirected", False):
-            diagnose("direction_conflict", identity, "Stored direction differs from the pinned language; stored value retained.")
-        source, target = terminal(identity, cell, "source"), terminal(identity, cell, "target")
+        directed = None
+        if stored_direction in ("0", "1", "true", "false"):
+            directed = not flag(stored_direction)
+        elif stored_direction is None and entry and isinstance(definition.get("undirected", False), bool):
+            directed = not definition.get("undirected", False)
+        source, target = (cell.get(end) if cell.get(end) in nodes else None for end in ("source", "target"))
         endpoints = {end: anchor(cell, end) for end in ("source", "target")}
         if identity in relation_nodes:
             nodes[identity]["directed"] = directed
+            nodes[identity]["storedUndirected"] = stored_direction
             for end, start, finish in (("source", source, identity), ("target", identity, target)):
                 edges.append({"id": derived_id("endpoint", identity, end), "source": start, "target": finish,
-                              "kind": "endpoint", "type": end, "directed": directed, "label": "",
-                              "language": None, "properties": {}, "originId": identity, "endpoints": {end: endpoints[end]}})
+                              "kind": "endpoint", "type": end, "directed": True, "label": "",
+                              "role": "structural", "language": None, "properties": {}, "originId": identity,
+                              "endpoints": {end: endpoints[end]}})
         else:
             edges.append({"id": identity, "source": source, "target": target, "kind": "connection",
                           "type": type_of(cell) or "__unknown__", "directed": directed, "label": label_of(cell),
-                          "language": reference, "properties": scalar_properties(cell), "endpoints": endpoints})
+                          "parentId": cell.get("parent"), "storedUndirected": stored_direction,
+                          "properties": scalar_properties(cell), "endpoints": endpoints, **binding(identity)})
 
     for identity in sorted(nodes):
-        parent = cells[identity].get("parent")
-        # Technical root/layer cells are transparent, never semantic containers.
-        while parent in retained and parent not in nodes:
-            parent = retained[parent].get("parent")
+        parent = parents[identity]
         if parent in nodes:
+            child_definition, parent_definition = definitions[identity], definitions[parent]
+            relation = None
+            if child_definition:
+                path = child_definition[0]["path"]
+                if path.count("/") == 2:
+                    relation = "content"
+                elif parent_definition and any(belongs_to(child_definition[0], parent_definition[0], section)
+                                               for section in ("children", "additionalLabels")):
+                    relation = "component"
             edges.append({"id": derived_id("contains", parent, identity), "source": parent, "target": identity,
                           "kind": "contains", "type": "contains", "directed": True, "label": "",
+                          "role": "structural", "relation": relation,
                           "language": None, "properties": {}, "originId": identity})
-        elif parent is not None or cells[identity].get("parent") is None:
-            diagnose("missing_parent", identity, "Original containment parent is absent; no parent invented.", originalId=parent)
 
-    diagnostics.sort(key=lambda item: (item["cellId"], item["code"], json.dumps(item["details"], sort_keys=True)))
-    graph = {"schemaVersion": 1, "languages": references, "complete": not any(item["severity"] == "error" for item in diagnostics),
-             "nodes": list(nodes.values()), "edges": sorted(edges, key=lambda edge: edge["id"])}
-    return graph, diagnostics
+    return {"schemaVersion": 2, "languages": references,
+            "nodes": list(nodes.values()), "edges": sorted(edges, key=lambda edge: edge["id"])}

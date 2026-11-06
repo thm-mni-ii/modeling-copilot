@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 from typing import Literal, NotRequired, TypedDict
 
-from parser import Diagnostic, Graph, LanguageVersion, parse_model, resolve_languages
+from parser import Graph, LanguageVersion, parse_model, resolve_languages
 from workflow_io import Workspace, identifier, read_input, workspace, write_output
 
 SERVICE = "graph-parser"
@@ -40,7 +40,6 @@ class ParserRequest(TypedDict, total=False):
 
 class ParserData(TypedDict):
     graph: Graph
-    diagnostics: list[Diagnostic]
     source: NotRequired[ModelSource]
 
 
@@ -59,10 +58,10 @@ def run(payload: ParserRequest, store: Workspace | None = None) -> ParserResult:
     if mode not in ("parse", "demo"):
         raise ValueError("mode must be parse/demo")
     if mode == "demo":
-        graph = {"schemaVersion": 1, "languages": [], "complete": True,
-                 "nodes": [{"id": "n1", "type": "Entity", "label": "Kunde", "kind": "element", "language": None, "properties": {}}],
+        graph = {"schemaVersion": 2, "languages": [],
+                 "nodes": [{"id": "n1", "type": "Entity", "label": "Kunde", "kind": "element", "language": None,
+                            "definition": None, "definitionCandidates": [], "parentId": None, "properties": {}}],
                  "edges": []}
-        diagnostics = []
         summary = "Expliziter Demo-Modus: Dummy-Graph, kein Modell geparst"
     else:
         if "input" not in payload and store is not None:
@@ -75,9 +74,9 @@ def run(payload: ParserRequest, store: Workspace | None = None) -> ParserResult:
                 "model": model["snapshot"]["data"],
                 "languages": resolve_languages(bundle, model["snapshot"]["workspaceLanguages"]),
             }}
-        graph, diagnostics = parse_model(payload.get("input"))
+        graph = parse_model(payload.get("input"))
         summary = f"Modell normalisiert: {len(graph['nodes'])} Knoten, {len(graph['edges'])} Kanten"
-    result: ParserData = {"graph": graph, "diagnostics": diagnostics}
+    result: ParserData = {"graph": graph}
     if "source" in payload:
         source = payload["source"]
         if not isinstance(source, dict) or not all(isinstance(source.get(key), str) and source[key] for key in ("key", "role", "label", "modelId", "versionId")):

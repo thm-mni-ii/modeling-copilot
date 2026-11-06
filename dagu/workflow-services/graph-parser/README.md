@@ -1,102 +1,42 @@
 # graph-parser
 
-Normalisiert maxGraph-XML anhand festgelegter Sprachversionen. Die folgenden
-JSON-Beispiele beschreiben das Austauschformat; sie sind keine geladenen
-JSON-Schemata. IDE-Typen stehen als `ParserRequest` / `ParserResult` in
-`src/main.py` sowie als `Graph` und `Diagnostic` in `src/parser.py`.
+Überführt maxGraph-XML mit versionierten Sprachdefinitionen in einen Graphen.
+Keine fachliche Validierung oder Modellkorrektur.
 
-## Eingabe: vollständiges, eigenständig ausführbares Beispiel
+## Aufruf
 
-```json
-{
-  "input": {
-    "model": {
-      "xml": "<GraphDataModel><root><Cell id=\"root\"/><Cell id=\"layer\" parent=\"root\"/><Cell id=\"n1\" parent=\"layer\" vertex=\"1\" diagramElementType=\"entity\" value=\"Customer\"/></root></GraphDataModel>"
-    },
-    "languages": [
-      {
-        "languageId": "example",
-        "versionId": "v1",
-        "data": {
-          "elements": [
-            {
-              "type": "entity"
-            }
-          ],
-          "connections": []
-        },
-        "includedLanguageVersions": []
-      }
-    ]
-  }
-}
-```
+- Eigenständig: `input.model.xml` und aufgelöste `input.languages` als JSON über
+  stdin, `TEMPLATE_INPUT` oder `--input`; Ausgabe auf stdout oder über `--output`.
+- Im Workflow: `WORKFLOW_EVALUATION_ID` und `MODEL_KEY` (Standard `submission`)
+  wählen den Modell-Snapshot samt Sprachversionen und Abhängigkeiten.
+- `WORKFLOW_INPUT_PATH` / `WORKFLOW_OUTPUT_PATH`: relative JSON-Dateipfade im
+  Laufordner. Nur `mode: demo` erzeugt einen Dummy-Graphen.
+
+## Graphformat
+
+Ausgabe: `workflow-result/v1` mit `result.graph.schemaVersion: 2` und optionaler
+Modellquelle `result.source`. Kein `complete`-Flag und keine fachlichen Diagnosen.
+Vertrag: `ParserRequest` / `ParserResult` in `src/main.py`, `Graph` in `src/parser.py`.
 
 | Feld | Bedeutung |
 | --- | --- |
-| `input.model.xml` | Vollständiger maxGraph-Export. |
-| `input.languages` | Benötigte Sprachdefinitionen einschließlich eingebundener Versionen. |
-| `source` | Optional: `key`, `role` (`submission`/`reference`), `label`, `modelId`, `versionId`. Wird im Ergebnis erhalten. |
-| `mode` | Standard `parse`; nur `demo` erzeugt einen ausdrücklich gekennzeichneten Dummy-Graphen. |
+| `nodes[].kind` | `element` oder eine als Knoten dargestellte `connection`. |
+| `edges[].kind` | `connection`: modellierte Verbindung; `contains` / `endpoint`: strukturelle Kante mit `role: structural`. |
+| `edges[].relation` | Bei `contains`: `component` für sprachlich vordefinierte `children` / `additionalLabels`, `content` für hineingelegte eigenständige Elemente, sonst `null`. |
+| `definition` / `definitionCandidates` | Sprachversion und JSON-Pointer innerhalb von `data`; Auflösung im Elternkontext, bei Mehrdeutigkeit Kandidaten statt Auswahl. |
+| `parentId` / `properties` | Ursprüngliche XML-Eltern-ID und zusätzliche `diagramAttributes`. |
+| `directed` / `storedUndirected` | Aufgelöste Richtung (`null`, falls unbekannt) und ursprünglicher XML-Wert; gespeicherte Angaben haben Vorrang. |
+| `endpoints.source` / `.target` | Ursprüngliche `cellId`, Anschluss-ID, Koordinaten, Versätze, freie Endposition und eindeutig auflösbare Namen, Gruppen und Rollen. `pointSource`: `language` oder `model`. |
 
-Alternativ wählt `WORKFLOW_EVALUATION_ID` den initialisierten Laufkontext;
-`MODEL_KEY` wählt daraus das Modell (Standard `submission`). Dadurch ist kein
-separater Parserauftrag pro Modell nötig. Ein expliziter JSON-Request hat Vorrang.
+Beispiel: `Entität -- contains/component --> Attributliste -- contains/content --> Attribut`.
+Die Beziehungen werden aus der vorhandenen Sprachdefinition abgeleitet;
+Sprachen und Modellknoten benötigen keine Structural-Rolle.
 
-## Ausgabe zum obigen Beispiel
+Verbindungen mit Kindern, Verbindungen als Anschluss oder innerhalb eines
+Modellcontainers werden als Knoten erhalten. Ihre gerichteten `endpoint`-Kanten
+tragen die ursprüngliche Verbindungs-ID als `originId`; die Modellrichtung steht
+am Verbindungsknoten. Strukturelle Kanten zählen nicht als Modellverbindungen.
 
-```json
-{
-  "schemaVersion": 1,
-  "schema": "workflow-result/v1",
-  "status": "ok",
-  "capability": "graph-parser",
-  "mode": "parse",
-  "summary": "Modell normalisiert: 1 Knoten, 0 Kanten",
-  "result": {
-    "graph": {
-      "schemaVersion": 1,
-      "languages": [
-        {
-          "languageId": "example",
-          "versionId": "v1"
-        }
-      ],
-      "complete": true,
-      "nodes": [
-        {
-          "id": "n1",
-          "kind": "element",
-          "type": "entity",
-          "label": "Customer",
-          "language": {
-            "languageId": "example",
-            "versionId": "v1"
-          },
-          "properties": {}
-        }
-      ],
-      "edges": []
-    },
-    "diagnostics": []
-  }
-}
-```
-
-| Feld | Bedeutung |
-| --- | --- |
-| `status: ok` | Der Parser ist technisch fertig; keine Aussage über die fachliche Qualität. |
-| `result.graph.complete` | `false`, sobald Fehlerdiagnosen vorliegen; dann keine verlässliche Bewertung. |
-| `nodes[].kind` | `element` oder `connection`, wenn eine Verbindung selbst als Knoten adressierbar sein muss. |
-| `edges[].kind` | `connection` für Modellverbindungen, `contains` für Verschachtelung, `endpoint` für Anschlüsse eines Verbindungsknotens. |
-| `edges[].source` / `target` | Knoten-IDs; bei ungültigen Anschlüssen `null` plus Diagnose. |
-| `edges[].directed` | `true` gerichtet, `false` ungerichtet, `null` unbekannt. |
-| `properties` | Fachliche Attribute; kein Rendering-Stil und keine Geometrie. |
-| `diagnostics[]` | `severity`, `code`, `cellId`, `message`, `details`; keine automatische Modellkorrektur. |
-
-JSON kommt über `TEMPLATE_INPUT`, stdin oder `--input`; die Ausgabe geht auf
-stdout oder mit `--output` in eine ausdrücklich gewählte Datei.
-Mit `WORKFLOW_OUTPUT_PATH=graphs/submission.json` wird dasselbe Ergebnis zusätzlich
-im Laufordner gespeichert. Der Dienst kennt dabei keine Namen anderer Schritte.
-
-Speicher und Ablauf: [Datenfluss einer Auswertung](../../README.md#datenfluss-einer-auswertung).
+Unbekannte Typen, offene Enden und Elternzyklen bleiben erhalten. Fehlende
+Anschlussknoten ergeben `source` / `target: null`; Original-IDs bleiben in
+`endpoints`. Feedback-Inhalte und technische Root-/Layer-Knoten werden ausgefiltert.

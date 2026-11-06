@@ -9,9 +9,7 @@ Account `workflow-runner`.
 - `workflows/`: versionierte DAGs; aktuell enthält `hello.yaml` einen einfachen
   parallelen Beispiel-Workflow.
 - `workflow-services/`: Container für Workflow-Schritte. `template-service/`
-  zeigt einen einfachen JSON-Dienst; `graph-parser/` enthält den maxGraph-Parser.
-  `workflow_io.py` stellt ausschließlich JSON-Dateizugriff und Laufkontext bereit.
-  Dienstnamen beschreiben Fähigkeiten, keine Reihenfolge.
+  zeigt den vorgesehenen Vertrag für JSON-Eingabe, JSON-Ausgabe und Exit-Codes.
 - `infra/base.yaml`: gemeinsame Kubernetes-Vorgaben für Dev und Prod inklusive
   Namespace, Service Account und Ressourcenlimits.
 - `infra/dev/`: Namespace-/Service-Account-Setup für Docker Desktop sowie die
@@ -56,72 +54,17 @@ PVC `dagu-data`.
 
 ### Datenfluss einer Auswertung
 
-Das Backend überträgt Aufgabe, Modelle, Musterlösungen und alle benötigten
-Sprachversionen einmalig als vollständigen gzip/Base64-Snapshot (aktuell maximal
-100.000 Base64-Zeichen). Init prüft ihn und speichert ihn unveränderlich.
-Danach greifen Dienste ausschließlich auf diesen Laufkontext und explizite
-Zwischenstände zu; sie benötigen keinen Zugriff auf die Anwendungsdatenbank.
+Das Backend übergibt Modelle und Sprachversionen als vollständigen Snapshot.
+`workflow-data` speichert ihn auf dem gemeinsamen PVC unter
+`/work/evaluations/<evaluationId>/inputs/evaluation-input.json`.
+Der reguläre Workflow führt Init und parallele Parser aus; Graphen liegen unter
+`graphs/<modelKey>.json`. Der Demo-Workflow ergänzt Matching-Platzhalter.
 
-Der reguläre Ablauf in `workflows/model-evaluation-graph-matching.yaml` endet
-aktuell nach **Init → parallelen Parsern → Veröffentlichung der Dateipfade**.
-Der bestehende Dateiname bleibt für bereits ausgewählte Workflows erhalten;
-eine fachliche Bewertung ist noch nicht implementiert.
-`workflows/demo-model-evaluation.yaml` ergänzt ausdrücklich nur Demo-Platzhalter.
-Reihenfolge und Parallelität stehen ausschließlich in den YAML-Dateien.
-
-Alle Kubernetes-Jobs teilen den PVC `workflow-data` unter `/work/evaluations`:
-
-```text
-/work/evaluations/<evaluationId>/
-  inputs/evaluation-input.json
-  graphs/<modelKey>.json
-  demo/                          # nur im Demo-Workflow
-```
-
-| Variable | Bedeutung |
-| --- | --- |
-| `WORKFLOW_EVALUATION_ID` | Wählt den initialisierten Laufkontext. |
-| `WORKFLOW_DATA_ROOT` | Optionaler Speicherpfad statt `/work/evaluations`. |
-| `WORKFLOW_INPUT_PATH` | Optionale Eingabedatei, relativ zum Laufordner. |
-| `WORKFLOW_OUTPUT_PATH` | Optionaler Ausgabeort, relativ zum Laufordner. Unterschiedliche Aufrufe verwenden unterschiedliche Pfade. |
-
-Ohne Eingabepfad kann jeder Dienst den ursprünglichen Snapshot direkt lesen:
-
-```python
-from workflow_io import workspace
-
-store = workspace()
-snapshot = store.snapshot()
-task, models, languages = snapshot["task"], snapshot["models"], snapshot["languages"]
-parsed = store.read("graphs/submission.json")
-```
-
-Der Parser wählt mit `MODEL_KEY` ein Modell aus dem Snapshot (Standard
-`submission`). Dienste können fachliche Eingaben benötigen, kennen aber keine
-festen Vorgängerschritte. Eigenständige Aufrufe erhalten ein JSON-Objekt über
-`TEMPLATE_INPUT` oder stdin, beim Parser alternativ über `--input`.
-Ein expliziter Eingabepfad und `TEMPLATE_INPUT` werden nicht gleichzeitig genutzt.
-
-Austauschformate sind mit **vollständigen JSON-Beispielen und Felderklärungen**
-bei [Init](workflow-services/workflow-data/README.md),
-[Parser](workflow-services/graph-parser/README.md) und den Demo-Diensten beschrieben.
-[Das Template](workflow-services/template-service/README.md) zeigt den einfachen
-Entwicklungsvertrag. Diese Referenzen und die Python-Typhinweise laden keinen
-Schema-Validator. Init und Parser prüfen benötigte Inhalte ausdrücklich im Code.
-Die `params.schema`-Blöcke der DAGs sind davon getrennte Dagu-Parameterdefinitionen.
-
-Dateien werden atomar veröffentlicht: identische Wiederholungen sind erlaubt,
-abweichendes Überschreiben wird abgelehnt. Eingaben und Zwischenstände liegen
-auf dem PVC, niemals im Projektordner. stdout wird zusätzlich als Dagu-Artefakt
-für UI und API abgelegt. Das ist eine Anzeigekopie; der Datenaustausch erfolgt
-über die expliziten Dateipfade. Der PVC wird nicht durch Dagu-History-Cleanup
-bereinigt. `ReadWriteOnce` erlaubt parallele Jobs auf demselben Node.
-
-Das folgt Dagu: [Dateien für größere Daten](https://docs.dagu.sh/writing-workflows/data-flow),
-[Artefakte für gespeicherte Ausgaben](https://docs.dagu.sh/writing-workflows/artifacts).
-Unsere Container sind gewöhnliche `k8s.run`-Jobs, keine paketierten
-[Dagu Actions](https://docs.dagu.sh/dagu-actions/custom). Dafür ist kein eigenes
-Capability-Manifest und kein JSON-Schema für die Dienst-JSON-Dateien erforderlich.
+`WORKFLOW_EVALUATION_ID` wählt den Laufordner, `MODEL_KEY` das Parsermodell.
+`WORKFLOW_INPUT_PATH` und `WORKFLOW_OUTPUT_PATH` wählen relative JSON-Dateipfade;
+`WORKFLOW_DATA_ROOT` überschreibt das Basisverzeichnis. Dienste benötigen keinen
+Datenbankzugriff. Details: [Graph Parser](workflow-services/graph-parser/README.md)
+und [Init](workflow-services/workflow-data/README.md).
 
 ## Produktion (K3s/Portainer)
 
