@@ -216,7 +216,11 @@ async def list_for_model(model_id: UUID, user: User, skip: int, limit: int) -> D
     return {**page, "items": [_public_evaluation(item) for item in page["items"]]}
 
 
-async def _parser_run_steps(evaluation: Document, parent: Document, children: list[Document]) -> list[Document]:
+async def _model_run_steps(evaluation: Document, parent: Document, children: list[Document]) -> list[Document]:
+    step_name, artifact_path, capability, label = {
+        "parse_models": ("parse_model", "parser-result.json", "graph-parser", "Graph"),
+        "extract_labels": ("extract_labels", "labels-result.json", "model-label-extraction", "Bezeichnungen"),
+    }[parent["id"]]
     by_key = {}
     for child in children:
         try:
@@ -232,13 +236,13 @@ async def _parser_run_steps(evaluation: Document, parent: Document, children: li
             by_key[params["MODEL_KEY"]] = child
 
     async def read(source: Document) -> Document:
-        step = {"id": f"parse_{source['key']}", "label": source["label"],
-                "description": f"Graph für Modell {source['modelId']}, Version {source['versionId']}",
-                "status": "pending", "resultSummary": None, "result": None, "_parserRun": True}
+        step = {"id": f"{step_name}_{source['key']}", "label": f"{label}: {source['label']}",
+                "description": f"{label} für Modell {source['modelId']}, Version {source['versionId']}",
+                "status": "pending", "resultSummary": None, "result": None, "_modelRun": True}
         child = by_key.get(source["key"])
         if child is None:
             if parent["status"] in {"failed", "cancelled"}:
-                step.update(status=parent["status"], resultSummary="Parserlauf wurde nicht gestartet.")
+                step.update(status=parent["status"], resultSummary="Modellschritt wurde nicht gestartet.")
             return step
         try:
             child_id = child["dagRunId"]
@@ -248,22 +252,24 @@ async def _parser_run_steps(evaluation: Document, parent: Document, children: li
             step["resultSummary"] = "\n".join(errors) or None
             if step["status"] == "succeeded":
                 try:
-                    step["resultSummary"] = await dagu.get_parser_artifact(evaluation["dagName"], evaluation["dagRunId"], child_id)
+                    step["resultSummary"] = await dagu.get_sub_run_artifact(
+                        evaluation["dagName"], evaluation["dagRunId"], child_id, path=artifact_path, capability=capability,
+                    )
                     return step
                 except ApiError:
                     # Earlier runs predate artifact persistence and only have logs.
                     pass
             if step["status"] in {"succeeded", "failed", "cancelled"}:
                 try:
-                    output = await dagu.get_step_log(evaluation["dagName"], evaluation["dagRunId"], "parse_model", sub_run_id=child_id)
+                    output = await dagu.get_step_log(evaluation["dagName"], evaluation["dagRunId"], step_name, sub_run_id=child_id)
                     if not output and step["status"] == "failed":
-                        output = await dagu.get_step_log(evaluation["dagName"], evaluation["dagRunId"], "parse_model", sub_run_id=child_id, stream="stderr")
+                        output = await dagu.get_step_log(evaluation["dagName"], evaluation["dagRunId"], step_name, sub_run_id=child_id, stream="stderr")
                     step["resultSummary"] = output or step["resultSummary"]
                 except ApiError:
                     # Job creation failures can have no step log at all.
                     pass
         except ApiError:
-            step.update(status="unknown", resultSummary="Parserlauf konnte nicht geladen werden.")
+            step.update(status="unknown", resultSummary="Modellschritt konnte nicht geladen werden.")
         return step
 
     return list(await gather(*(read(source) for source in evaluation["parserModels"])))
@@ -281,22 +287,22 @@ async def detail(evaluation_id: UUID, user: User) -> Document:
     expanded = []
     for step in raw_steps:
         children = step.pop("_subRuns", [])
-        if step["id"] == "parse_models" and evaluation.get("parserModels"):
-            expanded.extend(await _parser_run_steps(evaluation, step, children))
+        if step["id"] in {"parse_models", "extract_labels"} and evaluation.get("parserModels"):
+            expanded.extend(await _model_run_steps(evaluation, step, children))
         else:
             expanded.append(step)
     raw_steps = expanded
     completed_steps = [step for step in raw_steps if step["status"] in {"succeeded", "failed"}]
     logs = await gather(*(
         dagu.get_step_log(evaluation["dagName"], evaluation["dagRunId"], step["id"])
-        for step in completed_steps if not step.get("_parserRun")
+        for step in completed_steps if not step.get("_modelRun")
     ), return_exceptions=True)
-    for step, log in zip([step for step in completed_steps if not step.get("_parserRun")], logs, strict=True):
+    for step, log in zip([step for step in completed_steps if not step.get("_modelRun")], logs, strict=True):
         if isinstance(log, str) and log:
             step["resultSummary"] = log
     steps = _enrich_step_output(raw_steps)
     for step in steps:
-        step.pop("_parserRun", None)
+        step.pop("_modelRun", None)
     await db.evaluations.update_one({"_id": evaluation["_id"]}, {"$set": {"state": state, "lastObservedAt": utcnow()}})
     result = _public_evaluation(evaluation, detail=True)
     result["state"] = state

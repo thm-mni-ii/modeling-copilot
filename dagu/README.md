@@ -6,8 +6,8 @@ Account `workflow-runner`.
 
 ## Struktur
 
-- `workflows/`: versionierte DAGs; aktuell enthält `hello.yaml` einen einfachen
-  parallelen Beispiel-Workflow.
+- `workflows/`: Hauptworkflow für die Modellauswertung und `hello.yaml` als
+  einfacher Testworkflow.
 - `workflow-services/`: Container für Workflow-Schritte. `template-service/`
   zeigt den vorgesehenen Vertrag für JSON-Eingabe, JSON-Ausgabe und Exit-Codes.
 - `infra/base.yaml`: gemeinsame Kubernetes-Vorgaben für Dev und Prod inklusive
@@ -57,8 +57,11 @@ PVC `dagu-data`.
 Das Backend übergibt Modelle und Sprachversionen als vollständigen Snapshot.
 `workflow-data` speichert ihn auf dem gemeinsamen PVC unter
 `/work/evaluations/<evaluationId>/inputs/evaluation-input.json`.
-Der reguläre Workflow führt Init und parallele Parser aus; Graphen liegen unter
-`graphs/<modelKey>.json`. Der Demo-Workflow ergänzt Matching-Platzhalter.
+`model-evaluation-graph-matching` ist der Hauptworkflow: Initialisierung,
+Graph-Parsing und Label-Extraktion als getrennte Phasen, jeweils mit Ergebnissen
+pro Modell. Graphen liegen unter `graphs/<modelKey>.json`, Bezeichnungen unter
+`labels/<modelKey>.json`. Die internen Modellschritte sind in derselben
+Workflow-Datei eingebettet. `hello` bleibt der einfache Testworkflow.
 
 `WORKFLOW_EVALUATION_ID` wählt den Laufordner, `MODEL_KEY` das Parsermodell.
 `WORKFLOW_INPUT_PATH` und `WORKFLOW_OUTPUT_PATH` wählen relative JSON-Dateipfade;

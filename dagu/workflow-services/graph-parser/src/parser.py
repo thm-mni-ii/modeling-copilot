@@ -222,8 +222,14 @@ def parse_model(value: object) -> Graph:
     for identity, cell in cells.items():
         style = style_of(cell)
         roles = (cell.get("cellRole"), cell.get("canvasRole"), style.get("cellRole"))
-        catalog = feedback_connections if flag(cell.get("edge")) else feedback_elements
-        if "feedback" in roles or type_of(cell) in catalog or type_of(cell) == "__feedback_note_link__":
+        is_connection = flag(cell.get("edge"))
+        catalog = feedback_connections if is_connection else feedback_elements
+        model_catalog = connections if is_connection else elements
+        cell_type = type_of(cell)
+        # Type-only feedback detection must not discard regular definitions from
+        # another included language. Explicit feedback markers take precedence.
+        feedback_type = (cell_type in catalog or cell_type == "__feedback_note_link__") and cell_type not in model_catalog
+        if "feedback" in roles or feedback_type:
             excluded.add(identity)
     # Descendants and connections touching excluded content are excluded as well.
     changed = True

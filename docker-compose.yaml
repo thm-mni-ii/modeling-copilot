@@ -122,10 +122,17 @@ services:
     profiles: [workflow-services]
 
   workflow-graph-parser:
-    image: modeling-copilot/graph-parser:0.4.0
+    image: modeling-copilot/graph-parser:0.4.1
     build:
       context: ./dagu/workflow-services
       dockerfile: graph-parser/Dockerfile
+    profiles: [workflow-services]
+
+  workflow-model-label-extraction:
+    image: modeling-copilot/model-label-extraction:0.1.0
+    build:
+      context: ./dagu/workflow-services
+      dockerfile: model-label-extraction/Dockerfile
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:

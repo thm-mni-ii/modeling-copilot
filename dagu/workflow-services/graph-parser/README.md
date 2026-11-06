@@ -40,3 +40,5 @@ am Verbindungsknoten. Strukturelle Kanten zählen nicht als Modellverbindungen.
 Unbekannte Typen, offene Enden und Elternzyklen bleiben erhalten. Fehlende
 Anschlussknoten ergeben `source` / `target: null`; Original-IDs bleiben in
 `endpoints`. Feedback-Inhalte und technische Root-/Layer-Knoten werden ausgefiltert.
+Bei Typnamenskonflikten mit regulären Definitionen wird Feedback nur anhand
+expliziter Markierungen ausgeschlossen.

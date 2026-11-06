@@ -107,17 +107,17 @@ async def get_sub_run(name: str, run_id: str, sub_run_id: str) -> dict[str, Any]
     return await _request("GET", f"/dag-runs/{name}/{run_id}/sub-dag-runs/{sub_run_id}")
 
 
-async def get_parser_artifact(name: str, run_id: str, sub_run_id: str) -> dict[str, Any]:
-    """Read the persisted parser result instead of reconstructing it from logs."""
+async def get_sub_run_artifact(name: str, run_id: str, sub_run_id: str, *, path: str, capability: str) -> dict[str, Any]:
+    """Read a persisted service result instead of reconstructing it from logs."""
     try:
         result = await _request(
             "GET", f"/dag-runs/{name}/{run_id}/sub-dag-runs/{sub_run_id}/artifacts/download",
-            params={"path": "parser-result.json"},
+            params={"path": path},
         )
     except ValueError as error:
-        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The stored parser result is not valid JSON.") from error
-    if not isinstance(result, dict) or result.get("capability") != "graph-parser" or not isinstance(result.get("result"), dict) or not isinstance(result["result"].get("graph"), dict):
-        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The stored parser result does not contain a graph.")
+        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The stored service result is not valid JSON.") from error
+    if not isinstance(result, dict) or result.get("capability") != capability or not isinstance(result.get("result"), dict):
+        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The stored artifact does not contain the expected service result.")
     return result
 
 
