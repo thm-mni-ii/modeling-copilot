@@ -36,9 +36,10 @@ def test_mutual_best_ties_and_invalid_cells():
 
 
 def only(config, *names):
-    """Aktiviere nur die genannten Verfahren; Kombinationen ohne sie werden übersprungen."""
+    """Aktiviere nur die genannten Verfahren, ohne die zusätzlichen Ketten und Mischungen."""
     for name, method in config['methods'].items():
         method['enabled'] = name in names
+    config['chains'], config['mixes'] = [], []
     return config
 
 
@@ -94,7 +95,10 @@ def test_run_experiments_stores_load_seconds_separately_from_compute(tmp_path):
 def test_research_configurations_use_service_methods_and_combiners():
     config = load_config()
     for spec in configurations(config)[0].values():
-        if any('files' in config['methods'][name] for name in spec['methods']):
+        chains = spec['chains'].values()
+        # Wortvektoren, 'translate' und Ketten-Mischungen sind reine Forschungsschreibweisen.
+        if (any('files' in config['methods'][chain[-1]] or 'translate' in chain for chain in chains)
+                or set(spec['combiner'].get('weights', spec['methods'])) - set(spec['methods'])):
             continue
         service_config = {key: spec[key] for key in ('methods', 'preprocessing',
                                                      'embedding_preprocessing', 'combiner')}
@@ -109,10 +113,31 @@ def test_duplicate_pipelines_are_skipped_but_real_ablations_stay():
     config['combinations'] = [
         {'name': 'x', 'weights': {'levenshtein': 1, 'jaro_winkler': 1}},
         {'name': 'y', 'weights': {'levenshtein': 2, 'jaro_winkler': 2}}]
+    config['chains'] = [['normalize', 'levenshtein']]
+    config['mixes'] = []
     definitions, skipped = configurations(config)
-    assert {n.split('/')[0] for n in definitions} == {'a', 'c'}
-    assert 'a/x' in definitions and 'c/x' in definitions and 'a/y' not in definitions
-    assert {s['name'] for s in skipped} >= {'b/levenshtein', 'b/x', 'a/y'}
+    assert {'a/x', 'c/x', 'normalize → levenshtein',
+            'normalize+lowercase → levenshtein'} <= set(definitions)
+    assert 'a/y' not in definitions and 'b/x' not in definitions
+    assert {s['name'] for s in skipped} >= {'b/x', 'a/y', 'normalize → levenshtein'}
+
+
+def test_chains_and_mixes_are_validated_and_named_automatically():
+    config = only(load_config(), 'levenshtein', 'multilingual')
+    config['preprocessing'] = {'raw': []}
+    config['combinations'] = []
+    config['chains'] = [['normalize', 'stem', 'translate', 'levenshtein']]
+    config['mixes'] = [{'parts': [{'chain': ['normalize', 'levenshtein'], 'weight': 1},
+                                  {'chain': ['normalize', 'multilingual'], 'weight': 3}]}]
+    definitions, _ = configurations(config)
+    assert 'normalize+stem+translate → levenshtein' in definitions
+    mix = definitions['25% normalize → levenshtein + 75% normalize → multilingual']
+    assert mix['combiner']['weights'] == {'normalize → levenshtein': 1, 'normalize → multilingual': 3}
+    for bad in (['normalize', 'nope', 'levenshtein'], ['translate', 'translate', 'levenshtein'],
+                ['normalize', 'unknown_method']):
+        config['chains'] = [bad]
+        with pytest.raises(ValueError):
+            configurations(config)
 
 
 def test_unknown_method_in_combination_is_an_error():
@@ -143,7 +168,7 @@ def test_run_stores_raw_features_once_and_api_unchanged(tmp_path):
     run = json.loads(output.read_text())
     keys = [(f['method'], tuple(f['preprocessing']), f['case']) for f in run['features']]
     assert len(keys) == len(set(keys))
-    assert sum(d['name'] == 'exact_match' for d in run['definitions'].values()) == 1
+    assert sum(d['methods'] == ['exact_match'] for d in run['definitions'].values()) == 1
     assert set(run['records'][0]['decisions']) == {'threshold', 'mutual_best', 'hungarian'}
     assert run['dataset'] == data
     assert 'threshold' in run['rankings']

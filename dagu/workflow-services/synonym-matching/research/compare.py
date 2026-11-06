@@ -23,6 +23,8 @@ from .evaluation import evaluate_case, select_matches, global_ranking
 from synonym_matching.lexicons import DATA_DIR, OpenThesaurus, WordNet
 from synonym_matching.combinations import REQUIRES, combine
 from synonym_matching.methods import EmbeddingMethod
+from synonym_matching.cache import Cache
+from synonym_matching.preprocessing import STEPS as PREPROCESSING_STEPS, Preprocessor
 from synonym_matching.translation import Translator
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,26 +59,71 @@ def combination_spec(entry):
     return list(entry['weights']), {'kind': 'weighted_mean', 'weights': entry['weights']}
 
 
+def chain_name(chain):
+    """Name direkt aus der Kette, z. B. 'normalize+stem → levenshtein'."""
+    return ('+'.join(chain[:-1]) or 'raw') + ' → ' + chain[-1]
+
+
+def check_chain(chain, methods):
+    """Alle Glieder außer dem letzten sind Preprocessing oder 'translate', das letzte ein Verfahren."""
+    *steps, method = chain
+    unknown = [s for s in steps if s != 'translate' and s not in PREPROCESSING_STEPS]
+    if method not in methods or unknown or steps.count('translate') > 1:
+        raise ValueError(f'invalid chain {chain}')
+
+
+def chain_for(method, steps, methods):
+    """Kette eines Verfahrens im Raster: Preprocessing, optional translate, Verfahren."""
+    options = methods[method]
+    steps = steps if options.get('ablate') else ['normalize']
+    return [*steps, *(['translate'] if options.get('translate') else []), method]
+
+
+def definition(name, chains, combiner, steps=(), **extra):
+    """Ein Versuch: benannte Ketten, deren Matrizen der Kombinierer verrechnet."""
+    return {'name': name, 'methods': [chain[-1] for chain in chains.values()],
+            'chains': chains, 'combiner': combiner, 'preprocessing': list(steps),
+            'embedding_preprocessing': ['normalize'], **extra}
+
+
 def duplicate_key(spec):
-    """Gleiche Methoden, Gewichte und Preprocessing ergeben denselben Versuch."""
-    combiner = spec['combiner']
+    """Gleiche Ketten und normierte Gewichte ergeben denselben Versuch."""
+    combiner, chains = spec['combiner'], spec['chains']
     if combiner['kind'] == 'weighted_mean':
         total = sum(combiner['weights'].values())
-        formula = sorted((m, round(w / total, 9)) for m, w in combiner['weights'].items())
+        formula = sorted((chains[key], round(weight / total, 9))
+                         for key, weight in combiner['weights'].items())
     elif combiner['kind'] == 'mean':
-        formula = sorted((m, round(1 / len(spec['methods']), 9)) for m in spec['methods'])
+        formula = sorted((chain, round(1 / len(chains), 9)) for chain in chains.values())
     else:
-        formula = json.dumps(combiner, sort_keys=True)
-    return json.dumps([formula, spec['preprocessing'], spec.get('global_ranking', False)])
+        formula = [combiner, sorted(chains.items())]
+    return json.dumps([formula, spec.get('global_ranking', False)], sort_keys=True)
 
 
 def configurations(config):
     """Erstelle alle Versuche aus der Konfiguration; liefere auch die Übersprungenen."""
     methods = config['methods']
     enabled = {name for name, method in methods.items() if method.get('enabled', True)}
-    specs = [{'name': name, 'methods': [name], 'combiner': {'kind': 'mean'}}
-             for name in methods if name in enabled]
-    skipped = []
+    result, seen, skipped = {}, {}, []
+
+    def add(identifier, spec):
+        key = duplicate_key(spec)
+        if key in seen:
+            skipped.append({'name': identifier, 'reason': 'Doppelt zu ' + seen[key]})
+        else:
+            seen[key] = identifier
+            result[identifier] = spec
+
+    def pipelines(needed):
+        ablate = any(methods[name].get('ablate') for name in needed)
+        return config['preprocessing'] if ablate else {'fixed': ['normalize']}
+
+    for name in methods:
+        if name in enabled:
+            for steps in pipelines([name]).values():
+                chain = chain_for(name, steps, methods)
+                add(chain_name(chain), definition(chain_name(chain), {name: chain},
+                                                  {'kind': 'mean'}, steps, chain_based=True))
     for entry in config['combinations']:
         needed, combiner = combination_spec(entry)
         unknown = set(needed) - set(methods)
@@ -85,49 +132,69 @@ def configurations(config):
         if not set(needed) <= enabled:
             skipped.append({'name': entry['name'], 'reason': 'Verfahren deaktiviert'})
             continue
-        spec = {'name': entry['name'], 'methods': needed, 'combiner': combiner}
-        if entry.get('global_ranking'):
-            spec['global_ranking'] = True
-        specs.append(spec)
-
-    result, seen = {}, {}
-    for spec in specs:
-        ablate = any(methods[name].get('ablate') for name in spec['methods'])
-        variants = config['preprocessing'] if ablate else {'fixed': ['normalize']}
-        for label, steps in variants.items():
-            full = {**spec, 'preprocessing': steps, 'embedding_preprocessing': ['normalize']}
-            key = duplicate_key(full)
-            if key in seen:
-                skipped.append({'name': label + '/' + spec['name'],
-                                'reason': 'Doppelt zu ' + seen[key]})
-                continue
-            seen[key] = label + '/' + spec['name']
-            result[seen[key]] = full
+        for label, steps in pipelines(needed).items():
+            chains = {name: chain_for(name, steps, methods) for name in needed}
+            add(label + '/' + entry['name'],
+                definition(entry['name'], chains, combiner, steps,
+                           **({'global_ranking': True} if entry.get('global_ranking') else {})))
+    for chain in config.get('chains', []):
+        check_chain(chain, methods)
+        if chain[-1] not in enabled:
+            skipped.append({'name': chain_name(chain), 'reason': 'Verfahren deaktiviert'})
+            continue
+        add(chain_name(chain), definition(chain_name(chain), {chain[-1]: chain},
+                                          {'kind': 'mean'}, chain[:-1], chain_based=True))
+    for entry in config.get('mixes', []):
+        chains = {}
+        for part in entry['parts']:
+            check_chain(part['chain'], methods)
+            chains[chain_name(part['chain'])] = part['chain']
+        if len(chains) != len(entry['parts']):
+            raise ValueError('a mix may use each chain only once')
+        weights = {chain_name(part['chain']): part['weight'] for part in entry['parts']}
+        total = sum(weights.values())
+        name = entry.get('name') or ' + '.join(f'{100 * w / total:g}% {n}' for n, w in weights.items())
+        if not {chain[-1] for chain in chains.values()} <= enabled:
+            skipped.append({'name': name, 'reason': 'Verfahren deaktiviert'})
+            continue
+        add(name, definition(name, chains, {'kind': 'weighted_mean', 'weights': weights},
+                             chain_based=True))
     return result, skipped
 
 
-def steps_for(method, steps, methods):
-    """Nur ablatierbare Stringverfahren verwenden das jeweilige Preprocessing."""
-    return steps if methods[method].get('ablate') else ['normalize']
+def split_chain(chain):
+    """Teile eine Kette in Schritte vor 'translate', danach und das Verfahren."""
+    *steps, method = chain
+    if 'translate' not in steps:
+        return steps, None, method
+    position = steps.index('translate')
+    return steps[:position], steps[position + 1:], method
 
 
-def unsupported(method, steps, case):
+def unsupported(method, chain, case):
     """Fehlende Ressourcen und unpassende Sprachen sind keine Nullscores."""
     languages = {e.get('language') for e in case['reference'] + case['student']
                  if e['label'].strip()}
+    before, after, _ = split_chain(chain)
+    if after is not None:
+        if not languages <= {'de', 'en'}:
+            return 'Übersetzung: nur de/en unterstützt'
+        # Nach der Übersetzung ist jeder Text englisch.
+        translated_languages = {'en'} if languages else set()
+    else:
+        translated_languages = languages
+    if {'lemmatize', 'stem'} & set(before) and not languages <= {'de', 'en'}:
+        return 'Lemma/stemming: only de/en supported'
     if is_wordvec(method):
         missing = [path for path in method['files'].values() if not (ROOT / path).is_file()]
         if missing:
             return 'Ressource fehlt: ' + ', '.join(missing)
-        supported = {'de', 'en'} if method.get('translate_to_en') else set(method['files'])
-        if not languages <= supported:
+        if not translated_languages <= set(method['files']):
             return 'Keine Wortvektoren für alle angegebenen Sprachen.'
-        if method.get('nouns_only') and not languages <= {'de', 'en'}:
+        if method.get('nouns_only') and not translated_languages <= {'de', 'en'}:
             return 'Nomenfilter nur DE/EN.'
-    elif 'languages' in method and not languages <= set(method['languages']):
+    elif 'languages' in method and not translated_languages <= set(method['languages']):
         return 'Nur ' + '/'.join(method['languages']) + ' unterstützt'
-    if {'lemmatize', 'stem'} & set(steps) and not languages <= {'de', 'en'}:
-        return 'Lemma/stemming: only de/en supported'
     return None
 
 
@@ -179,7 +246,7 @@ def track_loading():
             setattr(owner, name, function)
 
 
-def provenance(engines):
+def provenance(engines, translator=None):
     """Speichere die Umgebung und tatsächlich geladenen Modellrevisionen."""
     packages = {}
     for name in ('numpy', 'scipy', 'nltk', 'spacy', 'rapidfuzz', 'torch',
@@ -195,8 +262,9 @@ def provenance(engines):
             if getattr(backend, 'revision', None):
                 models[name] = {'revision': backend.revision,
                                 'config': engine.config['embedding'].get(name, {})}
-        if engine.translator.revision:
-            models['translation'] = engine.translator.revision
+    # Alle Übersetzungen laufen über dieselbe Instanz.
+    if translator is not None and translator.revision:
+        models['translation'] = translator.revision
     from synonym_matching.methods import EMBEDDING_MODELS
     resources = {}
     for name in ('openthesaurus.txt', 'nltk_data/corpora/wordnet.zip'):
@@ -241,55 +309,67 @@ def score_statistics(features):
 def make_engine(name, method, steps, translator, models):
     """Einzige Stelle, an der Wortvektoren und Servicemethoden unterschieden werden.
 
-    Beide Arten liefern danach dasselbe Objekt mit compute_scores().
+    Beide Arten liefern danach dasselbe Objekt mit compute_scores(). Die Schritte
+    gelten für den Text, den das Verfahren selbst sieht (nach 'translate').
     """
     if is_wordvec(method):
         from .word_matching import WordMatching
         files = {lang: str(ROOT / path) for lang, path in method['files'].items()}
-        engine = WordMatching({**method, 'files': files, 'preprocessing': steps},
-                              translator, name=name, models=models)
-        return engine, engine.translator or translator
-    engine = MatchingEngine({'methods': [name], 'preprocessing': steps})
+        return WordMatching({**method, 'files': files, 'preprocessing': steps},
+                            name=name, models=models)
+    engine = MatchingEngine({'methods': [name], 'preprocessing': steps,
+                             'embedding_preprocessing': steps})
     if name in {'wordnet', 'translated_string', 'translated_embedding'}:
-        translator = translator or engine.translator
         engine.translator = translator
         if name == 'translated_embedding':
             engine.backends[name].translator = translator
-    return engine, translator
+    return engine
+
+
+def translate_elements(elements, preprocessor, translator):
+    """Wende die Schritte vor 'translate' an und übersetze; danach ist jedes Label englisch."""
+    texts = [preprocessor.process(e['label'], e.get('language')) for e in elements]
+    translated = translator.translate(texts, [e.get('language') for e in elements])
+    return [{**e, 'label': text, 'language': 'en'} for e, text in zip(elements, translated)]
 
 
 def calculate_features(cases, definitions, methods):
-    """Berechne jede Methode/Preprocessing-Kombination pro Testfall genau einmal."""
+    """Berechne jede Kette pro Testfall genau einmal."""
     tasks = {}
-    for config in definitions.values():
-        for method in config['methods']:
-            steps = steps_for(method, config['preprocessing'], methods)
-            tasks.setdefault(method, {})[tuple(steps)] = steps
+    for spec in definitions.values():
+        for chain in spec['chains'].values():
+            tasks.setdefault(chain[-1], {})[tuple(chain)] = chain
     features, engines, errors = {}, {}, []
-    translator = None
+    translator = Translator({}, Cache())
     word_backends = {}
     # Große Wortmodelle zuerst: ein Modell wird einmal geladen, für alle
-    # Preprocessing-Varianten wiederverwendet und danach freigegeben.
+    # Ketten wiederverwendet und danach freigegeben.
     for method in sorted(tasks, key=lambda name: not is_wordvec(methods[name])):
         models = {}
-        for steps_key, steps in tasks[method].items():
-            key = (method, steps_key)
+        for key, chain in tasks[method].items():
+            before, after, _ = split_chain(chain)
+            preprocessor = Preprocessor(before) if after is not None else None
             engine = None
             for case in cases:
-                reason = unsupported(methods[method], steps, case)
+                reason = unsupported(methods[method], chain, case)
                 if reason:
                     features[key, case['id']] = {'status': 'unsupported', 'reason': reason}
                     continue
                 try:
                     if engine is None:
-                        engine, translator = make_engine(method, methods[method], steps, translator, models)
+                        engine = make_engine(method, methods[method],
+                                             before if after is None else after, translator, models)
                         if is_wordvec(methods[method]):
                             word_backends[method] = engine
                         else:
                             engines[key] = engine
+                    reference, student = case['reference'], case['student']
                     load_before = LOAD_SECONDS[0]
                     started = time.perf_counter()
-                    result = engine.compute_scores(case['reference'], case['student'])
+                    if after is not None:
+                        reference = translate_elements(reference, preprocessor, translator)
+                        student = translate_elements(student, preprocessor, translator)
+                    result = engine.compute_scores(reference, student)
                     elapsed = time.perf_counter() - started
                     load = LOAD_SECONDS[0] - load_before
                     features[key, case['id']] = {
@@ -302,22 +382,18 @@ def calculate_features(cases, definitions, methods):
                 except Exception as error:
                     reason = f'{type(error).__name__}: {error}'
                     features[key, case['id']] = {'status': 'error', 'reason': reason}
-                    errors.append({'method': method, 'preprocessing': steps,
-                                   'case': case['id'], 'reason': reason})
+                    errors.append({'chain': list(chain), 'case': case['id'], 'reason': reason})
         # Die Kombinationen verwenden danach nur noch die gespeicherten Scores.
         models.clear()
     word_vectors = {}
     for name, backend in word_backends.items():
-        word_vectors[name] = {
-            'config': methods[name],
-            'sha256': {}, 'sha256_source': {},
-            'translation_revision': backend.translator.revision if backend.translator else None}
+        word_vectors[name] = {'config': methods[name], 'sha256': {}, 'sha256_source': {}}
         for lang, path in backend.files.items():
             if Path(path).is_file():
                 digest, source = resource_hash(path)
                 word_vectors[name]['sha256'][lang] = digest
                 word_vectors[name]['sha256_source'][lang] = source
-    return features, engines, errors, word_vectors
+    return features, engines, errors, word_vectors, translator
 
 
 def split_by_language(data, languages):
@@ -355,7 +431,8 @@ def run_experiments(data, output, config):
     methods = config['methods']
     started = time.perf_counter()
     with track_loading():
-        features, engines, errors, word_vectors = calculate_features(data['cases'], definitions, methods)
+        features, engines, errors, word_vectors, translator = calculate_features(
+            data['cases'], definitions, methods)
     for spec in definitions.values():
         options = {name: word_vectors[name]['config']
                    for name in spec['methods'] if name in word_vectors}
@@ -365,10 +442,7 @@ def run_experiments(data, output, config):
 
     for identifier, spec in definitions.items():
         for case in data['cases']:
-            parts = {}
-            for name in spec['methods']:
-                steps = steps_for(name, spec['preprocessing'], methods)
-                parts[name] = features[((name, tuple(steps)), case['id'])]
+            parts = {key: features[(tuple(chain), case['id'])] for key, chain in spec['chains'].items()}
             base = {'experiment': identifier, 'case': case['id']}
             missing = {n: p for n, p in parts.items() if p['status'] != 'ok'}
             if missing:
@@ -399,9 +473,9 @@ def run_experiments(data, output, config):
 
     # Eine einzige Datei reicht zur Rekonstruktion: Daten, Parameter und Rohscores.
     feature_records = []
-    for ((method, steps), case_id), item in features.items():
-        feature_records.append({'method': method, 'preprocessing': list(steps),
-                                'case': case_id, **item})
+    for (chain, case_id), item in features.items():
+        feature_records.append({'chain': list(chain), 'method': chain[-1],
+                                'preprocessing': list(chain[:-1]), 'case': case_id, **item})
     model_load_seconds = Counter()
     for item in feature_records:
         model_load_seconds[item['method']] += item.get('load_seconds', 0)
@@ -415,7 +489,7 @@ def run_experiments(data, output, config):
                'dataset': data, 'excluded_cases': excluded, 'definitions': definitions,
                'skipped_definitions': skipped,
                'features': feature_records, 'records': records, 'errors': errors,
-               'provenance': provenance(engines),
+               'provenance': provenance(engines, translator),
                'additional_resources': {'word_vectors': word_vectors},
                'score_statistics': score_statistics(feature_records),
                'dataset_sha256': dataset_hash,

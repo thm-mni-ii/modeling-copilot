@@ -36,7 +36,6 @@
     "word2vec_de_matching": {
       "files": {"de": ".cache/word-vectors/word2vec-de/german.model"},
       "format": "word2vec_binary",
-      "translate_to_en": false,
       "ablate": true,
       "lowercase": false,
       "nouns_only": false,
@@ -49,7 +48,6 @@
     "fasttext_de_matching": {
       "files": {"de": ".cache/word-vectors/fasttext-de/model.bin"},
       "format": "fasttext_bin",
-      "translate_to_en": false,
       "ablate": true,
       "lowercase": true,
       "nouns_only": false,
@@ -62,7 +60,7 @@
     "fasttext_en_matching": {
       "files": {"en": ".cache/word-vectors/fasttext-en/model.bin"},
       "format": "fasttext_bin",
-      "translate_to_en": true,
+      "translate": true,
       "ablate": true,
       "lowercase": true,
       "nouns_only": false,
@@ -98,5 +96,19 @@
     {"name": "fasttext_en_levenshtein", "weights": {"fasttext_en_matching": 1, "levenshtein": 1}},
     {"name": "string_embedding_global_ranking", "variant": "weighted_fusion",
      "options": {"embedding_weight": 0.5}, "global_ranking": true}
+  ],
+  "chains": [
+    ["normalize", "translate", "levenshtein"],
+    ["normalize", "translate", "jaro_winkler"],
+    ["normalize", "translate", "char_trigram"],
+    ["normalize", "translate", "multilingual"]
+  ],
+  "mixes": [
+    {"parts": [
+      {"chain": ["normalize", "stem", "levenshtein"], "weight": 1},
+      {"chain": ["normalize", "multilingual"], "weight": 3}]},
+    {"parts": [
+      {"chain": ["normalize", "translate", "jaro_winkler"], "weight": 1},
+      {"chain": ["normalize", "multilingual"], "weight": 1}]}
   ]
 }

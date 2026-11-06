@@ -22,10 +22,9 @@ METHOD_NAMES = {
     'translated_embedding': 'DE→EN-Übersetzung → monolinguales Embedding',
     'wordnet': 'DE→EN-Übersetzung → WordNet',
     'openthesaurus': 'OpenThesaurus',
-    'word2vec_matching': 'Word2Vec → Greedy-1:1-Wort-Matching',
-    'fasttext_matching': 'FastText → Greedy-1:1-Wort-Matching',
-    'glove_matching': 'GloVe → Greedy-1:1-Wort-Matching',
-    'paragram_matching': 'Paragram → Greedy-1:1-Wort-Matching',
+    'word2vec_de_matching': 'Word2Vec (DE) → Greedy-1:1-Wort-Matching',
+    'fasttext_de_matching': 'FastText (DE) → Greedy-1:1-Wort-Matching',
+    'fasttext_en_matching': 'FastText (EN) → Greedy-1:1-Wort-Matching',
 }
 
 
@@ -33,8 +32,39 @@ def mean(names):
     return 'Mittel(' + ' + '.join(names) + ')'
 
 
+def chain_text(chain):
+    """Zeige eine Kette mit Preprocessing, Übersetzung und Verfahren in Reihenfolge."""
+    steps = ['DE→EN' if step == 'translate' else step for step in chain[:-1]]
+    return ('+'.join(steps) or 'ohne_Preprocessing') + ' → ' + METHOD_NAMES.get(chain[-1], chain[-1])
+
+
+def word_paths(spec):
+    """Beschreibe die modellabhängigen Zusatzschritte der Wortvektorpfade."""
+    paths = []
+    for method, options in spec.get('word_matching', {}).items():
+        steps = []
+        if options.get('nouns_only'):
+            steps.append('nouns_only')
+        if options.get('lowercase', True):
+            steps.append('lowercase')
+        paths.append(f"{method}: {'_'.join(steps) or 'keine Zusatzschritte'}, δ={options.get('delta', .2)}")
+    return ' [Wortpfade: ' + '; '.join(paths) + ']' if paths else ''
+
+
+def describe_chains(spec):
+    """Beschreibe Ketten und ihre Gewichte; jede Kette trägt ihr Preprocessing selbst."""
+    combiner = spec['combiner']
+    weights = combiner.get('weights') or {key: 1 for key in spec['chains']}
+    total = sum(weights.values())
+    parts = [(weights[key] / total, chain_text(chain)) for key, chain in spec['chains'].items()]
+    text = parts[0][1] if len(parts) == 1 else ' + '.join(f'{100 * w:g}% {t}' for w, t in parts)
+    return text + word_paths(spec)
+
+
 def describe_pipeline(spec):
     """Zeige Schritte in Ausführungsreihenfolge und die tatsächliche Kombination."""
+    if spec.get('chain_based'):
+        return describe_chains(spec)
     strings = mean([METHOD_NAMES[name] for name in STRINGS])
     tokens = mean([METHOD_NAMES[name] for name in TOKENS])
     multi = METHOD_NAMES['multilingual']
@@ -85,19 +115,7 @@ def describe_pipeline(spec):
         description += ' [Preprocessing vorne: Stringpfad; Sprach-/Lexikonpfade: normalize]'
     if name == 'exact_match_fusion':
         description += ' [Exakt-Prüfung: normalize auf Originaltext]'
-    if any(method.endswith('_matching') for method in requires):
-        paths = []
-        for method, options in spec.get('word_matching', {}).items():
-            # Das Preprocessing steht vorne; hier nur die modellabhängigen Zusatzschritte.
-            steps = []
-            if options.get('translate_to_en'):
-                steps.append('DE→EN')
-            if options.get('nouns_only'):
-                steps.append('nouns_only')
-            if options.get('lowercase', True):
-                steps.append('lowercase')
-            paths.append(f"{method}: {'_'.join(steps) or 'keine Zusatzschritte'}, δ={options.get('delta', .2)}")
-        description += ' [Wortpfade: ' + '; '.join(paths) + ']'
+    description += word_paths(spec) if any(method.endswith('_matching') for method in requires) else ''
     if spec.get('global_ranking'):
         description += ' → Zeilen-/Spaltenrang-Fusion'
     return description

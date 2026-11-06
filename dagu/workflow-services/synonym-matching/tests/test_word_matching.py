@@ -49,17 +49,12 @@ def test_aligned_languages_unknown_words_and_label_cache(tmp_path):
         WordMatching({'files': {'de': de, 'en': en}, 'format': 'word2vec_text'})
 
 
-def test_optional_noun_filter_and_explicit_translation(tmp_path, monkeypatch):
+def test_optional_noun_filter(tmp_path, monkeypatch):
     path = archive(tmp_path / 'en.vec', ['customer'], [[1, 0]])
-    class Translator:
-        def translate(self, texts, languages):
-            assert languages == ['de']
-            return ['customer pay']
     monkeypatch.setattr('research.word_matching._language_model', lambda lang:
         lambda text: [SimpleNamespace(text='customer', pos_='NOUN'), SimpleNamespace(text='pay', pos_='VERB')])
-    backend = WordMatching({'files': {'en': path}, 'format': 'word2vec_text',
-                            'translate_to_en': True, 'nouns_only': True}, Translator())
-    words, vectors = backend.prepare({'label': 'Kunde bezahlt', 'language': 'de'})
+    backend = WordMatching({'files': {'en': path}, 'format': 'word2vec_text', 'nouns_only': True})
+    words, vectors = backend.prepare({'label': 'customer pay', 'language': 'en'})
     assert words == ['customer']
     assert len(vectors) == 1
 
@@ -74,34 +69,49 @@ def test_german_profile_preserves_case_and_excludes_mixed_language_cases(tmp_pat
     backend = WordMatching(word2vec)
     left = [{'label': 'Kunde', 'language': 'de'}]
     right = [{'label': 'Abnehmer', 'language': 'de'}]
-    assert backend.translator is None
     assert backend.prepare(left[0])[0] == ['Kunde']
     assert backend.matrix(left, right)[0, 0] == pytest.approx(1)
 
     lowercase = WordMatching({**word2vec, 'lowercase': True})
     assert lowercase.matrix(left, right)[0, 0] == 0
+    chain = ['normalize', 'word2vec_de_matching']
     case = {'reference': left, 'student': [{'label': 'Customer', 'language': 'en'}]}
-    assert unsupported(word2vec, ['normalize'], case) is not None
+    assert unsupported(word2vec, chain, case) is not None
     word2vec['files'] = {'de': str(tmp_path / 'fehlt.vec')}
-    assert 'Ressource fehlt' in unsupported(word2vec, ['normalize'], {'reference': left, 'student': right})
+    assert 'Ressource fehlt' in unsupported(word2vec, chain, {'reference': left, 'student': right})
 
 
-def test_english_hf_profile_translates_before_vector_lookup(tmp_path):
-    from research.compare import load_config
+def test_translate_step_comes_before_vector_lookup(tmp_path, monkeypatch):
+    from research import compare
+    from synonym_matching.translation import Translator
 
-    methods = load_config()['methods']
-    config = methods['fasttext_en_matching']
-    config['files'] = {'en': archive(tmp_path / 'en.vec', ['customer'], [[1, 0]])}
-    config['format'] = 'word2vec_text'
-
-    class Translator:
+    class FakeTranslator(Translator):
         def translate(self, texts, languages):
-            return ['customer' if lang == 'de' else text
+            return ['customer' if lang == 'de' else text.lower()
                     for text, lang in zip(texts, languages, strict=True)]
 
-    backend = WordMatching(config, Translator())
-    assert backend.matrix([{'label': 'Kunde', 'language': 'de'}],
-                          [{'label': 'Customer', 'language': 'en'}])[0, 0] == pytest.approx(1)
+    monkeypatch.setattr(compare, 'Translator', FakeTranslator)
+    data = {'cases': [{'id': 'test', 'case_number': 1, 'title': 'Übersetzung',
+            'reference': [{'id': 'r', 'label': 'Kunde', 'language': 'de'}],
+            'student': [{'id': 's', 'label': 'Customer', 'language': 'en'}],
+            'annotations': [['correct']]},
+            {'id': 'es', 'case_number': 11, 'title': 'Spanisch',
+             'reference': [{'id': 'r', 'label': 'Cliente', 'language': 'es'}],
+             'student': [{'id': 's', 'label': 'Customer', 'language': 'en'}],
+             'annotations': [['correct']]}]}
+    config = only(load_config(), 'fasttext_en_matching')
+    config['languages'] = ['de', 'en', 'es']
+    config['preprocessing'] = {'lower': ['normalize', 'lowercase']}
+    config['methods']['fasttext_en_matching'].update({
+        'files': {'en': archive(tmp_path / 'en.vec', ['customer'], [[1, 0]])}, 'format': 'word2vec_text'})
+    output = tmp_path / 'run.json'
+    assert compare.run_experiments(data, output, config) == []
+    run = json.loads(output.read_text())
+    records = {(r['experiment'], r['case']): r for r in run['records']}
+    name = 'normalize+lowercase+translate → fasttext_en_matching'
+    assert records[name, 'test']['combinedScores'] == [[1.0]]
+    assert records[name, 'es']['status'] == 'unavailable'
+    assert 'Übersetzung' in records[name, 'es']['missing']['fasttext_en_matching']['reason']
 
     for model in [m for m in load_config()['methods'].values() if 'files' in m]:
         assert model['source'].startswith('https://huggingface.co/')
@@ -171,10 +181,10 @@ def test_new_comparison_reuses_fasttext_for_hungarian_and_marks_missing_resource
     config['methods']['word2vec_de_matching']['files'] = {'de': str(tmp_path / 'fehlt.bin')}
     assert run_experiments(data, output, config) == []
     result = json.loads(output.read_text())
-    fasttext = next(r for r in result['records'] if r['experiment'] == 'raw/fasttext_de_matching')
+    fasttext = next(r for r in result['records'] if r['experiment'] == 'raw → fasttext_de_matching')
     assert fasttext['decisions']['hungarian']['selected'] == [[True, False]]
     assert sum(f['method'] == 'fasttext_de_matching' for f in result['features']) == 1
-    missing = next(r for r in result['records'] if r['experiment'] == 'raw/word2vec_de_matching')
+    missing = next(r for r in result['records'] if r['experiment'] == 'raw → word2vec_de_matching')
     assert missing['status'] == 'unavailable'
     assert 'Ressource fehlt' in missing['missing']['word2vec_de_matching']['reason']
     assert 'deferred' not in result
@@ -199,8 +209,8 @@ def test_word_vectors_use_pipeline_preprocessing_and_load_model_once(tmp_path, m
     assert run_experiments(data, output, config) == []
     records = {r['experiment']: r for r in json.loads(output.read_text())['records']}
     # Das Modell kennt nur die Großschreibung; Lowercasing in der Pipeline ist echte Ablation.
-    assert records['raw/word2vec_de_matching']['combinedScores'] == [[1.0]]
-    assert records['lower/word2vec_de_matching']['combinedScores'] == [[0.0]]
+    assert records['raw → word2vec_de_matching']['combinedScores'] == [[1.0]]
+    assert records['lowercase → word2vec_de_matching']['combinedScores'] == [[0.0]]
     assert len(loads) == 1
     run = json.loads(output.read_text())
     loaded = [f['load_seconds'] for f in run['features'] if f['status'] == 'ok']

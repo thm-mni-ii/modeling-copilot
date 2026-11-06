@@ -5,8 +5,6 @@ import re
 import numpy as np
 
 from synonym_matching.preprocessing import Preprocessor, _language_model
-from synonym_matching.cache import Cache
-from synonym_matching.translation import Translator
 from synonym_matching.service import nonempty_pairs
 
 
@@ -50,10 +48,10 @@ def load_vectors(path, fmt):
 class WordMatching:
     """Lade Vektoren einmal je Sprache und bereite jedes Label nur einmal vor."""
 
-    def __init__(self, config, translator=None, name="word_matching", models=None):
+    def __init__(self, config, name="word_matching", models=None):
         self.config = {'format': 'word2vec_text', 'delta': .2, 'nouns_only': False,
                        'lowercase': True, 'preprocessing': ['normalize', 'split_identifiers'],
-                       'translate_to_en': False, **config}
+                       **config}
         self.name = name
         self.preprocessor = Preprocessor(self.config['preprocessing'])
         self.files = config.get('files', {})
@@ -64,7 +62,6 @@ class WordMatching:
         # Ein von außen übergebenes Dict teilt geladene Modelle zwischen Preprocessing-Varianten.
         self.models = {} if models is None else models
         self.labels = {}
-        self.translator = (translator or Translator({}, Cache())) if self.config['translate_to_en'] else None
 
     def prepare(self, element):
         key = (element['label'], element.get('language'))
@@ -74,9 +71,6 @@ class WordMatching:
         text = self.preprocessor.process(element['label'], language)
         if not text:
             return [], []
-        if self.translator is not None:
-            text = self.translator.translate([text], [language])[0]
-            language = 'en'
         if language not in self.files:
             raise ValueError(f'no word vectors configured for language {language!r}')
         if self.config.get('nouns_only', False):

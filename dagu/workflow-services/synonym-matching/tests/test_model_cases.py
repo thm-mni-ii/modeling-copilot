@@ -54,7 +54,7 @@ def test_single_research_command_writes_json_and_rankings(tmp_path):
     assert 'threshold' in payload['rankings']
     assert {r['case'] for r in payload['records']} == {c['id'] for c in data['cases']}
     bank = next(r for r in payload['records']
-                if r['case'] == 'case-20' and r['experiment'] == 'fixed/exact_match')
+                if r['case'] == 'case-20' and r['experiment'] == 'normalize → exact_match')
     assert bank['combinedScores'] == [[1.0]]
     assert bank['decisions']['threshold']['metrics']['fp'] == 1
 
@@ -94,7 +94,7 @@ def test_spanish_translation_explicit_and_other_variants_continue(tmp_path, monk
     config['languages'] = ['de', 'en', 'es']
     assert experiments.run_experiments(data, out, config) == []
     results = json.loads(out.read_text())['records']
-    translated = next(r for r in results if r['experiment'] == 'fixed/translated_embedding')
+    translated = next(r for r in results if r['experiment'] == 'normalize → translated_embedding')
     assert translated['status'] == 'unavailable'
     assert 'de/en' in translated['missing']['translated_embedding']['reason']
-    assert next(r for r in results if r['experiment'] == 'fixed/multilingual')['status'] == 'ok'
+    assert next(r for r in results if r['experiment'] == 'normalize → multilingual')['status'] == 'ok'

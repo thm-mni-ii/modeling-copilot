@@ -180,9 +180,21 @@ Konfigurationsdatei) und `--data` (andere Testdaten). Es gibt keine Flags je Ver
 - `combinations`: entweder `"variant"` (+ `"options"`) aus
   `src/synonym_matching/combinations.py` oder `"weights"` (gewichtetes Mittel über
   beliebige Methoden). Eine neue Gewichtung ist ein neuer Eintrag, keine neue Funktion.
-- Identische Konfigurationen (gleiche Methoden, normierte Gewichte, gleiches
-  Preprocessing) werden nur einmal ausgeführt und unter `skipped_definitions`
-  vermerkt. Kombinationen mit deaktivierten Verfahren werden ebenfalls übersprungen.
+- `chains`: einzelne Versuche als Liste der Schritte der Reihe nach, das **letzte Glied
+  ist das Verfahren**, z. B. `["normalize", "stem", "levenshtein"]`. Erlaubt sind die
+  Preprocessing-Schritte und `translate` (DE→EN) an beliebiger Stelle, höchstens einmal:
+  `["normalize", "translate", "levenshtein"]` übersetzt nach `normalize`, danach läuft
+  Levenshtein auf dem englischen Text. Schritte hinter `translate` gelten für den
+  englischen Text. Der Name entsteht automatisch (`normalize+stem → levenshtein`).
+- `mixes`: gewichtete Mischung mehrerer Ketten, jede mit ihrem eigenen Preprocessing:
+  `{"parts": [{"chain": [...], "weight": 1}, {"chain": [...], "weight": 3}]}`.
+  Der Name entsteht aus den normierten Anteilen, oder mit `"name"` selbst gesetzt.
+  Eine Kette ergibt immer genau **eine** Matrix; die Mischung verrechnet mehrere.
+- Das Raster (`preprocessing` × `methods`) erzeugt dieselben Ketten automatisch
+  (`Pipeline-Schritte, [translate], Verfahren`), die Namen sind identisch aufgebaut.
+- Identische Konfigurationen (gleiche Ketten, normierte Gewichte) werden nur einmal
+  ausgeführt und unter `skipped_definitions` vermerkt. Kombinationen mit deaktivierten
+  Verfahren werden ebenfalls übersprungen.
 - Fehlende Dateien und nicht unterstützte Sprachen erscheinen als „nicht verfügbar“
   mit Grund, nie als Nullergebnis.
 
@@ -360,10 +372,12 @@ FastText-Textvektoren enthalten keine Subword-Informationen; nur ein vollständi
 FastText-Binärmodell kann unbekannte Wörter über Subwords repräsentieren.
 
 Getrennte Sprachdateien müssen im selben ausgerichteten Raum liegen und benötigen
-`aligned: true`. Gleiche Dimension allein reicht nicht. Alternativ übersetzt
-`translate_to_en: true` DE→EN vor dem Zugriff auf englische Vektoren; andere
-Sprachen werden dabei nicht unterstützt. Englische Labels bleiben unverändert.
-Die Übersetzung wird über die Modelle hinweg wiederverwendet.
+`aligned: true`. Gleiche Dimension allein reicht nicht. Alternativ steht in der Kette
+der Schritt `translate` (DE→EN) vor dem englischen Wortvektor-Verfahren; im Raster
+setzt `"translate": true` am Verfahren diesen Schritt hinter die Pipeline-Schritte.
+Andere Sprachen als de/en werden dabei nicht unterstützt (nicht verfügbar).
+Englische Labels bleiben unverändert. Die Übersetzung wird über alle Verfahren
+hinweg wiederverwendet.
 
 Optionen je Modell: `ablate` (Preprocessing kommt aus den Pipelines in
 `experiments.json`, wie bei den Stringverfahren; ohne `ablate` gilt `normalize`),
