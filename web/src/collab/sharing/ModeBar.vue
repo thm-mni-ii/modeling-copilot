@@ -1,16 +1,18 @@
 <template>
   <Teleport v-if="container && visible" :to="container">
-    <div class="mode-frame" :style="{ borderColor: color }">
+    <div class="mode-frame" :style="{ borderColor: color, '--mode-color': color }">
       <div class="mode-bar">
         <div class="mode-chip" :style="{ background: color }">
           <v-icon :icon="chip.icon" size="16" />
           {{ chip.text }}
         </div>
-        <div class="mode-buttons">
-          <button v-for="button in buttons" :key="button.key" type="button" class="mode-button" :class="{ 'mode-button--on': button.on, 'mode-button--present': button.key === 'present', 'mode-button--shown': !isHost && button.key !== 'leave' }" :title="button.title" :aria-label="button.title" :disabled="isHost && locked" @click="(isHost || button.key === 'leave') && button.toggle()">
-            <v-icon :icon="button.icon" size="18" />
-          </button>
-        </div>
+        <button v-for="button in buttons" :key="button.key" type="button" class="mode-button" :class="{ 'mode-button--on': button.on, 'mode-button--present': button.key === 'present', 'mode-button--info': button.kind === 'info' }" :title="button.title" :aria-label="button.title" :disabled="isHost && locked" @click="button.toggle()">
+          <v-icon :icon="button.icon" size="18" />
+        </button>
+        <div class="mode-separator" />
+        <button type="button" class="mode-button mode-button--exit" :title="exit.title" :aria-label="exit.title" :disabled="isHost && locked" @click="exit.toggle()">
+          <v-icon :icon="exit.icon" size="18" />
+        </button>
       </div>
     </div>
   </Teleport>
@@ -49,6 +51,8 @@ const chip = computed(() => {
 
 interface ModeButton {
   key: string
+  /** toggle: the host switches a setting; info: a visitor only reads it. */
+  kind: 'toggle' | 'info'
   on: boolean
   icon: string
   title: string
@@ -60,10 +64,10 @@ const buttons = computed<ModeButton[]>(() => {
   if (isHost.value) {
     const { edit, comment, anonymous: hidden } = shareSettings
     return [
-      { key: 'edit', on: edit, icon: edit ? 'mdi-pencil' : 'mdi-pencil-off', title: edit ? 'Visitors may edit' : 'Visitors may not edit', toggle: () => void toggleShareSetting('edit') },
-      { key: 'comment', on: comment, icon: comment ? 'mdi-comment-outline' : 'mdi-comment-off-outline', title: comment ? 'Visitors may comment' : 'Visitors may not comment', toggle: () => void toggleShareSetting('comment') },
-      { key: 'anonymous', on: hidden, icon: hidden ? 'mdi-incognito' : 'mdi-account-outline', title: hidden ? 'Visitors are anonymous' : 'Visitors are named', toggle: () => void toggleShareSetting('anonymous') },
-      { key: 'present', on: presenting.value, icon: 'mdi-cursor-default-outline', title: presenting.value ? 'Stop presenting' : 'Presentation mode: others only see your cursor', toggle: () => (presenting.value = !presenting.value) }
+      { key: 'edit', kind: 'toggle', on: edit, icon: edit ? 'mdi-pencil' : 'mdi-pencil-off', title: edit ? 'Visitors may edit' : 'Visitors may not edit', toggle: () => void toggleShareSetting('edit') },
+      { key: 'comment', kind: 'toggle', on: comment, icon: comment ? 'mdi-comment-outline' : 'mdi-comment-off-outline', title: comment ? 'Visitors may comment' : 'Visitors may not comment', toggle: () => void toggleShareSetting('comment') },
+      { key: 'anonymous', kind: 'toggle', on: hidden, icon: hidden ? 'mdi-incognito' : 'mdi-account-outline', title: hidden ? 'Visitors are anonymous' : 'Visitors are named', toggle: () => void toggleShareSetting('anonymous') },
+      { key: 'present', kind: 'toggle', on: presenting.value, icon: 'mdi-cursor-default-outline', title: presenting.value ? 'Stop presenting' : 'Presentation mode: others only see your cursor', toggle: () => (presenting.value = !presenting.value) }
     ]
   }
   // The host's announcement comes at once; CK tells editing only after a reconnect and commenting not at all.
@@ -72,14 +76,19 @@ const buttons = computed<ModeButton[]>(() => {
   const mayComment = announced?.comment ?? visitorRights.comment
   const isAnonymous = announced?.anonymous ?? anonymous.value
   const held: ModeButton[] = []
-  if (mayEdit) held.push({ key: 'edit', on: true, icon: 'mdi-pencil', title: 'You can edit', toggle: () => undefined })
-  if (mayComment) held.push({ key: 'comment', on: true, icon: 'mdi-comment-outline', title: 'You can comment', toggle: () => undefined })
-  if (isAnonymous) held.push({ key: 'anonymous', on: true, icon: 'mdi-incognito', title: 'You appear anonymous', toggle: () => undefined })
-  if (held.length === 0) held.push({ key: 'view', on: true, icon: 'mdi-eye-outline', title: 'You can only view', toggle: () => undefined })
-  // A visitor can always leave, whatever the rights and whatever the connection does.
-  held.push({ key: 'leave', on: false, icon: 'mdi-logout', title: 'Leave sharing', toggle: () => (shareDialog.value = 'leave') })
+  if (mayEdit) held.push({ key: 'edit', kind: 'info', on: true, icon: 'mdi-pencil', title: 'You can edit', toggle: () => undefined })
+  if (mayComment) held.push({ key: 'comment', kind: 'info', on: true, icon: 'mdi-comment-outline', title: 'You can comment', toggle: () => undefined })
+  if (isAnonymous) held.push({ key: 'anonymous', kind: 'info', on: true, icon: 'mdi-incognito', title: 'You appear anonymous', toggle: () => undefined })
+  if (held.length === 0) held.push({ key: 'view', kind: 'info', on: true, icon: 'mdi-eye-outline', title: 'You can only view', toggle: () => undefined })
   return held
 })
+
+/** Host and visitor can always end the sharing, whatever the rights and whatever the connection does. */
+const exit = computed(() => ({
+  icon: 'mdi-logout',
+  title: isHost.value ? 'Quit sharing' : 'Leave sharing',
+  toggle: () => (shareDialog.value = isHost.value ? 'quit' : 'leave')
+}))
 </script>
 
 <style scoped>
@@ -98,11 +107,12 @@ const buttons = computed<ModeButton[]>(() => {
   left: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-right: 8px;
+  gap: 2px;
+  height: 34px;
+  padding-right: 6px;
   background: #ffffff;
-  border-right: 0.5px solid rgba(var(--v-theme-outline), 0.3);
-  border-bottom: 0.5px solid rgba(var(--v-theme-outline), 0.3);
+  border-right: 2px solid var(--mode-color);
+  border-bottom: 2px solid var(--mode-color);
   border-bottom-right-radius: 8px;
   pointer-events: auto;
 }
@@ -112,33 +122,22 @@ const buttons = computed<ModeButton[]>(() => {
   align-items: center;
   align-self: stretch;
   gap: 6px;
-  padding: 6px 10px;
-  border-bottom-right-radius: 6px;
+  margin-right: 6px;
+  padding: 0 10px;
   color: #ffffff;
   font-size: 12px;
   font-weight: 500;
-}
-
-.mode-buttons {
-  display: flex;
-  overflow: hidden;
-  border: 0.5px solid rgba(var(--v-theme-outline), 0.5);
-  border-radius: 6px;
 }
 
 .mode-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 28px;
-  background: #ffffff;
+  width: 28px;
+  height: 26px;
+  border-radius: 6px;
   color: rgba(var(--v-theme-on-surface), 0.87);
   cursor: pointer;
-}
-
-.mode-button + .mode-button {
-  border-left: 0.5px solid rgba(var(--v-theme-outline), 0.3);
 }
 
 .mode-button--on {
@@ -152,7 +151,23 @@ const buttons = computed<ModeButton[]>(() => {
 }
 
 /* A visitor only reads what the buttons say. */
-.mode-button--shown {
+.mode-button--info {
   cursor: default;
+}
+
+/* Ending the sharing is an action, no state: set apart by the line and in red. */
+.mode-separator {
+  width: 2px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--mode-color);
+}
+
+.mode-button--exit {
+  color: #a63e3a;
+}
+
+.mode-button--exit:hover {
+  background: #f8e1e0;
 }
 </style>
