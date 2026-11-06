@@ -115,42 +115,42 @@ services:
     restart: unless-stopped
 
   workflow-synonym-matching:
-    image: modeling-copilot/synonym-matching:0.2.0
+    image: modeling-copilot/synonym-matching:0.3.0
     build:
       context: ./dagu/workflow-services
       dockerfile: synonym-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-graph-parser:
-    image: modeling-copilot/graph-parser:0.3.0
+    image: modeling-copilot/graph-parser:0.4.0
     build:
       context: ./dagu/workflow-services
       dockerfile: graph-parser/Dockerfile
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:
-    image: modeling-copilot/one-to-one-graph-matching:0.2.0
+    image: modeling-copilot/one-to-one-graph-matching:0.3.0
     build:
       context: ./dagu/workflow-services
       dockerfile: one-to-one-graph-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-minimal-matching-unit:
-    image: modeling-copilot/minimal-matching-unit:0.2.0
+    image: modeling-copilot/minimal-matching-unit:0.3.0
     build:
       context: ./dagu/workflow-services
       dockerfile: minimal-matching-unit/Dockerfile
     profiles: [workflow-services]
 
   workflow-feedback-generation:
-    image: modeling-copilot/feedback-generation:0.2.0
+    image: modeling-copilot/feedback-generation:0.3.0
     build:
       context: ./dagu/workflow-services
       dockerfile: feedback-generation/Dockerfile
     profiles: [workflow-services]
 
   workflow-data:
-    image: modeling-copilot/workflow-data:0.1.0
+    image: modeling-copilot/workflow-data:0.2.0
     build:
       context: ./dagu/workflow-services
       dockerfile: workflow-data/Dockerfile

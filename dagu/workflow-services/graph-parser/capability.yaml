@@ -1,7 +1,0 @@
-id: graph-parser
-version: 0.3.0
-type: workflow
-image: modeling-copilot/graph-parser:0.3.0
-inputSchema: schemas/input.schema.json
-outputSchema: schemas/output.schema.json
-description: maxGraph-Parser mit versioniertem JSON-Graph, explizitem Demo-Modus und technischer Validierung anhand archivierter Modellversionen.

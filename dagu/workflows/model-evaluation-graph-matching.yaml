@@ -1,4 +1,4 @@
-description: Reproduzierbare Auswertung aus vollständigen Snapshots mit gemeinsamem Workflow-Datenspeicher.
+description: Initialisiert vollständige Snapshots und parst die Modelle. Noch keine fachliche Bewertung.
 artifacts:
   enabled: true
 kubernetes:
@@ -42,16 +42,14 @@ params:
     reference_count: 0
 steps:
   - name: prepare_input
-    description: Speichert vollständige Eingaben und stellt Modellaufträge mit Prüfsummen bereit.
+    description: Validiert und speichert den vollständigen Snapshot einmalig.
     stdout:
-      artifact: inputs/evaluation-input.json
+      artifact: initialization.json
     action: k8s.run
     with:
-      image: modeling-copilot/workflow-data:0.1.0
+      image: modeling-copilot/workflow-data:0.2.0
       image_pull_policy: IfNotPresent
       env:
-        - name: WORKFLOW_ACTION
-          value: prepare
         - name: WORKFLOW_EVALUATION_ID
           value: ${evaluation_id}
         - name: EVALUATION_INPUT_GZIP_BASE64
@@ -66,80 +64,14 @@ steps:
       params:
         EVALUATION_ID: ${evaluation_id}
         MODEL_KEY: ${ITEM.key}
+        OUTPUT_PREFIX: graphs
     parallel:
       items: ${parser_models}
       max_concurrent: 4
 
-  - name: collect_graphs
-    description: Prüft alle Parserergebnisse und stellt Graphen und Referenzen gemeinsam bereit.
-    depends: [parse_models]
-    stdout:
-      artifact: parsed-models.json
-    action: k8s.run
-    with:
-      image: modeling-copilot/workflow-data:0.1.0
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_ACTION
-          value: collect
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${evaluation_id}
-
-  - name: synonym_matching
-    description: Liest reale Graphpaare; Synonym-Algorithmus ist noch ein Platzhalter.
-    depends: [collect_graphs]
-    stdout:
-      artifact: results/synonym-matching.json
-    action: k8s.run
-    with:
-      image: modeling-copilot/synonym-matching:0.2.0
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${evaluation_id}
-
-  - name: one_to_one_matching
-    description: Liest Graphen und Synonym-Ergebnisse; 1:1-Algorithmus ist noch ein Platzhalter.
-    depends: [synonym_matching]
-    stdout:
-      artifact: results/one-to-one-graph-matching.json
-    action: k8s.run
-    with:
-      image: modeling-copilot/one-to-one-graph-matching:0.2.0
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${evaluation_id}
-
-  - name: minimal_matching_unit
-    description: Liest dieselben Eingaben parallel zum 1:1-Matching; MMU-Algorithmus ist noch ein Platzhalter.
-    depends: [synonym_matching]
-    stdout:
-      artifact: results/minimal-matching-unit.json
-    action: k8s.run
-    with:
-      image: modeling-copilot/minimal-matching-unit:0.2.0
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${evaluation_id}
-
-  - name: feedback_aggregation
-    description: Führt Ergebnisse getrennt je Musterlösung zusammen; erzeugt noch keine fachliche Bewertung.
-    depends: [one_to_one_matching, minimal_matching_unit]
-    stdout:
-      artifact: evaluation-result.json
-    action: k8s.run
-    with:
-      image: modeling-copilot/feedback-generation:0.2.0
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${evaluation_id}
-
   - name: publish_results
-    description: Veröffentlicht lesbare Output-Werte und Dateiverweise für den gesamten Lauf.
-    depends: [feedback_aggregation]
+    description: Veröffentlicht den Laufkontext und die gespeicherten Graphen.
+    depends: [parse_models]
     action: outputs.write
     with:
       values:
@@ -147,6 +79,5 @@ steps:
         modelCount: ${model_count}
         referenceCount: ${reference_count}
         inputSnapshot: inputs/evaluation-input.json
-        parsedModels: parsed-models.json
-        evaluationResult: evaluation-result.json
+        parsedModels: graphs/
         assessmentAvailable: false

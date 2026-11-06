@@ -1,6 +1,88 @@
 """Draft maxGraph adapter. Only containment is a forest; connections are unrestricted."""
 import json
 import xml.etree.ElementTree as ET
+from typing import Literal, NotRequired, TypedDict
+
+class LanguageReference(TypedDict):
+    languageId: str
+    versionId: str
+
+
+class LanguageVersion(LanguageReference):
+    data: dict
+    includedLanguageVersions: list[LanguageReference]
+
+
+Scalar = str | int | float | bool | None
+
+
+class Anchor(TypedDict, total=False):
+    pointId: str
+    role: Literal["input", "output", "bidirectional"]
+    x: str
+    y: str
+
+
+class Endpoints(TypedDict, total=False):
+    source: Anchor
+    target: Anchor
+
+
+class GraphNode(TypedDict):
+    id: str
+    kind: Literal["element", "connection"]
+    type: str
+    label: str
+    language: LanguageReference | None
+    properties: dict[str, Scalar]
+    directed: NotRequired[bool | None]
+
+
+class GraphEdge(TypedDict):
+    id: str
+    kind: Literal["contains", "connection", "endpoint"]
+    type: str
+    source: str | None
+    target: str | None
+    directed: bool | None
+    label: str
+    language: LanguageReference | None
+    properties: dict[str, Scalar]
+    originId: NotRequired[str]
+    endpoints: NotRequired[Endpoints]
+
+
+class Graph(TypedDict):
+    schemaVersion: Literal[1]
+    languages: list[LanguageReference]
+    complete: bool
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+
+
+class Diagnostic(TypedDict):
+    severity: Literal["warning", "error"]
+    code: str
+    cellId: str
+    message: str
+    details: dict
+
+
+def resolve_languages(bundle: dict, references: list[LanguageReference]) -> list[LanguageVersion]:
+    """Select pinned language versions and their dependencies from the snapshot."""
+    catalog = {(item["languageId"], item["versionId"]): item for item in bundle["languages"]}
+    selected = {}
+    pending = list(references)
+    while pending:
+        reference = pending.pop()
+        key = (reference["languageId"], reference["versionId"])
+        if key in selected:
+            continue
+        if key not in catalog:
+            raise ValueError("a referenced language version is missing from the frozen input")
+        selected[key] = catalog[key]
+        pending.extend(catalog[key].get("includedLanguageVersions", []))
+    return [selected[key] for key in sorted(selected)]
 
 
 def flag(value: object) -> bool:
@@ -93,7 +175,7 @@ def language_catalog(languages: object) -> tuple[dict, dict, set, set, list]:
     return elements, connections, feedback_elements, feedback_connections, references
 
 
-def parse_model(value: object) -> tuple[dict, list]:
+def parse_model(value: object) -> tuple[Graph, list[Diagnostic]]:
     if not isinstance(value, dict) or not isinstance(value.get("model"), dict):
         raise ValueError("input.model must be a complete model snapshot")
     model = value["model"]

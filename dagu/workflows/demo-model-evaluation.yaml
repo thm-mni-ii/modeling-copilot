@@ -1,0 +1,150 @@
+description: Demo mit echtem Parser und austauschbaren Platzhaltern. Keine fachliche Bewertung.
+artifacts:
+  enabled: true
+kubernetes:
+  volumes:
+    - name: workflow-data
+      persistent_volume_claim:
+        claim_name: workflow-data
+  volume_mounts:
+    - name: workflow-data
+      mount_path: /work/evaluations
+labels:
+  purpose: demo
+  domain: generic
+  visibility: frontend
+  version: v1
+params:
+  schema:
+    type: object
+    required: [evaluation_id, evaluation_input, parser_models, model_count, reference_count]
+    properties:
+      evaluation_id:
+        type: string
+        description: Eindeutige Auswertungs-ID und isolierter Datenordner.
+      evaluation_input:
+        type: string
+        description: Ein vollständiger evaluation-input/v1-Snapshot als gzip-komprimiertes Base64-JSON.
+      parser_models:
+        type: string
+        description: JSON-Liste der Modellschlüssel; enthält keine XML-Daten.
+      model_count:
+        type: integer
+      reference_count:
+        type: integer
+  # Dagu-Laufzeitparameter sind skalare Werte. Das Backend serialisiert die
+  # strukturierten Werte als JSON und überschreibt diese neutralen Defaults.
+  values:
+    evaluation_id: ''
+    evaluation_input: ''
+    parser_models: '[]'
+    model_count: 0
+    reference_count: 0
+steps:
+  - name: prepare_input
+    description: Validiert und speichert den vollständigen Snapshot einmalig.
+    stdout:
+      artifact: initialization.json
+    action: k8s.run
+    with:
+      image: modeling-copilot/workflow-data:0.2.0
+      image_pull_policy: IfNotPresent
+      env:
+        - name: WORKFLOW_EVALUATION_ID
+          value: ${evaluation_id}
+        - name: EVALUATION_INPUT_GZIP_BASE64
+          value: ${evaluation_input}
+
+  - name: parse_models
+    description: Ein eigener Parserlauf für das aktuelle Modell und jede Musterlösung.
+    depends: [prepare_input]
+    action: dag.run
+    with:
+      dag: graph-parser-model
+      params:
+        EVALUATION_ID: ${evaluation_id}
+        MODEL_KEY: ${ITEM.key}
+        OUTPUT_PREFIX: demo/graphs
+    parallel:
+      items: ${parser_models}
+      max_concurrent: 4
+
+  - name: synonym_matching
+    description: Demo-Platzhalter mit explizit gewählter Graphdatei; Algorithmus nicht implementiert.
+    depends: [parse_models]
+    stdout:
+      artifact: demo/synonyms.json
+    action: k8s.run
+    with:
+      image: modeling-copilot/synonym-matching:0.3.0
+      image_pull_policy: IfNotPresent
+      env:
+        - name: WORKFLOW_EVALUATION_ID
+          value: ${evaluation_id}
+        - name: WORKFLOW_INPUT_PATH
+          value: demo/graphs/submission.json
+        - name: WORKFLOW_OUTPUT_PATH
+          value: demo/results/synonyms.json
+
+  - name: one_to_one_matching
+    description: Demo-Platzhalter mit explizit gewählter Graphdatei; Algorithmus nicht implementiert.
+    depends: [parse_models]
+    stdout:
+      artifact: demo/matching.json
+    action: k8s.run
+    with:
+      image: modeling-copilot/one-to-one-graph-matching:0.3.0
+      image_pull_policy: IfNotPresent
+      env:
+        - name: WORKFLOW_EVALUATION_ID
+          value: ${evaluation_id}
+        - name: WORKFLOW_INPUT_PATH
+          value: demo/graphs/submission.json
+        - name: WORKFLOW_OUTPUT_PATH
+          value: demo/results/matching.json
+
+  - name: minimal_matching_unit
+    description: Demo-Platzhalter mit explizit gewählter Graphdatei; Algorithmus nicht implementiert.
+    depends: [parse_models]
+    stdout:
+      artifact: demo/units.json
+    action: k8s.run
+    with:
+      image: modeling-copilot/minimal-matching-unit:0.3.0
+      image_pull_policy: IfNotPresent
+      env:
+        - name: WORKFLOW_EVALUATION_ID
+          value: ${evaluation_id}
+        - name: WORKFLOW_INPUT_PATH
+          value: demo/graphs/submission.json
+        - name: WORKFLOW_OUTPUT_PATH
+          value: demo/results/units.json
+
+  - name: feedback_aggregation
+    description: Fasst die explizit gewählten Demo-Ergebnisse zusammen; keine Bewertung.
+    depends: [synonym_matching, one_to_one_matching, minimal_matching_unit]
+    stdout:
+      artifact: evaluation-result.json
+    action: k8s.run
+    with:
+      image: modeling-copilot/feedback-generation:0.3.0
+      image_pull_policy: IfNotPresent
+      env:
+        - name: WORKFLOW_EVALUATION_ID
+          value: ${evaluation_id}
+        - name: TEMPLATE_INPUT
+          value: '{"input":{"synonyms":"demo/results/synonyms.json","matching":"demo/results/matching.json","units":"demo/results/units.json"}}'
+        - name: WORKFLOW_OUTPUT_PATH
+          value: demo/results/feedback.json
+
+  - name: publish_results
+    description: Veröffentlicht Dateipfade und kennzeichnet das Ergebnis ausdrücklich als Demo.
+    depends: [feedback_aggregation]
+    action: outputs.write
+    with:
+      values:
+        evaluationId: ${evaluation_id}
+        parsedModels: demo/graphs/
+        evaluationResult: evaluation-result.json
+        workspaceResult: demo/results/feedback.json
+        assessmentAvailable: false
