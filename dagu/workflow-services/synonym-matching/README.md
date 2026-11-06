@@ -103,7 +103,9 @@ src/synonym_matching/
   translation.py, lexicons.py     Übersetzungs- und Lexikonzugriff
   cache.py                       Ergebnisse pro Label wiederverwenden
 research/
-  compare.py, experiments.json     Versuche (Konfiguration) ausführen und vergleichen
+  experiments.json               Baukasten: Preprocessing, Verfahren, Ketten, Mischungen
+  experiments.py                 aus experiments.json die Versuche bauen, Sprachprüfung
+  compare.py                     Versuche ausführen, Zeiten messen, Ergebnisse speichern
   evaluation.py                  Zuordnung und Metriken
   rank_results.py                Top 3 berechnen und lesbar ausgeben
   build_model_cases.py            Testdaten erzeugen
