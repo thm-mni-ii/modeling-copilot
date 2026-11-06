@@ -2,22 +2,17 @@ import { reactive, ref, readonly, watch } from 'vue'
 import type { AxiosError } from 'axios'
 import type { RouteLocationNormalized, Router } from 'vue-router'
 import httpClient from '@/services/api/httpClient'
-import modelService from '@/services/model/model.service'
-import { cloneJson, type ModelSnapshot } from '@/model/ModelSnapshot'
+import { cloneJson } from '@/model/ModelSnapshot'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
-import type { JsonObject } from '@/services/api/types/common'
-import type { TaskVersionReference } from '@/services/api/types/common'
-import type { Model, WorkspaceLanguageReference } from '@/services/api/types/model'
+import type { Model } from '@/services/api/types/model'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import { createModelPatch } from '@/utils/modelPatches'
 import { loadCollabKit } from '@/collab/kit/collabKit'
-import type { CollabKitApi, Right, Session } from '@/collab/kit/collabKitV1'
+import type { Right } from '@/collab/kit/collabKitV1'
 import { openWorkpiece } from '@/collab/connection/openWorkpiece'
-import { hasChange, stepsOf, type HistoryMode, type HistoryStep, type PrivateVersion } from '@/collab/converters/model/modelHistory'
-import { sameUnits, type ModelUnit } from '@/collab/converters/model/modelUnits'
-import { CELLS_MAP, newWorkpiece } from '@/collab/storage/workpiece'
-import type { SharedMarks } from '@/collab/converters/task/marks'
-import { readTaskMarks, saveTaskMarks, writeTaskMarks } from './shareTask'
+import type { HistoryMode } from '@/collab/converters/model/modelHistory'
+import { forgetRoomHistory, keepRoomAsOwnModel, saveRoomAsNewModel, writeRoomToPrivateModel } from '@/collab/historyBuilder/fromRoom'
+import { buildRoomHistory, roomHistoryStart } from '@/collab/historyBuilder/toRoom'
+import { newWorkpiece } from '@/collab/storage/workpiece'
 
 /** What the host answers in the dialog before the link; visitors always see. */
 export interface ShareOptions {
@@ -75,12 +70,6 @@ export const hostClosed = ref(false)
 /** Set for a visitor while the host has been gone from the room for a while, as the presence tells it. */
 export const hostAway = ref(false)
 
-/** How often collab-kit is asked whether it holds what was written, and for how long. */
-const POLL_MS = 50
-const WAIT_MS = 10000
-
-const pause = () => new Promise((resolve) => setTimeout(resolve, POLL_MS))
-
 /** Fails with the reason the backend names (`{ code, message }`), else with the message of the error. */
 const request = async <Value>(run: () => Promise<{ data: Value }>) => {
   try {
@@ -92,61 +81,6 @@ const request = async <Value>(run: () => Promise<{ data: Value }>) => {
 
 /** How far the history is written while sharing, for the dialog; null when nothing is being written. */
 export const shareProgress = ref<{ done: number; total: number } | null>(null)
-
-/** The versions read at once from the API, and per page. */
-const BATCH = 6
-const PAGE = 100
-
-/** The versions of the private model with their whole state, oldest first. */
-const readPrivateVersions = async (model: Model): Promise<PrivateVersion[]> => {
-  const ids: string[] = []
-  for (let total = 1; ids.length < total; ) {
-    const { items, total: all } = (await modelService.listVersions(model, ids.length, PAGE)).data
-    if (items.length === 0) break
-    ids.push(...items.map((item) => item.id))
-    total = all
-  }
-  // The API lists the newest first; a version builds on the one before it.
-  ids.reverse()
-  const versions: PrivateVersion[] = []
-  for (let start = 0; start < ids.length; start += BATCH) {
-    const batch = await Promise.all(ids.slice(start, start + BATCH).map((id) => modelService.getVersion(model, id)))
-    for (const { data } of batch) versions.push({ info: data, xml: (data.data as ModelSnapshot).xml })
-  }
-  return versions
-}
-
-/** Waits until collab-kit holds every unit the session has, so a checkpoint marks exactly that state. */
-const waitUntilHeld = async (ck: CollabKitApi, workpieceId: string, session: Session<ModelUnit>) => {
-  const until = Date.now() + WAIT_MS
-  while (!sameUnits((await ck.workpieces.unitsAt<ModelUnit>(workpieceId, { map: CELLS_MAP })).units, session.units.entries())) {
-    if (Date.now() > until) throw new Error('collab-kit did not take the model in time.')
-    await pause()
-  }
-}
-
-/** Writes the steps into the new workpiece before anyone joins; a version ends in a checkpoint, set once collab-kit holds its state. */
-const writeHistory = async (ck: CollabKitApi, workpieceId: string, steps: HistoryStep[]) => {
-  const session = ck.open<ModelUnit>(workpieceId, { map: CELLS_MAP })
-  try {
-    await session.synced
-    shareProgress.value = { done: 0, total: steps.length }
-    for (const [index, step] of steps.entries()) {
-      // Out of undo, so the host cannot take the history back.
-      if (hasChange(step.change)) session.units.update(step.change, { undoable: false })
-      if (step.checkpoint) {
-        await waitUntilHeld(ck, workpieceId, session)
-        await ck.workpieces.checkpoint(workpieceId, step.checkpoint)
-      }
-      shareProgress.value = { done: index + 1, total: steps.length }
-    }
-    // The session may close only once collab-kit holds the last of it.
-    await waitUntilHeld(ck, workpieceId, session)
-  } finally {
-    session.close()
-    shareProgress.value = null
-  }
-}
 
 /** Whether the host presents: then everyone sees only the host's cursor and selection. Announced by the host through presence. */
 export const presenting = ref(false)
@@ -211,8 +145,8 @@ export const shareModel = async (router: Router, { history = 'none', ...options 
   if (current.value) await leaveShare(router, 'version')
 
   const workspace = useModelWorkspaceStore()
-  // The private model holds the state the host saves a version onto later.
-  await workspace.save()
+  // The private model holds the state the host saves a version onto later; with nothing open, it does already.
+  if (!workspace.model || workspace.dirty || workspace.taskEditDirty) await workspace.save()
   const privateModel = workspace.model
   if (!privateModel) throw new Error('The model could not be saved before sharing.')
   const xml = workspace.data.xml
@@ -222,30 +156,24 @@ export const shareModel = async (router: Router, { history = 'none', ...options 
   const task = options.task && Boolean(workspace.taskReference)
   const shared = await request(() => httpClient.post<{ roomId: string; workpieceId: string; hostId: string; created: boolean }>('/v1/share', { name, contract, units, ...options, task, modelId: privateModel.id }))
   const ck = await loadCollabKit()
+  const [room, workpiece] = await Promise.all([ck.rooms.get(shared.roomId), ck.workpieces.get(shared.workpieceId)])
   // The host already shares: the workpiece holds the live state, which must not be overwritten.
   if (shared.created) {
+    // The plain task is in the CK task already; what was marked or added privately goes along.
+    const edit = workspace.taskEdit?.document
+    const contentHtml = workspace.taskVersion?.data.contentHtml
     try {
-      const versions = history === 'none' ? [] : await readPrivateVersions(privateModel)
-      await writeHistory(ck, shared.workpieceId, stepsOf(versions, history, { xml, languages }))
+      await buildRoomHistory(ck, workpiece, { model: privateModel, mode: history, xml, languages, task: task && edit && contentHtml ? { document: edit, contentHtml } : null }, (done, total) => (shareProgress.value = { done, total }))
     } catch (error) {
       // The room is open with a half written workpiece, and another try would take it as shared already: end the share.
       await httpClient.post('/v1/share/close').catch(() => undefined)
       throw error
+    } finally {
+      shareProgress.value = null
     }
   }
 
-  const [room, workpiece] = await Promise.all([ck.rooms.get(shared.roomId), ck.workpieces.get(shared.workpieceId)])
-  // The plain task is in the CK task already; what was marked or added privately goes along.
-  const edit = workspace.taskEdit?.document
-  const html = workspace.taskVersion?.data.contentHtml
-  if (shared.created && task && edit && html) {
-    try {
-      await writeTaskMarks(ck, workpiece, edit, html)
-    } catch (error) {
-      notifyWarning(`The task edits could not be shared: ${(error as Error).message}`)
-    }
-  }
-  await openWorkpiece(router, room, workpiece)
+  await openWorkpiece(router, room, workpiece, { modelId: privateModel.id, ...(await roomHistoryStart(ck, workpiece)) })
   current.value = { roomId: shared.roomId, workpieceId: shared.workpieceId, hostId: shared.hostId, privateModelId: privateModel.id, linkedModelId: workspace.model?.id ?? null }
   return shareLink(router, shared.roomId)
 }
@@ -302,54 +230,16 @@ export const openQuitDialog = async () => {
 /** Opens the room again after a cancel and gives the visitors their rights back. */
 export const reopenShare = () => request(() => httpClient.put('/v1/share/open', { open: true }))
 
-/** Creates the model with the state as its first version, without touching the editor or the store. */
-const createModelFrom = async (data: ModelSnapshot, languages: WorkspaceLanguageReference[], name = data.name, task: { reference: TaskVersionReference; marks: SharedMarks } | null = null) => {
-  const model = (await modelService.create({ name, taskVersion: task?.reference ?? null })).data
-  const edit = task ? await saveTaskMarks(model.id, task.marks) : null
-  await modelService.createVersion(model, {
-    baseVersionId: null,
-    taskEditVersionId: edit?.versionId ?? null,
-    baseReleaseId: null,
-    workspaceLanguages: languages,
-    taskVersion: task?.reference ?? null,
-    data: { ...cloneJson(data), name },
-    patches: [],
-    kind: 'release',
-    releaseName: 'Initial release',
-    description: null
-  })
-  return model
-}
-
-/** Writes the state as the next version of the private model; the patch is the difference to its last version. */
-const saveAsVersion = async (modelId: string, data: ModelSnapshot, languages: WorkspaceLanguageReference[], marks: SharedMarks | null = null) => {
-  const model = (await modelService.get(modelId)).data
-  // The edits made in the room come into the task edit first, so the version points to them.
-  const edit = marks ? await saveTaskMarks(modelId, marks) : model.taskEdit
-  const base = (await modelService.getVersion(model, model.latestVersionId)).data
-  const patch = createModelPatch((base.data as ModelSnapshot).xml, data.xml)
-  // A checkpoint holds the state only as a patch, as in the store.
-  const withoutXml: JsonObject = cloneJson(data)
-  delete withoutXml.xml
-  await modelService.createVersion(model, {
-    baseVersionId: base.id,
-    taskEditVersionId: edit?.versionId ?? null,
-    baseReleaseId: base.kind === 'release' ? base.id : base.baseReleaseId,
-    workspaceLanguages: languages,
-    taskVersion: base.taskVersion,
-    data: withoutXml,
-    patches: patch ? [{ createdAt: new Date().toISOString(), xml: patch }] : [],
-    kind: 'checkpoint'
-  })
-  return model
-}
-
-/** Saves the state of the room as a checkpoint of the host's private model, as an evaluation needs a saved submission; gives back that model. */
+/**
+ * Writes what the room added into the host's private model, as an evaluation needs a saved submission;
+ * gives back that model. What is open becomes a version of the room first, so the room goes on after it.
+ */
 export const saveRoomCheckpoint = async () => {
   const share = current.value
   if (!share?.privateModelId) throw new Error('Only the host can evaluate the model.')
   const workspace = useModelWorkspaceStore()
-  await saveAsVersion(share.privateModelId, cloneJson(workspace.data), cloneJson(workspace.languages), await readTaskMarks(share.workpieceId))
+  if (workspace.dirty) await workspace.save()
+  await writeRoomToPrivateModel(share.privateModelId, share.workpieceId, { xml: workspace.data.xml, languages: cloneJson(workspace.languages) })
   return share.privateModelId
 }
 
@@ -367,6 +257,7 @@ const leaveLinked = async (router: Router, model: Model | null) => {
   personColors.value = {}
   hostClosed.value = false
   hostAway.value = false
+  forgetRoomHistory()
   await router.replace('/')
   if (linkedModelId) await httpClient.delete(`/v1/models/${linkedModelId}`)
   if (target) await router.push(target.fullPath)
@@ -416,12 +307,8 @@ export const leaveShare = async (router: Router, target: LeaveTarget, name?: str
   if (!share?.privateModelId) throw new Error('Only the host can close the room.')
   const workspace = useModelWorkspaceStore()
   await lockShare()
-  const data = cloneJson(workspace.data)
-  const languages = cloneJson(workspace.languages)
-  // What everyone marked or added at the task goes back with it; a model of the new kind keeps the task, so it stays among the tasks.
-  const marks = await readTaskMarks(share.workpieceId)
-  const reference = marks ? (await modelService.get(share.privateModelId)).data.taskVersion : null
-  const saved = target === 'version' ? await saveAsVersion(share.privateModelId, data, languages, marks) : await createModelFrom(data, languages, name, marks && reference ? { reference, marks } : null)
+  const state = { xml: workspace.data.xml, languages: cloneJson(workspace.languages) }
+  const saved = target === 'version' ? await writeRoomToPrivateModel(share.privateModelId, share.workpieceId, state) : await saveRoomAsNewModel(share.privateModelId, share.workpieceId, name ?? workspace.data.name, state)
   await request(() => httpClient.post('/v1/share/close'))
   await leaveLinked(router, saved)
 }
@@ -432,7 +319,7 @@ export const leaveShare = async (router: Router, target: LeaveTarget, name?: str
  */
 export const leaveAsVisitor = async (router: Router, keep: boolean, name?: string) => {
   const workspace = useModelWorkspaceStore()
-  const saved = keep ? await createModelFrom(cloneJson(workspace.data), cloneJson(workspace.languages), name) : null
+  const saved = keep ? await keepRoomAsOwnModel(name ?? workspace.data.name, { xml: workspace.data.xml, languages: cloneJson(workspace.languages) }) : null
   const roomId = current.value?.roomId
   if (roomId) await httpClient.post('/v1/share/leave', { roomId }).catch(() => undefined)
   await leaveLinked(router, saved)

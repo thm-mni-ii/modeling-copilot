@@ -31,4 +31,4 @@ export const languagesIn = (units: ReadonlyMap<string, ModelUnit>, workpiece: Wo
 export const languagesChange = (languages: WorkspaceLanguageReference[]): UnitChange<ModelUnit> => ({ set: { [LANGUAGES_KEY]: languages } })
 
 /** Whether collab-kit holds every unit as the session has it, so nothing of the own is on its way. */
-export const sameUnits = (stored: ReadonlyMap<string, ModelUnit>, own: [string, ModelUnit][]) => stored.size === own.length && own.every(([key, unit]) => JSON.stringify(stored.get(key)) === JSON.stringify(unit))
+export const sameUnits = <Value>(stored: ReadonlyMap<string, Value>, own: [string, Value][]) => stored.size === own.length && own.every(([key, unit]) => JSON.stringify(stored.get(key)) === JSON.stringify(unit))

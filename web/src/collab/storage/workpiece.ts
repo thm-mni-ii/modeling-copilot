@@ -21,15 +21,31 @@ export const newWorkpiece = (roomId: string, name: string, languages: WorkspaceL
   units: [{ path: [CELLS_MAP] }]
 })
 
+/** What the host's own model needs to show the whole history: the private model it comes from, and where the history of the room starts, which the private one does not have. */
+export interface HostLink {
+  modelId: string
+  /** The newest checkpoint of the workpiece when sharing began; null if there was none. */
+  checkpoint: string | null
+  /** The newest change of the task workpiece then; null if there was none. */
+  taskUpdate: string | null
+}
+
 /** Where an own model keeps the workpiece it shares; the other preferences stay as they are. */
 interface CollabLink {
   workpieceId: string
   roomId: string
+  host?: HostLink
 }
 
 export const linkOf = (preferences: JsonObject | undefined): CollabLink | null => {
   const link = preferences?.collab as Partial<CollabLink> | undefined
-  return typeof link?.workpieceId === 'string' && typeof link.roomId === 'string' ? { workpieceId: link.workpieceId, roomId: link.roomId } : null
+  if (typeof link?.workpieceId !== 'string' || typeof link.roomId !== 'string') return null
+  const host = link.host
+  return {
+    workpieceId: link.workpieceId,
+    roomId: link.roomId,
+    ...(typeof host?.modelId === 'string' ? { host: { modelId: host.modelId, checkpoint: typeof host.checkpoint === 'string' ? host.checkpoint : null, taskUpdate: typeof host.taskUpdate === 'string' ? host.taskUpdate : null } } : {})
+  }
 }
 
 /** The languages the workpiece was created with; older ones without get the UML class diagram. */

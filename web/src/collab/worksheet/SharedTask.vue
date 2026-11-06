@@ -48,9 +48,12 @@ import type { Session } from '@/collab/kit/collabKitV1'
 import { bindNotes, notesExtensions } from '@/collab/worksheet/notesBinding'
 import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/converters/task/marks'
 import { MARKS_MAP, NOTES_TEXT, taskLinkOf } from '@/collab/converters/task/taskLink'
-import { baseOf } from '@/collab/sharing/shareTask'
+import { baseOf, taskHistoryOf } from '@/collab/sharing/shareTask'
+import { linkOf } from '@/collab/storage/workpiece'
+import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { currentShare } from '@/collab/sharing/shareModel'
-import { sharedTaskEdit, sharedTaskSettings, writeSharedTask, type SharedTaskSettings } from './sharedTask'
+import type { TaskVersionReference } from '@/services/api/types/common'
+import { sharedTaskEdit, sharedTaskHistory, sharedTaskReference, sharedTaskSettings, writeSharedTask, type SharedTaskSettings } from './sharedTask'
 
 /**
  * The task shared along with a model of a room: its text fixed in a CK task, the marks on it as
@@ -72,6 +75,7 @@ const emit = defineEmits<{
   'start-evaluation': []
 }>()
 
+const workspace = useModelWorkspaceStore()
 const task = ref<DiagramTask | null>(null)
 const contentHtml = ref('')
 const document = shallowRef<JsonObject | null>(null)
@@ -156,8 +160,15 @@ onMounted(async () => {
     base = baseOf(html)
     contentHtml.value = html
     sharedTaskSettings.value = (shared.detail?.settings as SharedTaskSettings | undefined) ?? null
+    sharedTaskReference.value = (shared.detail?.taskVersion as TaskVersionReference | undefined) ?? null
     task.value = { id: shared._id, title: shared.title, content: html, createdAt: shared.createdAt, updatedAt: shared.createdAt }
 
+    // The host's model shows the private history first, and the history of the room after it.
+    const host = () => {
+      const own = linkOf(workspace.preferences)?.host
+      return own ? { modelId: own.modelId, after: own.taskUpdate } : undefined
+    }
+    sharedTaskHistory.value = taskHistoryOf(ck, link.workpieceId, base, html, (restored) => write(restored), host)
     const opened = ck.open<SharedMark>(link.workpieceId, { map: MARKS_MAP })
     session = opened
     await opened.synced
@@ -190,6 +201,8 @@ onBeforeUnmount(() => {
   unmounted = true
   sharedTaskEdit.value = null
   sharedTaskSettings.value = null
+  sharedTaskReference.value = null
+  sharedTaskHistory.value = null
   writeSharedTask.value = null
   unbindNotes?.()
   stops.forEach((stop) => stop())

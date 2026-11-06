@@ -1,4 +1,6 @@
 import { notifySuccess, notifyWarning } from '@/composables/useNotifications'
+import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
+import { followRoomHistory } from '@/collab/historyBuilder/fromRoom'
 import { loadCollabKit } from '@/collab/kit/collabKit'
 import type { Session } from '@/collab/kit/collabKitV1'
 import { currentShare, hostAway, hostClosed, visitorRights } from './shareModel'
@@ -30,6 +32,10 @@ export const watchShare = (session: Session) => {
     }
   }
   void session.synced.then(readRights, () => undefined)
+
+  // Once the room is closed nothing can be read any more, so what a visitor may take along is read while it is open.
+  const linked = useModelWorkspaceStore().model
+  const stopFollowing = linked ? followRoomHistory(linked, session.workpieceId) : () => undefined
 
   const stopRights = session.on('rightsChanged', async (mayWrite) => {
     void readRights()
@@ -81,6 +87,7 @@ export const watchShare = (session: Session) => {
   )
   return () => {
     stopped = true
+    stopFollowing()
     stopRights()
     stopClosed()
     stopPresence()

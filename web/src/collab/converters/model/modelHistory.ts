@@ -1,4 +1,4 @@
-import type { ModelPatch, ModelVersionInfo, WorkspaceLanguageReference } from '@/services/api/types/model'
+import type { ModelPatch, ModelVersionInfo, TaskEditDocument, WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { UnitChange } from '@/collab/kit/collabKitV1'
 import { applyModelPatches } from '@/utils/modelPatches'
 import { splitModel, type SharedCell } from './modelCells'
@@ -11,6 +11,8 @@ export type HistoryMode = 'none' | 'versions' | 'steps'
 export interface PrivateVersion {
   info: ModelVersionInfo
   xml: string
+  /** The task state this version points to; null if it points to none. */
+  task: TaskEditDocument | null
 }
 
 /** One change to write into the units and, after it, the checkpoint that names the state it leaves. */
@@ -18,10 +20,14 @@ export interface HistoryStep {
   change: UnitChange<ModelUnit>
   /** Set on the last step of a version. A label makes it a release in collab-kit, as the adapter reads it. */
   checkpoint?: { label?: string; reason?: string }
+  /** When it happened privately, to bring it in order with the steps of the task. */
+  createdAt: string
+  /** The task revision of its version: the task steps up to it come before its checkpoint. */
+  taskRevision: number
 }
 
 /** Whether a change writes or removes anything; a version equal to the one before has none. */
-export const hasChange = (change: UnitChange<ModelUnit>) => Object.keys(change.set ?? {}).length > 0 || (change.delete?.length ?? 0) > 0
+export const hasChange = <Value>(change: UnitChange<Value>) => Object.keys(change.set ?? {}).length > 0 || (change.delete?.length ?? 0) > 0
 
 /** The checkpoint of a version: a release carries its name (the number if it has none, as collab-kit knows a release by its label), the description is the reason. */
 const checkpointOf = ({ kind, releaseName, versionNumber, description }: ModelVersionInfo): HistoryStep['checkpoint'] => ({
@@ -33,13 +39,13 @@ const checkpointOf = ({ kind, releaseName, versionNumber, description }: ModelVe
  * The states a checkpoint passes through on its way from the version before: after every patch but
  * the last, whose state is the stored one. Empty if a patch does not apply, then the version is one step.
  */
-const middleStates = (before: string, patches: readonly Pick<ModelPatch, 'xml'>[]) => {
-  const states: string[] = []
+const middleStates = (before: string, patches: readonly ModelPatch[]) => {
+  const states: { xml: string; createdAt: string }[] = []
   try {
     let xml = before
     for (const patch of patches.slice(0, -1)) {
       xml = applyModelPatches(xml, [patch])
-      states.push(xml)
+      states.push({ xml, createdAt: patch.createdAt })
     }
   } catch {
     return []
@@ -77,19 +83,23 @@ export const stepsOf = (versions: readonly PrivateVersion[], mode: HistoryMode, 
 
   const steps: HistoryStep[] = []
   let before: string | null = null
-  for (const { info, xml } of mode === 'none' ? [] : versions) {
+  for (const { info, xml, task } of mode === 'none' ? [] : versions) {
+    const taskRevision = task?.revision ?? 0
     if (mode === 'steps' && info.kind === 'checkpoint' && before !== null) {
       for (const state of middleStates(before, info.patches)) {
-        const change = moveTo(state, info.workspaceLanguages)
-        if (hasChange(change)) steps.push({ change })
+        const change = moveTo(state.xml, info.workspaceLanguages)
+        if (hasChange(change)) steps.push({ change, createdAt: state.createdAt, taskRevision })
       }
     }
-    steps.push({ change: moveTo(xml, info.workspaceLanguages), checkpoint: checkpointOf(info) })
+    const lastPatch = info.kind === 'checkpoint' ? info.patches[info.patches.length - 1] : undefined
+    steps.push({ change: moveTo(xml, info.workspaceLanguages), checkpoint: checkpointOf(info), createdAt: lastPatch?.createdAt ?? info.createdAt, taskRevision })
     before = xml
   }
   if (live) {
     const change = moveTo(live.xml, live.languages)
-    if (hasChange(change)) steps.push({ change })
+    const now = { createdAt: new Date().toISOString(), taskRevision: Number.POSITIVE_INFINITY }
+    // Without a history the state is the one version visitors see, so it is a release of its own and not the empty start.
+    if (hasChange(change)) steps.push(mode === 'none' ? { change, checkpoint: { label: 'State at sharing' }, ...now } : { change, ...now })
   }
   return steps
 }

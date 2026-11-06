@@ -8,10 +8,10 @@
       </v-card-title>
       <v-progress-linear v-if="loading" indeterminate />
       <v-card-text>
-        <v-checkbox v-if="workspace.taskVersion" v-model="includeTaskEdits" label="Include task edit history" hide-details />
-        <v-expansion-panels v-if="timelineTaskEditSnapshot && workspace.taskVersion" class="mt-3" variant="accordion">
+        <v-checkbox v-if="task.active" v-model="includeTaskEdits" label="Include task edit history" hide-details />
+        <v-expansion-panels v-if="timelineTaskEditSnapshot && task.active" class="mt-3" variant="accordion">
           <v-expansion-panel title="Edits in this model state">
-            <v-expansion-panel-text><TaskEditEditor :base-html="workspace.taskVersion.data.contentHtml" :base-document="workspace.taskVersion.data.contentDocument" :model-value="timelineTaskEditSnapshot.document" mode="read" class="timeline-task-edits" /></v-expansion-panel-text>
+            <v-expansion-panel-text><TaskEditEditor :base-html="task.baseHtml" :base-document="task.baseDocument" :model-value="timelineTaskEditSnapshot.document" mode="read" class="timeline-task-edits" /></v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>
         <ModelSnapshotPreview :data="timelineData" :height="520" fit />
@@ -43,7 +43,7 @@
       <v-card-text>
         <v-text-field v-model="branchName" label="New model name" maxlength="256" counter autofocus @keyup.enter="createBranch" />
         <p class="text-caption text-medium-emphasis mb-0">The selected state becomes the initial release of a new model.</p>
-        <v-checkbox v-if="timelineTaskEditSnapshot" v-model="branchEdits" label="Use task edits from the selected position" hide-details />
+        <v-checkbox v-if="timelineTaskEditSnapshot && workspace.taskVersion" v-model="branchEdits" label="Use task edits from the selected position" hide-details />
       </v-card-text>
       <v-card-actions><v-spacer /><v-btn :disabled="branching" @click="branchDialog = false">Cancel</v-btn><v-btn color="primary" :loading="branching" :disabled="!branchName.trim()" @click="createBranch">Create branch</v-btn></v-card-actions>
     </v-card>
@@ -74,12 +74,14 @@ import { importModelFromXml } from '@/utils/modelPersistence'
 import { appendUnsavedTimelinePatches, buildModelTimeline, patchesForTimelineStep } from '@/utils/modelTimeline'
 import ModelSnapshotPreview from './ModelSnapshotPreview.vue'
 import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
-import { buildTaskEditTimeline, loadTaskEditHistory } from '@/utils/taskEditTimeline'
+import { buildTaskEditTimeline } from '@/utils/taskEditTimeline'
+import { useTaskHistory } from '@/collab/historyBuilder/useTaskHistory'
 import { notifyError } from '@/composables/useNotifications'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 const workspace = useModelWorkspaceStore()
+const task = useTaskHistory()
 const { graph } = useGraphContext()
 const router = useRouter()
 
@@ -113,7 +115,7 @@ const timelineSteps = computed(() => {
     saved: step.kind === 'release' || step.saved
   }))
   if (!includeTaskEdits.value) return positions
-  for (const taskStep of buildTaskEditTimeline(taskHistory.value, workspace.pendingTaskEditPatches, workspace.model?.taskEdit?.document ?? workspace.taskVersion?.data.contentDocument)) {
+  for (const taskStep of buildTaskEditTimeline(taskHistory.value, task.pending, task.start)) {
     let modelIndex = 0
     for (let index = 0; index < modelSteps.value.length; index++) {
       const step = modelSteps.value[index]
@@ -242,10 +244,10 @@ const updatePreview = async () => {
     } else timelineVersion.value = null
     const taskStep = selectedPosition.value?.taskStep
     let taskSnapshot = taskStep?.patch ? { schemaVersion: 1 as const, revision: workspace.taskEdit?.revision ?? 0, updatedAt: taskStep.createdAt, document: taskStep.patch.document }
-      : taskStep && workspace.model ? (await modelService.getTaskEditVersion(workspace.model.id, taskStep.id)).data
+      : taskStep ? await task.stateOf(taskStep.id)
       : timelineIsUnsaved.value ? workspace.taskEdit : timelineVersion.value?.taskEditSnapshot ?? null
     if (request !== timelineRequest) return
-    if (!taskSnapshot && workspace.taskVersion?.data.contentDocument) taskSnapshot = { schemaVersion: 1, revision: 0, updatedAt: workspace.taskVersion.createdAt, document: workspace.taskVersion.data.contentDocument }
+    if (!taskSnapshot && task.baseDocument) taskSnapshot = { schemaVersion: 1, revision: 0, updatedAt: workspace.taskVersion?.createdAt ?? new Date().toISOString(), document: task.baseDocument }
     selectedTaskSnapshot.value = taskSnapshot
     materializedStepIndex.value = timelineStep.value
   } catch {
@@ -261,7 +263,7 @@ const openTimeline = async () => {
   materializedStepIndex.value = -1
   try {
     await loadHistory()
-    taskHistory.value = workspace.model && workspace.taskVersion ? await loadTaskEditHistory(workspace.model.id) : []
+    taskHistory.value = task.active ? await task.list() : []
     timelineStep.value = Math.max(0, timelineSteps.value.length - 1)
     await updatePreview()
   } catch {
@@ -282,7 +284,7 @@ const confirmRestore = async () => {
   restoring.value = true
   try {
     await workspace.restoreSnapshot(timelineData.value, step.workspaceLanguages)
-    if (restoreEdits.value && timelineTaskEditSnapshot.value) await workspace.adoptTaskEditSnapshot(timelineTaskEditSnapshot.value)
+    if (restoreEdits.value && timelineTaskEditSnapshot.value) await task.restore(timelineTaskEditSnapshot.value)
     importModelFromXml(graph.value, workspace.data.xml)
     await workspace.save()
     restoreDialog.value = false

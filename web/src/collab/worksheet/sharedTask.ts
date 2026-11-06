@@ -1,6 +1,6 @@
 import { shallowRef } from 'vue'
-import type { JsonObject } from '@/services/api/types/common'
-import type { TaskEditDocument } from '@/services/api/types/model'
+import type { JsonObject, TaskVersionReference } from '@/services/api/types/common'
+import type { TaskEditDocument, TaskEditVersionInfo } from '@/services/api/types/model'
 import type { AutonomyMode } from '@/model/Autonomy'
 
 // Hier und nicht in der Komponente, weil Editor und Sidebar die Task des Raums beide brauchen und beim Teilen neu aufgebaut werden.
@@ -18,3 +18,19 @@ export interface SharedTaskSettings {
   evaluationWorkflows: string[]
 }
 export const sharedTaskSettings = shallowRef<SharedTaskSettings | null>(null)
+
+/** Which release of a task the room shows, so a visitor can try to keep the task along with the model; null while none is shown. */
+export const sharedTaskReference = shallowRef<TaskVersionReference | null>(null)
+
+/** What the dialogs of the task history need of a task of a room, in the shapes of the private history. */
+export interface TaskHistorySource {
+  contentHtml: string
+  contentDocument: JsonObject | null
+  /** The steps of the history, oldest first. */
+  list(): Promise<TaskEditVersionInfo[]>
+  /** The task state after a step. */
+  document(id: string): Promise<TaskEditDocument>
+  /** Takes a task state as the current one. */
+  restore(document: JsonObject): void
+}
+export const sharedTaskHistory = shallowRef<TaskHistorySource | null>(null)
