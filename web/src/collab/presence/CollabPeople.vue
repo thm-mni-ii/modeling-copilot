@@ -1,8 +1,8 @@
 <template>
   <div class="collab-people">
     <div class="collab-people__header">
-      <span>Online</span>
-      <v-btn :icon="open ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="x-small" variant="text" :aria-label="open ? 'Collapse online' : 'Expand online'" @click="open = !open" />
+      <span>People</span>
+      <v-btn :icon="open ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="x-small" variant="text" :aria-label="open ? 'Collapse people' : 'Expand people'" @click="open = !open" />
     </div>
     <v-expand-transition>
       <div v-show="open" class="collab-people__body">
@@ -21,7 +21,7 @@
 import { ref } from 'vue'
 
 // Kept beside the component, so it stays closed while another sidebar tab is shown.
-const open = ref(true)
+const open = ref(false)
 </script>
 
 <script setup lang="ts">

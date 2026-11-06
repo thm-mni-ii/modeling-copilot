@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Erlaubte Signaturverfahren; "none" fehlt bewusst, sonst gälten unsignierte Token.
+# Allowed signature algorithms; "none" is missing on purpose, otherwise unsigned tokens would count.
 JwtAlgorithm = Literal[
     "HS256", "HS384", "HS512",
     "RS256", "RS384", "RS512",
@@ -28,27 +28,36 @@ class Settings(BaseSettings):
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_database: str = "modeling"
 
-    # JWT. Das Feedbacksystem 2.0 signiert mit RS256; geprüft wird gegen die
-    # öffentlichen Schlüssel, die es als JWKS veröffentlicht. HS…-Verfahren prüfen
-    # stattdessen gegen jwt_secret (z. B. für selbst signierte Testtoken).
+    # JWT. The Feedbacksystem 2.0 signs with RS256; tokens are checked against the
+    # public keys it publishes as JWKS. HS… algorithms check against jwt_secret
+    # instead (e.g. for self-signed test tokens).
     jwt_algorithm: JwtAlgorithm = "RS256"
     jwt_jwks_uri: str = "http://localhost:8080/oauth2/jwks"  # Identity-Service des FBS
-    jwt_secret: str = "dev-only-secret-change-me-0123456789abcdef"  # nur für HS…
-    jwt_issuer: str = ""  # erwarteter Aussteller (iss); leer = nicht geprüft
-    jwt_audience: str = ""  # erwartete Client-IDs (aud), kommagetrennt; leer = nicht geprüft
-    jwt_leeway_seconds: int = 5  # Toleranz für Uhrenabweichungen beim Ablauf
+    jwt_secret: str = "dev-only-secret-change-me-0123456789abcdef"  # for HS… only
+    jwt_issuer: str = ""  # expected issuer (iss); empty = not checked
+    jwt_audience: str = ""  # expected client IDs (aud), comma-separated; empty = not checked
+    jwt_leeway_seconds: int = 5  # tolerance for clock skew at expiry
     jwt_user_claim: str = "id"  # Numerische Nutzer-ID aus dem Token
     jwt_roles_claim: str = "roles"  # Feld im Token mit Rollen-Liste (später definiert)
     jwt_global_role_claim: str = "globalRole"  # globale Rolle des Feedback-Systems
 
-    # Anmeldung ohne FBS: Den Code tauscht und das Token erneuert die API beim
-    # Identity-Service des FBS, so fragt der Browser dort nichts an und das Secret
-    # der App bleibt hier. Ohne Secret (PUBLIC) gibt das FBS kein Refresh-Token.
+    # Sign-in without FBS: the API exchanges the code and renews the token at the
+    # identity service of the FBS, so the browser asks nothing there and the secret
+    # of the app stays here. Without a secret (PUBLIC) the FBS gives no refresh token.
     # Use the same shell origin as VITE_FBS_HOST_ORIGIN to preserve the issuer.
     oidc_token_uri: str = "http://localhost:8083/oauth2/token"
     oidc_token_host: str = ""  # Public Host header when Docker uses an internal address
-    oidc_client_id: str = "modeling-copilot"  # Provider-ID der App im FBS
-    oidc_client_secret: str = ""  # Secret der App (CONFIDENTIAL)
+    oidc_client_id: str = "modeling-copilot"  # provider ID of the app in the FBS
+    oidc_client_secret: str = ""  # secret of the app (CONFIDENTIAL)
+
+    # Service identity towards Collab-Kit (CK): the API mints its own tokens, CK checks them
+    # with the public key. Issuer, algorithm and ID must match CK (SERVICE_*), the ID
+    # starts with "service-". Empty = sharing is switched off.
+    ck_base_url: str = "http://localhost:24202"
+    service_issuer: str = ""
+    service_algorithm: str = ""  # RS…, PS… oder ES…
+    service_actor: str = ""
+    service_private_key: str = ""  # PEM, also single-line with \n
 
     # Sonstiges
     docs_enabled: bool = True  # Swagger unter /docs anzeigen

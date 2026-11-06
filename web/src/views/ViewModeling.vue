@@ -31,12 +31,12 @@
       :connection-groups="connectionGroups"
       :connection-preferences="workspace.preferences"
       :language-syntax="syntax"
-      :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? 'free'"
-      :lock-autonomy-mode="Boolean(workspace.taskVersion)"
-      :connection-preview-allowed="workspace.taskVersion?.data.connectionPreviewAllowed ?? false"
+      :autonomy-mode="workspace.taskVersion?.data.autonomyMode ?? sharedTaskSettings?.autonomyMode ?? 'free'"
+      :lock-autonomy-mode="Boolean(workspace.taskVersion || sharedTaskSettings)"
+      :connection-preview-allowed="workspace.taskVersion?.data.connectionPreviewAllowed ?? sharedTaskSettings?.connectionPreviewAllowed ?? false"
       :canvas-windows="taskWindows"
-      :task-active="Boolean(workspace.taskReference)"
-      :task-edit="workspace.taskEdit"
+      :task-active="Boolean(workspace.taskReference || linkedWorkpieceId)"
+      :task-edit="taskEdit"
       :task-edit-sync-state="workspace.taskEditSyncState"
       :selected-task-edit-ids="selectedTaskEditIds"
       @window-removed="onWindowRemoved"
@@ -94,6 +94,8 @@
             @update:task-edit-document="workspace.updateTaskEditDocument"
           />
         </div>
+        <!-- Modell eines Raums: die mitgeteilte Aufgabe, sofern der Host eine geteilt hat. -->
+        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="task-area" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" @start-evaluation="startEvaluation" />
       </template>
       <template #window-content="{ definition }">
         <TaskEditEditor v-if="definition.role === 'task'" :key="workspace.taskReference?.versionId" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :base-document="workspace.taskVersion?.data.contentDocument" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" @update:model-value="workspace.updateTaskEditDocument" />
@@ -142,6 +144,10 @@ import LearningPathHelp from '@/components/learningPaths/LearningPathHelp.vue'
 import HelpRequestFlow from '@/components/learningPaths/HelpRequestFlow.vue'
 import { usePulseSurvey } from '@/composables/usePulseSurvey'
 import { useModelActivity } from '@/composables/useModelActivity'
+import SharedTask from '@/collab/worksheet/SharedTask.vue'
+import { sharedTaskEdit, sharedTaskSettings, writeSharedTask } from '@/collab/worksheet/sharedTask'
+import { saveRoomCheckpoint } from '@/collab/sharing/shareModel'
+import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
 interface Props {
   modelId?: string
@@ -153,12 +159,15 @@ const route = useRoute()
 const workspace = useModelWorkspaceStore()
 const activityReady = ref(false)
 useModelActivity(activityReady)
+const { linkedWorkpieceId } = useCollabConnection()
+// The task edits of the open model, or of the room if it shows one.
+const taskEdit = computed(() => workspace.taskEdit ?? sharedTaskEdit.value)
 const selectedTaskEditIds = ref<string[]>([])
 const selectTaskEdits = (ids: string[]) => {
   const selected = [...new Set(ids)]
   if (JSON.stringify(selected) !== JSON.stringify(selectedTaskEditIds.value)) selectedTaskEditIds.value = selected
 }
-watch(() => workspace.taskEdit?.document, (document) => {
+watch(() => taskEdit.value?.document, (document) => {
   const ids = new Set(collectTaskEdits(document).map((entry) => entry.id))
   selectTaskEdits(selectedTaskEditIds.value.filter((id) => ids.has(id)))
 })
@@ -387,12 +396,13 @@ const selectTaskConnection = (reference: { languageId: string; connectionType: s
 }
 const removeTaskEditById = (id: string) => {
   if (workspace.taskEdit) workspace.updateTaskEditDocument(removeTaskEdit(workspace.taskEdit.document, id))
+  else if (sharedTaskEdit.value) writeSharedTask.value?.(removeTaskEdit(sharedTaskEdit.value.document, id))
 }
 const focusTaskEdit = (target: TaskEditFocus) => {
   const host = document.querySelector<HTMLElement>(taskWindowOpen.value ? '.canvas-task-window-content .tiptap' : '.task-topbar__editor .tiptap')
   if (!host) { selectTaskEdits([target.id]); return }
   const editor = (host as HTMLElement & { editor?: import('@tiptap/core').Editor }).editor
-  const fragment = collectTaskEdits(workspace.taskEdit?.document).find((entry) => entry.id === target.id)?.fragments[0]
+  const fragment = collectTaskEdits(taskEdit.value?.document).find((entry) => entry.id === target.id)?.fragments[0]
   const from = target.from ?? fragment?.from, to = target.to ?? fragment?.to
   if (editor && from !== undefined && to !== undefined) {
     editor.commands.setTextSelection({ from, to })
@@ -404,13 +414,20 @@ const focusTaskEdit = (target: TaskEditFocus) => {
 }
 
 const startEvaluation = async () => {
-  if (!workspace.model || !workspace.taskVersion) return
-  if (!workspace.taskVersion.data.evaluationWorkflows[0]) return
+  // In a room only the host evaluates, on the private model that has the task; the state of the room goes in as its newest version.
+  const room = !workspace.taskVersion && sharedTaskSettings.value
+  if (!room && (!workspace.model || !workspace.taskVersion)) return
+  if (!(room ? sharedTaskSettings.value!.evaluationWorkflows : workspace.taskVersion!.data.evaluationWorkflows)[0]) return
   try {
     // A checkpoint creates an immutable submission reference whenever canvas
     // changes have not been persisted yet.
-    if (workspace.dirty) await workspace.save('checkpoint')
-    const evaluation = (await evaluationService.start(workspace.model.id)).data
+    let modelId: string
+    if (room) modelId = await saveRoomCheckpoint()
+    else {
+      if (workspace.dirty) await workspace.save('checkpoint')
+      modelId = workspace.model!.id
+    }
+    const evaluation = (await evaluationService.start(modelId)).data
     startedEvaluationId.value = evaluation.id
     notifySuccess('Evaluation started.')
   } catch (error) {
