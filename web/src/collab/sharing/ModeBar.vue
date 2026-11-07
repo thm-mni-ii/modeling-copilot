@@ -31,8 +31,9 @@ const AMBER = '#c77d0a'
 const { graph } = useGraphContext()
 const { isConnected, anonymous } = useCollabConnection()
 
-// The frame and the bar lie in the container of the canvas, as the cursors do, and are no part of the model.
-const container = computed(() => graph.value?.container)
+// The frame and the bar are no part of the model. They lie next to the container of the canvas, not in it:
+// while panning, maxGraph moves every child of the container with the canvas (panGraph in PanningMixin.js).
+const container = computed(() => graph.value?.container.parentElement)
 const visible = computed(() => Boolean(currentShare.value) && isConnected.value)
 const isHost = computed(() => Boolean(currentShare.value?.privateModelId))
 const presentingNow = computed(() => (isHost.value ? presenting.value : hostPresenting.value))
