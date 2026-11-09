@@ -1,7 +1,10 @@
 <template>
   <div class="collab-people">
     <div class="collab-people__header">
-      <span>People</span>
+      <span class="collab-people__title">
+        People
+        <span v-if="guests > 0" class="collab-people__count">{{ guests }}</span>
+      </span>
       <v-btn :icon="open ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="x-small" variant="text" :aria-label="open ? 'Collapse people' : 'Expand people'" @click="open = !open" />
     </div>
     <v-expand-transition>
@@ -18,7 +21,8 @@
 </template>
 
 <script lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { currentShare } from '@/collab/sharing/shareModel'
 
 // Kept beside the component, so it stays closed while another sidebar tab is shown.
 const open = ref(false)
@@ -27,7 +31,10 @@ const open = ref(false)
 <script setup lang="ts">
 import type { Person } from './presence'
 
-defineProps<{ people: Person[] }>()
+const props = defineProps<{ people: Person[] }>()
+
+/** People in the room besides the host, shown next to the title while the box is closed. */
+const guests = computed(() => props.people.filter((person) => person.id !== currentShare.value?.hostId).length)
 
 /** What else to tell of a person, such as "(you) · read only · 2 tabs". */
 const noteOf = (person: Person) => [person.self ? '(you)' : '', person.readOnly ? 'read only' : '', person.tabs > 1 ? `${person.tabs} tabs` : ''].filter(Boolean).join(' · ')
@@ -52,6 +59,14 @@ const noteOf = (person: Person) => [person.self ? '(you)' : '', person.readOnly 
   letter-spacing: 0.04em;
   color: rgba(var(--v-theme-on-surface), 0.62);
   text-transform: uppercase;
+}
+
+.collab-people__count {
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: color-mix(in srgb, rgb(var(--v-theme-primary)) 18%, transparent);
+  color: rgba(var(--v-theme-on-surface), 0.87);
 }
 
 .collab-people__body {

@@ -28,16 +28,24 @@ const charsOfText = (text: string, attributes: Attributes): Char[] => {
 /** The shared text as characters; a line ends with a newline, which carries whether it is a bullet. */
 export const charsOfDelta = (delta: TextDelta): Char[] => delta.flatMap((op) => ('insert' in op && typeof op.insert === 'string' ? charsOfText(op.insert, { ...op.attributes }) : []))
 
+/** Marks ohne Werte, die die Notizen wie die Leiste der Task kennen. */
+const SIMPLE_MARKS = ['bold', 'italic', 'underline', 'strike', 'code']
+
 const attributesOfMarks = (marks: JSONContent['marks']): Attributes => {
   const attributes: Attributes = {}
   for (const mark of marks ?? []) {
-    if (mark.type === 'bold' || mark.type === 'underline') attributes[mark.type] = true
+    if (mark.type && SIMPLE_MARKS.includes(mark.type)) attributes[mark.type] = true
     if (mark.type === 'highlight') attributes.highlight = mark.attrs?.color ?? true
+    if (mark.type === 'textStyle' && typeof mark.attrs?.color === 'string') attributes.color = mark.attrs.color
   }
   return attributes
 }
 
-const marksOfAttributes = (attributes: Attributes): JSONContent['marks'] => [...(attributes.bold ? [{ type: 'bold' }] : []), ...(attributes.underline ? [{ type: 'underline' }] : []), ...(attributes.highlight ? [{ type: 'highlight', attrs: typeof attributes.highlight === 'string' ? { color: attributes.highlight } : {} }] : [])]
+const marksOfAttributes = (attributes: Attributes): JSONContent['marks'] => [
+  ...SIMPLE_MARKS.filter((type) => attributes[type]).map((type) => ({ type })),
+  ...(typeof attributes.color === 'string' ? [{ type: 'textStyle', attrs: { color: attributes.color } }] : []),
+  ...(attributes.highlight ? [{ type: 'highlight', attrs: typeof attributes.highlight === 'string' ? { color: attributes.highlight } : {} }] : [])
+]
 
 /** The editor document as characters; a nested bullet counts as a bullet like any other. */
 export const charsOfDoc = (document: JSONContent): Char[] => {
