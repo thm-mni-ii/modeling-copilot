@@ -8,6 +8,7 @@ import type { CollabEvent, CollabKitApi, Workpiece } from '@/collab/kit/collabKi
 import { liveSession } from '@/collab/kit/liveSession'
 import { languagesIn, sameUnits, xmlOf, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { sharedTaskHistory } from '@/collab/worksheet/sharedTask'
+import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { CELLS_MAP, languagesOf, linkOf } from './workpiece'
 
 /** The version methods of model.service for a model shared through a workpiece, in the shapes of the API. */
@@ -215,6 +216,9 @@ export const versionsOf = (model: Model): ModelVersions | null => {
   return {
     listVersions: async (skip, limit) => {
       const room = (await read(true)).entries.map(({ info }) => info).reverse()
+      // Ein anderer im Raum hat seit dem eigenen Save gespeichert: dessen Version wird die Basis des offenen Modells.
+      const workspace = useModelWorkspaceStore()
+      if (room[0] && workspace.model?.id === model.id) await workspace.rebaseOnVersion(room[0])
       const items = host ? [...room, ...(await privateAll())] : room
       return { data: { items: items.slice(skip, skip + limit), total: items.length } }
     },
