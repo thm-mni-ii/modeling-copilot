@@ -1,18 +1,34 @@
+# Create ConfigMaps and Secrets separately in Portainer, namespace modeling-copilot.
+# Reference values only; keep these resources and the namespace when redeploying.
+#
+# ConfigMap: modeling-copilot-config
+# MONGODB_DATABASE: modeling
+# DOCS_ENABLED: "false"
+# CORS_ORIGINS: ''
+#
+# ConfigMap: collab-kit-config
+# MONGODB_DB: collab_kit
+# ALLOWED_ORIGINS: ''
+# CK_BASE_URL: http://collab-kit:24202
+# SERVICE_ISSUER: modeling-copilot-api
+# SERVICE_ALGORITHM: ES256
+# SERVICE_ACTOR: service-modeling-copilot
+# SERVICE_PUBLIC_KEY: ''
+#
+# Secret: modeling-copilot-api-secrets
+# DB_USER: ''
+# DB_PASSWORD: ''
+# SERVICE_PRIVATE_KEY: ''
+# OIDC_CLIENT_SECRET: '' (optional)
+#
+# Secret: collab-kit-secrets
+# DB_USER: ''
+# DB_PASSWORD: ''
+# MONGO_KEYFILE: ''
 apiVersion: v1
 kind: Namespace
 metadata:
   name: modeling-copilot
-
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: modeling-copilot-config
-  namespace: modeling-copilot
-data:
-  MONGODB_DATABASE: modeling
-  DOCS_ENABLED: "false"
-  CORS_ORIGINS: ""
 
 ---
 apiVersion: v1
@@ -465,31 +481,6 @@ spec:
 # holds DB_USER, DB_PASSWORD and MONGO_KEYFILE.
 # MONGO_KEYFILE is raw secret material (prefer a random value of 32-768 bytes).
 # The init container encodes it as base64 for MongoDB's keyfile format.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: collab-kit-config
-  namespace: modeling-copilot
-data:
-  MONGODB_DB: collab_kit
-  # Origin of the Modeling Copilot, e.g. https://<host>; blank allows every origin.
-  ALLOWED_ORIGINS: ''
-  # Internal Collab-Kit URL used by the API, not the browser's public URL.
-  CK_BASE_URL: http://collab-kit:24202
-  # Shared service identity for API-signed tokens; blank keeps sharing disabled.
-  # Token issuer, e.g. modeling-copilot-api.
-  SERVICE_ISSUER: ''
-  # Signing algorithm matching the key pair, e.g. ES256 for EC P-256.
-  SERVICE_ALGORITHM: ''
-  # Service identity starting with service-, e.g. service-modeling-copilot.
-  SERVICE_ACTOR: ''
-  # Full PEM public key, including BEGIN/END lines; use a YAML block for multiline PEM.
-  # Store the matching SERVICE_PRIVATE_KEY only in modeling-copilot-api-secrets.
-  # With all four SERVICE_* values set, Collab-Kit grants SERVICE_ACTOR every right
-  # in its "services" group on startup.
-  SERVICE_PUBLIC_KEY: ''
-
----
 apiVersion: v1
 kind: Service
 metadata:

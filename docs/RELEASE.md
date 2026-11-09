@@ -33,6 +33,19 @@ Set each package's desired visibility (`private` or `public`) there.
 
 ## Create a release
 
+### Portainer instance configuration
+
+1. Create namespace `modeling-copilot` and manage its instance ConfigMaps and
+   Secrets separately in Portainer. Required entries and suggested values are
+   listed at the top of [`k3s-portainer.yaml`](../k3s-portainer.yaml).
+2. Supply credentials and an EC P-256 PEM key pair for `ES256`.
+3. Deploy `k3s-portainer.yaml`; restart API and Collab-Kit after config changes.
+
+Keep the namespace and instance configuration on redeploy. When switching from
+the old manifest, back up ConfigMaps first; Portainer may remove omitted resources.
+
+### Tag and publish
+
 After the `dev` to `main` pull request has been merged, create and push the
 annotated release tag locally:
 
