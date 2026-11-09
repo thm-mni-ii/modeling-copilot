@@ -298,16 +298,28 @@ spec:
                   key: OIDC_CLIENT_SECRET
                   # Optional, so the API also starts before the secret exists.
                   optional: true
-            # Own tokens for collab-kit; blank means sharing is off. Issuer, algorithm and
-            # actor must match collab-kit above, the private key goes into the secret.
+            # Shared service settings are managed in collab-kit-config in Portainer.
             - name: CK_BASE_URL
-              value: http://collab-kit:24202
+              valueFrom:
+                configMapKeyRef:
+                  name: collab-kit-config
+                  key: CK_BASE_URL
             - name: SERVICE_ISSUER
-              value: ""
+              valueFrom:
+                configMapKeyRef:
+                  name: collab-kit-config
+                  key: SERVICE_ISSUER
             - name: SERVICE_ALGORITHM
-              value: ""
+              valueFrom:
+                configMapKeyRef:
+                  name: collab-kit-config
+                  key: SERVICE_ALGORITHM
             - name: SERVICE_ACTOR
-              value: ""
+              valueFrom:
+                configMapKeyRef:
+                  name: collab-kit-config
+                  key: SERVICE_ACTOR
+            # The API signs Collab-Kit service tokens with this private key.
             - name: SERVICE_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
@@ -462,6 +474,20 @@ data:
   MONGODB_DB: collab_kit
   # Origin of the Modeling Copilot, e.g. https://<host>; blank allows every origin.
   ALLOWED_ORIGINS: ''
+  # Internal Collab-Kit URL used by the API, not the browser's public URL.
+  CK_BASE_URL: http://collab-kit:24202
+  # Shared service identity for API-signed tokens; blank keeps sharing disabled.
+  # Token issuer, e.g. modeling-copilot-api.
+  SERVICE_ISSUER: ''
+  # Signing algorithm matching the key pair, e.g. ES256 for EC P-256.
+  SERVICE_ALGORITHM: ''
+  # Service identity starting with service-, e.g. service-modeling-copilot.
+  SERVICE_ACTOR: ''
+  # Full PEM public key, including BEGIN/END lines; use a YAML block for multiline PEM.
+  # Store the matching SERVICE_PRIVATE_KEY only in modeling-copilot-api-secrets.
+  # With all four SERVICE_* values set, Collab-Kit grants SERVICE_ACTOR every right
+  # in its "services" group on startup.
+  SERVICE_PUBLIC_KEY: ''
 
 ---
 apiVersion: v1
@@ -671,17 +697,6 @@ spec:
               value: globalRole
             - name: TOP_VALUES
               value: ADMIN,MODERATOR
-            # The api signs its own tokens; only its public key lies here, blank means no
-            # service. With all four set, collab-kit creates the group "services" with every
-            # right for SERVICE_ACTOR on each start. Values must match the api below.
-            - name: SERVICE_ISSUER
-              value: ""
-            - name: SERVICE_ALGORITHM
-              value: ""
-            - name: SERVICE_PUBLIC_KEY
-              value: ""
-            - name: SERVICE_ACTOR
-              value: ""
           envFrom:
             - configMapRef:
                 name: collab-kit-config
