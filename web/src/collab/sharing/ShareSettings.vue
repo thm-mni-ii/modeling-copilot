@@ -6,11 +6,11 @@
     </div>
     <v-expand-transition>
       <div v-show="open" class="share-settings__body">
-        <v-switch :model-value="shareSettings.joinable" color="primary" density="compact" hide-details label="Accept new visitors" :disabled="disabled" @update:model-value="toggleShareSetting('joinable')" />
-        <v-switch :model-value="shareSettings.edit" color="primary" density="compact" hide-details label="Visitors may edit" :disabled="disabled" @update:model-value="toggleShareSetting('edit')" />
-        <v-switch :model-value="shareSettings.comment" color="primary" density="compact" hide-details label="Visitors may comment" :disabled="disabled" @update:model-value="toggleShareSetting('comment')" />
-        <v-switch :model-value="shareSettings.anonymous" color="primary" density="compact" hide-details label="Visitors anonymous" :disabled="disabled" @update:model-value="toggleShareSetting('anonymous')" />
-        <v-switch v-model="presenting" color="primary" density="compact" label="Presentation mode" hint="Others only see your cursor." persistent-hint :disabled="shareDialog === 'quit'" />
+        <!-- Dieselben Schalter wie in der ModeBar; das Präsentieren wartet nicht auf geladene Einstellungen. -->
+        <button v-for="item in hostToggles" :key="item.key" type="button" class="share-toggle" :class="{ 'share-toggle--on': item.on, 'share-toggle--present': item.key === 'present' }" :title="item.title" :aria-label="item.title" :aria-pressed="item.on" :disabled="item.key === 'present' ? shareDialog === 'quit' : disabled" @click="item.toggle()">
+          <v-icon :icon="item.icon" size="20" />
+          <span>{{ item.label }}</span>
+        </button>
       </div>
     </v-expand-transition>
   </div>
@@ -25,7 +25,7 @@ const open = ref(true)
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { loadShareSettings, presenting, shareDialog, shareSettingsBusy, shareSettings, toggleShareSetting } from './shareModel'
+import { hostToggles, loadShareSettings, shareDialog, shareSettingsBusy } from './shareModel'
 
 // Until the values are read, the switches would show what is not set; while the host decides how to leave, nothing changes.
 const disabled = computed(() => shareSettingsBusy() || shareDialog.value === 'quit')
@@ -54,7 +54,43 @@ onMounted(loadShareSettings)
 }
 
 .share-settings__body {
-  padding: 2px 10px 6px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 8px 10px;
   border-top: 1px solid rgba(var(--v-theme-outline), 0.15);
+}
+
+/* In der Sidebar grün in der Primärfarbe, in der ModeBar blau; Präsentieren an beiden Stellen rot. */
+.share-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 58px;
+  border: 1px solid rgba(var(--v-theme-outline), 0.25);
+  border-radius: 8px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.share-toggle--on {
+  background: rgba(var(--v-theme-primary), 0.12);
+  border-color: rgba(var(--v-theme-primary), 0.35);
+  /* Dunkleres Grün, damit die Schrift auf dem hellen Grund gut lesbar ist. */
+  color: color-mix(in srgb, rgb(var(--v-theme-primary)) 65%, black);
+}
+
+.share-toggle--present.share-toggle--on {
+  background: #f8e1e0;
+  border-color: #f0c4c2;
+  color: #a63e3a;
+}
+
+.share-toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 </style>

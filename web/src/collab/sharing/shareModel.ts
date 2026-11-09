@@ -1,4 +1,4 @@
-import { reactive, ref, readonly, watch } from 'vue'
+import { computed, reactive, ref, readonly, watch } from 'vue'
 import type { AxiosError } from 'axios'
 import type { RouteLocationNormalized, Router } from 'vue-router'
 import httpClient from '@/services/api/httpClient'
@@ -26,11 +26,14 @@ export interface ShareOptions {
 const defaultChoice = () => ({ anonymous: false, edit: true, comment: true, task: true, history: 'none' as HistoryMode })
 export const shareChoice = reactive(defaultChoice())
 
+// Kommentare von collab-kit nutzt der Editor noch nicht; bis dahin ist der Schalter ausgeblendet, Besucher behalten `speak`.
+export const COMMENTS_ENABLED = false
+
 /** The visitor settings of both dialogs: a new one needs its key in `ShareOptions` and one entry here. `on` and `off` tell how the dialog with the link shows it; `open` is the value that gives the visitors more, shown in green, the other one in gray. */
 export const visitorSettings: { key: keyof ShareOptions; label: string; hint: string; open: boolean; on: { icon: string; text: string }; off: { icon: string; text: string } }[] = [
   { key: 'anonymous', label: 'Anonymous', hint: 'Others see a pseudonym instead of the name', open: false, on: { icon: 'mdi-incognito', text: 'Anonymous' }, off: { icon: 'mdi-account-outline', text: 'Named' } },
   { key: 'edit', label: 'May edit', hint: 'Change the model together with you', open: true, on: { icon: 'mdi-pencil', text: 'May edit' }, off: { icon: 'mdi-pencil-off', text: 'View only' } },
-  { key: 'comment', label: 'May comment', hint: 'Leave comments on elements', open: true, on: { icon: 'mdi-comment-outline', text: 'May comment' }, off: { icon: 'mdi-comment-off-outline', text: 'No comments' } }
+  ...(COMMENTS_ENABLED ? [{ key: 'comment' as const, label: 'May comment', hint: 'Leave comments on elements', open: true, on: { icon: 'mdi-comment-outline', text: 'May comment' }, off: { icon: 'mdi-comment-off-outline', text: 'No comments' } }] : [])
 ]
 
 /** How much of the private history goes into the shared workpiece. */
@@ -186,6 +189,29 @@ export const toggleShareSetting = async (key: SettingKey) => {
     settingsSaving.value = false
   }
 }
+
+/** Ein Schalter des Hosts, gleich in der Sidebar und in der Leiste am Canvas; `sidebarOnly` fehlt in der Leiste. `label` ist der kurze, feste Name der Kachel in der Sidebar, `title` der Tooltip. */
+export interface HostToggle {
+  key: string
+  label: string
+  on: boolean
+  icon: string
+  title: string
+  toggle: () => void
+  sidebarOnly?: boolean
+}
+
+// Eine Quelle für Sidebar und ModeBar, damit Icons und Texte an beiden Stellen gleich bleiben.
+export const hostToggles = computed<HostToggle[]>(() => {
+  const { joinable, edit, comment, anonymous } = shareSettings
+  return [
+    { key: 'joinable', label: 'New visitors', sidebarOnly: true, on: joinable, icon: joinable ? 'mdi-account-plus-outline' : 'mdi-account-off-outline', title: joinable ? 'New visitors may join' : 'No new visitors', toggle: () => void toggleShareSetting('joinable') },
+    { key: 'edit', label: 'Editing', on: edit, icon: edit ? 'mdi-pencil' : 'mdi-pencil-off', title: edit ? 'Visitors may edit' : 'Visitors may not edit', toggle: () => void toggleShareSetting('edit') },
+    ...(COMMENTS_ENABLED ? [{ key: 'comment', label: 'Comments', on: comment, icon: comment ? 'mdi-comment-outline' : 'mdi-comment-off-outline', title: comment ? 'Visitors may comment' : 'Visitors may not comment', toggle: () => void toggleShareSetting('comment') }] : []),
+    { key: 'anonymous', label: 'Anonymous', on: anonymous, icon: anonymous ? 'mdi-incognito' : 'mdi-account-outline', title: anonymous ? 'Visitors are anonymous' : 'Visitors are named', toggle: () => void toggleShareSetting('anonymous') },
+    { key: 'present', label: 'Presenting', on: presenting.value, icon: 'mdi-cursor-default-outline', title: presenting.value ? 'Stop presenting' : 'Presentation mode: others only see your cursor', toggle: () => (presenting.value = !presenting.value) }
+  ]
+})
 
 /** Which dialog is open; it lives here and not in a component, as the editor and its sidebar are rebuilt while sharing and leaving. */
 export const shareDialog = ref<'ask' | 'link' | 'quit' | 'leave' | null>(null)

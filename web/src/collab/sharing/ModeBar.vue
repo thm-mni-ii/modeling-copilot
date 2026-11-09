@@ -22,7 +22,7 @@
 import { computed, watch } from 'vue'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { useGraphContext } from '@/composables/useGraphContext'
-import { announcedRights, currentShare, hostAway, hostPresenting, loadShareSettings, presenting, shareDialog, shareSettings, shareSettingsBusy, toggleShareSetting, visitorRights } from './shareModel'
+import { COMMENTS_ENABLED, announcedRights, currentShare, hostAway, hostPresenting, hostToggles, loadShareSettings, presenting, shareDialog, shareSettingsBusy, visitorRights } from './shareModel'
 
 const BLUE = '#3f8ad6'
 const CORAL = '#cf5c58'
@@ -62,15 +62,7 @@ interface ModeButton {
 
 /** The host switches each setting; a visitor sees only what they may do, and nothing of what they may not. */
 const buttons = computed<ModeButton[]>(() => {
-  if (isHost.value) {
-    const { edit, comment, anonymous: hidden } = shareSettings
-    return [
-      { key: 'edit', kind: 'toggle', on: edit, icon: edit ? 'mdi-pencil' : 'mdi-pencil-off', title: edit ? 'Visitors may edit' : 'Visitors may not edit', toggle: () => void toggleShareSetting('edit') },
-      { key: 'comment', kind: 'toggle', on: comment, icon: comment ? 'mdi-comment-outline' : 'mdi-comment-off-outline', title: comment ? 'Visitors may comment' : 'Visitors may not comment', toggle: () => void toggleShareSetting('comment') },
-      { key: 'anonymous', kind: 'toggle', on: hidden, icon: hidden ? 'mdi-incognito' : 'mdi-account-outline', title: hidden ? 'Visitors are anonymous' : 'Visitors are named', toggle: () => void toggleShareSetting('anonymous') },
-      { key: 'present', kind: 'toggle', on: presenting.value, icon: 'mdi-cursor-default-outline', title: presenting.value ? 'Stop presenting' : 'Presentation mode: others only see your cursor', toggle: () => (presenting.value = !presenting.value) }
-    ]
-  }
+  if (isHost.value) return hostToggles.value.filter((item) => !item.sidebarOnly).map((item) => ({ ...item, kind: 'toggle' as const }))
   // The host's announcement comes at once; CK tells editing only after a reconnect and commenting not at all.
   const announced = announcedRights.value
   const mayEdit = !visitorRights.locked && (announced?.edit ?? visitorRights.edit)
@@ -78,7 +70,7 @@ const buttons = computed<ModeButton[]>(() => {
   const isAnonymous = announced?.anonymous ?? anonymous.value
   const held: ModeButton[] = []
   if (mayEdit) held.push({ key: 'edit', kind: 'info', on: true, icon: 'mdi-pencil', title: 'You can edit', toggle: () => undefined })
-  if (mayComment) held.push({ key: 'comment', kind: 'info', on: true, icon: 'mdi-comment-outline', title: 'You can comment', toggle: () => undefined })
+  if (COMMENTS_ENABLED && mayComment) held.push({ key: 'comment', kind: 'info', on: true, icon: 'mdi-comment-outline', title: 'You can comment', toggle: () => undefined })
   if (isAnonymous) held.push({ key: 'anonymous', kind: 'info', on: true, icon: 'mdi-incognito', title: 'You appear anonymous', toggle: () => undefined })
   if (held.length === 0) held.push({ key: 'view', kind: 'info', on: true, icon: 'mdi-eye-outline', title: 'You can only view', toggle: () => undefined })
   return held
