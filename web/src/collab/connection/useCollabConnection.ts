@@ -20,7 +20,7 @@ import { startPresence, type Person } from '@/collab/presence/presence'
 const WORKPIECE_KEY = 'collabWorkpieceId'
 const LIVE_CLASS = 'collab-live'
 /** The actions of the workspace that change the languages of the model. */
-const LANGUAGE_ACTIONS = new Set(['addLanguage', 'changeLanguageVersion', 'removeLanguage', 'moveLanguage'])
+const LANGUAGE_ACTIONS = new Set(['addLanguage', 'changeLanguageVersion', 'removeLanguage', 'moveLanguage', 'importFile'])
 
 // One connection for the page: the editor holds it, the sync sidebar only shows it.
 const isConnected = ref(false)

@@ -1442,8 +1442,15 @@ const loadPersistedModel = (data: Record<string, unknown>) => {
 }
 
 const onWindowRemoved = (id: string) => emit('window-removed', id)
+const resetUndoHistory = () => {
+  if (!graph.value) return
+  undoManagerApi?.destroy()
+  undoManagerApi = setupUndoManager(graph.value, applyUndoState)
+}
 defineExpose({
   graph,
+  resetUndoHistory,
+  fitToWindow,
   clearCanvas,
   addCanvasWindow,
   updateCanvasWindow,

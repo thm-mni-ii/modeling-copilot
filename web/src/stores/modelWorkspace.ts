@@ -290,6 +290,20 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     return preferenceSave
   }
 
+  const importFile = async (snapshotData: JsonObject, references: LanguageVersionReference[]) => {
+    const required = languages.value.filter((reference) => reference.source === 'required')
+    for (const reference of required) {
+      if (references.some((item) => item.languageId === reference.languageId && item.versionId !== reference.versionId)) throw new Error('The imported model uses a different version of a required task language.')
+    }
+    const imported: WorkspaceLanguage[] = references.map((reference) => ({ ...reference, source: 'additional' }))
+    const next = [...required, ...imported.filter((reference) => !required.some((item) => item.languageId === reference.languageId))]
+    // Resolve every dependency before changing workspace data or language references.
+    await loadLanguages(next)
+    languages.value = cloneJson(next)
+    setData(snapshotData)
+    markDirty()
+  }
+
   const restoreSnapshot = async (snapshotData: JsonObject, snapshotLanguages: WorkspaceLanguage[]) => {
     if (!model.value) throw new Error('No model is loaded.')
     const currentModel = await modelService.get(model.value.id)
@@ -566,6 +580,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     moveLanguage,
     rename,
     updatePreferences,
+    importFile,
     restoreSnapshot,
     branchSnapshot,
     branchVersion,

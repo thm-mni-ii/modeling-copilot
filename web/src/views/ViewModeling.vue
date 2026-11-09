@@ -144,6 +144,7 @@ import LearningPathHelp from '@/components/learningPaths/LearningPathHelp.vue'
 import HelpRequestFlow from '@/components/learningPaths/HelpRequestFlow.vue'
 import { usePulseSurvey } from '@/composables/usePulseSurvey'
 import { useModelActivity } from '@/composables/useModelActivity'
+import { provideModelFileContext } from '@/composables/useModelFileContext'
 import SharedTask from '@/collab/worksheet/SharedTask.vue'
 import { sharedTaskEdit, sharedTaskSettings, writeSharedTask } from '@/collab/worksheet/sharedTask'
 import { saveRoomCheckpoint } from '@/collab/sharing/shareModel'
@@ -172,7 +173,7 @@ watch(() => taskEdit.value?.document, (document) => {
   selectTaskEdits(selectedTaskEditIds.value.filter((id) => ids.has(id)))
 })
 watch([() => workspace.model?.id, () => workspace.taskReference?.versionId], () => selectTaskEdits([]))
-const canvas = ref<{ serializeModel: () => JsonObject; loadPersistedModel: (data: JsonObject) => void; selectConnectionByType: (languageId: string, connectionType: string) => boolean } | null>(null)
+const canvas = ref<{ serializeModel: () => JsonObject; loadPersistedModel: (data: JsonObject) => void; resetUndoHistory: () => void; fitToWindow: () => void; selectConnectionByType: (languageId: string, connectionType: string) => boolean } | null>(null)
 const graphModel = ref<GraphDataModel>()
 const recoveryDialog = ref(false)
 const recoveryData = ref<JsonObject | null>(null)
@@ -185,6 +186,29 @@ const helpBusy = ref(false)
 const currentHelp = ref<HelpRequest | null>(null)
 const helpActive = computed(() => Boolean(currentHelp.value && !['completed', 'cancelled'].includes(currentHelp.value.stage)))
 const helpMarking = computed(() => currentHelp.value?.stage === 'marking')
+const fileImportDisabledReason = computed(() => loading.value || hydrating.value || workspace.saving ? 'Wait until the model has finished loading or saving.' : helpMarking.value ? 'This model is currently read-only.' : '')
+provideModelFileContext({
+  disabledReason: fileImportDisabledReason,
+  workspaceLanguages: computed(() => workspace.languages.map(({ languageId, versionId }) => ({ languageId, versionId }))),
+  languages: computed(() => workspace.editorLanguages.map(({ language, version }) => ({
+    languageId: language.id, versionId: version.id, name: language.name,
+    data: version.data, includedLanguageVersions: version.includedLanguageVersions
+  }))),
+  importModel: async (model, references) => {
+    if (fileImportDisabledReason.value) throw new Error(fileImportDisabledReason.value)
+    hydrating.value = true
+    try {
+      await workspace.importFile({ format: 'maxgraph-xml', version: 1, xml: model.model.xml, name: workspace.data.name }, references)
+      await nextTick()
+      canvas.value?.loadPersistedModel(workspace.data)
+      canvas.value?.fitToWindow()
+      await nextTick()
+      canvas.value?.resetUndoHistory()
+    } finally {
+      hydrating.value = false
+    }
+  }
+})
 const helpCellIds = ref<string[]>([])
 const helpTextRanges = ref<HelpTextRange[]>([])
 const helpSnapshot = ref<ModelVersion | null>(null)
