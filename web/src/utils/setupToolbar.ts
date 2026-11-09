@@ -1,8 +1,8 @@
 import type { Ref } from 'vue'
 import type { Graph, Cell } from '@maxgraph/core'
-import { MaxToolbar, Geometry, cellArrayUtils } from '@maxgraph/core'
+import { MaxToolbar, Geometry, cellArrayUtils, CellHighlight, Point, styleUtils, constants } from '@maxgraph/core'
 import { Cell as MaxGraphCell } from '@maxgraph/core'
-import { addCellsToContainer } from './setupSwimlaneSupport'
+import { addCellsToContainer, isContainerSectionTarget } from './setupSwimlaneSupport'
 import type { DiagramElement } from '@/model/Element'
 import { createCellFromElement, addCellToGraph } from './elementFactory'
 
@@ -18,31 +18,31 @@ export interface ShapeConfig {
   tooltip: string
   image: string
   label?: string
+  dropOnDefaultParent?: boolean
   dropHandler?: (graph: Graph, parent: Cell | undefined, position: { x?: number; y?: number }, taskLabel?: string) => void
 }
 
 type ToolbarDropContext = {
-  getShapes: () => ShapeConfig[]
-  dragOverHandler?: (event: DragEvent) => void
-  dropHandler?: (event: DragEvent) => void
-}
-
-const isTruthyAttribute = (value: string | null | undefined) => {
-  if (value === null || value === undefined) {
-    return false
-  }
-
-  const normalized = value.toString().trim().toLowerCase()
-  return normalized !== '' && normalized !== '0' && normalized !== 'false'
+  cleanup: () => void
 }
 
 const resolveContainerSectionTarget = (cell: Cell | null, graph: Graph, droppedCell: Cell): Cell | null => {
   let current = cell
 
   while (current) {
-    const attribute = (current as any).getAttribute?.('containerSection', null)
-    if ((graph.isSwimlane(current) || isTruthyAttribute(attribute)) && graph.isValidDropTarget(current, [droppedCell])) {
+    if ((graph.isSwimlane(current) || isContainerSectionTarget(current)) && graph.isValidDropTarget(current, [droppedCell])) {
       return current
+    }
+
+    // Composite elements such as SERM types expose a dedicated child container.
+    // Only resolve an unambiguous section; never guess between multiple sections.
+    if (current.isVertex() && !graph.isSwimlane(current)) {
+      const sections = current.getChildren().filter((child) =>
+        child.isVisible() && !child.isCollapsed() &&
+        (graph.isSwimlane(child) || isContainerSectionTarget(child)) &&
+        graph.isValidDropTarget(child, [droppedCell])
+      )
+      if (!current.isCollapsed() && sections.length === 1) return sections[0]
     }
 
     const nextParent = (current as any).getParent?.() ?? null
@@ -52,12 +52,22 @@ const resolveContainerSectionTarget = (cell: Cell | null, graph: Graph, droppedC
   return null
 }
 
-const resolveEffectiveParent = (graph: Graph, defaultParent: Cell, dropTarget: Cell | null, isSwimlaneDrop: boolean, droppedCell: Cell): Cell => {
-  if (isSwimlaneDrop) {
+const resolveEffectiveParent = (graph: Graph, defaultParent: Cell, dropTarget: Cell | null, shape: ShapeConfig, droppedCell: Cell): Cell => {
+  if (shape.dropOnDefaultParent || graph.isSwimlane(droppedCell)) {
     return defaultParent
   }
 
   return resolveContainerSectionTarget(dropTarget, graph, droppedCell) ?? defaultParent
+}
+
+const getTargetForEvent = (graph: Graph, evt: MouseEvent): Cell | null => {
+  const point = styleUtils.convertPoint(graph.container, evt.clientX, evt.clientY)
+  return graph.getCellAt(point.x - graph.panDx, point.y - graph.panDy, null, true, false)
+}
+
+const getLocalPosition = (graph: Graph, target: Cell, point: Point): Point => {
+  const origin = graph.view.getState(target)?.origin
+  return new Point(point.x - (origin?.x ?? 0), point.y - (origin?.y ?? 0))
 }
 
 export function ensureGraphDropHandlers(graph: Graph, parent: Ref<Cell | undefined>, shapes: ShapeConfig[]) {
@@ -65,93 +75,108 @@ export function ensureGraphDropHandlers(graph: Graph, parent: Ref<Cell | undefin
     __mxToolbarDropContext?: ToolbarDropContext
   }
 
-  let context = graphContainer.__mxToolbarDropContext
-  if (!context) {
-    context = {
-      getShapes: () => shapes
-    }
-    graphContainer.__mxToolbarDropContext = context
+  graphContainer.__mxToolbarDropContext?.cleanup()
+
+  let draggedShape: ShapeConfig | undefined
+  let highlight: CellHighlight | undefined
+  const clearHighlight = () => {
+    highlight?.destroy()
+    highlight = undefined
   }
-
-  context.getShapes = () => shapes
-
-  if (!context.dragOverHandler) {
-    context.dragOverHandler = (evt: DragEvent) => {
-      evt.preventDefault()
-      if (evt.dataTransfer) {
-        evt.dataTransfer.dropEffect = 'copy'
-      }
-    }
-
-    graphContainer.addEventListener('dragover', context.dragOverHandler)
+  const resetDrag = () => {
+    draggedShape = undefined
+    clearHighlight()
   }
-
-  if (!context.dropHandler) {
-    context.dropHandler = (evt: DragEvent) => {
-      evt.preventDefault()
-
-      const shapesList = context?.getShapes?.() ?? []
-      if (!shapesList.length) {
-        return
-      }
-
-      const { dataTransfer } = evt
-      if (!dataTransfer) {
-        return
-      }
-
-      const shapeName = dataTransfer.getData('text/plain')
-      const taskReference = dataTransfer.getData('application/x-modeling-task-element')
-      let taskLanguageId: string | undefined
-      let taskLabel: string | undefined
-      if (taskReference) {
-        try {
-          const reference = JSON.parse(taskReference) as { languageId?: string; label?: string }
-          taskLanguageId = reference.languageId
-          taskLabel = reference.label?.trim() || undefined
-        } catch {
-          taskLanguageId = undefined
-        }
-      }
-      const shape = shapesList.find((s) => s.name === shapeName && (!taskLanguageId || s.languageId === taskLanguageId))
-
-      if (!shape) {
-        return
-      }
-
-      const graphInstance = graph
-      const defaultParent = parent.value ?? graphInstance.getDefaultParent()
-      const point = graphInstance.getPointForEvent(evt as any)
-
-      const templateCell = new MaxGraphCell(null, new Geometry(0, 0, shape.width, shape.height), shape.style)
-      templateCell.setVertex(true)
-      ;(templateCell as any).diagramElementType = shape.name
-
-      const isDroppingSwimlane = shape.style?.shape === 'swimlane' || graphInstance.isSwimlane(templateCell as unknown as Cell)
-      const dropTarget = graphInstance.getCellAt(point.x, point.y)
-      const effectiveParent = resolveEffectiveParent(graphInstance, defaultParent, dropTarget, isDroppingSwimlane, templateCell)
-
-      if (shape.dropHandler) {
-        shape.dropHandler(graphInstance, effectiveParent, { x: point.x, y: point.y }, taskLabel)
-        return
-      }
-
-      const cloned = cellArrayUtils.cloneCell(templateCell)!
-      ;(cloned as any).diagramElementType = (templateCell as any).diagramElementType ?? shape.name
-      if (cloned.geometry) {
-        const newGeometry = new Geometry(point.x, point.y, cloned.geometry.width, cloned.geometry.height)
-        if (cloned.geometry.alternateBounds) {
-          newGeometry.alternateBounds = new Geometry(cloned.geometry.alternateBounds.x, cloned.geometry.alternateBounds.y, cloned.geometry.alternateBounds.width, cloned.geometry.alternateBounds.height) as any
-        }
-        cloned.geometry = newGeometry
-      }
-
-      // Nutze zentrale Funktion für Container-Drops
-      addCellsToContainer(graphInstance, [cloned], effectiveParent)
+  const readShape = (evt: DragEvent) => {
+    const shapeName = evt.dataTransfer?.getData('text/plain')
+    let languageId: string | undefined
+    let label: string | undefined
+    const taskReference = evt.dataTransfer?.getData('application/x-modeling-task-element')
+    if (taskReference) {
+      try {
+        const reference = JSON.parse(taskReference) as { languageId?: string; label?: string }
+        languageId = reference.languageId
+        label = reference.label?.trim() || undefined
+      } catch { /* Ignore malformed optional task metadata. */ }
     }
-
-    graphContainer.addEventListener('drop', context.dropHandler)
+    return { shape: shapes.find((shape) => shape.name === shapeName && (!languageId || shape.languageId === languageId)), label }
   }
+  const createTemplate = (shape: ShapeConfig) => {
+    const cell = new MaxGraphCell(null, new Geometry(0, 0, shape.width, shape.height), shape.style)
+    cell.setVertex(true)
+    ;(cell as any).diagramElementType = shape.name
+    return cell
+  }
+  const resolveTarget = (shape: ShapeConfig, evt: DragEvent, template: Cell) =>
+    resolveEffectiveParent(graph, parent.value ?? graph.getDefaultParent(), getTargetForEvent(graph, evt), shape, template)
+
+  // Read the payload while dragstart is writable. Browsers protect it during dragover.
+  const dragStartHandler = (evt: DragEvent) => {
+    resetDrag()
+    draggedShape = readShape(evt).shape
+  }
+  const dragOverHandler = (evt: DragEvent) => {
+    if (!draggedShape || !graph.isEnabled()) return
+    evt.preventDefault()
+    if (evt.dataTransfer) evt.dataTransfer.dropEffect = 'copy'
+    graphContainer.focus({ preventScroll: true })
+    const target = resolveTarget(draggedShape, evt, createTemplate(draggedShape))
+    const state = target !== (parent.value ?? graph.getDefaultParent()) ? graph.view.getState(target) : null
+    if (!state) {
+      clearHighlight()
+      return
+    }
+    highlight ??= new CellHighlight(graph, constants.DROP_TARGET_COLOR, 3)
+    highlight.highlight(state)
+    if (highlight.shape?.node) highlight.shape.node.style.pointerEvents = 'none'
+  }
+  const dragLeaveHandler = (evt: DragEvent) => {
+    if (!(evt.relatedTarget instanceof Node) || !graphContainer.contains(evt.relatedTarget)) clearHighlight()
+  }
+  const dropHandler = (evt: DragEvent) => {
+    clearHighlight()
+    if (!graph.isEnabled()) {
+      resetDrag()
+      return
+    }
+    const { shape, label } = readShape(evt)
+    resetDrag()
+    if (!shape) return
+    evt.preventDefault()
+    graphContainer.focus({ preventScroll: true })
+    const template = createTemplate(shape)
+    const target = resolveTarget(shape, evt, template)
+    const point = getLocalPosition(graph, target, graph.getPointForEvent(evt))
+    if (shape.dropHandler) {
+      shape.dropHandler(graph, target, point, label)
+      return
+    }
+    const cloned = cellArrayUtils.cloneCell(template)!
+    ;(cloned as any).diagramElementType = shape.name
+    if (cloned.geometry) {
+      cloned.geometry.x = point.x
+      cloned.geometry.y = point.y
+    }
+    addCellsToContainer(graph, [cloned], target)
+  }
+  const cleanup = () => {
+    resetDrag()
+    document.removeEventListener('dragstart', dragStartHandler)
+    document.removeEventListener('dragend', resetDrag)
+    document.removeEventListener('drop', resetDrag)
+    graphContainer.removeEventListener('dragover', dragOverHandler)
+    graphContainer.removeEventListener('dragleave', dragLeaveHandler)
+    graphContainer.removeEventListener('drop', dropHandler)
+    delete graphContainer.__mxToolbarDropContext
+  }
+  document.addEventListener('dragstart', dragStartHandler)
+  document.addEventListener('dragend', resetDrag)
+  document.addEventListener('drop', resetDrag)
+  graphContainer.addEventListener('dragover', dragOverHandler)
+  graphContainer.addEventListener('dragleave', dragLeaveHandler)
+  graphContainer.addEventListener('drop', dropHandler)
+  graphContainer.__mxToolbarDropContext = { cleanup }
+  return cleanup
 }
 
 /**
@@ -202,20 +227,21 @@ export function setupToolbar(graph: Ref<Graph | undefined>, toolbarContainer: Re
         const resolvedX = x ?? point.x
         const resolvedY = y ?? point.y
 
-        const dropTarget = target ?? graph.getCellAt(resolvedX, resolvedY)
-        const isDroppingSwimlane = shape.style?.shape === 'swimlane' || graph.isSwimlane(cell as unknown as Cell)
-        const effectiveParent = resolveEffectiveParent(graph, defaultParent, dropTarget, isDroppingSwimlane, cell)
+        const dropTarget = target ?? getTargetForEvent(graph, evt)
+        const effectiveParent = resolveEffectiveParent(graph, defaultParent, dropTarget, shape, cell)
+        const localPoint = getLocalPosition(graph, effectiveParent, new Point(resolvedX, resolvedY))
+        graph.container.focus({ preventScroll: true })
 
         if (shape.dropHandler) {
-          shape.dropHandler(graph, effectiveParent, { x: resolvedX, y: resolvedY })
+          shape.dropHandler(graph, effectiveParent, { x: localPoint.x, y: localPoint.y })
           return
         }
 
         const cloned = cellArrayUtils.cloneCell(cell)!
         ;(cloned as any).diagramElementType = (cell as any).diagramElementType ?? shape.name
         if (cloned.geometry) {
-          cloned.geometry.x = resolvedX
-          cloned.geometry.y = resolvedY
+          cloned.geometry.x = localPoint.x
+          cloned.geometry.y = localPoint.y
         }
 
         // Nutze zentrale Funktion für Container-Drops

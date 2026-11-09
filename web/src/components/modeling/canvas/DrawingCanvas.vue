@@ -933,6 +933,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  cleanupToolbarDropHandlers?.()
   if (graphContainer.value && graphContainerKeydownHandler) {
     graphContainer.value.removeEventListener('keydown', graphContainerKeydownHandler)
   }
@@ -1296,6 +1297,7 @@ const feedbackShapes = computed(() =>
       },
       tooltip: feedbackElementDefinition.defaultLabel || shapeName,
       image: img_elementPlaceholder,
+      dropOnDefaultParent: true,
       dropHandler: (graphInstance: Graph, _parentCell: Cell | undefined, position: { x?: number; y?: number }) => {
         if (activeLayerView.value === 'model') {
           activeLayerView.value = 'both'
@@ -1328,13 +1330,14 @@ const feedbackShapes = computed(() =>
   })
 )
 
+let cleanupToolbarDropHandlers: (() => void) | undefined
 const initializeToolbar = () => {
   if (!graph.value) {
     return
   }
 
   toolbarShapes.value = [...buildLanguageShapes.value, ...feedbackShapes.value]
-  ensureGraphDropHandlers(graph.value, parent, toolbarShapes.value)
+  cleanupToolbarDropHandlers = ensureGraphDropHandlers(graph.value, parent, toolbarShapes.value)
 }
 
 watch(
