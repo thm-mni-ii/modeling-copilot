@@ -1202,6 +1202,7 @@ const initGraph = () => {
   // Ohne explizites Ziel registriert maxGraph den KeyHandler am gesamten Dokument.
   if (graphContainer.value) {
     keyHandler.value = new KeyHandler(graph.value, graphContainer.value)
+    keyHandler.value.isControlDown = (evt: KeyboardEvent) => Client.IS_MAC ? evt.metaKey : evt.ctrlKey
     keyHandler.value.bindControlKey(65, () => selectAll())
     keyHandler.value.bindControlKey(67, () => copySelected())
     keyHandler.value.bindControlKey(86, () => pasteFromClipboard())
@@ -1209,6 +1210,7 @@ const initGraph = () => {
     keyHandler.value.bindControlKey(90, () => undoGraph())
     keyHandler.value.bindControlKey(89, () => redoGraph())
     keyHandler.value.bindKey(46, () => deleteSelected())
+    if (Client.IS_MAC) keyHandler.value.bindKey(8, () => deleteSelected())
     ;(keyHandler.value as any)?.bindControlShiftKey?.(90, () => redoGraph())
   }
 
