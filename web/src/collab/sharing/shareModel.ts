@@ -298,8 +298,8 @@ export const shareModel = async (router: Router, { history = 'none', ...options 
     }
   }
 
-  await openWorkpiece(router, room, workpiece, { modelId: privateModel.id, ...(await roomHistoryStart(ck, workpiece)) })
-  current.value = { roomId: shared.roomId, workpieceId: shared.workpieceId, hostId: shared.hostId, privateModelId: privateModel.id, linkedModelId: workspace.model?.id ?? null }
+  const linkedModelId = await openWorkpiece(router, room, workpiece, { modelId: privateModel.id, ...(await roomHistoryStart(ck, workpiece)) })
+  current.value = { roomId: shared.roomId, workpieceId: shared.workpieceId, hostId: shared.hostId, privateModelId: privateModel.id, linkedModelId }
   return shareLink(router, shared.roomId)
 }
 
@@ -311,8 +311,8 @@ export const joinShare = async (router: Router, roomId: string) => {
   if (joined.role === 'host') return openWorkpiece(router, room, workpiece)
   // Set before the editor mounts, so the connection of the visitor finds the share.
   current.value = { roomId, workpieceId: joined.workpieceId, hostId: joined.hostId, privateModelId: null, linkedModelId: null }
-  await openWorkpiece(router, room, workpiece)
-  current.value = { ...current.value, linkedModelId: useModelWorkspaceStore().model?.id ?? null }
+  // Die ID von openWorkpiece, nicht aus dem Store: Der hält beim Wechsel auf ein vorhandenes Modell noch das vorige.
+  current.value = { ...current.value, linkedModelId: await openWorkpiece(router, room, workpiece) }
 }
 
 /** Room and the visitors' group of the own share, as the rights and the settings need them. */
@@ -371,9 +371,8 @@ export const saveRoomCheckpoint = async () => {
 /** Where the guard stopped someone on their way out; once they have decided, they go there. */
 export const pendingTarget = ref<RouteLocationNormalized | null>(null)
 
-/** Leaves the room model and opens `model`, or the place the guard stopped; after closing, the linked model has no access and is deleted. */
+/** Leaves the room model and opens `model`, or the place the guard stopped; das verknüpfte Modell löscht das Backend mit `leave` bzw. `close`. */
 const leaveLinked = async (router: Router, model: Model | null) => {
-  const linkedModelId = current.value?.linkedModelId
   const target = pendingTarget.value
   pendingTarget.value = null
   current.value = null
@@ -388,7 +387,6 @@ const leaveLinked = async (router: Router, model: Model | null) => {
   Object.assign(shareChoice, defaultChoice())
   forgetRoomHistory()
   await router.replace('/')
-  if (linkedModelId) await httpClient.delete(`/v1/models/${linkedModelId}`)
   if (target) await router.push(target.fullPath)
   else if (model) await router.push(`/modeling/${model.id}`)
 }
