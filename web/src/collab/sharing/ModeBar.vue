@@ -20,21 +20,24 @@
 
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { useGraphContext } from '@/composables/useGraphContext'
-import { COMMENTS_ENABLED, announcedRights, currentShare, hostAway, hostPresenting, hostToggles, loadShareSettings, presenting, shareDialog, shareSettingsBusy, visitorRights } from './shareModel'
+import { COMMENTS_ENABLED, announcedRights, currentShare, hostAway, hostPresenting, hostToggles, isSharedModel, loadShareSettings, presenting, shareDialog, shareSettingsBusy, visitorRights } from './shareModel'
 
 const BLUE = '#3f8ad6'
 const CORAL = '#cf5c58'
 const AMBER = '#c77d0a'
 
 const { graph } = useGraphContext()
+const route = useRoute()
 const { isConnected, anonymous } = useCollabConnection()
 
 // The frame and the bar are no part of the model. They lie next to the container of the canvas, not in it:
 // while panning, maxGraph moves every child of the container with the canvas (panGraph in PanningMixin.js).
 const container = computed(() => graph.value?.container.parentElement)
-const visible = computed(() => Boolean(currentShare.value) && isConnected.value)
+// Nur am geteilten Modell; ein zweiter Tab mit einem anderen Modell zeigt keinen Rahmen.
+const visible = computed(() => isSharedModel(route.params.modelId) && isConnected.value)
 const isHost = computed(() => Boolean(currentShare.value?.privateModelId))
 const presentingNow = computed(() => (isHost.value ? presenting.value : hostPresenting.value))
 // A visitor sees at once when the host is gone; the host does not need to be told about themselves.

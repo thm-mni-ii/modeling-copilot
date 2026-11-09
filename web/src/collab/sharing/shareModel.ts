@@ -93,6 +93,48 @@ watch(
   },
   { deep: true }
 )
+// Alle Tabs des Browsers lesen dieselbe Share; beendet ein Tab sie, erfahren es die anderen über das storage-Event.
+window.addEventListener('storage', (event) => {
+  if (event.key === SHARE_KEY) current.value = storedShare()
+})
+
+/** Ob das Modell das geteilte ist; ohne verknüpftes Modell (der Besucher tritt gerade bei) zählt jedes. */
+export const isSharedModel = (modelId: unknown) => Boolean(current.value) && (!current.value?.linkedModelId || current.value.linkedModelId === modelId)
+
+// Der Tab mit dem geteilten Modell meldet sich über den Kanal an und ab und antwortet auf Nachfragen.
+const tabs = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(SHARE_KEY)
+
+/** Ob ein anderer Tab das geteilte Modell offen hat; null, solange die Antwort auf die Nachfrage aussteht. */
+export const sharedTabOpen = ref<boolean | null>(null)
+
+const inSharedTab = () => Boolean(current.value?.linkedModelId) && useModelWorkspaceStore().model?.id === current.value?.linkedModelId
+
+tabs?.addEventListener('message', (event: MessageEvent<string>) => {
+  if (event.data === 'ping' && inSharedTab()) tabs.postMessage('here')
+  else if (event.data === 'here') sharedTabOpen.value = true
+  else if (event.data === 'gone') sharedTabOpen.value = false
+})
+
+/** Fragt, ob der Tab mit dem geteilten Modell offen ist; ohne Antwort in kurzer Zeit gilt er als geschlossen. */
+export const askSharedTab = () => {
+  sharedTabOpen.value = null
+  if (!tabs) return void (sharedTabOpen.value = false)
+  tabs.postMessage('ping')
+  setTimeout(() => (sharedTabOpen.value ??= false), 300)
+}
+
+/** Meldet den Tab an, solange er das geteilte Modell im Editor hat, und ab beim Schließen oder Verlassen; für CollabConnector. */
+export const announceSharedTab = () => {
+  const stop = watch(inSharedTab, (here, was) => (here ? tabs?.postMessage('here') : was && tabs?.postMessage('gone')), { immediate: true })
+  const gone = () => inSharedTab() && tabs?.postMessage('gone')
+  window.addEventListener('pagehide', gone)
+  return () => {
+    gone()
+    stop()
+    window.removeEventListener('pagehide', gone)
+  }
+}
+
 /** Set for a visitor once the host has closed the room; the dialog to save the local copy listens to it. */
 export const hostClosed = ref(false)
 
@@ -222,6 +264,8 @@ export const shareLink = (router: Router, roomId: string) => new URL(router.reso
 /** Shares the open model: creates room and workpiece at the backend, writes the state, opens the room model. Gives back the link. */
 /** With `task`, the task of the model comes along; the backend reads it from the model. `history` tells how much of the private versions goes into the workpiece. */
 export const shareModel = async (router: Router, { history = 'none', ...options }: ShareOptions & { task: boolean; history?: HistoryMode }) => {
+  // Ein anderes Modell wird schon geteilt: Das Beenden braucht dessen Editor, deshalb erst dort schließen.
+  if (current.value && !isSharedModel(useModelWorkspaceStore().model?.id)) throw new Error('Another model is already shared. Quit that sharing first.')
   // A second share saves and closes the first one beforehand, as on leaving.
   if (current.value) await leaveShare(router, 'version')
 
