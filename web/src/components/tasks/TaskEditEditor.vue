@@ -5,20 +5,22 @@
       <v-btn size="small" color="warning" variant="tonal" prepend-icon="mdi-marker" :disabled="!hasSelection" @mousedown.prevent @click="markHelpText">Textstelle markieren</v-btn>
     </div>
     <div v-if="editor && mode === 'edit'" class="task-edit-toolbar">
+      <template v-if="!shared || history">
+        <v-btn-group size="x-small" density="compact" variant="outlined">
+          <v-btn :disabled="activeHistory ? !activeHistory.canUndo : !editor.can().undo()" title="Undo Edit" @mousedown.prevent @click="activeHistory ? activeHistory.undo() : editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
+          <v-btn :disabled="activeHistory ? !activeHistory.canRedo : !editor.can().redo()" title="Redo Edit" @mousedown.prevent @click="activeHistory ? activeHistory.redo() : editor.chain().focus().redo().run()"><v-icon>mdi-redo</v-icon></v-btn>
+        </v-btn-group>
+        <v-divider vertical class="mx-1" />
+      </template>
       <v-btn-group size="x-small" density="compact" variant="outlined">
-        <v-btn :disabled="!editor.can().undo()" title="Undo Edit" @click="editor.chain().focus().undo().run()"><v-icon>mdi-undo</v-icon></v-btn>
-        <v-btn :disabled="!editor.can().redo()" title="Redo Edit" @click="editor.chain().focus().redo().run()"><v-icon>mdi-redo</v-icon></v-btn>
+        <v-btn :color="isFormatActive('taskEditBold') ? 'primary' : undefined" :disabled="!canFormat" title="Bold Edit" @mousedown.prevent @click="applyFormat('taskEditBold', 'bold')"><v-icon>mdi-format-bold</v-icon></v-btn>
+        <v-btn :color="isFormatActive('taskEditItalic') ? 'primary' : undefined" :disabled="!canFormat" title="Italic Edit" @mousedown.prevent @click="applyFormat('taskEditItalic', 'italic')"><v-icon>mdi-format-italic</v-icon></v-btn>
+        <v-btn :color="isFormatActive('taskEditUnderline') ? 'primary' : undefined" :disabled="!canFormat" title="Underline Edit" @mousedown.prevent @click="applyFormat('taskEditUnderline', 'underline')"><v-icon>mdi-format-underline</v-icon></v-btn>
+        <v-btn :color="isFormatActive('taskEditStrike') ? 'primary' : undefined" :disabled="!canFormat" title="Strikethrough Edit" @mousedown.prevent @click="applyFormat('taskEditStrike', 'strike')"><v-icon>mdi-format-strikethrough</v-icon></v-btn>
+        <v-btn :color="isFormatActive('taskEditInlineCode') ? 'primary' : undefined" :disabled="!canFormat" title="Inline code Edit" @mousedown.prevent @click="applyFormat('taskEditInlineCode', 'inlineCode')"><v-icon>mdi-code-tags</v-icon></v-btn>
       </v-btn-group>
-      <v-divider vertical class="mx-1" />
-      <v-btn-group size="x-small" density="compact" variant="outlined">
-        <v-btn :color="isFormatActive('taskEditBold') ? 'primary' : undefined" :disabled="!hasSelection" title="Bold Edit" @mousedown.prevent @click="applyFormat('taskEditBold', 'bold')"><v-icon>mdi-format-bold</v-icon></v-btn>
-        <v-btn :color="isFormatActive('taskEditItalic') ? 'primary' : undefined" :disabled="!hasSelection" title="Italic Edit" @mousedown.prevent @click="applyFormat('taskEditItalic', 'italic')"><v-icon>mdi-format-italic</v-icon></v-btn>
-        <v-btn :color="isFormatActive('taskEditUnderline') ? 'primary' : undefined" :disabled="!hasSelection" title="Underline Edit" @mousedown.prevent @click="applyFormat('taskEditUnderline', 'underline')"><v-icon>mdi-format-underline</v-icon></v-btn>
-        <v-btn :color="isFormatActive('taskEditStrike') ? 'primary' : undefined" :disabled="!hasSelection" title="Strikethrough Edit" @mousedown.prevent @click="applyFormat('taskEditStrike', 'strike')"><v-icon>mdi-format-strikethrough</v-icon></v-btn>
-        <v-btn :color="isFormatActive('taskEditInlineCode') ? 'primary' : undefined" :disabled="!hasSelection" title="Inline code Edit" @mousedown.prevent @click="applyFormat('taskEditInlineCode', 'inlineCode')"><v-icon>mdi-code-tags</v-icon></v-btn>
-      </v-btn-group>
-      <TaskColorPicker title="Text color Edit" icon="mdi-format-color-text" :colors="TASK_TEXT_COLORS" size="x-small" :disabled="!hasSelection" :active="isFormatActive('taskEditTextColor')" @select="applyFormat('taskEditTextColor', 'textColor', $event)" />
-      <TaskColorPicker title="Highlight Edit" icon="mdi-marker" :colors="TASK_HIGHLIGHT_COLORS" size="x-small" :disabled="!hasSelection" :active="isFormatActive('taskEditHighlight')" @select="applyFormat('taskEditHighlight', 'highlight', $event)" />
+      <TaskColorPicker title="Text color Edit" icon="mdi-format-color-text" :colors="TASK_TEXT_COLORS" size="x-small" :disabled="!canFormat" :active="isFormatActive('taskEditTextColor')" @select="applyFormat('taskEditTextColor', 'textColor', $event)" />
+      <TaskColorPicker title="Highlight Edit" icon="mdi-marker" :colors="TASK_HIGHLIGHT_COLORS" size="x-small" :disabled="!canFormat" :active="isFormatActive('taskEditHighlight')" @select="applyFormat('taskEditHighlight', 'highlight', $event)" />
       <v-divider vertical class="mx-1" />
       <v-tooltip :text="commentHint" location="bottom">
         <template #activator="{ props: tooltipProps }">
@@ -69,11 +71,16 @@ const props = withDefaults(
     baseDocument?: JsonObject | null
     modelValue: JsonObject | null
     mode?: 'read' | 'edit' | 'help'
+    /** Im Raum: kein eigener Verlauf, weil er fremde Änderungen zurücknehmen würde; `history` nimmt nur die eigenen Schritte. */
+    shared?: boolean
+    history?: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void; notes?: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void } }
     helpTextRanges?: HelpTextRange[]
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
+    /** Im Raum: der Editor der Notizen; hat er zuletzt den Fokus, formatiert die Leiste ihn statt der Task. */
+    notes?: CoreEditor | null
   }>(),
-  { mode: 'read', elementOptions: () => [], connectionOptions: () => [], helpTextRanges: () => [] }
+  { mode: 'read', shared: false, elementOptions: () => [], connectionOptions: () => [], helpTextRanges: () => [] }
 )
 
 const emit = defineEmits<{
@@ -102,7 +109,11 @@ const EditShortcutGuard = Extension.create({
     'Mod-i': () => true,
     'Mod-u': () => true,
     'Mod-Shift-s': () => true,
-    'Mod-e': () => true
+    'Mod-e': () => true,
+    // Im Raum gibt es keinen eigenen Verlauf, siehe `shared`.
+    'Mod-z': () => (props.history ? (props.history.undo(), true) : props.shared),
+    'Mod-Shift-z': () => (props.history ? (props.history.redo(), true) : props.shared),
+    'Mod-y': () => (props.history ? (props.history.redo(), true) : props.shared)
   })
 })
 
@@ -148,6 +159,30 @@ const insertionOpen = ref(false)
 const insertionText = ref('')
 const selectionTick = ref(0)
 const cursorActive = ref(false)
+// Ob die Leiste gerade die Notizen formatiert: ab dem Fokus in den Notizen bis zum Fokus in der Task.
+const notesActive = ref(false)
+watch(
+  () => props.notes,
+  (notes, _, onCleanup) => {
+    if (!notes) return
+    const onFocus = () => {
+      notesActive.value = true
+      selectionTick.value += 1
+    }
+    const onChange = () => {
+      selectionTick.value += 1
+    }
+    notes.on('focus', onFocus)
+    notes.on('transaction', onChange)
+    onCleanup(() => {
+      notes.off('focus', onFocus)
+      notes.off('transaction', onChange)
+    })
+  },
+  { immediate: true }
+)
+// Die Marks der Task als Marks der Notizen; ein Kommentar hat dort kein Gegenstück.
+const NOTES_MARKS: Partial<Record<TaskEditMarkName, string>> = { taskEditBold: 'bold', taskEditItalic: 'italic', taskEditUnderline: 'underline', taskEditStrike: 'strike', taskEditInlineCode: 'code', taskEditTextColor: 'textStyle', taskEditHighlight: 'highlight' }
 
 const emitSelectedEdits = (current: CoreEditor, range: { from: number; to: number } = current.state.selection) => {
   if (props.mode === 'help') return []
@@ -169,7 +204,10 @@ const editor = useEditor({
   content: props.modelValue ?? originalDocument,
   editable: props.mode === 'edit',
   extensions: [...baseExtensions, OriginalGuard, EditShortcutGuard, HelpSelection, CommentComposer],
-  onFocus: () => { cursorActive.value = true },
+  onFocus: () => {
+    cursorActive.value = true
+    notesActive.value = false
+  },
   onBlur: ({ editor: current, event }) => {
     const host = current.view.dom.closest('.task-edit-editor')
     cursorActive.value = event.relatedTarget instanceof Node && Boolean(host?.contains(event.relatedTarget))
@@ -196,9 +234,12 @@ const hasSelection = computed(() => {
   selectionTick.value
   return Boolean(editor.value && editor.value.state.selection.from !== editor.value.state.selection.to)
 })
+// Undo und Redo der Leiste gehören zu dem Editor, der zuletzt den Fokus hatte.
+const activeHistory = computed(() => (notesActive.value && props.history?.notes ? props.history.notes : props.history))
+const canFormat = computed(() => (notesActive.value ? Boolean(props.notes?.isEditable) : hasSelection.value))
 const canAddComment = computed(() => {
   selectionTick.value
-  return props.mode === 'edit' && cursorActive.value && !hasSelection.value && !insertionOpen.value && Boolean(editor.value?.state.selection.$from.parent.inlineContent)
+  return props.mode === 'edit' && !notesActive.value && cursorActive.value && !hasSelection.value && !insertionOpen.value && Boolean(editor.value?.state.selection.$from.parent.inlineContent)
 })
 const commentHint = computed(() => {
   if (insertionOpen.value) return 'Add or cancel your current comment first.'
@@ -226,12 +267,22 @@ const newId = () =>
 const attributes = (type: EditType | 'insertion', color?: string) => ({ editId: newId(), editType: type, createdAt: new Date().toISOString(), updatedAt: null, color: color ?? null })
 
 const applyFormat = (mark: TaskEditMarkName, type: EditType, color?: string) => {
+  const notes = notesActive.value ? props.notes : null
+  const name = NOTES_MARKS[mark]
+  if (notes && name) {
+    const chain = notes.chain().focus()
+    if (name === 'textStyle') chain.setColor(color ?? '').run()
+    else chain.toggleMark(name, name === 'highlight' ? { color } : undefined).run()
+    return
+  }
   if (!editor.value || !hasSelection.value) return
   toggleTaskEditMark(editor.value, mark, attributes(type, color))
 }
 
 const isFormatActive = (mark: TaskEditMarkName) => {
   selectionTick.value
+  const name = NOTES_MARKS[mark]
+  if (notesActive.value && props.notes && name) return props.notes.isActive(name)
   return Boolean(editor.value?.isActive(mark))
 }
 
@@ -462,6 +513,9 @@ onBeforeUnmount(() => editor.value?.destroy())
   font-size: 14px;
   line-height: 1.6;
   color: #212121;
+}
+.task-edit-body :deep(.ProseMirror ul) {
+  padding-left: 24px;
 }
 .task-edit-body :deep(.task-element-mark) {
   border-bottom: 2px solid rgb(var(--v-theme-primary));

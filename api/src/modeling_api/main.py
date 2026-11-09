@@ -11,6 +11,7 @@ from modeling_api.core.config import settings
 from modeling_api.core.errors import ErrorResponse, register_error_handlers
 from modeling_api.db.client import client, create_indexes, db
 from modeling_api.db.migrations import require_current
+from modeling_api.services.collab_kit import sweep
 from modeling_api.routes import (
     learning_paths,
     surveys,
@@ -20,6 +21,7 @@ from modeling_api.routes import (
     languages,
     models,
     server_time,
+    share,
     tasks,
 )
 
@@ -28,7 +30,10 @@ from modeling_api.routes import (
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await create_indexes()
     await require_current()
+    # Shares that were open before a restart still need someone to look after them; the task ends by itself if there are none.
+    sweep.ensure_running()
     yield
+    await sweep.stop()
     await client.close()
 
 
@@ -75,6 +80,7 @@ api.include_router(models.router)
 api.include_router(feedback.router)
 api.include_router(evaluations.router)
 api.include_router(server_time.router)
+api.include_router(share.router)
 app.include_router(api)
 
 

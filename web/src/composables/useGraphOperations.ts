@@ -129,7 +129,8 @@ export function useGraphOperations(graph: Ref<Graph | undefined>, parent?: Ref<C
   const deleteSelected = () => {
     if (!graph.value) return
 
-    const cells = graph.value.getSelectionCells()
+    // The native filter, so cells that are not deletable stay (isCellDeletable, CellsMixin.js)
+    const cells = graph.value.getDeletableCells(graph.value.getSelectionCells())
     if (cells.length === 0) return
 
     const model = graph.value.getDataModel()

@@ -29,7 +29,7 @@ defineProps<{
 const tabs: SidebarTabItem[] = [
   { value: 'elements', icon: 'mdi-shape-outline', label: 'Elements' },
   { value: 'persistence', icon: 'mdi-import', label: 'Import/Export' },
-  { value: 'sync', icon: 'mdi-sync', label: 'Sync' }
+  { value: 'sync', icon: 'mdi-sync', label: 'Collab' }
 ]
 const DEFAULT_WIDTH = 210
 const sidebarWidth = ref(DEFAULT_WIDTH)

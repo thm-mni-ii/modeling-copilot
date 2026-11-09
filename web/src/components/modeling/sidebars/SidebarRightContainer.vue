@@ -11,15 +11,22 @@
         <SidebarPersistence v-else-if="activeTab === 'persistence'" :show-header="false" />
         <SidebarSync v-else-if="activeTab === 'sync'" :show-header="false" />
         <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" :selected-edit-ids="selectedTaskEditIds" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" />
-        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="modelId ?? null" :open-evaluation-id="openEvaluationId ?? null" />
+        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="evaluationModelId" :open-evaluation-id="openEvaluationId ?? null" />
         <SidebarLibrary v-else />
       </div>
     </template>
   </SidebarFrame>
 </template>
 
+<script lang="ts">
+import { ref } from 'vue'
+
+// Neben der Komponente gehalten, damit der Tab beim Teilen (Neuaufbau der Ansicht) erhalten bleibt.
+const activeTab = ref<'feedback' | 'persistence' | 'sync' | 'languages' | 'task' | 'evaluations'>('languages')
+</script>
+
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
@@ -32,6 +39,8 @@ import SidebarTabs, { type SidebarTabItem } from './SidebarTabs.vue'
 import FeedbackSidebar from './FeedbackSidebar.vue'
 import TaskEditsSidebar from './TaskEditsSidebar.vue'
 import EvaluationSidebar from './EvaluationSidebar.vue'
+import { currentShare } from '@/collab/sharing/shareModel'
+import { sharedTaskSettings } from '@/collab/worksheet/sharedTask'
 
 type SidebarTab = 'feedback' | 'persistence' | 'sync' | 'languages' | 'task' | 'evaluations'
 
@@ -62,17 +71,19 @@ const emit = defineEmits<{
 const baseTabs: SidebarTabItem[] = [
   { value: 'feedback', icon: 'mdi-comment-text-multiple-outline', label: 'Feedback' },
   { value: 'persistence', icon: 'mdi-import', label: 'Import/Export' },
-  { value: 'sync', icon: 'mdi-sync', label: 'Sync' },
+  { value: 'sync', icon: 'mdi-sync', label: 'Collab' },
   { value: 'languages', icon: 'mdi-bookshelf', label: 'Languages' }
 ]
-const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, { value: 'evaluations', icon: 'mdi-chart-timeline-variant', label: 'Auswertungen' }, ...baseTabs] : baseTabs))
+// In a room only the host evaluates, on the private model, and only if the task has a workflow.
+const evaluationsActive = computed(() => !currentShare.value || Boolean(currentShare.value.privateModelId && sharedTaskSettings.value?.evaluationWorkflows.length))
+const evaluationModelId = computed(() => currentShare.value?.privateModelId ?? props.modelId ?? null)
+const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, ...(evaluationsActive.value ? [{ value: 'evaluations', icon: 'mdi-chart-timeline-variant', label: 'Auswertungen' }] : []), ...baseTabs] : baseTabs))
 
 const DEFAULT_WIDTH = 210
 const sidebarWidth = ref(DEFAULT_WIDTH)
 watch(() => props.hasJourney, (hasJourney) => {
   sidebarWidth.value = hasJourney ? Math.max(280, sidebarWidth.value) : DEFAULT_WIDTH
 }, { immediate: true })
-const activeTab = ref<SidebarTab>('languages')
 const activeTabLabel = computed(() => tabs.value.find((tab) => tab.value === activeTab.value)?.label ?? '')
 const selectTab = (value: string) => {
   activeTab.value = value as SidebarTab

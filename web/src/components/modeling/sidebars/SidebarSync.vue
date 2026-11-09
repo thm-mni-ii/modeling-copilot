@@ -1,9 +1,9 @@
 <template>
   <div class="sidebar-sync">
-    <SidebarPanelHeader v-if="showHeader" title="Sync" />
+    <SidebarPanelHeader v-if="showHeader" title="Collab" />
     <div class="sidebar-sync__content">
       <div class="sync-status-row">
-        <span class="sync-status-label">Connection</span>
+        <span class="sync-status-label">Sharing</span>
         <div class="sync-status-pills">
           <div v-if="isConnected && anonymous" class="sync-status sync-status--anonymous" title="Others see a pseudonym instead of your name">
             <v-icon icon="mdi-incognito" size="12" />
@@ -11,29 +11,40 @@
           </div>
           <div class="sync-status" :class="isConnected ? 'sync-status--connected' : 'sync-status--disconnected'">
             <span class="sync-status-dot" />
-            {{ isConnected ? 'connected' : 'disconnected' }}
+            {{ !share ? 'not shared' : isConnected ? 'live' : 'connecting' }}
           </div>
         </div>
       </div>
 
-      <div class="sync-actions">
-        <v-text-field v-model="workpieceId" label="Workpiece ID" density="compact" variant="outlined" hide-details :disabled="isConnected || connecting" />
-        <v-btn :color="isConnected ? 'error' : 'primary'" variant="flat" size="small" :loading="connecting" :prepend-icon="isConnected ? 'mdi-lan-disconnect' : 'mdi-lan-connect'" @click="toggleConnection">
-          {{ isConnected ? 'Disconnect' : 'Connect' }}
-        </v-btn>
-      </div>
+      <v-btn v-if="!share" color="primary" variant="flat" size="small" prepend-icon="mdi-share-variant" :disabled="Boolean(linkedWorkpieceId)" @click="shareDialog = 'ask'">Share</v-btn>
+      <div v-if="!share && linkedWorkpieceId" class="sync-hint">This model is part of a shared room.</div>
 
-      <CollabRoomList :active-workpiece-id="linkedWorkpieceId" :connected="isConnected" @open="openFromRoom" />
-      <CollabPeople v-if="isConnected" :people="people" />
-      <CollabLog :entries="logEntries" />
+      <template v-if="share">
+        <template v-if="isHost">
+          <ShareCopyCard :link="link" hint="Send it to visitors" class="sync-link" />
+          <v-btn color="error" variant="flat" size="small" prepend-icon="mdi-logout" :loading="quitting" @click="quit">Quit sharing</v-btn>
+          <ShareSettings />
+        </template>
+        <template v-else>
+          <div class="sync-hint">You joined a model shared by someone else.</div>
+          <v-btn variant="outlined" size="small" prepend-icon="mdi-logout" @click="shareDialog = 'leave'">Leave sharing</v-btn>
+        </template>
+        <CollabPeople :people="people" />
+        <CollabLog :entries="logEntries" />
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import CollabLog from '@/collab/connection/CollabLog.vue'
 import CollabPeople from '@/collab/presence/CollabPeople.vue'
-import CollabRoomList from '@/collab/rooms/CollabRoomList.vue'
+import ShareCopyCard from '@/collab/sharing/ShareCopyCard.vue'
+import ShareSettings from '@/collab/sharing/ShareSettings.vue'
+import { currentShare as share, openQuitDialog, shareDialog, shareLink } from '@/collab/sharing/shareModel'
+import { notifyError } from '@/composables/useNotifications'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
@@ -52,7 +63,24 @@ const modelIo = {
 
 defineExpose({ graph, modelIo })
 
-const { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, anonymous, toggleConnection, openFromRoom } = useCollabConnection()
+const router = useRouter()
+const { isConnected, linkedWorkpieceId, logEntries, people, anonymous } = useCollabConnection()
+
+const isHost = computed(() => Boolean(share.value?.privateModelId))
+const link = computed(() => (share.value ? shareLink(router, share.value.roomId) : ''))
+const quitting = ref(false)
+
+// Locks the room first, so everyone keeps the state the host is about to save.
+const quit = async () => {
+  quitting.value = true
+  try {
+    await openQuitDialog()
+  } catch (error) {
+    notifyError(`Sharing could not be quit: ${(error as Error).message}`)
+  } finally {
+    quitting.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -147,9 +175,12 @@ const { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, peo
   background: rgba(var(--v-theme-on-surface), 0.3);
 }
 
-.sync-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.sync-link {
+  flex: none;
+}
+
+.sync-hint {
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 </style>

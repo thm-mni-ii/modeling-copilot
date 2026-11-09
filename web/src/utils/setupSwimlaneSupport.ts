@@ -198,22 +198,25 @@ export function setupSwimlaneSupport(graph: Graph): void {
     }
   })
 
-  // Auto-Layout bei CELLS_REMOVED (Element entfernt -> Swimlane anpassen)
-  g.addListener(InternalEvent.CELLS_REMOVED, function (_sender: any, evt: EventObject) {
-    const removedCells = (evt.getProperty('cells') as Cell[] | undefined) ?? []
-    if (!removedCells.length) return
-
-    const affectedSwimlanes = new Set<Cell>()
-    for (const cell of removedCells) {
-      if (cell.isEdge()) continue
+  // Auto-Layout beim Entfernen (Element entfernt -> Swimlane anpassen)
+  // Der Parent wird vorher gemerkt: Nach dem Entfernen ist er null (cellsRemoved in CellsMixin.js),
+  // deshalb fand der frühere CELLS_REMOVED-Listener ihn nie.
+  const originalRemoveCells = g.removeCells.bind(g)
+  g.removeCells = function (cells, includeEdges) {
+    const parents = new Set<Cell>()
+    for (const cell of cells ?? []) {
       const parent = cell.getParent?.() ?? null
-      if (parent && g.isSwimlane(parent)) {
-        affectedSwimlanes.add(parent)
-      }
+      if (!cell.isEdge() && parent && this.isSwimlane(parent)) parents.add(parent)
     }
 
-    affectedSwimlanes.forEach((swimlane) => relayout(swimlane))
-  })
+    const result = originalRemoveCells(cells, includeEdges)
+
+    // Ein mitentfernter Parent hat selbst keinen Parent mehr und wird übersprungen
+    parents.forEach((parent) => {
+      if (parent.getParent()) relayout(parent)
+    })
+    return result
+  }
 
   // Auto-Layout bei CELLS_RESIZED (Swimlane selbst oder ein Child wurde resized)
   g.addListener(InternalEvent.CELLS_RESIZED, function (_sender: any, evt: EventObject) {
