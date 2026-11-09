@@ -1,7 +1,9 @@
 import type { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
+import { Color } from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
+import { TextStyle } from '@tiptap/extension-text-style'
 import { keydownHandler } from '@tiptap/pm/keymap'
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import type { SharedText, TextDelta, TextPosition } from '@/collab/kit/collabKitV1'
@@ -11,16 +13,13 @@ const KEYS = new PluginKey('sharedNotesKeys')
 
 /**
  * The notes are flat, so the editor maps one to one onto the shared text: paragraphs and bullets,
- * bold, underline and highlight. Undo goes through the text, which takes back only own changes.
+ * bold, italic, underline, strike, code, text color and highlight. Undo goes through the text, which takes back only own changes.
  */
 export const notesExtensions = (placeholder: string) => [
   StarterKit.configure({
     heading: false,
     blockquote: false,
     codeBlock: false,
-    code: false,
-    italic: false,
-    strike: false,
     orderedList: false,
     horizontalRule: false,
     hardBreak: false,
@@ -28,6 +27,8 @@ export const notesExtensions = (placeholder: string) => [
     undoRedo: false,
     trailingNode: false
   }),
+  TextStyle,
+  Color,
   Highlight.configure({ multicolor: true }),
   Placeholder.configure({ placeholder })
 ]

@@ -48,6 +48,7 @@ export const watchShare = (session: Session) => {
       // The reason stays unknown; the plain message below still tells what changed.
     }
     visitorRights.locked = locked && !mayWrite
+    visitorRights.autoLocked = autoLocked && visitorRights.locked
     if (mayWrite) notifySuccess('The host continues, editing is possible again.')
     else notifyWarning(locked ? (autoLocked ? 'The host is disconnected, editing is paused.' : 'The host is ending the session, editing is paused.') : 'You may no longer edit this model.')
   })

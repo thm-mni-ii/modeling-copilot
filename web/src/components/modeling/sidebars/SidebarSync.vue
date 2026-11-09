@@ -21,7 +21,7 @@
 
       <template v-if="share">
         <template v-if="isHost">
-          <v-text-field :model-value="link" class="sync-link" label="Link for visitors" readonly density="compact" variant="outlined" hide-details append-inner-icon="mdi-content-copy" @click:append-inner="copy" />
+          <ShareCopyCard :link="link" hint="Send it to visitors" class="sync-link" />
           <v-btn color="error" variant="flat" size="small" prepend-icon="mdi-logout" :loading="quitting" @click="quit">Quit sharing</v-btn>
           <ShareSettings />
         </template>
@@ -41,6 +41,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import CollabLog from '@/collab/connection/CollabLog.vue'
 import CollabPeople from '@/collab/presence/CollabPeople.vue'
+import ShareCopyCard from '@/collab/sharing/ShareCopyCard.vue'
 import ShareSettings from '@/collab/sharing/ShareSettings.vue'
 import { currentShare as share, openQuitDialog, shareDialog, shareLink } from '@/collab/sharing/shareModel'
 import { notifyError } from '@/composables/useNotifications'
@@ -68,14 +69,6 @@ const { isConnected, linkedWorkpieceId, logEntries, people, anonymous } = useCol
 const isHost = computed(() => Boolean(share.value?.privateModelId))
 const link = computed(() => (share.value ? shareLink(router, share.value.roomId) : ''))
 const quitting = ref(false)
-
-const copy = async () => {
-  try {
-    await navigator.clipboard.writeText(link.value)
-  } catch {
-    notifyError('The link could not be copied.')
-  }
-}
 
 // Locks the room first, so everyone keeps the state the host is about to save.
 const quit = async () => {

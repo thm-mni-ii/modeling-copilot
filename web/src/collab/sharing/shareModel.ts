@@ -2,6 +2,7 @@ import { reactive, ref, readonly, watch } from 'vue'
 import type { AxiosError } from 'axios'
 import type { RouteLocationNormalized, Router } from 'vue-router'
 import httpClient from '@/services/api/httpClient'
+import modelService from '@/services/model/model.service'
 import { cloneJson } from '@/model/ModelSnapshot'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
 import type { Model } from '@/services/api/types/model'
@@ -21,8 +22,33 @@ export interface ShareOptions {
   comment: boolean
 }
 
-/** Where the state goes on leaving: a new version of the private model, or a new model. */
-export type LeaveTarget = 'version' | 'model'
+/** What the host picks in the dialog before the link, and what the dialog with the link shows afterwards. It lives here and not in a component, as the editor is rebuilt while sharing. */
+const defaultChoice = () => ({ anonymous: false, edit: true, comment: true, task: true, history: 'none' as HistoryMode })
+export const shareChoice = reactive(defaultChoice())
+
+/** The visitor settings of both dialogs: a new one needs its key in `ShareOptions` and one entry here. `on` and `off` tell how the dialog with the link shows it; `open` is the value that gives the visitors more, shown in green, the other one in gray. */
+export const visitorSettings: { key: keyof ShareOptions; label: string; hint: string; open: boolean; on: { icon: string; text: string }; off: { icon: string; text: string } }[] = [
+  { key: 'anonymous', label: 'Anonymous', hint: 'Others see a pseudonym instead of the name', open: false, on: { icon: 'mdi-incognito', text: 'Anonymous' }, off: { icon: 'mdi-account-outline', text: 'Named' } },
+  { key: 'edit', label: 'May edit', hint: 'Change the model together with you', open: true, on: { icon: 'mdi-pencil', text: 'May edit' }, off: { icon: 'mdi-pencil-off', text: 'View only' } },
+  { key: 'comment', label: 'May comment', hint: 'Leave comments on elements', open: true, on: { icon: 'mdi-comment-outline', text: 'May comment' }, off: { icon: 'mdi-comment-off-outline', text: 'No comments' } }
+]
+
+/** How much of the private history goes into the shared workpiece. */
+export const historyChoices: { value: HistoryMode; icon: string; title: string; hint: string }[] = [
+  { value: 'none', icon: 'mdi-camera-outline', title: 'Current state', hint: 'Only the model as it is now' },
+  { value: 'versions', icon: 'mdi-source-branch', title: 'Versions', hint: 'Releases and checkpoints' },
+  { value: 'steps', icon: 'mdi-history', title: 'Every change', hint: 'Versions and all changes between them' }
+]
+
+/** Where the state goes on leaving: a new version of the private model, a new model, or nowhere. */
+export type LeaveTarget = 'version' | 'model' | 'discard'
+
+/** The ways the host may leave; the dialog to quit shows them in this order, and a new one needs its case in `leaveShare`. */
+export const leaveChoices: { value: LeaveTarget; icon: string; title: string; hint: string; danger?: boolean }[] = [
+  { value: 'version', icon: 'mdi-source-commit', title: 'New version of your model', hint: 'Added to the history of the model you shared' },
+  { value: 'model', icon: 'mdi-file-plus-outline', title: 'New model', hint: 'Your original model stays as it was' },
+  { value: 'discard', icon: 'mdi-delete-outline', title: 'Do not save', hint: 'The changes made while sharing are lost', danger: true }
+]
 
 /** What this browser shares: room, workpiece and the two models attached. Only one is shared at a time. */
 interface Share {
@@ -67,6 +93,9 @@ watch(
 /** Set for a visitor once the host has closed the room; the dialog to save the local copy listens to it. */
 export const hostClosed = ref(false)
 
+/** Set for a visitor together with `hostClosed` when the room is no longer reachable, as `checkShareGone` finds it, and not closed by the host. */
+export const roomGone = ref(false)
+
 /** Set for a visitor while the host has been gone from the room for a while, as the presence tells it. */
 export const hostAway = ref(false)
 
@@ -89,10 +118,36 @@ export const presenting = ref(false)
 export const hostPresenting = ref(false)
 
 /** What the visitor may do here, as the session and CK tell it; the host may do everything. `locked` is the host leaving. */
-export const visitorRights = reactive({ edit: false, comment: false, locked: false })
+export const visitorRights = reactive({ edit: false, comment: false, locked: false, autoLocked: false })
 
 /** Which color each person has: the host hands them out and announces them, the visitors read them from the host's presence. */
 export const personColors = ref<Record<string, string>>({})
+
+/** The situations of a visitor leaving; the dialog takes its texts from `visitorCases` and the situation from `visitorCase`. */
+export type VisitorCase = 'leave' | 'hostAway' | 'hostEnding' | 'hostLeft' | 'roomGone'
+
+/** What the dialog says in each situation. `tone` colors the icon and the chip; without `canStay` the room is closed and the visitor can only go on alone. */
+export const visitorCases: Record<VisitorCase, { icon: string; tone: 'ok' | 'warn'; title: string; text: string; chip: { icon: string; text: string }; canStay: boolean; confirm: string }> = {
+  leave: { icon: 'mdi-exit-run', tone: 'ok', title: 'Leave sharing', text: 'You leave the shared model. Keep the current state to continue on your own.', chip: { icon: 'mdi-door-open', text: 'Room is open' }, canStay: true, confirm: 'Keep and leave' },
+  hostAway: { icon: 'mdi-lan-disconnect', tone: 'warn', title: 'Leave sharing', text: 'The host is disconnected and editing is paused. You can wait or leave now.', chip: { icon: 'mdi-lan-disconnect', text: 'Host disconnected' }, canStay: true, confirm: 'Keep and leave' },
+  hostEnding: { icon: 'mdi-lock-outline', tone: 'warn', title: 'Leave sharing', text: 'The host is ending the session. Keep the current state before the room closes.', chip: { icon: 'mdi-lock-outline', text: 'Host is ending the session' }, canStay: true, confirm: 'Keep and leave' },
+  hostLeft: { icon: 'mdi-exit-run', tone: 'warn', title: 'The host has left', text: 'The room is closed. Keep the current state to continue on your own.', chip: { icon: 'mdi-lock-outline', text: 'Room closed' }, canStay: false, confirm: 'Keep and continue' },
+  roomGone: { icon: 'mdi-link-off', tone: 'warn', title: 'The room is no longer available', text: 'You can no longer reach this room. Keep the current state to continue on your own.', chip: { icon: 'mdi-link-off', text: 'Room closed' }, canStay: false, confirm: 'Keep and continue' }
+}
+
+/** What a visitor may do with the state on leaving. */
+export type VisitorChoice = 'keep' | 'drop'
+export const visitorChoices: { value: VisitorChoice; icon: string; title: string; hint?: string; danger?: boolean }[] = [
+  { value: 'keep', icon: 'mdi-file-plus-outline', title: 'Keep as a model of your own' },
+  { value: 'drop', icon: 'mdi-delete-outline', title: 'Do not keep', hint: 'The state is lost for you', danger: true }
+]
+
+/** The situation of the visitor now; the host being gone counts before the host ending, and a closed room before both. */
+export const visitorCase = (): VisitorCase => {
+  if (hostClosed.value) return roomGone.value ? 'roomGone' : 'hostLeft'
+  if (hostAway.value || visitorRights.autoLocked) return 'hostAway'
+  return visitorRights.locked ? 'hostEnding' : 'leave'
+}
 
 /** What the host announced through presence for the visitors, which comes at once; CK tells it only after a reconnect, `speak` never. */
 export const announcedRights = ref<{ edit: boolean; comment: boolean; anonymous: boolean } | null>(null)
@@ -256,7 +311,11 @@ const leaveLinked = async (router: Router, model: Model | null) => {
   presenting.value = false
   personColors.value = {}
   hostClosed.value = false
+  roomGone.value = false
   hostAway.value = false
+  visitorRights.locked = false
+  visitorRights.autoLocked = false
+  Object.assign(shareChoice, defaultChoice())
   forgetRoomHistory()
   await router.replace('/')
   if (linkedModelId) await httpClient.delete(`/v1/models/${linkedModelId}`)
@@ -308,7 +367,8 @@ export const leaveShare = async (router: Router, target: LeaveTarget, name?: str
   const workspace = useModelWorkspaceStore()
   await lockShare()
   const state = { xml: workspace.data.xml, languages: cloneJson(workspace.languages) }
-  const saved = target === 'version' ? await writeRoomToPrivateModel(share.privateModelId, share.workpieceId, state) : await saveRoomAsNewModel(share.privateModelId, share.workpieceId, name ?? workspace.data.name, state)
+  // Discarding writes nothing: the private model holds what it had when sharing began, and that is what opens.
+  const saved = target === 'discard' ? (await modelService.get(share.privateModelId)).data : target === 'version' ? await writeRoomToPrivateModel(share.privateModelId, share.workpieceId, state) : await saveRoomAsNewModel(share.privateModelId, share.workpieceId, name ?? workspace.data.name, state)
   await request(() => httpClient.post('/v1/share/close'))
   await leaveLinked(router, saved)
 }
@@ -365,13 +425,17 @@ export const dropStaleShare = async () => {
  * No answer at all (network) changes nothing, so a dropped connection is not taken for a closed room.
  */
 export const checkShareGone = async () => {
+  const markGone = () => {
+    roomGone.value = true
+    hostClosed.value = true
+  }
   const share = current.value
   if (!share || share.privateModelId || hostClosed.value) return
   try {
     const { data } = await httpClient.post<{ workpieceId: string }>('/v1/share/join', { roomId: share.roomId })
-    if (data.workpieceId !== share.workpieceId) hostClosed.value = true
+    if (data.workpieceId !== share.workpieceId) markGone()
   } catch (error) {
     const status = (error as AxiosError).response?.status
-    if (status === 403 || status === 404) hostClosed.value = true
+    if (status === 403 || status === 404) markGone()
   }
 }
