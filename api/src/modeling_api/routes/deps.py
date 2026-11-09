@@ -3,11 +3,21 @@
 from typing import Annotated
 
 from fastapi import Depends, Query, Response
+from fastapi.security import HTTPAuthorizationCredentials
 
-from modeling_api.core.auth import User, get_user
+from modeling_api.core.auth import User, get_user, bearer
 from modeling_api.db.store import Document
 
 CurrentUser = Annotated[User, Depends(get_user)]
+
+
+def forwarded_bearer(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+) -> str | None:
+    return credentials.credentials if credentials else None
+
+
+CurrentBearer = Annotated[str | None, Depends(forwarded_bearer)]
 Skip = Annotated[int, Query(ge=0, description="Number of matching items to skip.")]
 Limit = Annotated[
     int,

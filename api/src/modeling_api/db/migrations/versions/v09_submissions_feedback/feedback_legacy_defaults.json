@@ -1,0 +1,26 @@
+{
+  "correct": {
+    "image": { "src": "/images/checkmark.gif", "width": 26, "height": 26 },
+    "align": "left",
+    "verticalAlign": "top",
+    "offset": { "x": 0, "y": 0 },
+    "cursor": "pointer",
+    "tooltip": "Correct"
+  },
+  "incorrect": {
+    "image": { "src": "/images/error.gif", "width": 26, "height": 26 },
+    "align": "right",
+    "verticalAlign": "top",
+    "offset": { "x": 0, "y": 0 },
+    "cursor": "pointer",
+    "tooltip": "Incorrect"
+  },
+  "hint": {
+    "image": { "src": "/images/warning.gif", "width": 26, "height": 26 },
+    "align": "right",
+    "verticalAlign": "bottom",
+    "offset": { "x": 0, "y": 0 },
+    "cursor": "pointer",
+    "tooltip": "Hint"
+  }
+}

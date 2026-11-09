@@ -59,4 +59,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v08_public_case_studies.migration",
         ("07_model_activity_tracking",),
     ),
+    Migration(
+        "09_submissions_feedback",
+        "modeling_api.db.migrations.versions.v09_submissions_feedback.migration",
+        ("08_public_case_studies",),
+    ),
 )

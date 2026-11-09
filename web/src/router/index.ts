@@ -9,6 +9,21 @@ const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/submissions/:assignmentId?',
+      name: 'Submissions',
+      component: () => import('../views/ViewSubmissions.vue')
+    },
+    {
+      path: '/submission-runs/:runId',
+      name: 'SubmissionRun',
+      component: () => import('../views/ViewSubmissionRun.vue')
+    },
+    {
+      path: '/submission-feedback/:submissionId',
+      name: 'SubmissionReview',
+      component: () => import('../views/ViewSubmissionReview.vue')
+    },
+    {
       path: '/login',
       name: 'Login',
       component: () => import('../views/ViewLogin.vue')
@@ -92,7 +107,7 @@ const router = createRouter({
 })
 
 // Everything outside this list requires ADMIN, including direct URL navigation.
-const nonAdminPages = ['LearningPathRuns', 'Login', 'Home', 'Models', 'Modeling', 'Join', 'View404Page']
+const nonAdminPages = ['Submissions', 'SubmissionRun', 'SubmissionReview', 'LearningPathRuns', 'Login', 'Home', 'Models', 'Modeling', 'Join', 'View404Page']
 
 router.beforeEach(async (to) => {
   if (!isEmbedded && isFeedbacksystemCallback()) {

@@ -22,7 +22,7 @@
         <v-tab value="elements" prepend-icon="mdi-shape">Elements</v-tab>
         <v-tab value="connections" prepend-icon="mdi-connection">Connections</v-tab>
         <v-tab value="syntax" prepend-icon="mdi-code-braces">Syntax</v-tab>
-        <v-tab value="feedback" prepend-icon="mdi-comment-check">Feedback</v-tab>
+        <v-tab value="feedback" prepend-icon="mdi-archive-outline">Feedback (legacy)</v-tab>
         <v-tab value="settings" prepend-icon="mdi-cog">Settings</v-tab>
       </v-tabs>
 
@@ -33,7 +33,7 @@
       <div v-show="activeEditor === 'elements'" class="editor-panel"><ElementEditor /></div>
       <div v-show="activeEditor === 'connections'" class="editor-panel"><ConnectionEditor /></div>
       <div v-show="activeEditor === 'syntax'" class="editor-panel"><SyntaxEditor /></div>
-      <div v-show="activeEditor === 'feedback'" class="editor-panel"><FeedbackEditor /></div>
+      <div v-show="activeEditor === 'feedback'" class="editor-panel"><v-alert type="info" variant="tonal" class="ma-2">Archived language-specific feedback configuration. Retained for existing functionality. New submission reviews use Global Settings.</v-alert><FeedbackEditor /></div>
       <div v-show="activeEditor === 'settings'" class="editor-panel"><GlobalSettingsEditor /></div>
     </div>
   </v-container>

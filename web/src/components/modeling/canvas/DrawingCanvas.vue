@@ -184,6 +184,7 @@ import { buildAcyclicFromSyntax, closesCycle, isOnCycle, renderAcyclicMessage, r
 import type { AutonomyMode } from '@/model/Autonomy'
 import type { DiagramFeedbackConfig, FeedbackCanvasOverlayEntry } from '@/model/Feedback'
 import { createDefaultFeedbackCanvasConfig } from '@/utils/feedbackConfig'
+import { installFeedbackOverlayRenderer } from '@/utils/feedbackOverlays'
 import { exportModelAsXml, importModelFromXml } from '@/utils/modelPersistence'
 
 import img_rectangle from '@/assets/images/rectangle.gif'
@@ -1072,6 +1073,7 @@ const initGraph = () => {
     root.insert(new Cell()) // Layer 2 (Feedback)
     graph.value = new MyCustomGraph(graphContainer.value!, new GraphDataModel(root), plugins.value)
   }
+  installFeedbackOverlayRenderer(graph.value)
   syncLayerReferences(graph.value)
   applyLayerVisibility()
   registerGraph(graph.value)
