@@ -29,22 +29,28 @@ services:
       # Sign-in without the Feedbacksystem: the API exchanges and renews the
       # tokens through the same shell as the browser's authorization request.
       # Going directly to port 8080 can select a different issuer. For a PUBLIC
-      # client leave OIDC_CLIENT_SECRET empty; a CONFIDENTIAL client's secret
-      # goes into a git-ignored .env next to this file.
+      # client leave OIDC_CLIENT_SECRET empty, as it is locally.
       OIDC_TOKEN_URI: http://host.docker.internal:8083/oauth2/token
       # Preserve the public origin when connecting through Docker's host alias.
       OIDC_TOKEN_HOST: localhost:8083
-      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_CLIENT_SECRET: ""
       DOCS_ENABLED: "true"
       CORS_ORIGINS: http://localhost:5173
       DAGU_BASE_URL: http://dagu:8080
-      # Own tokens for collab-kit, signed with the private key from the git-ignored
-      # .env; the issuer and actor must match the collab-kit service below.
+      # Own tokens for collab-kit, signed with this private key; the issuer and actor
+      # must match the collab-kit service below. A test key for local development only:
+      # Portainer takes its own from collab-kit-config and modeling-copilot-api-secrets,
+      # never use this one there.
       CK_BASE_URL: http://collab-kit:24202
-      SERVICE_ISSUER: ${SERVICE_ISSUER:-}
-      SERVICE_ALGORITHM: ${SERVICE_ALGORITHM:-}
-      SERVICE_ACTOR: ${SERVICE_ACTOR:-}
-      SERVICE_PRIVATE_KEY: ${SERVICE_PRIVATE_KEY:-}
+      SERVICE_ISSUER: modeling-copilot-api
+      SERVICE_ALGORITHM: ES256
+      SERVICE_ACTOR: service-modeling-copilot
+      SERVICE_PRIVATE_KEY: |
+        -----BEGIN PRIVATE KEY-----
+        MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQguCmP1wcjuJcbgrTZ
+        tCntiTimSIs5d544GW/MNkdMMZWhRANCAATMrzduP6F3BOBlif0lWHw/jvNsfF+k
+        hbQJBfWCi0sc7VLjIobP2Cyk9YB7Efjs++iLOeWykAfe6YIXQLY7mbId
+        -----END PRIVATE KEY-----
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -114,13 +120,17 @@ services:
       TOP_CLAIM: globalRole
       TOP_VALUES: ADMIN,MODERATOR
       ALLOWED_ORIGINS: http://localhost:8085
-      # The api signs its own tokens; only its public key lies here. All four come from
-      # the git-ignored .env; blank means no service. With them collab-kit creates the
-      # group "services" with every right for SERVICE_ACTOR on each start.
-      SERVICE_ISSUER: ${SERVICE_ISSUER:-}
-      SERVICE_ALGORITHM: ${SERVICE_ALGORITHM:-}
-      SERVICE_PUBLIC_KEY: ${SERVICE_PUBLIC_KEY:-}
-      SERVICE_ACTOR: ${SERVICE_ACTOR:-}
+      # The api signs its own tokens; only the public key of its local test key lies here,
+      # Portainer takes its own. With all four collab-kit creates the group "services"
+      # with every right for SERVICE_ACTOR on each start.
+      SERVICE_ISSUER: modeling-copilot-api
+      SERVICE_ALGORITHM: ES256
+      SERVICE_PUBLIC_KEY: |
+        -----BEGIN PUBLIC KEY-----
+        MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzK83bj+hdwTgZYn9JVh8P47zbHxf
+        pIW0CQX1gotLHO1S4yKGz9gspPWAexH47PvoiznlspAH3umCF0C2O5myHQ==
+        -----END PUBLIC KEY-----
+      SERVICE_ACTOR: service-modeling-copilot
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
