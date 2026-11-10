@@ -5,13 +5,10 @@
     </template>
     <template #default>
       <template v-if="modelManagement">
-        <div class="language-actions">
-          <template v-if="!workspace.languages.length">
-            <h2 class="text-subtitle-2 mb-2">No model language added yet</h2>
-            <p class="text-body-2 text-medium-emphasis mb-3">Model languages provide the elements for your model.</p>
-            <v-btn size="small" block color="primary" prepend-icon="mdi-plus" @click="emit('manage-languages')">Add model language</v-btn>
-          </template>
-          <v-btn v-else size="small" block variant="tonal" prepend-icon="mdi-bookshelf" @click="emit('manage-languages')">Manage model languages ({{ workspace.languages.length }})</v-btn>
+        <div v-if="!workspace.languages.length" class="language-actions">
+          <h2 class="text-subtitle-2 mb-2">No model language added yet</h2>
+          <p class="text-body-2 text-medium-emphasis mb-3">Model languages provide the elements for your model.</p>
+          <v-btn size="small" block color="primary" prepend-icon="mdi-plus" @click="emit('manage-languages')">Add model language</v-btn>
         </div>
         <ElementsSidebar v-show="workspace.languages.length > 0" :languages="languages" :sidebar-width="sidebarWidth" expand-new-languages />
       </template>
