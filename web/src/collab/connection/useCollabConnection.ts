@@ -14,6 +14,7 @@ import { LANGUAGES_KEY, languagesChange, type ModelUnit } from '@/collab/convert
 import { CELLS_MAP, linkOf } from '@/collab/storage/workpiece'
 import { checkShareGone, resumeShare } from '@/collab/sharing/shareModel'
 import { watchShare } from '@/collab/sharing/watchShare'
+import { roleOf, roomRole, type RoomRole } from '@/collab/rooms/roomRole'
 import { openWorkpiece } from './openWorkpiece'
 import { startPresence, type Person } from '@/collab/presence/presence'
 
@@ -63,6 +64,13 @@ const closeSession = () => {
   holdSession(null)
   isConnected.value = false
   anonymous.value = false
+  roomRole.value = null
+}
+
+/** Der Raum des offenen Modells, wenn es mit diesem Werkstück verknüpft ist; das Modell kennt ihn aus seiner Verknüpfung. */
+const roomIdOf = (id: string) => {
+  const link = linkOf(useModelWorkspaceStore().model?.preferences)
+  return link?.workpieceId === id ? link.roomId : null
 }
 
 /** Writes the languages beside the cells and out of the undo of the graph; others take them when they open the model next. */
@@ -87,6 +95,7 @@ const connect = async (id: string) => {
 
   let ck: CollabKitApi
   let anonymousHere = false
+  let role: RoomRole | null = null
   connecting.value = true
   try {
     ck = await loadCollabKit()
@@ -95,8 +104,13 @@ const connect = async (id: string) => {
     const workpiece = await ck.workpieces.get(id)
     anonymousHere = await ck.me.anonymous({ kind: 'workpiece', id })
     log(`collab-kit · workpiece "${workpiece.name}"${anonymousHere ? ' · anonymous' : ''}`)
+    // Ohne lesbaren Raum bleibt es beim Verhalten der Share; die Verbindung hängt nicht daran.
+    const roomId = roomIdOf(id)
+    role = roomId ? await ck.rooms.get(roomId).then(roleOf, () => null) : null
+    if (role) log(`collab-kit · room "${role.name}" · ${role.kind === 'group' ? 'group room' : 'shared'}`)
     // A host who is back wakes the sweep of the backend, which then opens a room it had locked.
-    void resumeShare()
+    // Im Gruppenraum gibt es keine Share, die das Backend wecken könnte.
+    if (role?.kind !== 'group') void resumeShare()
   } catch (error) {
     log(`collab-kit · workpiece ${id}: ${collabErrorMessage(error)}`)
     // A visitor who cannot reach the workpiece any more, e.g. after a reload into a closed room, must not sit here.
@@ -113,6 +127,8 @@ const connect = async (id: string) => {
   localStorage.setItem(WORKPIECE_KEY, id)
   lastLiveStatus = ''
   closeSession()
+  // Vor der Presence, denn die Namen hängen an der Rolle.
+  roomRole.value = role
   // The session asks for token and rights itself before every connection.
   const opened = ck.open<ModelUnit>(id, { map: CELLS_MAP })
   session = opened
@@ -128,7 +144,8 @@ const connect = async (id: string) => {
     if (synced) isConnected.value = false
     else closeSession()
     // Ends the stay of a visitor whose room is gone, also when the host left without the lock.
-    void checkShareGone()
+    // Ein Gruppenraum ist keine Share; eine laufende Share in einem anderen Tab geht ihn nichts an.
+    if (role?.kind !== 'group') void checkShareGone()
   })
   // Rejected when the session ends before; closed tells why.
   opened.synced.then(

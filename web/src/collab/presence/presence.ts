@@ -5,6 +5,7 @@ import { isPseudonym } from '@/collab/kit/collabKit'
 import { compareNames } from '@/utils/sorting'
 import type { Session } from '@/collab/kit/collabKitV1'
 import { announcedRights, currentShare, hostPresenting, personColors, presenting, settingsLoaded, shareSettings } from '@/collab/sharing/shareModel'
+import { roomRole } from '@/collab/rooms/roomRole'
 import { startCursors } from './cursors'
 
 /** One person at the workpiece, once however many tabs they have open. */
@@ -61,10 +62,12 @@ let lastAnnounced: boolean | null = null
  * dort sonst durch. Die Nummer folgt fest aus der ID, bleibt für diesen Betrachter also gleich, ist aber
  * nicht die von collab-kit. Host: seine Einstellung, maskiert bis sie geladen ist. Visitor: die letzte
  * Ankündigung des Hosts, maskiert bis die erste da ist; so blitzt kein Name auf, und ein kurz fehlender
- * Host ändert nichts.
+ * Host ändert nichts. Im Gruppenraum kündigt niemand etwas an: Dort gilt, was collab-kit schickt, bei
+ * anonymer Freigabe also sein Pseudonym.
  */
 export const shownName = (id: string, name: string | undefined, self = false) => {
   if (isPseudonym(id)) return id
+  if (roomRole.value?.kind === 'group') return name ?? `Person ${id}`
   const anonymous = currentShare.value?.privateModelId ? !settingsLoaded.value || shareSettings.anonymous : lastAnnounced ?? true
   if (anonymous && !self && id !== hostId()) return `anonymous-${1000 + ((Array.from(id).reduce((hash, char) => hash * 31 + char.charCodeAt(0), 7) >>> 0) % 9000)}`
   return name ?? `Person ${id}`

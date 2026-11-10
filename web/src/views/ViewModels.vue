@@ -7,9 +7,10 @@
       </div>
       <v-spacer /><v-btn variant="tonal" prepend-icon="mdi-clipboard-text-outline" @click="openTaskSelection">From task</v-btn><v-btn color="primary" prepend-icon="mdi-plus" :loading="creating" @click="createModel">New Model</v-btn>
     </div>
-    <v-tabs v-model="viewTab" class="mb-3"><v-tab value="free">My Models</v-tab><v-tab value="tasks">Tasks</v-tab><v-tab value="archive">Archive</v-tab></v-tabs>
-    <v-text-field v-model="query" label="Search models" density="compact" prepend-inner-icon="mdi-magnify" clearable class="mb-3" @update:model-value="searchModels" />
-    <v-data-table-server v-model:items-per-page="itemsPerPage" v-model:expanded="expanded" :headers="headers" :items="models" :items-length="total" :loading="loading" item-value="id" show-expand hover @click:row="toggleExpanded" @update:options="loadModels" @update:expanded="setExpanded">
+    <v-tabs v-model="viewTab" class="mb-3"><v-tab value="free">My Models</v-tab><v-tab value="tasks">Tasks</v-tab><v-tab value="groups">Group Models</v-tab><v-tab value="archive">Archive</v-tab></v-tabs>
+    <GroupModels v-if="viewTab === 'groups'" />
+    <v-text-field v-show="viewTab !== 'groups'" v-model="query" label="Search models" density="compact" prepend-inner-icon="mdi-magnify" clearable class="mb-3" @update:model-value="searchModels" />
+    <v-data-table-server v-show="viewTab !== 'groups'" v-model:items-per-page="itemsPerPage" v-model:expanded="expanded" :headers="headers" :items="models" :items-length="total" :loading="loading" item-value="id" show-expand hover @click:row="toggleExpanded" @update:options="loadModels" @update:expanded="setExpanded">
       <template #[`item.updatedAt`]="{ item }">{{ formattedDate(asModel(item).updatedAt) }}</template>
       <template #[`item.taskVersion`]="{ item }">{{ taskName(asModel(item)) }}</template>
       <template #[`item.actions`]="{ item }"
@@ -59,6 +60,7 @@ import { useRouter } from 'vue-router'
 import ModelSnapshotPreview from '@/components/modeling/versions/ModelSnapshotPreview.vue'
 import ModelSnapshotList from '@/components/modeling/versions/ModelSnapshotList.vue'
 import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
+import GroupModels from '@/collab/groups/GroupModels.vue'
 import modelService from '@/services/model/model.service'
 import taskService from '@/services/task/task.service'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
@@ -85,7 +87,7 @@ const itemsPerPage = ref(10)
 const page = ref(1)
 const sortBy = ref<ModelTableOptions['sortBy']>([{ key: 'updatedAt', order: 'desc' }])
 const query = ref('')
-const viewTab = ref<'free' | 'tasks' | 'archive'>('free')
+const viewTab = ref<'free' | 'tasks' | 'groups' | 'archive'>('free')
 const creating = ref(false)
 const renameDialog = ref(false)
 const selectedModel = ref<Model | null>(null)
@@ -272,7 +274,10 @@ const branch = async (model: Model, entry: ModelVersionInfo) => {
   }
 }
 const snapshotLabel = (entry: ModelVersionInfo) => (entry.kind === 'release' && entry.releaseName ? `${entry.releaseName} · v${entry.versionNumber}` : `v${entry.versionNumber}`)
-watch(viewTab, () => void loadModels({ page: 1, itemsPerPage: itemsPerPage.value, sortBy: sortBy.value }))
+// Die Gruppenmodelle kommen aus collab-kit, nicht aus den eigenen Modellen.
+watch(viewTab, (tab) => {
+  if (tab !== 'groups') void loadModels({ page: 1, itemsPerPage: itemsPerPage.value, sortBy: sortBy.value })
+})
 onMounted(() => {
   void loadModels()
   void taskService.list(0, 100).then((response) => {
