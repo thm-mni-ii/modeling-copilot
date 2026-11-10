@@ -654,7 +654,7 @@ spec:
       containers:
         - name: collab-kit
           # Fixed version; an update means changing the tag here and in docker-compose.yaml.
-          image: ghcr.io/thm-mni-ii/collab-kit:v0.6.3
+          image: ghcr.io/thm-mni-ii/collab-kit:v0.6.4
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -688,6 +688,9 @@ spec:
               value: globalRole
             - name: TOP_VALUES
               value: ADMIN,MODERATOR
+            # Admins keep every right but see no true keys behind pseudonyms.
+            - name: TOP_SEES_PSEUDONYMS
+              value: "false"
           envFrom:
             - configMapRef:
                 name: collab-kit-config
