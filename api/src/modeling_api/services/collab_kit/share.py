@@ -7,6 +7,7 @@ first share and reused afterwards. Sharing happens in a new workpiece inside it.
 from typing import Any
 
 from modeling_api.core.errors import ApiError, not_found
+from modeling_api.services import models
 from modeling_api.services.collab_kit import client, store
 
 # The host may do everything in the room.
@@ -73,10 +74,15 @@ async def leave(user_id: str, room_id: str) -> None:
     except ApiError as error:
         if error.status != 404:
             raise
+        # Ohne Raum ist die Arbeitskopie erst recht verwaist.
+        await models.delete_room_models(room_id, user_id)
         return
     visitors = await client.get_group(current["groups"][store.VISITORS])
     if user_id in visitors["members"]:
         await client.remove_member(visitors["_id"], user_id)
+    # Die Arbeitskopie des Hosts geht erst mit `close`.
+    if user_id != current["hostId"]:
+        await models.delete_room_models(room_id, user_id)
 
 
 async def share(
@@ -142,6 +148,8 @@ async def share(
     workpiece = await client.create_workpiece(
         {"name": name, "roomId": room_id, "contract": contract, "units": units}
     )
+    # Auffangnetz: Kopien früherer Shares dieses Raums, die beim Schließen noch offen waren und liegen blieben.
+    await models.delete_room_models(room_id, keep_workpiece_id=workpiece["_id"])
     # A new share starts clean: nothing remembered from a lock before may carry over.
     await store.save(
         room_id,
@@ -221,6 +229,11 @@ async def close(host_id: str) -> None:
     """
     current = await _own_share(host_id)
     room_id = current["roomId"]
+    # Wer gerade verbunden ist, hat seine Arbeitskopie noch offen; sie geht erst mit seinem `leave`.
+    try:
+        here: set[str] | None = {entry["actorId"] for entry in await client.room_presence(room_id)}
+    except ApiError:
+        here = None
     visitors = await client.get_group(current["groups"][store.VISITORS])
     # Close first, so that nobody joins while cleaning up.
     await store.save(room_id, open=False)
@@ -230,4 +243,10 @@ async def close(host_id: str) -> None:
     for workpiece_id in (current["workpieceId"], current["taskWorkpieceId"]):
         if workpiece_id in room["workpieces"]:
             await client.remove_workpiece_from_room(room_id, workpiece_id)
+    # Die Kopie des Hosts geht immer, er hat gespeichert; die der Visitors nur, wenn sie nicht mehr verbunden sind.
+    # Antwortet CK nicht, bleiben die der Visitors stehen, die nächste Share räumt sie auf.
+    if here is None:
+        await models.delete_room_models(room_id, host_id)
+    else:
+        await models.delete_room_models(room_id, except_owners=here - {host_id})
     await store.save(room_id, workpieceId=None, taskWorkpieceId=None, before=None, autoLocked=False)

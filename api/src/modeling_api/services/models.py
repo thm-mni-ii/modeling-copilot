@@ -1,5 +1,6 @@
 """Model and model-version domain logic scoped to the authenticated owner."""
 
+from collections.abc import Collection
 from copy import deepcopy
 from re import escape
 from uuid import UUID
@@ -144,13 +145,44 @@ async def delete_model(model_id: UUID, user: User) -> None:
     model_id_str = str(model_id)
     if await db.learning_path_run_steps.find_one({"modelId": model_id_str}):
         raise conflict("Models referenced by a learning-path step cannot be deleted.")
-    await db.feedback.delete_many({"modelId": model_id_str})
-    await db.model_versions.delete_many({"modelId": model_id_str})
-    await db.task_edit_versions.delete_many({"modelId": model_id_str})
-    session_ids = await db.model_activity_sessions.distinct("_id", {"modelId": model_id_str})
+    await _purge_model(model_id_str, user.id)
+
+
+async def _purge_model(model_id: str, owner_id: str) -> None:
+    """Löscht das Modell mit allem, was an ihm hängt; ohne Prüfung, die macht der Aufrufer."""
+    await db.feedback.delete_many({"modelId": model_id})
+    await db.model_versions.delete_many({"modelId": model_id})
+    await db.task_edit_versions.delete_many({"modelId": model_id})
+    session_ids = await db.model_activity_sessions.distinct("_id", {"modelId": model_id})
     await db.model_activity_interactions.delete_many({"sessionId": {"$in": session_ids}})
-    await db.model_activity_sessions.delete_many({"modelId": model_id_str})
-    await db.models.delete_one({"_id": model_id_str, "ownerId": user.id})
+    await db.model_activity_sessions.delete_many({"modelId": model_id})
+    await db.models.delete_one({"_id": model_id, "ownerId": owner_id})
+
+
+async def delete_room_models(
+    room_id: str,
+    owner_id: str | None = None,
+    *,
+    except_owners: Collection[str] = (),
+    keep_workpiece_id: str | None = None,
+) -> None:
+    """Löscht die Arbeitskopien eines Raums, die beim Beitreten entstehen; mit `owner_id` nur die dieser Person.
+
+    `except_owners` nimmt Personen aus, die ihre Kopie gerade noch offen haben; `keep_workpiece_id`
+    lässt die Kopien des laufenden Workpieces stehen und löscht nur liegengebliebene älterer Shares.
+    Erkannt werden sie an `preferences.collab.roomId`. Was jemand behält, ist ein neues Modell ohne
+    diese Verknüpfung und bleibt. Mehrfach aufgerufen ändert es nichts.
+    """
+    filters: Document = {"preferences.collab.roomId": room_id}
+    if owner_id is not None:
+        filters["ownerId"] = owner_id
+    elif except_owners:
+        filters["ownerId"] = {"$nin": list(except_owners)}
+    if keep_workpiece_id is not None:
+        filters["preferences.collab.workpieceId"] = {"$ne": keep_workpiece_id}
+    # Erst lesen, dann löschen, damit der Cursor nicht über eine sich ändernde Collection läuft.
+    for model in [model async for model in db.models.find(filters, {"_id": 1, "ownerId": 1})]:
+        await _purge_model(model["_id"], model["ownerId"])
 
 
 async def get_task_edit(model_id: UUID, user: User) -> Document | None:

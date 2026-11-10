@@ -1,6 +1,7 @@
 import { CellHighlight, type Graph } from '@maxgraph/core'
 import { notifyWarning } from '@/composables/useNotifications'
 import type { Session } from '@/collab/kit/collabKitV1'
+import { shownName } from '@/collab/presence/presence'
 
 /** How long a cell whose change was lost stays framed. */
 const FRAME_MS = 4000
@@ -32,7 +33,8 @@ export const showConflicts = (graph: Graph, session: Session, log: (text: string
   }
 
   const stop = session.on('conflict', ({ unit, cause, loser, winner, mine, names }) => {
-    const name = (id: string) => names[id] ?? id
+    // Wie überall im Raum: im anonymen Raum auch für Admins kein echter Name.
+    const name = (id: string) => shownName(id, names[id], mine && id === loser)
     log(`conflict · ${cause} · cell ${unit ?? '?'} · ${name(loser)} lost to ${name(winner)}`)
     if (!mine) return
     notifyWarning(`Your change was overwritten by ${name(winner)}`)
