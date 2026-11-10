@@ -2,7 +2,12 @@
   <v-container fluid class="pa-3">
     <!-- Properties of the element, set as they are named there; a hyphen would name another one. -->
     <!-- eslint-disable-next-line vue/attribute-hyphenation -->
-    <ck-management v-if="ck" lang="en" theme="light" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" @ck-open="open" />
+    <ck-management v-if="ck" ref="management" lang="en" theme="light" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" .extraTabs="extraTabs" @ck-open="open">
+      <!-- Der Reiter „CSV import“ zeigt diesen Slot; der Inhalt bleibt im Light DOM, also mit Vuetify. -->
+      <!-- Der native Slot der Web Component, nicht der alte Slot von Vue 2. -->
+      <!-- eslint-disable-next-line vue/no-deprecated-slot-attribute -->
+      <GroupWorkImport slot="csv" @created="reload" />
+    </ck-management>
   </v-container>
 </template>
 
@@ -10,13 +15,20 @@
 import { onMounted, shallowRef } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
-import type { CollabKitApi, ManagementOpen, Room } from '@/collab/kit/collabKitV1'
+import type { CollabKitApi, ManagementElement, ManagementOpen, ManagementTab, Room } from '@/collab/kit/collabKitV1'
+import GroupWorkImport from '@/collab/groups/GroupWorkImport.vue'
 import { newWorkpiece, UML_CLASS_DIAGRAM } from '@/collab/storage/workpiece'
 import { TASK_FORMAT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
 const ck = shallowRef<CollabKitApi>()
+const management = shallowRef<ManagementElement>()
 const { openFromRoom } = useCollabConnection()
+
+/** Reiter des Copilots nach denen von collab-kit, jeder zeigt den Slot seiner ID. */
+const extraTabs: ManagementTab[] = [{ id: 'csv', label: 'CSV import' }]
+/** Räume, die das Backend angelegt hat, kennt das Element erst nach dem Neuladen. */
+const reload = () => void management.value?.reload()
 
 /** A workpiece created in a room is a class diagram of the Copilot. */
 const createWorkpiece = (room: Room, name: string) => newWorkpiece(room._id, name, [UML_CLASS_DIAGRAM])
