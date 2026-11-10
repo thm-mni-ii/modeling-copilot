@@ -64,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, watch } from 'vue'
 import type { DiagramElement } from '@/model/Element'
 import DiagramPreviewItem from '@/components/modeling/canvas/DiagramPreviewItem.vue'
 
@@ -80,6 +80,7 @@ const props = withDefaults(
   defineProps<{
     languages?: SidebarLanguage[]
     sidebarWidth?: number
+    expandNewLanguages?: boolean
   }>(),
   { languages: () => [], sidebarWidth: 210 }
 )
@@ -89,6 +90,16 @@ const viewMode = ref<ViewMode>('preview')
 const showLabels = ref(true)
 // Default closed: empty map means isOpen returns false
 const expandedMap = reactive<Record<string, boolean>>({})
+
+watch(() => props.languages.map((language) => language.id), (ids, previousIds) => {
+  if (!props.expandNewLanguages) return
+  for (const id of previousIds) {
+    if (!ids.includes(id)) delete expandedMap[id]
+  }
+  for (const id of ids) {
+    if (!previousIds.includes(id)) expandedMap[id] = true
+  }
+})
 
 const viewModes: { value: ViewMode; icon: string; label: string }[] = [
   { value: 'list', icon: 'mdi-format-list-bulleted', label: 'List (preview only)' },
@@ -150,6 +161,8 @@ const onDragStart = (event: DragEvent, element: DiagramElement) => {
 .elements-sidebar {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   height: 100%;
   min-width: 0;
   background: transparent;
