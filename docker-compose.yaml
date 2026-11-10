@@ -145,6 +145,12 @@ services:
       dockerfile: synonym-matching/Dockerfile
     profiles: [workflow-services]
 
+  workflow-synonym-matching-louis:
+    image: modeling-copilot/synonym-matching-louis:0.1.1
+    build:
+      context: ./dagu/workflow-services/synonym-matching-louis
+    profiles: [workflow-services]
+
   workflow-graph-parser:
     image: modeling-copilot/graph-parser:0.4.1
     build:

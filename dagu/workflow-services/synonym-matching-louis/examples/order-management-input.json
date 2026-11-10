@@ -1,0 +1,104 @@
+{
+  "step": "synonym_matching",
+  "input": {
+    "referenceModel": {
+      "elements": [
+        {
+          "id": "3",
+          "label": "Customer",
+          "language": "en"
+        },
+        {
+          "id": "4",
+          "label": "customerNumber",
+          "language": "en"
+        },
+        {
+          "id": "5",
+          "label": "Orders",
+          "language": "en"
+        },
+        {
+          "id": "6",
+          "label": "orderNumber",
+          "language": "en"
+        },
+        {
+          "id": "7",
+          "label": "Order Item",
+          "language": "en"
+        },
+        {
+          "id": "8",
+          "label": "quantity",
+          "language": "en"
+        },
+        {
+          "id": "9",
+          "label": "Product",
+          "language": "en"
+        },
+        {
+          "id": "10",
+          "label": "productNumber",
+          "language": "en"
+        },
+        {
+          "id": "11",
+          "label": "Sellable",
+          "language": "en"
+        }
+      ]
+    },
+    "studentModel": {
+      "elements": [
+        {
+          "id": "3",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "4",
+          "label": "Kundennummer",
+          "language": "de"
+        },
+        {
+          "id": "5",
+          "label": "Bestelungen",
+          "language": "de"
+        },
+        {
+          "id": "6",
+          "label": "Best.-Nr.",
+          "language": "de"
+        },
+        {
+          "id": "7",
+          "label": "Bestellposition",
+          "language": "de"
+        },
+        {
+          "id": "8",
+          "label": "Menge",
+          "language": "de"
+        },
+        {
+          "id": "9",
+          "label": "Artikel",
+          "language": "de"
+        },
+        {
+          "id": "10",
+          "label": "Produktnummer",
+          "language": "de"
+        },
+        {
+          "id": "11",
+          "label": "Verkaufbar",
+          "language": "de"
+        }
+      ]
+    },
+    "threshold": 0.5
+  }
+}
