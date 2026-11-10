@@ -8,7 +8,7 @@ import type { DiagramLanguage } from '@/model/DiagramLanguage'
 import type { DiagramTask } from '@/model/Task'
 import { languageReferenceKey, resolveWorkspaceLanguages, type ResolvedLanguageVersion } from '@/services/model/workspaceLanguageResolver'
 import type { ApiId, JsonObject, LanguageVersionReference, TaskVersionReference } from '@/services/api/types/common'
-import type { Model, ModelPatch, ModelVersion, ModelVersionKind, TaskEditDocument, TaskEditPatch, WorkspaceLanguageReference } from '@/services/api/types/model'
+import type { Model, ModelPatch, ModelVersion, ModelVersionInfo, ModelVersionKind, TaskEditDocument, TaskEditPatch, WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { Task, TaskVersion } from '@/services/api/types/task'
 import { readDraft, removeDraft, writeDraft } from '@/utils/workspaceDrafts'
 import { applyModelPatches, createModelPatch } from '@/utils/modelPatches'
@@ -148,6 +148,20 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     } catch {
       taskEditError.value = 'The local recovery draft could not be written. Save your changes before closing this page.'
     }
+  }
+
+  // Nur für geteilte Modelle: collab-kit speichert jede Änderung, ein Checkpoint oder Release eines anderen
+  // im Raum wird so die eigene Basis; es bleiben nur die Patches danach, wie nach dem eigenen Save.
+  const rebaseOnVersion = async (version: ModelVersionInfo) => {
+    if (baseVersionId.value === version.id) return
+    baseVersionId.value = version.id
+    baseReleaseId.value = version.kind === 'release' ? version.id : version.baseReleaseId
+    const since = Date.parse(version.createdAt)
+    pendingPatches.value = pendingPatches.value.filter((patch) => Date.parse(patch.createdAt) > since)
+    dirty.value = pendingPatches.value.length > 0
+    syncState.value = dirty.value ? dirtySyncState() : 'synced'
+    if (dirty.value || taskEditDirty.value) await persistJournal()
+    else await removeDraft(draftKey.value)
   }
 
   const markDirty = () => {
@@ -561,6 +575,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     baseVersionId,
     baseReleaseId,
     pendingPatches,
+    rebaseOnVersion,
     canRelease,
     editorLanguages,
     taskReference,

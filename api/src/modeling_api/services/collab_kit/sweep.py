@@ -19,6 +19,7 @@ import logging
 import time
 
 from modeling_api.core.errors import ApiError
+from modeling_api.services import models
 from modeling_api.services.collab_kit import client, share, store
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,8 @@ async def _sweep_room(room: dict, now: float) -> bool:
         key = (room_id, actor)
         if ended or (actor not in here and now - _missing.setdefault(key, now) >= VISITOR_GRACE_SECONDS):
             await client.remove_member(visitors["_id"], actor)
+            # Wer hinausgenommen wird, braucht seine Arbeitskopie nicht mehr, etwa nach einem geschlossenen Tab.
+            await models.delete_room_models(room_id, actor)
             _missing.pop(key, None)
             remaining.discard(actor)
         elif actor in here:

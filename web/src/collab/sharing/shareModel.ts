@@ -1,4 +1,4 @@
-import { reactive, ref, readonly, watch } from 'vue'
+import { computed, reactive, ref, readonly, watch } from 'vue'
 import type { AxiosError } from 'axios'
 import type { RouteLocationNormalized, Router } from 'vue-router'
 import httpClient from '@/services/api/httpClient'
@@ -26,11 +26,14 @@ export interface ShareOptions {
 const defaultChoice = () => ({ anonymous: false, edit: true, comment: true, task: true, history: 'none' as HistoryMode })
 export const shareChoice = reactive(defaultChoice())
 
+// Kommentare von collab-kit nutzt der Editor noch nicht; bis dahin ist der Schalter ausgeblendet, Besucher behalten `speak`.
+export const COMMENTS_ENABLED = false
+
 /** The visitor settings of both dialogs: a new one needs its key in `ShareOptions` and one entry here. `on` and `off` tell how the dialog with the link shows it; `open` is the value that gives the visitors more, shown in green, the other one in gray. */
 export const visitorSettings: { key: keyof ShareOptions; label: string; hint: string; open: boolean; on: { icon: string; text: string }; off: { icon: string; text: string } }[] = [
   { key: 'anonymous', label: 'Anonymous', hint: 'Others see a pseudonym instead of the name', open: false, on: { icon: 'mdi-incognito', text: 'Anonymous' }, off: { icon: 'mdi-account-outline', text: 'Named' } },
   { key: 'edit', label: 'May edit', hint: 'Change the model together with you', open: true, on: { icon: 'mdi-pencil', text: 'May edit' }, off: { icon: 'mdi-pencil-off', text: 'View only' } },
-  { key: 'comment', label: 'May comment', hint: 'Leave comments on elements', open: true, on: { icon: 'mdi-comment-outline', text: 'May comment' }, off: { icon: 'mdi-comment-off-outline', text: 'No comments' } }
+  ...(COMMENTS_ENABLED ? [{ key: 'comment' as const, label: 'May comment', hint: 'Leave comments on elements', open: true, on: { icon: 'mdi-comment-outline', text: 'May comment' }, off: { icon: 'mdi-comment-off-outline', text: 'No comments' } }] : [])
 ]
 
 /** How much of the private history goes into the shared workpiece. */
@@ -90,6 +93,48 @@ watch(
   },
   { deep: true }
 )
+// Alle Tabs des Browsers lesen dieselbe Share; beendet ein Tab sie, erfahren es die anderen über das storage-Event.
+window.addEventListener('storage', (event) => {
+  if (event.key === SHARE_KEY) current.value = storedShare()
+})
+
+/** Ob das Modell das geteilte ist; ohne verknüpftes Modell (der Besucher tritt gerade bei) zählt jedes. */
+export const isSharedModel = (modelId: unknown) => Boolean(current.value) && (!current.value?.linkedModelId || current.value.linkedModelId === modelId)
+
+// Der Tab mit dem geteilten Modell meldet sich über den Kanal an und ab und antwortet auf Nachfragen.
+const tabs = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(SHARE_KEY)
+
+/** Ob ein anderer Tab das geteilte Modell offen hat; null, solange die Antwort auf die Nachfrage aussteht. */
+export const sharedTabOpen = ref<boolean | null>(null)
+
+const inSharedTab = () => Boolean(current.value?.linkedModelId) && useModelWorkspaceStore().model?.id === current.value?.linkedModelId
+
+tabs?.addEventListener('message', (event: MessageEvent<string>) => {
+  if (event.data === 'ping' && inSharedTab()) tabs.postMessage('here')
+  else if (event.data === 'here') sharedTabOpen.value = true
+  else if (event.data === 'gone') sharedTabOpen.value = false
+})
+
+/** Fragt, ob der Tab mit dem geteilten Modell offen ist; ohne Antwort in kurzer Zeit gilt er als geschlossen. */
+export const askSharedTab = () => {
+  sharedTabOpen.value = null
+  if (!tabs) return void (sharedTabOpen.value = false)
+  tabs.postMessage('ping')
+  setTimeout(() => (sharedTabOpen.value ??= false), 300)
+}
+
+/** Meldet den Tab an, solange er das geteilte Modell im Editor hat, und ab beim Schließen oder Verlassen; für CollabConnector. */
+export const announceSharedTab = () => {
+  const stop = watch(inSharedTab, (here, was) => (here ? tabs?.postMessage('here') : was && tabs?.postMessage('gone')), { immediate: true })
+  const gone = () => inSharedTab() && tabs?.postMessage('gone')
+  window.addEventListener('pagehide', gone)
+  return () => {
+    gone()
+    stop()
+    window.removeEventListener('pagehide', gone)
+  }
+}
+
 /** Set for a visitor once the host has closed the room; the dialog to save the local copy listens to it. */
 export const hostClosed = ref(false)
 
@@ -187,6 +232,29 @@ export const toggleShareSetting = async (key: SettingKey) => {
   }
 }
 
+/** Ein Schalter des Hosts, gleich in der Sidebar und in der Leiste am Canvas; `sidebarOnly` fehlt in der Leiste. `label` ist der kurze, feste Name der Kachel in der Sidebar, `title` der Tooltip. */
+export interface HostToggle {
+  key: string
+  label: string
+  on: boolean
+  icon: string
+  title: string
+  toggle: () => void
+  sidebarOnly?: boolean
+}
+
+// Eine Quelle für Sidebar und ModeBar, damit Icons und Texte an beiden Stellen gleich bleiben.
+export const hostToggles = computed<HostToggle[]>(() => {
+  const { joinable, edit, comment, anonymous } = shareSettings
+  return [
+    { key: 'joinable', label: 'New visitors', sidebarOnly: true, on: joinable, icon: joinable ? 'mdi-account-plus-outline' : 'mdi-account-off-outline', title: joinable ? 'New visitors may join' : 'No new visitors', toggle: () => void toggleShareSetting('joinable') },
+    { key: 'edit', label: 'Editing', on: edit, icon: edit ? 'mdi-pencil' : 'mdi-pencil-off', title: edit ? 'Visitors may edit' : 'Visitors may not edit', toggle: () => void toggleShareSetting('edit') },
+    ...(COMMENTS_ENABLED ? [{ key: 'comment', label: 'Comments', on: comment, icon: comment ? 'mdi-comment-outline' : 'mdi-comment-off-outline', title: comment ? 'Visitors may comment' : 'Visitors may not comment', toggle: () => void toggleShareSetting('comment') }] : []),
+    { key: 'anonymous', label: 'Anonymous', on: anonymous, icon: anonymous ? 'mdi-incognito' : 'mdi-account-outline', title: anonymous ? 'Visitors are anonymous' : 'Visitors are named', toggle: () => void toggleShareSetting('anonymous') },
+    { key: 'present', label: 'Presenting', on: presenting.value, icon: 'mdi-cursor-default-outline', title: presenting.value ? 'Stop presenting' : 'Presentation mode: others only see your cursor', toggle: () => (presenting.value = !presenting.value) }
+  ]
+})
+
 /** Which dialog is open; it lives here and not in a component, as the editor and its sidebar are rebuilt while sharing and leaving. */
 export const shareDialog = ref<'ask' | 'link' | 'quit' | 'leave' | null>(null)
 
@@ -196,6 +264,8 @@ export const shareLink = (router: Router, roomId: string) => new URL(router.reso
 /** Shares the open model: creates room and workpiece at the backend, writes the state, opens the room model. Gives back the link. */
 /** With `task`, the task of the model comes along; the backend reads it from the model. `history` tells how much of the private versions goes into the workpiece. */
 export const shareModel = async (router: Router, { history = 'none', ...options }: ShareOptions & { task: boolean; history?: HistoryMode }) => {
+  // Ein anderes Modell wird schon geteilt: Das Beenden braucht dessen Editor, deshalb erst dort schließen.
+  if (current.value && !isSharedModel(useModelWorkspaceStore().model?.id)) throw new Error('Another model is already shared. Quit that sharing first.')
   // A second share saves and closes the first one beforehand, as on leaving.
   if (current.value) await leaveShare(router, 'version')
 
@@ -228,8 +298,8 @@ export const shareModel = async (router: Router, { history = 'none', ...options 
     }
   }
 
-  await openWorkpiece(router, room, workpiece, { modelId: privateModel.id, ...(await roomHistoryStart(ck, workpiece)) })
-  current.value = { roomId: shared.roomId, workpieceId: shared.workpieceId, hostId: shared.hostId, privateModelId: privateModel.id, linkedModelId: workspace.model?.id ?? null }
+  const linkedModelId = await openWorkpiece(router, room, workpiece, { modelId: privateModel.id, ...(await roomHistoryStart(ck, workpiece)) })
+  current.value = { roomId: shared.roomId, workpieceId: shared.workpieceId, hostId: shared.hostId, privateModelId: privateModel.id, linkedModelId }
   return shareLink(router, shared.roomId)
 }
 
@@ -241,8 +311,8 @@ export const joinShare = async (router: Router, roomId: string) => {
   if (joined.role === 'host') return openWorkpiece(router, room, workpiece)
   // Set before the editor mounts, so the connection of the visitor finds the share.
   current.value = { roomId, workpieceId: joined.workpieceId, hostId: joined.hostId, privateModelId: null, linkedModelId: null }
-  await openWorkpiece(router, room, workpiece)
-  current.value = { ...current.value, linkedModelId: useModelWorkspaceStore().model?.id ?? null }
+  // Die ID von openWorkpiece, nicht aus dem Store: Der hält beim Wechsel auf ein vorhandenes Modell noch das vorige.
+  current.value = { ...current.value, linkedModelId: await openWorkpiece(router, room, workpiece) }
 }
 
 /** Room and the visitors' group of the own share, as the rights and the settings need them. */
@@ -301,9 +371,8 @@ export const saveRoomCheckpoint = async () => {
 /** Where the guard stopped someone on their way out; once they have decided, they go there. */
 export const pendingTarget = ref<RouteLocationNormalized | null>(null)
 
-/** Leaves the room model and opens `model`, or the place the guard stopped; after closing, the linked model has no access and is deleted. */
+/** Leaves the room model and opens `model`, or the place the guard stopped; das verknüpfte Modell löscht das Backend mit `leave` bzw. `close`. */
 const leaveLinked = async (router: Router, model: Model | null) => {
-  const linkedModelId = current.value?.linkedModelId
   const target = pendingTarget.value
   pendingTarget.value = null
   current.value = null
@@ -318,7 +387,6 @@ const leaveLinked = async (router: Router, model: Model | null) => {
   Object.assign(shareChoice, defaultChoice())
   forgetRoomHistory()
   await router.replace('/')
-  if (linkedModelId) await httpClient.delete(`/v1/models/${linkedModelId}`)
   if (target) await router.push(target.fullPath)
   else if (model) await router.push(`/modeling/${model.id}`)
 }

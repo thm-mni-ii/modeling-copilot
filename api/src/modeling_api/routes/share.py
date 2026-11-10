@@ -81,7 +81,8 @@ async def join_room(body: JoinRoom, user: CurrentUser) -> JoinedRoom:
     "/leave",
     summary="Leave a shared room as visitor",
     description=(
-        "Takes the current user out of the visitors of the room, so they can go at any time. "
+        "Takes the current user out of the visitors of the room, so they can go at any time, "
+        "and deletes their working copy of the room model. "
         "A room that is closed or gone, or a user who is no visitor, changes nothing; "
         "repeating the call is harmless."
     ),
@@ -125,7 +126,9 @@ async def set_joinable(body: SetJoinable, user: CurrentUser) -> None:
     "/close",
     summary="Stop sharing",
     description=(
-        "Takes all visitors out and the workpiece out of the room. The room and its groups stay "
+        "Takes all visitors out and the workpiece out of the room and deletes the working copies "
+        "of the room model, except those of visitors still connected, which go when they leave. "
+        "The room and its groups stay "
         "for the next time. Repeating the call finishes what an interrupted one left. Only the "
         "host of the room may call this."
     ),
