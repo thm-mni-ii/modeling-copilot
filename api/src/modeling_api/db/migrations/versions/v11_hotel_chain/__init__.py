@@ -1,0 +1,1 @@
+"""Hotel chain task migration."""

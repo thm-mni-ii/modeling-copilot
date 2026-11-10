@@ -146,6 +146,14 @@ questionnaire service without importing migration implementations.
     custom texts. Preview is read-only; failed runs can resume, concurrent changes
     are rejected and completed runs are skipped.
 
+12. `versions/v11_hotel_chain/migration.py` publishes the public task
+    “Vorlesung - Hotelkette” with an immutable 1.0 release and required SERM 2.0.
+    The supplied wording is preserved, with line breaks replaced by spaces and
+    an H2 heading “Hotelkette” above the paragraph. The task uses the default free autonomy
+    mode. Preview is read-only; fixed task/release IDs and conflict checks allow
+    retries without overwriting edits. Completed runs preserve later admin edits.
+    Existing tasks and learning paths remain unchanged.
+
 `schema_migrations` records each step as `running`, `failed`, or `completed`.
 The API refuses startup until all registered steps have completed. Repeated starts skip
 completed steps. Concurrent claims fail instead of executing a step twice.
