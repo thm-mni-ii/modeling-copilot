@@ -22,6 +22,7 @@
         <v-tab value="elements" prepend-icon="mdi-shape">Elements</v-tab>
         <v-tab value="connections" prepend-icon="mdi-connection">Connections</v-tab>
         <v-tab value="syntax" prepend-icon="mdi-code-braces">Syntax</v-tab>
+        <v-tab value="feedback-templates" prepend-icon="mdi-message-text-outline">Feedback Templates</v-tab>
         <v-tab value="feedback" prepend-icon="mdi-archive-outline">Feedback (legacy)</v-tab>
         <v-tab value="settings" prepend-icon="mdi-cog">Settings</v-tab>
       </v-tabs>
@@ -33,6 +34,7 @@
       <div v-show="activeEditor === 'elements'" class="editor-panel"><ElementEditor /></div>
       <div v-show="activeEditor === 'connections'" class="editor-panel"><ConnectionEditor /></div>
       <div v-show="activeEditor === 'syntax'" class="editor-panel"><SyntaxEditor /></div>
+      <div v-show="activeEditor === 'feedback-templates'" class="editor-panel editor-panel--content-height"><FeedbackTemplatesEditor /></div>
       <div v-show="activeEditor === 'feedback'" class="editor-panel"><v-alert type="info" variant="tonal" class="ma-2">Archived language-specific feedback configuration. Retained for existing functionality. New submission reviews use Global Settings.</v-alert><FeedbackEditor /></div>
       <div v-show="activeEditor === 'settings'" class="editor-panel"><GlobalSettingsEditor /></div>
     </div>
@@ -70,13 +72,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import ConnectionEditor from '@/components/modeling/editors/ConnectionEditor.vue'
 import DialogConfirm from '@/components/dialog/DialogConfirm.vue'
 import DialogReleaseVersion from '@/components/dialog/DialogReleaseVersion.vue'
 import ElementEditor from '@/components/modeling/editors/ElementEditor.vue'
 import FeedbackEditor from '@/components/modeling/editors/FeedbackEditor.vue'
+import FeedbackTemplatesEditor from '@/components/modeling/editors/FeedbackTemplatesEditor.vue'
+import { feedbackTargetId, feedbackTemplateNavigationKey, type FeedbackTemplateTarget } from '@/components/modeling/editors/feedbackTemplateNavigation'
 import GlobalSettingsEditor from '@/components/modeling/editors/GlobalSettingsEditor.vue'
 import LanguageVersionList from '@/components/modeling/versions/LanguageVersionList.vue'
 import SyntaxEditor from '@/components/modeling/editors/SyntaxEditor.vue'
@@ -90,7 +94,27 @@ const route = useRoute()
 const router = useRouter()
 const store = useDiagramLanguages()
 const confirmDialog = ref<InstanceType<typeof DialogConfirm>>()
-const activeEditor = ref<'elements' | 'connections' | 'syntax' | 'feedback' | 'settings'>('elements')
+const activeEditor = ref<'elements' | 'connections' | 'syntax' | 'feedback-templates' | 'feedback' | 'settings'>('elements')
+const syntaxTarget = ref<FeedbackTemplateTarget | null>(null)
+const templateTarget = ref<FeedbackTemplateTarget | null>(null)
+const navigateTo = async (view: 'syntax' | 'template', target: FeedbackTemplateTarget) => {
+  if (view === 'syntax') syntaxTarget.value = target
+  else templateTarget.value = target
+  activeEditor.value = view === 'syntax' ? 'syntax' : 'feedback-templates'
+  await nextTick()
+  await nextTick()
+  const element = document.getElementById(feedbackTargetId(view, target))
+  if (element) {
+    element.scrollIntoView({ block: 'center' })
+    element.focus({ preventScroll: true })
+  }
+}
+provide(feedbackTemplateNavigationKey, {
+  syntaxTarget,
+  templateTarget,
+  openSyntax: (target) => { void navigateTo('syntax', target) },
+  openTemplates: (target) => { void navigateTo('template', target) }
+})
 const releaseDialog = ref(false)
 const nextReleaseVersion = ref('')
 const releaseSaving = ref(false)
@@ -238,6 +262,10 @@ onBeforeRouteUpdate(confirmUnsavedChanges)
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.editor-panel--content-height {
+  height: auto;
 }
 
 @media (max-width: 900px) {

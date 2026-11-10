@@ -31,7 +31,6 @@
       />
       <CardinalityFields :model-value="rule.cardinality" :label="`Connections per ${sourceType}`" :hint="`How many connections one ${sourceType} may have to all matching ${targetType} elements together.`" :disabled="disabled" @update:model-value="emit('patch', { cardinality: $event })" />
     </div>
-    <v-textarea :model-value="resolveQuantityMessage(rule.messageTemplate, messageTemplate)" label="Quantity error message template" rows="2" auto-grow density="compact" variant="outlined" :disabled="disabled" hint="Placeholders: {source}, {target}, {connection}, {min}, {max}. Empty uses the default quantity message." persistent-hint @update:model-value="emit('patch', { messageTemplate: $event ?? '' })" />
     <v-expansion-panels variant="accordion">
       <v-expansion-panel>
         <v-expansion-panel-title>
@@ -51,7 +50,6 @@
 </template>
 
 <script setup lang="ts">
-import { resolveQuantityMessage } from '@/utils/syntaxMessages'
 import { computed } from 'vue'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 import type { EndpointSelector, MultiplicityCardinality } from '@/model/Syntax'
@@ -68,7 +66,7 @@ export interface RouteRuleValues {
 }
 
 type EndpointPair = { source: EndpointSelector; target: EndpointSelector }
-const props = defineProps<{ rule: RouteRuleValues; source: EndpointSelector; target: EndpointSelector; endpointPairs?: EndpointPair[]; sourceType: string; targetType: string; connectionOptions: string[]; messageTemplate?: string; disabled?: boolean }>()
+const props = defineProps<{ rule: RouteRuleValues; source: EndpointSelector; target: EndpointSelector; endpointPairs?: EndpointPair[]; sourceType: string; targetType: string; connectionOptions: string[]; disabled?: boolean }>()
 const emit = defineEmits<{ patch: [values: Partial<RouteRuleValues>]; 'update:source': [value: EndpointSelector]; 'update:target': [value: EndpointSelector]; 'update:endpointPairs': [value: EndpointPair[]] }>()
 const visiblePairs = computed(() => props.endpointPairs?.length ? props.endpointPairs : [{ source: props.source, target: props.target }])
 const setSelector = (index: number, end: 'source' | 'target', value: EndpointSelector) => {
