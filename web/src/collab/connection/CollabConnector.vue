@@ -9,11 +9,14 @@ import { useRouter } from 'vue-router'
 import { useGraphContext } from '@/composables/useGraphContext'
 import CollabDialogs from '@/collab/sharing/CollabDialogs.vue'
 import ModeBar from '@/collab/sharing/ModeBar.vue'
-import { dropStaleShare, guardShareLeave } from '@/collab/sharing/shareModel'
+import { announceSharedTab, dropStaleShare, guardShareLeave } from '@/collab/sharing/shareModel'
 import { holdCollabConnection } from './useCollabConnection'
 
 // As long as the editor is there, leaving the shared model goes through the dialog.
 onBeforeUnmount(guardShareLeave(useRouter()))
+
+// Andere Tabs sehen so, ob das geteilte Modell hier noch offen ist.
+onBeforeUnmount(announceSharedTab())
 
 // A share kept by this browser may belong to another account or have ended meanwhile.
 void dropStaleShare()

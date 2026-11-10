@@ -6,6 +6,7 @@ import pytest
 
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
+from modeling_api.services import models
 from modeling_api.services.collab_kit import client, share, store, sweep
 
 ARGS = dict(name="Model", contract={"tool": "x"}, units=[{"path": ["cells"]}])
@@ -24,7 +25,13 @@ def presence() -> list[dict]:
 
 
 @pytest.fixture
-def ck(monkeypatch, tasks, presence):
+def deleted() -> list[tuple]:
+    """Welche Arbeitskopien gelöscht wurden, als (Raum, Besitzer, ausgenommen, behaltenes Workpiece)."""
+    return []
+
+
+@pytest.fixture
+def ck(monkeypatch, tasks, presence, deleted):
     """A small in-memory CK: creates, reads and changes the settings, remembers grants and workpieces."""
     rooms: dict[str, dict] = {}
     groups: dict[str, dict] = {}
@@ -83,6 +90,12 @@ def ck(monkeypatch, tasks, presence):
 
     monkeypatch.setattr(client, "_transport", httpx.MockTransport(handle))
     monkeypatch.setattr(client, "service_token", lambda: "token")
+
+    # Die Tests laufen ohne Mongo: das Löschen der Arbeitskopien merkt sich nur, wonach es gefragt wurde.
+    async def delete_room_models(room_id, owner_id=None, *, except_owners=(), keep_workpiece_id=None) -> None:
+        deleted.append((room_id, owner_id, sorted(except_owners), keep_workpiece_id))
+
+    monkeypatch.setattr(models, "delete_room_models", delete_room_models)
     sweep._missing.clear()
     sweep._host_missing.clear()
     monkeypatch.setattr(settings, "service_actor", "service-modeling-copilot")
@@ -187,7 +200,7 @@ def test_a_visitor_joins_once_and_the_host_stays_out_of_the_visitors(ck):
     assert members_of(groups, "visitors") == ["99"]
 
 
-def test_a_visitor_can_leave_at_any_time_and_leaving_again_or_from_a_missing_room_changes_nothing(ck):
+def test_a_visitor_can_leave_at_any_time_and_leaving_again_or_from_a_missing_room_changes_nothing(ck, deleted):
     _, groups, _, _ = ck
     room_id = start()
     asyncio.run(share.join("99", room_id))
@@ -198,6 +211,9 @@ def test_a_visitor_can_leave_at_any_time_and_leaving_again_or_from_a_missing_roo
     asyncio.run(share.leave("42", room_id))
     asyncio.run(share.leave("99", "does-not-exist"))
     assert members_of(groups, "visitors") == ["98"] and members_of(groups, "hosts") == ["42"]
+    # Die Share räumt Kopien älterer Workpieces auf; danach geht die des Visitors jedes Mal, auch ohne Raum,
+    # die des Hosts bleibt bis zum Schließen.
+    assert deleted == [(room_id, None, [], "W0"), (room_id, "99", [], None), (room_id, "99", [], None), ("does-not-exist", "99", [], None)]
 
     # Also when the host has locked and closed the room, the visitor can still go.
     asyncio.run(share.set_open("42", False))
@@ -270,11 +286,14 @@ def test_opening_is_refused_once_the_workpiece_has_left_the_room(ck):
     assert error.value.code == "SHARE_CLOSED"
 
 
-def test_closing_takes_visitors_and_workpiece_out_but_keeps_room_and_groups(ck):
+def test_closing_takes_visitors_and_workpiece_out_but_keeps_room_and_groups(ck, presence, deleted):
     rooms, groups, _, _ = ck
     room_id = start()
     asyncio.run(share.join("99", room_id))
+    asyncio.run(share.join("98", room_id))
     asyncio.run(share.set_open("42", False))
+    # Der Host und 99 sind noch verbunden, 98 ist schon weg.
+    presence[:] = [{"workpieceId": "W0", "actorId": actor, "connections": 1} for actor in ("42", "99")]
 
     asyncio.run(share.close("42"))
 
@@ -283,6 +302,8 @@ def test_closing_takes_visitors_and_workpiece_out_but_keeps_room_and_groups(ck):
     shared = rooms[room_id]["settings"]["share"]
     assert (shared["open"], shared["workpieceId"], shared["before"]) == (False, None, None)
     assert len(rooms) == 1 and len(groups) == 2
+    # Die Kopien gehen mit, außer der von 99, der sie noch offen hat und sie mit seinem `leave` löscht.
+    assert deleted[1:] == [(room_id, None, ["99"], None)]
     with pytest.raises(ApiError):
         asyncio.run(share.join("99", room_id))
 
@@ -365,7 +386,7 @@ def test_a_new_share_opens_the_link_again(ck):
     assert rooms[room_id]["settings"]["share"]["joinable"] is True
 
 
-def test_a_visitor_who_stays_away_is_taken_out_after_the_grace_period_and_one_who_returns_keeps_the_place(ck, presence):
+def test_a_visitor_who_stays_away_is_taken_out_after_the_grace_period_and_one_who_returns_keeps_the_place(ck, presence, deleted):
     _, groups, _, _ = ck
     room_id = start()
     asyncio.run(share.join("99", room_id))
@@ -384,6 +405,7 @@ def test_a_visitor_who_stays_away_is_taken_out_after_the_grace_period_and_one_wh
     assert members_of(groups, "visitors") == ["99", "98"]
     asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS))
     assert members_of(groups, "visitors") == ["98"]
+    assert deleted[1:] == [(room_id, "99", [], None)]
 
     # The host is no visitor and is never touched; 98 may be gone for a shorter time again.
     here()

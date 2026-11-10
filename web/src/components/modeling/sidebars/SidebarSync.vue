@@ -11,7 +11,7 @@
           </div>
           <div class="sync-status" :class="isConnected ? 'sync-status--connected' : 'sync-status--disconnected'">
             <span class="sync-status-dot" />
-            {{ !share ? 'not shared' : isConnected ? 'live' : 'connecting' }}
+            {{ !share || elsewhere ? 'not shared' : isConnected ? 'live' : 'connecting' }}
           </div>
         </div>
       </div>
@@ -19,7 +19,15 @@
       <v-btn v-if="!share" color="primary" variant="flat" size="small" prepend-icon="mdi-share-variant" :disabled="Boolean(linkedWorkpieceId)" @click="shareDialog = 'ask'">Share</v-btn>
       <div v-if="!share && linkedWorkpieceId" class="sync-hint">This model is part of a shared room.</div>
 
-      <template v-if="share">
+      <!-- Ein anderes Modell wird in diesem Browser geteilt; beenden lässt es sich nur dort. -->
+      <div v-if="elsewhere" class="sync-busy">
+        <div class="sync-busy__icon"><v-icon icon="mdi-share-off-outline" size="22" /></div>
+        <div class="sync-busy__title">Sharing is busy</div>
+        <div class="sync-hint">{{ tabOpen !== false ? 'Another model is shared in this browser. Switch to its tab to quit sharing.' : 'Another model is shared in this browser. Open it to quit sharing.' }}</div>
+        <v-btn v-if="tabOpen === false" variant="outlined" color="primary" size="small" prepend-icon="mdi-open-in-app" @click="openShared">Open shared model</v-btn>
+      </div>
+
+      <template v-if="share && !elsewhere">
         <template v-if="isHost">
           <ShareCopyCard :link="link" hint="Send it to visitors" class="sync-link" />
           <v-btn color="error" variant="flat" size="small" prepend-icon="mdi-logout" :loading="quitting" @click="quit">Quit sharing</v-btn>
@@ -37,13 +45,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import CollabLog from '@/collab/connection/CollabLog.vue'
 import CollabPeople from '@/collab/presence/CollabPeople.vue'
 import ShareCopyCard from '@/collab/sharing/ShareCopyCard.vue'
 import ShareSettings from '@/collab/sharing/ShareSettings.vue'
-import { currentShare as share, openQuitDialog, shareDialog, shareLink } from '@/collab/sharing/shareModel'
+import { askSharedTab, currentShare as share, isSharedModel, openQuitDialog, sharedTabOpen as tabOpen, shareDialog, shareLink } from '@/collab/sharing/shareModel'
 import { notifyError } from '@/composables/useNotifications'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { useGraphContext } from '@/composables/useGraphContext'
@@ -66,7 +74,19 @@ defineExpose({ graph, modelIo })
 const router = useRouter()
 const { isConnected, linkedWorkpieceId, logEntries, people, anonymous } = useCollabConnection()
 
+const route = useRoute()
 const isHost = computed(() => Boolean(share.value?.privateModelId))
+// Die Share gehört zu einem anderen Modell, etwa in einem zweiten Tab.
+const elsewhere = computed(() => Boolean(share.value) && !isSharedModel(route.params.modelId))
+// Danach hält der Kanal den Wert aktuell, wenn der geteilte Tab schließt oder wieder aufgeht.
+watch(elsewhere, (busy) => busy && askSharedTab(), { immediate: true })
+// Der Editor lädt ein Modell nur beim Mounten, daher erst verlassen wie in openWorkpiece.
+const openShared = async () => {
+  const modelId = share.value?.linkedModelId
+  if (!modelId) return
+  await router.replace('/')
+  await router.push({ name: 'Modeling', params: { modelId } })
+}
 const link = computed(() => (share.value ? shareLink(router, share.value.roomId) : ''))
 const quitting = ref(false)
 
@@ -182,5 +202,30 @@ const quit = async () => {
 .sync-hint {
   font-size: 12px;
   color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.sync-busy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 4px;
+  text-align: center;
+}
+
+.sync-busy__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-primary), 0.12);
+  color: color-mix(in srgb, rgb(var(--v-theme-primary)) 65%, black);
+}
+
+.sync-busy__title {
+  font-size: 13px;
+  font-weight: 600;
 }
 </style>
