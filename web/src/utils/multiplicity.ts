@@ -19,6 +19,11 @@ export interface ValidatorApplyOptions {
   liveValidation?: boolean
 }
 
+export interface DiagramWarning {
+  cell: Cell | null
+  message: string
+}
+
 const normalizeMessages = (warning: string | null): string[] => {
   if (!warning) return []
   return warning
@@ -84,13 +89,22 @@ export class DiagramValidator {
     this.rules = rules
   }
 
-  private runValidationPass(graph: PatchedGraph): string | null {
+  private runValidationPass(graph: PatchedGraph, warnings?: DiagramWarning[]): string | null {
+    const setCellWarning = graph.setCellWarning
+    graph.setCellWarning = (cell, warning, ...args) => {
+      if (warning && warnings) {
+        warnings.push(...normalizeMessages(warning.replace(/<br\s*\/?>/gi, '\n')).map((message) => ({ cell, message })))
+      }
+      const safeWarning = warning?.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/&lt;br\s*\/?&gt;/gi, '<br>')
+      return setCellWarning.call(graph, cell, safeWarning ?? null, ...args)
+    }
     setValidationPassActive(graph, true)
     try {
       // Native setCellWarning (OverlaysMixin.js:80) attaches another overlay per run; remove old warnings first
       clearValidationWarningOverlays(graph)
       return graph.validateGraph()
     } finally {
+      graph.setCellWarning = setCellWarning
       setValidationPassActive(graph, false)
     }
   }
@@ -145,9 +159,11 @@ export class DiagramValidator {
     this.runValidationPass(typedGraph)
   }
 
-  validateGraph(graph: Graph): string[] {
-    const warning = this.runValidationPass(graph as PatchedGraph)
-    return normalizeMessages(warning)
+  validateGraph(graph: Graph): DiagramWarning[] {
+    const results: DiagramWarning[] = []
+    const warning = this.runValidationPass(graph as PatchedGraph, results)
+    results.push(...normalizeMessages(warning).map((message) => ({ cell: null, message })))
+    return results
   }
 }
 
@@ -160,7 +176,13 @@ export interface ValidationLanguage {
 export const buildValidationRulesForLanguages = (languages: ValidationLanguage[]): DiagramValidationRule[] => {
   const elements = languages.flatMap((language) => language.elements)
   const connections = languages.flatMap((language) => language.connections)
-  const multiplicities = [new ConnectionMultiplicity({ config: { relations: [], messageTemplate: '' }, elements, connections }, true)]
+  const endpointConfigs = new Map<string, import('@/model/Syntax').MultiplicityConfig>()
+  for (const language of languages) {
+    const rule = language.syntax.find((entry) => entry.ruleType === 'multiplicity')
+    if (rule?.ruleType !== 'multiplicity') continue
+    for (const element of language.elements) if (!endpointConfigs.has(element.type)) endpointConfigs.set(element.type, rule.config)
+  }
+  const multiplicities = [new ConnectionMultiplicity({ config: { relations: [], messageTemplate: '' }, elements, connections, endpointConfigs }, true)]
   for (const language of languages) {
     for (const rule of language.syntax) {
       if (rule.ruleType === 'multiplicity') multiplicities.push(new ConnectionMultiplicity({ config: rule.config, elements, connections, scopeElementTypes: language.elements.map((element) => element.type) }))

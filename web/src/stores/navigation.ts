@@ -13,7 +13,8 @@ interface NavigationItem {
 
 const workspaceItems: NavigationItem[] = [
   { title: 'My Models', description: 'Create models, continue your work, and manage saved versions.', icon: 'mdi-folder-outline', route: 'Models' },
-  { title: 'Learning paths', description: 'Explore learning paths and continue your activities.', icon: 'mdi-map-marker-path', route: 'LearningPathRuns' }
+  { title: 'Learning paths', description: 'Explore learning paths and continue your activities.', icon: 'mdi-map-marker-path', route: 'LearningPathRuns' },
+  { title: 'Submissions', description: 'Submit Models and Get Feedback', icon: 'mdi-comment-check-outline', route: 'Submissions' }
 ]
 
 const administrationItems: NavigationItem[] = [

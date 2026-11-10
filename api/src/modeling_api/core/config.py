@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     oidc_token_host: str = ""  # Public Host header when Docker uses an internal address
     oidc_client_id: str = "modeling-copilot"  # provider ID of the app in the FBS
     oidc_client_secret: str = ""  # secret of the app (CONFIDENTIAL)
+    # Optional override; otherwise use /api/v1/users on the configured FBS token origin.
+    fbs_users_uri: str = ""
 
     # Service identity towards Collab-Kit (CK): the API mints its own tokens, CK checks them
     # with the public key. Issuer, algorithm and ID must match CK (SERVICE_*), the ID

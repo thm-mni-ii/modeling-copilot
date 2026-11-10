@@ -177,6 +177,8 @@ export const useCanvasOverlays = (wrapperRef: Ref<HTMLElement | null>, entriesRe
 
     return (
       a.image.src === b.image.src &&
+      a.icon === b.icon &&
+      a.color === b.color &&
       a.image.width === b.image.width &&
       a.image.height === b.image.height &&
       (a.tooltip ?? '') === (b.tooltip ?? '') &&

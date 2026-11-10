@@ -1,8 +1,11 @@
 <template>
-  <section>
-    <div class="d-flex align-center font-weight-semibold text-h6 mb-3">
-      <v-icon color="primary" class="mr-2">mdi-sync-off</v-icon>
-      <span>Cycles</span>
+  <section :id="feedbackTargetId('syntax', { kind: 'cycle' })" tabindex="-1">
+    <div class="d-flex align-center justify-space-between flex-wrap ga-2 mb-3">
+      <h3 class="d-flex align-center font-weight-semibold text-h6">
+        <v-icon color="primary" class="mr-2">mdi-sync-off</v-icon>
+        <span>Cycles</span>
+      </h3>
+      <v-btn v-if="rule" size="small" variant="text" prepend-icon="mdi-message-text-outline" aria-label="Feedback templates for Cycles" @click="navigation.openTemplates({ kind: 'cycle' })">Feedback templates</v-btn>
     </div>
 
     <p class="text-body-2 text-medium-emphasis mb-3">
@@ -47,29 +50,19 @@
         </v-sheet>
       </template>
 
-      <v-textarea
-        :model-value="rule.config.messageTemplate?.trim() ? rule.config.messageTemplate : DEFAULT_CYCLE_MESSAGE_TEMPLATES[rule.config.mode ?? 'forbid']"
-        rows="2"
-        density="compact"
-        variant="outlined"
-        label="Error Message Template"
-        auto-grow
-        :hint="(rule.config.mode ?? 'forbid') === 'forbid' ? 'Use placeholders such as {source}, {target}' : rule.config.mode === 'every' ? 'Use the placeholder {element}. Empty restores the standard message.' : 'Diagram-wide message; no placeholders. Empty restores the standard message.'"
-        persistent-hint
-        class="mt-3"
-        @update:model-value="(value: string) => setConfigField('messageTemplate', value ?? '')"
-      />
     </template>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import type { AcyclicRule, CycleMode } from '@/model/Syntax'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 import { DEFAULT_CYCLE_MESSAGE_TEMPLATES } from '@/utils/acyclic'
+import { feedbackTargetId, feedbackTemplateNavigationKey } from '@/components/modeling/editors/feedbackTemplateNavigation'
 
 const store = useDiagramLanguages()
+const navigation = inject(feedbackTemplateNavigationKey)!
 
 const rule = computed(() => store.definition?.syntax.find((entry): entry is AcyclicRule => entry.ruleType === 'acyclic'))
 

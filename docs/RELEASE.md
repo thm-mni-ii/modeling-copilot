@@ -33,6 +33,25 @@ Set each package's desired visibility (`private` or `public`) there.
 
 ## Create a release
 
+### Database migration for submissions
+
+Migration `09_submissions_feedback` follows `08_public_case_studies`. It creates
+the nine submission/feedback collections and their indexes, and initializes the
+global feedback configuration only if it does not exist. Existing models,
+language configurations, submissions and feedback remain unchanged.
+
+The API image applies registered migrations before starting the server. To
+preview this step separately using the updated image:
+
+```bash
+docker compose run --rm api python -m modeling_api.db.migrations --migration 09_submissions_feedback
+```
+
+To apply the previewed step explicitly, append `--apply`. Its prerequisites must
+already be completed. Successful execution is recorded in `schema_migrations`;
+repeated runs skip the completed step. Use the existing backup procedure before
+updating the deployment.
+
 ### Portainer instance configuration
 
 1. Create namespace `modeling-copilot` and manage its instance ConfigMaps and

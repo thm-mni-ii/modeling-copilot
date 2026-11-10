@@ -8,22 +8,25 @@
           <p class="text-body-2 text-medium-emphasis mb-0">Allowed combinations, connection points and quantity limits.</p>
         </div>
       </div>
-      <section class="rules-section">
+      <section :id="feedbackTargetId('syntax', { kind: 'connection' })" tabindex="-1" class="rules-section">
         <div class="d-flex align-center justify-space-between flex-wrap ga-3 mb-3">
           <h4 class="d-flex align-center text-subtitle-1 font-weight-bold">
             <v-icon color="primary" class="mr-2">mdi-grid</v-icon>
             <span>Connection Matrix</span>
           </h4>
-          <v-select :model-value="config.defaultState ?? 'allowed'" :items="defaultStates" label="Undefined cells" density="compact" variant="outlined" hide-details :disabled="!hasLanguageVersion" class="matrix-default" @update:model-value="setDefaultState" />
+          <v-btn size="small" variant="text" prepend-icon="mdi-message-text-outline" aria-label="Feedback templates for Connection Matrix" @click="navigation.openTemplates({ kind: 'connection' })">Feedback templates</v-btn>
         </div>
 
-        <div class="matrix-legend text-caption text-medium-emphasis mb-2">
-          <span>Click to cycle:</span>
-          <span><v-icon color="primary" size="16">mdi-check</v-icon> Allowed</span>
-          <span aria-hidden="true">→</span>
-          <span><v-icon color="error" size="16">mdi-close</v-icon> Forbidden</span>
-          <span aria-hidden="true">→</span>
-          <span><v-icon size="16">mdi-minus</v-icon> Undefined</span>
+        <div class="d-flex align-center justify-space-between flex-wrap ga-3 mb-2">
+          <div class="matrix-legend text-caption text-medium-emphasis">
+            <span>Click to cycle:</span>
+            <span><v-icon color="primary" size="16">mdi-check</v-icon> Allowed</span>
+            <span aria-hidden="true">→</span>
+            <span><v-icon color="error" size="16">mdi-close</v-icon> Forbidden</span>
+            <span aria-hidden="true">→</span>
+            <span><v-icon size="16">mdi-minus</v-icon> Undefined</span>
+          </div>
+          <v-select :model-value="config.defaultState ?? 'allowed'" :items="defaultStates" label="Undefined cells" density="compact" variant="outlined" hide-details :disabled="!hasLanguageVersion" class="matrix-default" @update:model-value="setDefaultState" />
         </div>
 
         <v-alert v-if="elementOptions.length === 0" type="info" variant="tonal" class="mt-3"> Add Elements first to define Connection rules. </v-alert>
@@ -62,18 +65,19 @@
         </v-sheet>
 
         <p v-if="elementOptions.length" class="text-caption text-medium-emphasis mt-2 mb-0">Edit allowed combinations in the overview below. Undefined cells are {{ config.defaultState === 'forbidden' ? 'not allowed' : 'allowed' }} by default.</p>
-        <v-textarea :model-value="config.forbiddenMessageTemplate?.trim() ? config.forbiddenMessageTemplate : DEFAULT_CONNECTION_MESSAGE_TEMPLATES.forbiddenMessageTemplate" label="Forbidden combination error message" rows="2" auto-grow density="compact" variant="outlined" class="mt-4" :disabled="!hasLanguageVersion" hint="Placeholders: {source}, {target}, {connection}. Empty restores the standard message." persistent-hint @update:model-value="setConnectionMessage('forbiddenMessageTemplate', $event)" />
       </section>
 
       <v-divider />
-      <section class="rules-section d-flex flex-column ga-3">
-        <h4 class="d-flex align-center text-subtitle-1 font-weight-bold">
-          <v-icon color="primary" class="mr-2">mdi-arrow-decision</v-icon>Allowed connections<v-chip size="x-small" variant="tonal" class="ml-2">{{ allowedRelations.length }}</v-chip>
-        </h4>
+      <section :id="feedbackTargetId('syntax', { kind: 'quantity' })" tabindex="-1" class="rules-section d-flex flex-column ga-3">
+        <div class="d-flex align-center justify-space-between flex-wrap ga-2">
+          <h4 class="d-flex align-center text-subtitle-1 font-weight-bold">
+            <v-icon color="primary" class="mr-2">mdi-arrow-decision</v-icon>Allowed connections<v-chip size="x-small" variant="tonal" class="ml-2">{{ allowedRelations.length }}</v-chip>
+          </h4>
+          <v-btn size="small" variant="text" prepend-icon="mdi-message-text-outline" aria-label="Feedback templates for Allowed connections" @click="navigation.openTemplates({ kind: 'quantity' })">Feedback templates</v-btn>
+        </div>
         <v-alert v-if="configErrors.length" type="warning" variant="tonal" density="compact"
           ><div v-for="error in configErrors" :key="error">{{ error }}</div></v-alert
         >
-        <v-textarea v-for="field in connectionMessageFields" :key="field.key" :model-value="config[field.key]?.trim() ? config[field.key] : DEFAULT_CONNECTION_MESSAGE_TEMPLATES[field.key]" :label="field.label" rows="2" auto-grow density="compact" variant="outlined" class="mt-4" :disabled="!hasLanguageVersion" hint="Placeholders: {source}, {target}, {connection}. Empty restores the standard message." persistent-hint @update:model-value="setConnectionMessage(field.key, $event)" />
         <p v-if="!allowedRelations.length" class="text-body-2 text-medium-emphasis mb-0">Set a matrix cell to <v-icon color="primary" size="16">mdi-check</v-icon> to define its connection types, points and limits.</p>
         <v-expansion-panels v-else v-model="activeRelationKey" variant="accordion" class="rule-overview">
           <v-expansion-panel v-for="relation in allowedRelations" :key="relationKey(relation.sourceType, relation.targetType)" :value="relationKey(relation.sourceType, relation.targetType)">
@@ -116,7 +120,6 @@
                 :source-type="activeRelation.sourceType"
                 :target-type="activeRelation.targetType"
                 :connection-options="connectionOptions"
-                :message-template="messageTemplate"
                 :disabled="!hasLanguageVersion"
                 @patch="patchBase"
                 @update:endpoint-pairs="patchBase({ endpoints: $event })"
@@ -135,7 +138,6 @@
                     :source-type="activeRelation.sourceType"
                     :target-type="activeRelation.targetType"
                     :connection-options="connectionOptions"
-                    :message-template="messageTemplate"
                     :disabled="!hasLanguageVersion"
                     @patch="patchRoute(index, $event)"
                     @update:source="patchRoute(index, { source: $event })"
@@ -156,9 +158,12 @@
           <h4 class="d-flex align-center text-subtitle-1 font-weight-bold">
             <v-icon color="primary" class="mr-2">mdi-counter</v-icon>Connection Limits<v-chip size="x-small" variant="tonal" class="ml-2">{{ edgeRules.length }}</v-chip>
           </h4>
+          <v-btn size="small" variant="text" prepend-icon="mdi-message-text-outline" aria-label="Feedback templates for Connection Limits" @click="navigation.openTemplates({ kind: 'quantity' })">Feedback templates</v-btn>
+        </div>
+        <div class="d-flex align-center justify-space-between flex-wrap ga-2">
+          <p class="text-caption text-medium-emphasis mb-0">Totals across combinations, per element, point or group. All matching limits apply together.</p>
           <v-btn prepend-icon="mdi-plus" variant="tonal" color="primary" size="small" :disabled="!hasLanguageVersion || !elementOptions.length" @click="addEdgeRule">Add limit</v-btn>
         </div>
-        <p class="text-caption text-medium-emphasis mb-0">Totals across combinations, per element, point or group. All matching limits apply together.</p>
         <p v-if="!edgeRules.length" class="text-body-2 text-medium-emphasis mb-0">No additional limits.</p>
         <v-expansion-panels v-model="openLimits" variant="accordion" multiple>
           <v-expansion-panel v-for="(entry, index) in edgeRules" :key="index" :value="index">
@@ -182,19 +187,11 @@
               <v-select :model-value="entry.countScope ?? 'element'" :items="countScopes" label="Count connections" variant="outlined" density="compact" :disabled="!hasLanguageVersion" @update:model-value="setLimitField(entry, 'countScope', $event)" />
               <ConnectionPointSelector :model-value="entry.endpoints ?? {}" :element="elementFor(entry.elementType)" :elements="elements" :groups-only="entry.countScope === 'group'" :label="entry.countScope === 'group' ? 'Connection point groups' : 'Limit to points or groups (optional)'" :disabled="!hasLanguageVersion" @update:model-value="setLimitField(entry, 'endpoints', $event)" />
               <CardinalityFields :model-value="entry.cardinality" label="Allowed number of connections" :disabled="!hasLanguageVersion" class="mt-4" @update:model-value="setLimitField(entry, 'cardinality', $event)" />
-              <v-textarea :model-value="resolveQuantityMessage(entry.messageTemplate, config.messageTemplate)" label="Limit error message template" rows="2" auto-grow variant="outlined" density="compact" :disabled="!hasLanguageVersion" class="mt-4" hint="Placeholders: {source}, {target}, {connection}, {min}, {max}. Empty uses the default quantity message." persistent-hint @update:model-value="setLimitField(entry, 'messageTemplate', $event)" />
             </v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>
       </section>
 
-      <v-divider />
-      <v-expansion-panels variant="accordion" flat>
-        <v-expansion-panel>
-          <v-expansion-panel-title><v-icon color="primary" size="18" class="mr-2">mdi-message-alert-outline</v-icon><span class="text-body-2">Default quantity error message</span></v-expansion-panel-title>
-          <v-expansion-panel-text><v-textarea v-model="messageTemplate" rows="3" density="compact" variant="outlined" label="Quantity error message" auto-grow hint="Placeholders: {source}, {target}, {connection}, {min}, {max}" persistent-hint :disabled="!hasLanguageVersion" /></v-expansion-panel-text>
-        </v-expansion-panel>
-      </v-expansion-panels>
     </v-sheet>
 
     <slot />
@@ -216,15 +213,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 import type { EdgeCardinality, EndpointSelector, MultiplicityCardinality, MultiplicityConfig, MultiplicityRefinement, MultiplicityRelation, MultiplicityRelationState, MultiplicityRoute } from '@/model/Syntax'
 import CardinalityFields from './CardinalityFields.vue'
 import ConnectionPointSelector from './ConnectionPointSelector.vue'
-import ConnectionTypeSelect from './ConnectionTypeSelect.vue'
 import ElementPreviewLabel from './ElementPreviewLabel.vue'
 import RouteRuleFields from './RouteRuleFields.vue'
-import { DEFAULT_CONNECTION_MESSAGE_TEMPLATES, resolveQuantityMessage } from '@/utils/syntaxMessages'
+import { feedbackTargetId, feedbackTemplateNavigationKey } from '@/components/modeling/editors/feedbackTemplateNavigation'
 import { connectionConfigErrors } from '@/utils/connectionRules'
 import { pointId, pointLabel } from '@/utils/connectionPoints'
 
@@ -232,6 +228,7 @@ type RelationState = MultiplicityRelationState | 'unset'
 const props = defineProps<{ config: MultiplicityConfig; elementOptions: string[]; connectionOptions: string[] }>()
 const emit = defineEmits<{ update: [] }>()
 const store = useDiagramLanguages()
+const navigation = inject(feedbackTemplateNavigationKey)!
 const hasLanguageVersion = computed(() => store.currentVersion !== null)
 const elements = computed(() => store.definition?.elements ?? [])
 const elementFor = (type: string) => elements.value.find((e) => e.type === type)
@@ -274,13 +271,13 @@ const setMode = (value: unknown) => {
   if (!relation || mode === (isIndividual(relation) ? 'individual' : 'basic')) return
   const ref = relation.refinement
   if (mode === 'individual') {
-    const base = { messageTemplate: ref.messageTemplate, connectionTypes: [...ref.connectionTypes], cardinality: { ...ref.cardinality }, targetCardinality: ref.targetCardinality && { ...ref.targetCardinality }, pairCardinality: ref.pairCardinality && { ...ref.pairCardinality } }
+    const base = { connectionTypes: [...ref.connectionTypes], cardinality: { ...ref.cardinality }, targetCardinality: ref.targetCardinality && { ...ref.targetCardinality }, pairCardinality: ref.pairCardinality && { ...ref.pairCardinality } }
     const pairs = ref.endpoints?.length ? ref.endpoints : [{ source: emptySelector(), target: emptySelector() }]
     ref.routes = pairs.map((pair) => ({ ...structuredClone(base), source: pair.source, target: pair.target }))
     ref.endpoints = undefined
   } else if ((ref.routes?.length ?? 0) <= 1) {
     const [route] = ref.routes ?? []
-    if (route) Object.assign(ref, { messageTemplate: route.messageTemplate, connectionTypes: route.connectionTypes, cardinality: route.cardinality, targetCardinality: route.targetCardinality, pairCardinality: route.pairCardinality, endpoints: [{ source: route.source, target: route.target }] })
+    if (route) Object.assign(ref, { connectionTypes: route.connectionTypes, cardinality: route.cardinality, targetCardinality: route.targetCardinality, pairCardinality: route.pairCardinality, endpoints: [{ source: route.source, target: route.target }] })
     ref.routes = undefined
   }
   update()
@@ -348,7 +345,7 @@ const setLimitElement = (rule: EdgeCardinality, value: string | null) => {
 }
 const addEdgeRule = () => {
   const index = edgeRules.value.length
-  Object.assign(props.config, { incoming: [...edgeRules.value, { elementType: activeRelation.value?.sourceType ?? '', direction: 'both', cardinality: unlimited(), messageTemplate: messageTemplate.value }] })
+  Object.assign(props.config, { incoming: [...edgeRules.value, { elementType: activeRelation.value?.sourceType ?? '', direction: 'both', cardinality: unlimited() }] })
   openLimits.value = [...openLimits.value, index]
   update()
 }
@@ -357,21 +354,6 @@ const removeEdgeRule = (index: number) => {
   openLimits.value = openLimits.value.filter((i) => i !== index).map((i) => (i > index ? i - 1 : i))
   update()
 }
-const connectionMessageFields = [
-  { key: 'connectionTypeMessageTemplate', label: 'Connection type error message' },
-  { key: 'endpointMessageTemplate', label: 'Connection point combination error message' }
-] as const
-const setConnectionMessage = (key: keyof typeof DEFAULT_CONNECTION_MESSAGE_TEMPLATES, value: string | null) => {
-  Object.assign(props.config, { [key]: value ?? '' })
-  update()
-}
-const messageTemplate = computed({
-  get: () => resolveQuantityMessage(props.config.messageTemplate),
-  set: (value: string) => {
-    Object.assign(props.config, { messageTemplate: value ?? '' })
-    update()
-  }
-})
 const uiStructureExampleJson = computed(() => JSON.stringify({ ruleType: 'multiplicity', config: props.config }, null, 2))
 </script>
 

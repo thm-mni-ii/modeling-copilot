@@ -1,4 +1,4 @@
-import { Cell, EventObject, Graph, InternalEvent } from '@maxgraph/core'
+import { Cell, EventObject, Graph, InternalEvent, styleUtils } from '@maxgraph/core'
 import { isTruthyFlag } from '@/utils/flagUtils'
 
 /**
@@ -93,7 +93,7 @@ function readFreeLayoutConfig(style: Record<string, any>): FreeLayoutConfig {
  *
  * @param graph - Die Graph-Instanz
  */
-export function setupSwimlaneSupport(graph: Graph): void {
+export function setupSwimlaneSupport(graph: Graph, onRejectedContainer?: (container: Cell, cells: Cell[]) => void): void {
   const g = graph as GraphWithSwimlaneSupport
 
   // Pool-Erkennung (nur für Top-Level Swimlanes)
@@ -126,6 +126,17 @@ export function setupSwimlaneSupport(graph: Graph): void {
   // Override moveCells um Auto-Stack bei Verschiebungen zu triggern
   const originalMoveCells = g.moveCells.bind(g)
   g.moveCells = function (cells, dx, dy, clone, target, evt) {
+    if (onRejectedContainer && evt && cells?.length && (!target || target === this.getDefaultParent())) {
+      const point = styleUtils.convertPoint(this.container, evt.clientX, evt.clientY)
+      let candidate = this.getCellAt(point.x - this.panDx, point.y - this.panDy)
+      while (candidate && !cells.includes(candidate)) {
+        if ((this.isSwimlane(candidate) || isContainerSectionTarget(candidate)) && !this.isValidDropTarget(candidate, cells)) {
+          onRejectedContainer(candidate, cells.filter((cell) => cell.getParent() !== candidate))
+          break
+        }
+        candidate = candidate.getParent()
+      }
+    }
     // Layer-gebundene Elemente (z.B. Feedback-Labels) dürfen nicht in Container reparented werden.
     if (target && cells && cells.length > 0) {
       const hasLayerLockedCell = cells.some((cell) => isLayerLockedCell(this, cell))

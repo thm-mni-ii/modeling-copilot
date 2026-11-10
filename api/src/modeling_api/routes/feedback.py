@@ -10,7 +10,7 @@ from modeling_api.schemas.feedback import CreateFeedback, Feedback, FeedbackInfo
 from modeling_api.services import feedback as service
 
 router = APIRouter(
-    prefix="/models/{model_id}/versions/{version_id}/feedback", tags=["Feedback"]
+    prefix="/models/{model_id}/versions/{version_id}/feedback", tags=["Legacy Feedback"], deprecated=True
 )
 
 

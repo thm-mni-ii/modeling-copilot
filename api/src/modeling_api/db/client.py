@@ -18,9 +18,24 @@ async def create_activity_indexes() -> None:
     )
 
 
+async def create_submission_indexes() -> None:
+    """Indexes shared by startup and the submissions migration."""
+    # New human-feedback storage is separate from legacy feedback and model data.
+    await db.submission_assignments.create_index([("archived", ASCENDING), ("createdAt", DESCENDING)])
+    await db.submission_runs.create_index([("assignmentId", ASCENDING), ("createdAt", DESCENDING)])
+    await db.submission_participants.create_index([("runId", ASCENDING), ("userId", ASCENDING)], unique=True)
+    await db.submission_participants.create_index([("userId", ASCENDING), ("runId", ASCENDING)])
+    await db.submissions.create_index([("runId", ASCENDING), ("ownerId", ASCENDING), ("createdAt", DESCENDING)])
+    await db.submission_reviews.create_index([("submissionId", ASCENDING), ("kind", ASCENDING)])
+    await db.submission_reviews.create_index([("runId", ASCENDING), ("status", ASCENDING)])
+    await db.submission_publications.create_index([("reviewId", ASCENDING), ("number", DESCENDING)])
+    await db.submission_resolutions.create_index([("submissionId", ASCENDING), ("userId", ASCENDING)])
+
+
 async def create_indexes() -> None:
     """Create indexes required by API query patterns."""
     await create_activity_indexes()
+    await create_submission_indexes()
     await db.surveys.create_index([("deletedAt", ASCENDING), ("createdAt", DESCENDING)])
     await db.survey_versions.create_index(
         [("surveyId", ASCENDING), ("version", DESCENDING)], unique=True
