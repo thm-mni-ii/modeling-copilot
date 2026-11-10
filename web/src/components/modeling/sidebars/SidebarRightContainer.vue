@@ -69,7 +69,6 @@ const emit = defineEmits<{
 }>()
 
 const baseTabs: SidebarTabItem[] = [
-  { value: 'feedback', icon: 'mdi-comment-text-multiple-outline', label: 'Feedback' },
   { value: 'persistence', icon: 'mdi-import', label: 'Import/Export' },
   { value: 'sync', icon: 'mdi-sync', label: 'Collab' },
   { value: 'languages', icon: 'mdi-bookshelf', label: 'Languages' }
