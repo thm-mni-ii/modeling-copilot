@@ -5,7 +5,6 @@ import { isPseudonym } from '@/collab/kit/collabKit'
 import { compareNames } from '@/utils/sorting'
 import type { Session } from '@/collab/kit/collabKitV1'
 import { announcedRights, currentShare, hostPresenting, personColors, presenting, settingsLoaded, shareSettings } from '@/collab/sharing/shareModel'
-import { roomRole } from '@/collab/rooms/roomRole'
 import { startCursors } from './cursors'
 
 /** One person at the workpiece, once however many tabs they have open. */
@@ -53,26 +52,8 @@ const leastUsed = (assigned: Record<string, string>, present: Set<string>) => {
   return PALETTE.reduce((best, color) => ((counts.get(color) ?? 0) < (counts.get(best) ?? 0) ? color : best))
 }
 
-/** Ob der Raum zuletzt als anonym angekündigt war; null, bis der Host das erste Mal angekündigt hat. */
-let lastAnnounced: boolean | null = null
-
-/**
- * Der Name, wie die Oberfläche ihn zeigt. Ist der Raum anonym, erscheinen andere außer dem Host nur unter
- * Pseudonym, auch wenn collab-kit den Namen schickt: Wer überall verwalten darf (etwa ein FBS-Admin), sieht
- * dort sonst durch. Die Nummer folgt fest aus der ID, bleibt für diesen Betrachter also gleich, ist aber
- * nicht die von collab-kit. Host: seine Einstellung, maskiert bis sie geladen ist. Visitor: die letzte
- * Ankündigung des Hosts, maskiert bis die erste da ist; so blitzt kein Name auf, und ein kurz fehlender
- * Host ändert nichts. Im Gruppenraum kündigt niemand etwas an: Dort gilt, was collab-kit schickt, bei
- * anonymer Freigabe also sein Pseudonym.
- */
-export const shownName = (id: string, name: string | undefined, self = false) => {
-  if (isPseudonym(id)) return id
-  if (roomRole.value?.kind === 'group') return name ?? `Person ${id}`
-  const anonymous = currentShare.value?.privateModelId ? !settingsLoaded.value || shareSettings.anonymous : lastAnnounced ?? true
-  if (anonymous && !self && id !== hostId()) return `anonymous-${1000 + ((Array.from(id).reduce((hash, char) => hash * 31 + char.charCodeAt(0), 7) >>> 0) % 9000)}`
-  return name ?? `Person ${id}`
-}
-const nameOf = (person: { id: string; name?: string; self?: boolean }) => shownName(person.id, person.name, person.self)
+/** The name collab-kit has from the token; a pseudonym shows as it is, a token without a name shows the ID. */
+const nameOf = (person: { id: string; name?: string }) => person.name ?? (isPseudonym(person.id) ? person.id : `Person ${person.id}`)
 
 /** Whether the host presents. */
 const presenterActive = (session: Session) => session.presence.people().some((person) => person.id === hostId() && person.clients.some(({ state }) => (state as PresenceState).presenting === true))
@@ -305,7 +286,6 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     const people = session.presence.people()
     hostPresenting.value = presenterActive(session)
     announcedRights.value = announcedBy(session)
-    if (announcedRights.value) lastAnnounced = announcedRights.value.anonymous
     if (currentShare.value?.privateModelId) assignColors(people)
     else personColors.value = colorsBy(session) ?? {}
     const seen = JSON.stringify([people.map(({ id, name, clients }) => [id, name, clients.map(({ clientId, state }) => [clientId, (state as PresenceState).selection, (state as PresenceState).selectedSince, (state as PresenceState).idle, (state as PresenceState).readOnly, (state as PresenceState).presenting, (state as PresenceState).visitors])]), personColors.value])
@@ -427,7 +407,6 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     stopPresentingWatch()
     stopAnonymityWatch()
     announcedRights.value = null
-    lastAnnounced = null
     personColors.value = {}
     hostPresenting.value = false
     selectionModel.removeListener(sendSelection)
