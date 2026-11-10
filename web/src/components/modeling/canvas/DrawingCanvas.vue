@@ -93,9 +93,11 @@
               <slot name="canvas-top-right" />
             </div>
 
-            <!-- Messages without a cell of their own (validateCell of the root), e.g. "at least one cycle" -->
             <v-alert v-if="diagramWarnings.length" type="warning" variant="tonal" density="compact" class="canvas-diagram-warnings" @pointerdown.stop>
-              <div v-for="message in diagramWarnings" :key="message">{{ message }}</div>
+              <div v-for="(warning, index) in diagramWarnings" :key="index">
+                <v-btn v-if="warning.cell" variant="text" size="small" class="canvas-warning-button" @click="focusWarning(warning.cell)">{{ warning.message }}</v-btn>
+                <span v-else>{{ warning.message }}</span>
+              </div>
             </v-alert>
 
             <GraphControls @zoom-in="zoomIn" @zoom-out="zoomOut" @fit-to-window="fitToWindow" @toggle-grid="toggleGrid" @force-grid-repaint="forceGridRepaint" />
@@ -174,12 +176,13 @@ import { sharedHistory } from '@/collab/graph/sharedHistory'
 import type { SidebarLanguage } from '@/components/modeling/sidebars/ElementsSidebar.vue'
 import type { DiagramElement } from '@/model/Element'
 import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connection'
-import type { DiagramSyntax } from '@/model/Syntax'
+import type { DiagramSyntax, MultiplicityConfig } from '@/model/Syntax'
 import type { CanvasWindowDefinition, CanvasWindowPatch } from '@/model/CanvasWindow'
-import { buildValidationRulesForLanguages, DiagramValidator, type ValidationLanguage } from '@/utils/multiplicity'
+import { buildValidationRulesForLanguages, DiagramValidator, type DiagramWarning, type ValidationLanguage } from '@/utils/multiplicity'
 import { constraintStyle, elementTypeOf, pointId } from '@/utils/connectionPoints'
 import ConnectionSuggestions from './ConnectionSuggestions.vue'
 import { buildContainmentFromSyntax, canContain, type ContainmentMap } from '@/utils/containment'
+import { cellLabel, DEFAULT_CONTAINMENT_MESSAGE, renderEndpointMessage, renderValidationIssue } from '@/utils/syntaxMessages'
 import { buildAcyclicFromSyntax, closesCycle, isOnCycle, renderAcyclicMessage, renderCycleRequiredMessage, type AcyclicSettings } from '@/utils/acyclic'
 import type { AutonomyMode } from '@/model/Autonomy'
 import type { DiagramFeedbackConfig, FeedbackCanvasOverlayEntry } from '@/model/Feedback'
@@ -227,6 +230,8 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
 
 // Containment rules of the syntax, read by MyCustomGraph.isValidDropTarget
 let containment: ContainmentMap = new Map()
+let containmentTemplates = new Map<string, string>()
+let endpointConfigs = new Map<string, MultiplicityConfig>()
 
 // Cycle rules of every language, read by the native graph validation hooks.
 let acyclic: AcyclicSettings[] = []
@@ -364,7 +369,10 @@ class MyCustomGraph extends Graph {
     const connection = edge ? this.getConnectionOf(edge) : undefined
     const blockedLoop = !!source && source === target && connection?.allowLoops !== true
     const blockedLooseEnd = edge && !isPreviewEdge(edge) && connection?.allowLooseEnds === false && (!source || !target)
-    const error = blockedLooseEnd ? 'This connection must be attached at both ends.\n' : blockedLoop ? `The Connection ${connection?.type ?? '-'} may not connect ${(source as any).diagramElementType ?? '-'} to itself.\n` : super.getEdgeValidationError(edge, source, target)
+    const endpoint = source ?? target
+    const templates = endpointConfigs.get(elementTypeOf(endpoint) ?? '')?.endpointMessages
+    const connectionName = connection?.label || connection?.type || 'this connection'
+    const error = blockedLooseEnd ? `${renderEndpointMessage('looseEnd', templates, endpoint, { connection: connectionName })}\n` : blockedLoop ? `${renderEndpointMessage('loop', templates, source, { connection: connectionName })}\n` : super.getEdgeValidationError(edge, source, target)
     const mode = getGraphValidationMode(this)
     if (mode === 'preventive') {
       return error
@@ -386,6 +394,11 @@ class MyCustomGraph extends Graph {
   override validateCell = (cell: Cell, context: CellState): string | null => {
     const errors = [super.validateCell(cell, context)]
     const isElement = (candidate: Cell) => candidate.isVertex() && candidate.isConnectable() && !!elementTypeOf(candidate)
+    const parent = cell.getParent()
+    const type = elementTypeOf(cell)
+    if (parent && type && cell.isVertex() && (cell as any).cellRole !== 'feedback' && sidebarLanguages.value.some((language) => language.elements.some((element) => element.type === type)) && !canContain(containment, parent, [cell])) {
+      errors.push(`${renderValidationIssue({ kind: 'containment', code: 'containment', cell, template: containmentTemplates.get(elementTypeOf(parent) ?? '') || DEFAULT_CONTAINMENT_MESSAGE, values: { container: cellLabel(parent) } })}\n`)
+    }
     for (const settings of acyclic) {
       const inScope = (candidate: Cell) => !settings.scopeElementTypes || settings.scopeElementTypes.includes(elementTypeOf(candidate) ?? '')
       if (settings.mode === 'every' && isElement(cell) && inScope(cell) && (!settings.elementTypes.length || settings.elementTypes.includes(elementTypeOf(cell)!)) && !isOnCycle(cell, settings)) {
@@ -610,7 +623,13 @@ const { overlayTooltip, overlayTooltipAnchorStyle, registerGraph, cleanup: clean
 // Zentraler Validator für alle Diagramm-Regeln
 const diagramValidator = new DiagramValidator()
 // Validation messages for the whole diagram, shown as a notice above the canvas
-const diagramWarnings = ref<string[]>([])
+const diagramWarnings = shallowRef<DiagramWarning[]>([])
+
+const focusWarning = (cell: Cell) => {
+  graph.value?.setSelectionCell(cell)
+  graph.value?.scrollCellToVisible(cell)
+  graphContainer.value?.focus({ preventScroll: true })
+}
 
 const normalizeErrorLines = (rawMessage: string): string[] =>
   rawMessage
@@ -655,6 +674,19 @@ const rebuildValidationRules = (rules?: DiagramSyntax[]) => {
     ? props.languages.map((language) => ({ syntax: language.syntax!, elements: language.elements, connections: language.connections! }))
     : [{ syntax: rules ?? [], elements: sidebarLanguages.value.flatMap((language) => language.elements), connections: languageConnections.value }]
   containment = buildContainmentFromSyntax(languages.flatMap((language) => language.syntax))
+  containmentTemplates = new Map()
+  endpointConfigs = new Map()
+  for (const language of languages) {
+    for (const rule of language.syntax) {
+      if (rule.ruleType === 'multiplicity') {
+        for (const element of language.elements) if (!endpointConfigs.has(element.type)) endpointConfigs.set(element.type, rule.config)
+      }
+      if (rule.ruleType !== 'containment') continue
+      for (const relation of rule.config.relations) {
+        if (!containmentTemplates.has(relation.containerType)) containmentTemplates.set(relation.containerType, rule.config.messageTemplate?.trim() || DEFAULT_CONTAINMENT_MESSAGE)
+      }
+    }
+  }
   acyclic = languages.flatMap((language) => buildAcyclicFromSyntax(language.syntax, { elementTypes: language.elements.map((element) => element.type), connectionTypes: language.connections.map((connection) => connection.type) }))
   const validationRules = buildValidationRulesForLanguages(languages)
   diagramValidator.addRules(validationRules)
@@ -1094,7 +1126,7 @@ const initGraph = () => {
   setGraphValidationMode(graph.value, autonomyMode.value)
 
   graph.value.validationAlert = (message: string) => {
-    if (autonomyMode.value === 'validating') {
+    if (autonomyMode.value !== 'free') {
       openValidationDialog(normalizeErrorLines(message))
       return
     }
@@ -1247,7 +1279,12 @@ const initGraph = () => {
   }
 
   // Swimlane-Unterstützung aktivieren
-  setupSwimlaneSupport(graph.value)
+  setupSwimlaneSupport(graph.value, (container, cells) => {
+    const invalid = cells.find((cell) => !canContain(containment, container, [cell]))
+    if (!invalid) return
+    const message = renderValidationIssue({ kind: 'containment', code: 'containment', cell: invalid, template: containmentTemplates.get(elementTypeOf(container) ?? '') || DEFAULT_CONTAINMENT_MESSAGE, values: { container: cellLabel(container) } })
+    graph.value?.validationAlert(message)
+  })
 
   parent.value = modelLayerCell.value ?? graph.value.getDefaultParent()
 
@@ -1337,7 +1374,11 @@ const initializeToolbar = () => {
   }
 
   toolbarShapes.value = [...buildLanguageShapes.value, ...feedbackShapes.value]
-  cleanupToolbarDropHandlers = ensureGraphDropHandlers(graph.value, parent, toolbarShapes.value)
+  cleanupToolbarDropHandlers = ensureGraphDropHandlers(graph.value, parent, toolbarShapes.value, (container, cell, label) => {
+    if (canContain(containment, container, [cell])) return
+    const message = renderValidationIssue({ kind: 'containment', code: 'containment', cell: new Cell(label), template: containmentTemplates.get(elementTypeOf(container) ?? '') || DEFAULT_CONTAINMENT_MESSAGE, values: { container: cellLabel(container) } })
+    graph.value?.validationAlert(message)
+  })
 }
 
 watch(
@@ -1548,6 +1589,15 @@ defineExpose({
   z-index: 10;
   width: max-content;
   max-width: calc(100% - 16px);
+  max-height: 40%;
+  overflow: auto;
+}
+
+.canvas-warning-button {
+  height: auto;
+  white-space: normal;
+  text-align: left;
+  text-transform: none;
 }
 
 .canvas-window-default-content {

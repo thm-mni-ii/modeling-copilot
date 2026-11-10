@@ -58,7 +58,6 @@ import ConnectionPointSelector from './ConnectionPointSelector.vue'
 import ConnectionTypeSelect from './ConnectionTypeSelect.vue'
 
 export interface RouteRuleValues {
-  messageTemplate?: string
   connectionTypes: string[]
   cardinality: MultiplicityCardinality
   targetCardinality?: MultiplicityCardinality

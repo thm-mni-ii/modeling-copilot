@@ -2,12 +2,13 @@ import type { Cell } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
 import type { DiagramElement } from '@/model/Element'
 import type { EdgeCardinality, MultiplicityCardinality, MultiplicityConfig, MultiplicityRelation } from '@/model/Syntax'
-import { DEFAULT_CONNECTION_MESSAGE_TEMPLATES, resolveQuantityMessage } from './syntaxMessages'
+import { DEFAULT_CONNECTION_MESSAGE_TEMPLATES, renderEndpointMessage, renderValidationIssue, resolveQuantityMessage, type ValidationIssue } from './syntaxMessages'
 import { elementTypeOf, endpointId, matchesEndpoint, pointId, pointLabel, pointsOf } from './connectionPoints'
 
 export interface ConnectionEndpointContext {
   elements: DiagramElement[]
   connections: DiagramConnection[]
+  endpointConfigs?: Map<string, MultiplicityConfig>
 }
 
 export interface ConnectionRuleContext extends ConnectionEndpointContext {
@@ -30,7 +31,7 @@ const ends = (edge: Cell): [Cell | null, Cell | null] => [edge.getTerminal(true)
 const orientations = (context: ConnectionRuleContext, edge: Cell, source: Cell, target: Cell) => isUndirected(context, edge) && source !== target ? [[source, target, true], [target, source, false]] as const : [[source, target, true]] as const
 
 /** A route of the individual mode behaves like a relation of its own, bound to its connection points. */
-type EffectiveRelation = MultiplicityRelation & { routed?: boolean; label: string }
+type EffectiveRelation = MultiplicityRelation & { routed?: boolean; label: string; routeName?: string }
 
 export const effectiveRelations = (config: MultiplicityConfig): EffectiveRelation[] =>
   config.relations.flatMap((relation): EffectiveRelation[] => {
@@ -40,8 +41,9 @@ export const effectiveRelations = (config: MultiplicityConfig): EffectiveRelatio
     return routes.map((route, index) => ({
       ...relation,
       routed: true,
+      routeName: route.name?.trim() || `route ${index + 1}`,
       label: `${label} (${route.name?.trim() || `route ${index + 1}`})`,
-      refinement: { messageTemplate: route.messageTemplate, connectionTypes: route.connectionTypes, cardinality: route.cardinality, targetCardinality: route.targetCardinality, pairCardinality: route.pairCardinality, endpoints: [{ source: route.source, target: route.target }] }
+      refinement: { connectionTypes: route.connectionTypes, cardinality: route.cardinality, targetCardinality: route.targetCardinality, pairCardinality: route.pairCardinality, endpoints: [{ source: route.source, target: route.target }] }
     }))
   })
 
@@ -87,8 +89,47 @@ const buckets = (context: ConnectionRuleContext, rule: EdgeCardinality, cell: Ce
   return [{ label: 'all selected connections', matches: () => true }]
 }
 
-const limitErrors = (context: ConnectionRuleContext, cell: Cell, candidate?: { edge: Cell; source: Cell; target: Cell }, minimum = false): string[] => {
-  const errors: string[] = []
+const connectionNames = (context: ConnectionEndpointContext, types: string[]): string[] =>
+  types.map((type) => context.connections.find((connection) => connection.type === type)?.label || type)
+
+const displayDirection = (context: ConnectionEndpointContext, direction: 'incoming' | 'outgoing' | 'both', types: string[]): NonNullable<ValidationIssue['quantity']>['direction'] => {
+  if (direction === 'both') return direction
+  const connections = context.connections.filter((connection) => !types.length || types.includes(connection.type))
+  if (connections.length && connections.every((connection) => connection.undirected)) return 'undirected'
+  return connections.some((connection) => connection.undirected) ? `${direction} or undirected` : direction
+}
+
+const elementNames = (context: ConnectionEndpointContext, types: string[]): string[] =>
+  types.map((type) => context.elements.find((element) => element.type === type)?.defaultLabel?.trim() || type)
+
+const selectorDescription = (context: ConnectionEndpointContext, type: string, selector?: import('@/model/Syntax').EndpointSelector): string => {
+  const points = context.elements.find((element) => element.type === type)?.anchorPoints ?? []
+  const names = (selector?.pointIds ?? []).map((id) => {
+    const point = points.find((candidate) => pointId(candidate) === id)
+    return point ? pointLabel(point) : id
+  })
+  return [...names, ...(selector?.groups ?? []).map((group) => `group ${group}`)].join(' or ')
+}
+
+const endpointDescription = (context: ConnectionEndpointContext, relation: EffectiveRelation): string => {
+  const alternatives = (relation.refinement.endpoints ?? []).map((pair) => {
+    const source = selectorDescription(context, relation.sourceType, pair.source)
+    const target = selectorDescription(context, relation.targetType, pair.target)
+    return [source && `source point ${source}`, target && `target point ${target}`].filter(Boolean).join(' and ')
+  }).filter(Boolean)
+  return alternatives.length ? `using ${alternatives.join(' or ')}` : ''
+}
+
+const chosenPoint = (context: ConnectionEndpointContext, edge: Cell, cell: Cell, source: boolean): string => {
+  const points = pointsFor(context, cell)
+  const id = endpointId(edge, source, cell, points)
+  if (!id) return 'outline'
+  const point = points.find((candidate) => pointId(candidate) === id)
+  return point ? pointLabel(point) : 'missing point'
+}
+
+const limitIssues = (context: ConnectionRuleContext, cell: Cell, candidate?: { edge: Cell; source: Cell; target: Cell }, minimum = false): ValidationIssue[] => {
+  const errors: ValidationIssue[] = []
   for (const rule of context.config.incoming ?? []) {
     if (!rule.elementType && context.scopeElementTypes && !context.scopeElementTypes.includes(elementTypeOf(cell) ?? '')) continue
     if (rule.elementType && rule.elementType !== elementTypeOf(cell)) continue
@@ -100,60 +141,77 @@ const limitErrors = (context: ConnectionRuleContext, cell: Cell, candidate?: { e
       }).length
       const addition = candidate && matchingEndIds(context, rule, candidate.edge, candidate.source, candidate.target, cell).some(bucket.matches) ? 1 : 0
       if ((!candidate || addition) && outside(count + addition, rule.cardinality, minimum)) {
-        const template = resolveQuantityMessage(rule.messageTemplate, context.config.messageTemplate)
+        const template = resolveQuantityMessage(context.config.messageTemplate)
         const type = elementTypeOf(cell) ?? '*'
         const neighbors = rule.neighborTypes?.length ? rule.neighborTypes.join(', ') : '*'
-        const incoming = (rule.direction ?? 'incoming') === 'incoming'
-        const values: Record<string, string | number> = { source: incoming ? neighbors : type, target: incoming ? type : neighbors, connection: rule.connectionTypes?.length ? rule.connectionTypes.join(', ') : '*', min: rule.cardinality.min, max: rule.cardinality.max ?? '*' }
-        const message = template.replace(/\{(source|target|connection|min|max)\}/g, (match, key: string) => String(values[key] ?? match))
-        errors.push(`${type}: ${bucket.label}: ${message} (currently ${count + addition}).`)
+        const direction = rule.direction ?? 'incoming'
+        const displayedDirection = displayDirection(context, direction, rule.connectionTypes ?? [])
+        const eitherEnd = neighbors === '*' ? '*' : [...new Set([type, ...rule.neighborTypes ?? []])].join(', ')
+        const eitherDirection = direction === 'both' || displayedDirection !== direction
+        const values: Record<string, string | number> = { source: eitherDirection ? eitherEnd : direction === 'incoming' ? neighbors : type, target: eitherDirection ? eitherEnd : direction === 'incoming' ? type : neighbors, connection: rule.connectionTypes?.length ? rule.connectionTypes.join(', ') : '*', min: rule.cardinality.min, max: rule.cardinality.max ?? '*' }
+        const selectedPoints = selectorDescription(context, type, rule.endpoints)
+        errors.push({
+          kind: 'quantity', code: count + addition < rule.cardinality.min ? 'quantity.minimum' : 'quantity.maximum', cell, template,
+          values: { ...values, count: count + addition, direction: displayedDirection, point: rule.countScope === 'point' || rule.countScope === 'group' ? bucket.label : selectedPoints || '*', scope: rule.countScope ?? 'element', route: '-' },
+          quantity: { count: count + addition, bounds: rule.cardinality, scope: rule.countScope ?? 'element', direction: displayedDirection, connections: connectionNames(context, rule.connectionTypes ?? []), neighbors: elementNames(context, rule.neighborTypes ?? []), point: bucket.label, details: rule.countScope === 'element' || !rule.countScope ? selectedPoints && `at selected points or groups: ${selectedPoints}` : '', proposed: Boolean(candidate && !candidate.edge.getParent()) }
+        })
       }
     }
   }
   return errors
 }
 
-const renderMessage = (template: string, source: Cell, target: Cell, edge?: Cell, bounds?: MultiplicityCardinality) => {
-  const values: Record<string, string | number> = { source: elementTypeOf(source) ?? '-', target: elementTypeOf(target) ?? '-', connection: edge ? connectionTypeOf(edge) : '*', min: bounds?.min ?? 0, max: bounds?.max ?? '*' }
-  return template.replace(/\{(source|target|connection|min|max)\}/g, (match, key: string) => String(values[key] ?? match))
-}
+const relationIssue = (context: ConnectionRuleContext, relation: EffectiveRelation, cell: Cell, scope: 'source' | 'target' | 'pair', bounds: MultiplicityCardinality, count: number, other?: Cell, proposed = false): ValidationIssue => ({
+  kind: 'quantity', code: count < bounds.min ? 'quantity.minimum' : 'quantity.maximum', cell, other,
+  template: resolveQuantityMessage(context.config.messageTemplate),
+  values: { source: relation.sourceType, target: relation.targetType, connection: relation.refinement.connectionTypes.join(', ') || '*', min: bounds.min, max: bounds.max ?? '*', count, direction: displayDirection(context, scope === 'target' ? 'incoming' : 'outgoing', relation.refinement.connectionTypes), point: endpointDescription(context, relation).replace(/^using /, '') || '*', scope, route: relation.routeName ?? '-' },
+  quantity: { count, bounds, scope, direction: displayDirection(context, scope === 'target' ? 'incoming' : 'outgoing', relation.refinement.connectionTypes), connections: connectionNames(context, relation.refinement.connectionTypes), neighbors: scope === 'pair' ? [] : elementNames(context, [scope === 'target' ? relation.sourceType : relation.targetType]), details: endpointDescription(context, relation), proposed }
+})
 
-const renderRelationMessage = (context: ConnectionRuleContext, relation: EffectiveRelation, bounds: MultiplicityCardinality): string => {
-  const values: Record<string, string | number> = { source: relation.sourceType, target: relation.targetType, connection: relation.refinement.connectionTypes.join(', ') || '*', min: bounds.min, max: bounds.max ?? '*' }
-  return resolveQuantityMessage(relation.refinement.messageTemplate, context.config.messageTemplate).replace(/\{(source|target|connection|min|max)\}/g, (match, key: string) => String(values[key] ?? match))
-}
+const connectionIssue = (context: ConnectionEndpointContext, code: 'connection.forbidden' | 'connection.type' | 'connection.endpoint', template: string, source: Cell, target: Cell, edge: Cell, extra: Record<string, string> = {}): ValidationIssue => ({
+  kind: 'connection', code, source, target, template,
+  values: { source: elementTypeOf(source) ?? '-', target: elementTypeOf(target) ?? '-', connection: connectionOf(context, edge)?.label || connectionTypeOf(edge) || 'connection', ...extra }
+})
 
 /** One decision path for dragging, reconnecting, graph validation and suggestions. Minima are checked separately. */
 export const connectionEndpointErrors = (context: ConnectionEndpointContext, edge: Cell, source: Cell, target: Cell): string[] => {
   if (!elementTypeOf(source) || !elementTypeOf(target) || (source as any).cellRole === 'feedback' || (target as any).cellRole === 'feedback') return []
   const errors: string[] = []
-  if (source === target && !connectionOf(context, edge)?.allowLoops) errors.push('Self-connections are not allowed.')
+  if (source === target && !connectionOf(context, edge)?.allowLoops) errors.push(renderEndpointMessage('loop', context.endpointConfigs?.get(elementTypeOf(source) ?? '')?.endpointMessages, source, { connection: connectionOf(context, edge)?.label || connectionTypeOf(edge) || 'this connection' }))
   for (const [cell, sourceEnd] of [[source, true], [target, false]] as const) {
     const points = pointsFor(context, cell)
+    const templates = context.endpointConfigs?.get(elementTypeOf(cell) ?? '')?.endpointMessages
     const id = endpointId(edge, sourceEnd, cell, points)
     const point = points.find((p) => pointId(p) === id)
-    if (id && !point) errors.push(`The connection point on ${elementTypeOf(cell)} no longer exists.`)
+    if (id && !point) errors.push(renderEndpointMessage('missingPoint', templates, cell))
     const element = context.elements.find((e) => e.type === elementTypeOf(cell))
-    if (element?.connectable === false) errors.push(`${element.type} does not allow connections.`)
+    if (element?.connectable === false) errors.push(renderEndpointMessage('notConnectable', templates, cell))
     // Older language versions allowed outline connections without an explicit docking mode.
-    if (element?.docking === 'anchors' && points.length && !id) errors.push(`${element.type} requires a connection point.`)
-    if (!isUndirected(context, edge) && point?.role && point.role !== 'bidirectional' && (point.role === 'output') !== sourceEnd) errors.push(`${pointLabel(point)} does not allow ${sourceEnd ? 'outgoing' : 'incoming'} connections.`)
+    if (element?.docking === 'anchors' && points.length && !id) errors.push(renderEndpointMessage('pointRequired', templates, cell))
+    if (!isUndirected(context, edge) && point?.role && point.role !== 'bidirectional' && (point.role === 'output') !== sourceEnd) errors.push(renderEndpointMessage('pointDirection', templates, cell, { point: pointLabel(point), direction: sourceEnd ? 'outgoing' : 'incoming' }))
   }
 
   return [...new Set(errors)]
 }
 
 export const connectionErrors = (context: ConnectionRuleContext, edge: Cell, source: Cell, target: Cell): string[] => {
+  return [...new Set(connectionIssues(context, edge, source, target).map(renderValidationIssue))]
+}
+
+export const connectionIssues = (context: ConnectionRuleContext, edge: Cell, source: Cell, target: Cell): ValidationIssue[] => {
   if (!elementTypeOf(source) || !elementTypeOf(target) || (source as any).cellRole === 'feedback' || (target as any).cellRole === 'feedback') return []
-  const errors: string[] = []
+  const errors: ValidationIssue[] = []
   const applicable = orientations(context, edge, source, target).flatMap(([from, to, forward]) => effectiveRelations(context.config).filter((r) => r.sourceType === elementTypeOf(from) && r.targetType === elementTypeOf(to)).map((relation) => ({ relation, from, to, forward })))
   const inScope = !context.scopeElementTypes || [source, target].every((cell) => context.scopeElementTypes!.includes(elementTypeOf(cell) ?? ''))
-  if (applicable.some(({ relation }) => relation.state === 'forbidden') || (!applicable.length && inScope && context.config.defaultState === 'forbidden')) return [renderMessage(context.config.forbiddenMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.forbiddenMessageTemplate, source, target, edge)]
+  if (applicable.some(({ relation }) => relation.state === 'forbidden') || (!applicable.length && inScope && context.config.defaultState === 'forbidden')) return [connectionIssue(context, 'connection.forbidden', context.config.forbiddenMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.forbiddenMessageTemplate, source, target, edge)]
   const allowed = applicable.filter(({ relation }) => relation.state === 'allowed' && selectedType(relation.refinement.connectionTypes, edge))
-  if (applicable.length && !allowed.length) return [renderMessage(context.config.connectionTypeMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.connectionTypeMessageTemplate, source, target, edge)]
+  if (applicable.length && !allowed.length) {
+    const types = [...new Set(applicable.filter(({ relation }) => relation.state === 'allowed').flatMap(({ relation }) => relation.refinement.connectionTypes))]
+    return [connectionIssue(context, 'connection.type', context.config.connectionTypeMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.connectionTypeMessageTemplate, source, target, edge, { allowedConnections: connectionNames(context, types).join(', ') })]
+  }
 
   const endpointAllowed = !allowed.length || allowed.some(({ relation, from, to, forward }) => endpointMatch(context, relation, edge, from, to, forward))
-  if (!endpointAllowed) errors.push(renderMessage(context.config.endpointMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.endpointMessageTemplate, source, target, edge))
+  if (!endpointAllowed) errors.push(connectionIssue(context, 'connection.endpoint', context.config.endpointMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.endpointMessageTemplate, source, target, edge, { sourcePoint: chosenPoint(context, edge, source, true), targetPoint: chosenPoint(context, edge, target, false), allowedPoints: [...new Set(allowed.map(({ relation }) => endpointDescription(context, relation)).filter(Boolean))].join(' or ') }))
 
   for (const { relation, from, to, forward } of allowed) {
     if (relation.routed && !endpointMatch(context, relation, edge, from, to, forward)) continue
@@ -161,22 +219,26 @@ export const connectionErrors = (context: ConnectionRuleContext, edge: Cell, sou
     for (const [scope, cell, bounds] of [['source', from, r.cardinality], ['target', to, r.targetCardinality], ['pair', from, r.pairCardinality]] as const) {
       if (!bounds) continue
       const count = countRelation(context, relation, cell, scope, edge, to) + 1
-      if (outside(count, bounds, false)) errors.push(`${relation.label} (${scope}): ${renderMessage(resolveQuantityMessage(r.messageTemplate, context.config.messageTemplate), from, to, edge, bounds)}`)
+      if (outside(count, bounds, false)) errors.push(relationIssue(context, relation, cell, scope, bounds, count, scope === 'pair' ? to : undefined, !edge.getParent()))
     }
   }
-  for (const cell of new Set([source, target])) errors.push(...limitErrors(context, cell, { edge, source, target }))
-  return [...new Set(errors)]
+  for (const cell of new Set([source, target])) errors.push(...limitIssues(context, cell, { edge, source, target }))
+  return errors
 }
 
 export const elementConnectionErrors = (context: ConnectionRuleContext, cell: Cell): string[] => {
+  return elementConnectionIssues(context, cell).map(renderValidationIssue)
+}
+
+export const elementConnectionIssues = (context: ConnectionRuleContext, cell: Cell): ValidationIssue[] => {
   if (!elementTypeOf(cell) || !cell.isVertex() || !cell.isConnectable() || (cell as any).cellRole === 'feedback') return []
-  const errors = limitErrors(context, cell, undefined, true)
+  const errors = limitIssues(context, cell, undefined, true)
   for (const relation of effectiveRelations(context.config).filter((r) => r.state === 'allowed')) {
     for (const [scope, type, bounds] of [['source', relation.sourceType, relation.refinement.cardinality], ['target', relation.targetType, relation.refinement.targetCardinality]] as const) {
       if (!bounds || type !== elementTypeOf(cell)) continue
       // The ignored edge is detached; it cannot remove a real connection from the count.
       const count = countRelation(context, relation, cell, scope, {} as Cell)
-      if (outside(count, bounds, true)) errors.push(`${relation.label} (${scope}): ${renderRelationMessage(context, relation, bounds)} (currently ${count}).`)
+      if (outside(count, bounds, true)) errors.push(relationIssue(context, relation, cell, scope, bounds, count))
     }
     // Pair minima apply to existing pairs, not to every possible pair of instances.
     if (relation.refinement.pairCardinality && elementTypeOf(cell) === relation.sourceType) {
@@ -186,7 +248,7 @@ export const elementConnectionErrors = (context: ConnectionRuleContext, cell: Ce
       }))
       for (const neighbor of neighbors) {
         const count = countRelation(context, relation, cell, 'pair', {} as Cell, neighbor)
-        if (outside(count, relation.refinement.pairCardinality, true)) errors.push(`${relation.label} (existing pair): ${renderRelationMessage(context, relation, relation.refinement.pairCardinality)} (currently ${count}).`)
+        if (outside(count, relation.refinement.pairCardinality, true)) errors.push(relationIssue(context, relation, cell, 'pair', relation.refinement.pairCardinality, count, neighbor))
       }
     }
   }

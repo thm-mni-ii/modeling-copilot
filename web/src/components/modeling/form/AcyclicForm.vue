@@ -1,8 +1,11 @@
 <template>
   <section :id="feedbackTargetId('syntax', { kind: 'cycle' })" tabindex="-1">
-    <div class="d-flex align-center font-weight-semibold text-h6 mb-3">
-      <v-icon color="primary" class="mr-2">mdi-sync-off</v-icon>
-      <span>Cycles</span>
+    <div class="d-flex align-center justify-space-between flex-wrap ga-2 mb-3">
+      <h3 class="d-flex align-center font-weight-semibold text-h6">
+        <v-icon color="primary" class="mr-2">mdi-sync-off</v-icon>
+        <span>Cycles</span>
+      </h3>
+      <v-btn v-if="rule" size="small" variant="text" prepend-icon="mdi-message-text-outline" aria-label="Feedback templates for Cycles" @click="navigation.openTemplates({ kind: 'cycle' })">Feedback templates</v-btn>
     </div>
 
     <p class="text-body-2 text-medium-emphasis mb-3">
@@ -47,7 +50,6 @@
         </v-sheet>
       </template>
 
-      <v-btn class="mt-3" size="small" variant="text" prepend-icon="mdi-message-text-outline" @click="navigation.openTemplates({ kind: 'cycle' })">Cycle feedback template</v-btn>
     </template>
   </section>
 </template>

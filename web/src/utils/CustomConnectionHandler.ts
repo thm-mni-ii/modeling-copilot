@@ -315,6 +315,15 @@ export class CustomConnectionHandler extends ConnectionHandler {
 
     // Without "Allow Loose Ends" no edge with an open end is created, in every mode
     if (effectiveConnection?.allowLooseEnds === false && (!sourceCell || !targetCell)) {
+      const probe = this.graph.createEdge(null, '', effectiveConnection.defaultLabel ?? '', sourceCell, targetCell, createConnectionStyle(effectiveConnection))
+      ;(probe as any).connectionId = effectiveConnection.type
+      setValidationPassActive(this.graph, true)
+      try {
+        const error = this.graph.getEdgeValidationError(probe, sourceCell, targetCell)
+        if (error) this.graph.validationAlert(error)
+      } finally {
+        setValidationPassActive(this.graph, false)
+      }
       return null as unknown as Cell
     }
 

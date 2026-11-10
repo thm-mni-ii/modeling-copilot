@@ -1,8 +1,11 @@
 <template>
-  <section>
-    <div class="d-flex align-center font-weight-semibold text-h6 mb-3">
-      <v-icon color="primary" class="mr-2">mdi-tray-arrow-down</v-icon>
-      <span>Container Contents</span>
+  <section :id="feedbackTargetId('syntax', { kind: 'containment' })" tabindex="-1">
+    <div class="d-flex align-center justify-space-between flex-wrap ga-2 mb-3">
+      <h3 class="d-flex align-center font-weight-semibold text-h6">
+        <v-icon color="primary" class="mr-2">mdi-tray-arrow-down</v-icon>
+        <span>Container Contents</span>
+      </h3>
+      <v-btn v-if="rule" size="small" variant="text" prepend-icon="mdi-message-text-outline" aria-label="Feedback templates for Container Contents" @click="navigation.openTemplates({ kind: 'containment' })">Feedback templates</v-btn>
     </div>
 
     <p class="text-body-2 text-medium-emphasis mb-3">Defines which Element types may be dropped into a container. <strong>All</strong> = the container accepts every type; otherwise only the checked types.</p>
@@ -44,11 +47,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import type { ChildElement, DiagramElement } from '@/model/Element'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
+import { feedbackTargetId, feedbackTemplateNavigationKey } from '@/components/modeling/editors/feedbackTemplateNavigation'
 
 const store = useDiagramLanguages()
+const navigation = inject(feedbackTemplateNavigationKey)!
+const rule = computed(() => store.definition?.syntax.find((entry) => entry.ruleType === 'containment'))
 
 const elementOptions = computed(() => (store.definition?.elements ?? []).map((element) => element.type))
 

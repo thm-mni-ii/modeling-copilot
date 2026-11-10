@@ -132,6 +132,20 @@ questionnaire service without importing migration implementations.
    public access for non-admin users, informative feedback, and preservation of
    existing data and later administrator edits. No live database was changed.
 
+10. `versions/v09_submissions_feedback/migration.py` initializes submission
+    collections, indexes and global feedback settings while preserving existing
+    settings and user data.
+
+11. `versions/v10_language_syntax_defaults/migration.py` normalizes syntax in
+    all stored language versions, including historical releases, checkpoints and
+    archived languages. It resets validation texts to the defaults in
+    `templates.json`, removes obsolete individual templates and fills missing
+    configurations with empty or behavior-preserving defaults. Existing
+    constraints, IDs and references remain unchanged; absent cycle rules stay
+    absent. New installations run the same chain. Later saves and forks preserve
+    custom texts. Preview is read-only; failed runs can resume, concurrent changes
+    are rejected and completed runs are skipped.
+
 `schema_migrations` records each step as `running`, `failed`, or `completed`.
 The API refuses startup until all registered steps have completed. Repeated starts skip
 completed steps. Concurrent claims fail instead of executing a step twice.

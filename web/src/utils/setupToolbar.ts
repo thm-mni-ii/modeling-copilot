@@ -70,7 +70,7 @@ const getLocalPosition = (graph: Graph, target: Cell, point: Point): Point => {
   return new Point(point.x - (origin?.x ?? 0), point.y - (origin?.y ?? 0))
 }
 
-export function ensureGraphDropHandlers(graph: Graph, parent: Ref<Cell | undefined>, shapes: ShapeConfig[]) {
+export function ensureGraphDropHandlers(graph: Graph, parent: Ref<Cell | undefined>, shapes: ShapeConfig[], onRejectedContainer?: (container: Cell, cell: Cell, label: string) => void) {
   const graphContainer = graph.container as HTMLElement & {
     __mxToolbarDropContext?: ToolbarDropContext
   }
@@ -146,6 +146,21 @@ export function ensureGraphDropHandlers(graph: Graph, parent: Ref<Cell | undefin
     graphContainer.focus({ preventScroll: true })
     const template = createTemplate(shape)
     const target = resolveTarget(shape, evt, template)
+    if (onRejectedContainer && !shape.dropOnDefaultParent && !graph.isSwimlane(template) && target === (parent.value ?? graph.getDefaultParent())) {
+      let candidate = getTargetForEvent(graph, evt)
+      while (candidate) {
+        if (graph.isSwimlane(candidate) || isContainerSectionTarget(candidate)) {
+          if (!graph.isValidDropTarget(candidate, [template])) onRejectedContainer(candidate, template, label || shape.label || shape.name)
+          break
+        }
+        const sections = candidate.getChildren().filter((child) => child.isVisible() && !child.isCollapsed() && (graph.isSwimlane(child) || isContainerSectionTarget(child)))
+        if (sections.length === 1 && !candidate.isCollapsed()) {
+          if (!graph.isValidDropTarget(sections[0], [template])) onRejectedContainer(sections[0], template, label || shape.label || shape.name)
+          break
+        }
+        candidate = candidate.getParent()
+      }
+    }
     const point = getLocalPosition(graph, target, graph.getPointForEvent(evt))
     if (shape.dropHandler) {
       shape.dropHandler(graph, target, point, label)

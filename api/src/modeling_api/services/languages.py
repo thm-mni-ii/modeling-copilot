@@ -15,7 +15,7 @@ from modeling_api.core.auth import User
 from modeling_api.core.errors import ApiError, not_found
 from modeling_api.db.client import db
 from modeling_api.db.store import Document, get_or_404, insert, list_page, save_version, to_api, utcnow
-from modeling_api.services.language_definitions import normalize_connection_types
+from modeling_api.services.language_definitions import normalize_connection_types, normalize_syntax
 from modeling_api.schemas.languages import (
     CreateLanguage,
     CreateLanguageVersion,
@@ -168,7 +168,7 @@ async def create_language(body: CreateLanguage, user: User) -> Document:
                 "releaseName": "Initial release",
                 "description": None,
                 "includedLanguageVersions": parent_version.get("includedLanguageVersions", []),
-                "data": await normalize_definition(parent_version["data"], parent_version.get("includedLanguageVersions", [])),
+                "data": normalize_syntax(await normalize_definition(parent_version["data"], parent_version.get("includedLanguageVersions", []))),
             },
         )
     except Exception:
@@ -226,7 +226,10 @@ async def create_version(
         raise not_found()
     await check_language_refs(body.included_language_versions)
     fields = body.model_dump(mode="json", by_alias=True, exclude={"base_version_id"})
-    fields["data"] = await normalize_definition(fields["data"], fields.get("includedLanguageVersions", []))
+    fields["data"] = normalize_syntax(
+        await normalize_definition(fields["data"], fields.get("includedLanguageVersions", [])),
+        default_state="allowed" if body.base_version_id else "forbidden",
+    )
     return await save_version(
         db.languages,
         db.language_versions,

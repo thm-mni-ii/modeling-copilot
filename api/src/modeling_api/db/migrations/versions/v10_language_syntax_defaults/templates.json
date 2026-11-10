@@ -1,0 +1,22 @@
+{
+  "multiplicity": {
+    "messageTemplate": "{quantityContext}: {quantityResult}.",
+    "forbiddenMessageTemplate": "A connection between {sourceLabel} and {targetLabel} is not allowed.",
+    "connectionTypeMessageTemplate": "The connection type {connection} is not allowed between {sourceLabel} and {targetLabel}.",
+    "endpointMessageTemplate": "The connection points {sourcePoint} on {sourceLabel} and {targetPoint} on {targetLabel} cannot be used together.",
+    "endpointMessages": {
+      "loop": "{connection} cannot connect {element} to itself.",
+      "looseEnd": "{connection} has an unconnected end.",
+      "missingPoint": "A connection point on {element} no longer exists.",
+      "notConnectable": "{element} does not accept connections.",
+      "pointRequired": "A connection to {element} requires a connection point.",
+      "pointDirection": "The connection point {point} on {element} does not allow {direction} connections."
+    }
+  },
+  "containment": "{element} is not allowed inside {container}.",
+  "acyclic": {
+    "forbid": "A cycle involving the connection between {sourceLabel} and {targetLabel} is not allowed.",
+    "every": "{elementLabel} must be part of a cycle.",
+    "any": "The diagram must contain at least one cycle."
+  }
+}

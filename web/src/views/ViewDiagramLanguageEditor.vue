@@ -95,11 +95,9 @@ const router = useRouter()
 const store = useDiagramLanguages()
 const confirmDialog = ref<InstanceType<typeof DialogConfirm>>()
 const activeEditor = ref<'elements' | 'connections' | 'syntax' | 'feedback-templates' | 'feedback' | 'settings'>('elements')
-const syntaxTarget = ref<FeedbackTemplateTarget | null>(null)
 const templateTarget = ref<FeedbackTemplateTarget | null>(null)
 const navigateTo = async (view: 'syntax' | 'template', target: FeedbackTemplateTarget) => {
-  if (view === 'syntax') syntaxTarget.value = target
-  else templateTarget.value = target
+  if (view === 'template') templateTarget.value = target
   activeEditor.value = view === 'syntax' ? 'syntax' : 'feedback-templates'
   await nextTick()
   await nextTick()
@@ -110,7 +108,6 @@ const navigateTo = async (view: 'syntax' | 'template', target: FeedbackTemplateT
   }
 }
 provide(feedbackTemplateNavigationKey, {
-  syntaxTarget,
   templateTarget,
   openSyntax: (target) => { void navigateTo('syntax', target) },
   openTemplates: (target) => { void navigateTo('template', target) }
