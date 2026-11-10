@@ -3,7 +3,11 @@
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPAuthorizationCredentials
 
-from modeling_api.core.auth import bearer, get_claims, is_token_valid
+from modeling_api.core.auth import bearer, get_claims, get_user, is_token_valid, User
+from modeling_api.db.client import db
+from modeling_api.db.store import utcnow
+from modeling_api.routes.deps import CurrentBearer
+from modeling_api.services.fbs_users import display_name, resolve_names
 from modeling_api.schemas.auth import CodeExchange, TokenRefresh, Tokens
 from modeling_api.services import fbs_oidc
 
@@ -35,8 +39,22 @@ def validate_token(
     description="Validates the bearer token and returns all claims from its payload.",
     response_description="The authenticated token claims.",
 )
-async def get_me(claims: dict = Depends(get_claims)) -> dict:
-    return claims
+async def get_me(
+    token: CurrentBearer,
+    claims: dict = Depends(get_claims),
+    user: User = Depends(get_user),
+) -> dict:
+    # Keep only a minimal directory for explicit submission permissions, never tokens.
+    resolved = await resolve_names([user.id], user, token)
+    name = (
+        resolved[user.id]
+        if resolved[user.id] != user.id
+        else display_name(claims, user.id)
+    )
+    await db.submission_users.update_one(
+        {"_id": user.id}, {"$set": {"name": name, "lastSeenAt": utcnow()}}, upsert=True
+    )
+    return {**claims, "id": user.id}
 
 
 @router.post(
@@ -49,7 +67,9 @@ async def get_me(claims: dict = Depends(get_claims)) -> dict:
     response_description="The access token and, for a confidential client, a refresh token.",
 )
 async def exchange_code(body: CodeExchange) -> Tokens:
-    return await fbs_oidc.exchange_code(body.code, body.code_verifier, body.redirect_uri)
+    return await fbs_oidc.exchange_code(
+        body.code, body.code_verifier, body.redirect_uri
+    )
 
 
 @router.post(

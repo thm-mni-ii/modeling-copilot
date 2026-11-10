@@ -6,7 +6,6 @@ export interface MultiplicityCardinality {
 }
 
 export interface MultiplicityRefinement {
-  messageTemplate?: string
   /** Leeres Array = alle Verbindungstypen erlaubt */
   connectionTypes: string[]
   cardinality: MultiplicityCardinality
@@ -19,7 +18,6 @@ export interface MultiplicityRefinement {
 }
 
 export interface MultiplicityRoute {
-  messageTemplate?: string
   name?: string
   source: EndpointSelector
   target: EndpointSelector
@@ -54,8 +52,6 @@ export interface EdgeCardinality {
   /** Element types at the other edge end; empty = all */
   neighborTypes?: string[]
   cardinality: MultiplicityCardinality
-  /** Empty = template of the rule */
-  messageTemplate?: string
   /** Default: element. Point limits apply to each selected point, group limits to each group together. */
   countScope?: 'element' | 'point' | 'group'
   endpoints?: EndpointSelector
@@ -65,6 +61,7 @@ export interface MultiplicityConfig {
   forbiddenMessageTemplate?: string
   connectionTypeMessageTemplate?: string
   endpointMessageTemplate?: string
+  endpointMessages?: Partial<Record<EndpointMessageKey, string>>
   /** Default for matrix cells without an explicit relation. */
   defaultState?: MultiplicityRelationState
   messageTemplate: string
@@ -72,6 +69,8 @@ export interface MultiplicityConfig {
   /** Edge rules per element; the name stays so stored languages remain valid */
   incoming?: EdgeCardinality[]
 }
+
+export type EndpointMessageKey = 'loop' | 'looseEnd' | 'missingPoint' | 'notConnectable' | 'pointRequired' | 'pointDirection'
 
 export interface MultiplicityRule {
   ruleType: 'multiplicity'
@@ -88,6 +87,7 @@ export interface ContainmentRule {
   ruleType: 'containment'
   config: {
     relations: ContainmentRelation[]
+    messageTemplate?: string
   }
 }
 

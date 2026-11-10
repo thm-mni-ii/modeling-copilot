@@ -1,15 +1,10 @@
 import type { Cell } from '@maxgraph/core'
 import type { CycleMode, DiagramSyntax } from '@/model/Syntax'
 import { getConnectionType } from '@/utils/multiplicity'
+import { DEFAULT_CYCLE_MESSAGE_TEMPLATES, renderValidationIssue } from '@/utils/syntaxMessages'
 
-export const DEFAULT_ACYCLIC_MESSAGE_TEMPLATE = 'The connection {source} -> {target} would close a forbidden cycle.'
-
-/** Default message per mode; {element} = element type for every */
-export const DEFAULT_CYCLE_MESSAGE_TEMPLATES: Record<CycleMode, string> = {
-  forbid: DEFAULT_ACYCLIC_MESSAGE_TEMPLATE,
-  every: '{element} must be part of a cycle.',
-  any: 'The diagram must contain at least one cycle.'
-}
+export { DEFAULT_CYCLE_MESSAGE_TEMPLATES } from '@/utils/syntaxMessages'
+export const DEFAULT_ACYCLIC_MESSAGE_TEMPLATE = DEFAULT_CYCLE_MESSAGE_TEMPLATES.forbid
 
 export interface AcyclicSettings {
   mode: CycleMode
@@ -34,11 +29,13 @@ export const buildAcyclicFromSyntax = (rules: DiagramSyntax[] | null | undefined
 /** Fills {source}/{target} with the element types; the line break separates messages as with the multiplicities. */
 export const renderAcyclicMessage = (template: string, source: Cell, target: Cell): string => {
   const typeOf = (cell: Cell): string => (cell as any).diagramElementType ?? '-'
-  return `${template.split('{source}').join(typeOf(source)).split('{target}').join(typeOf(target))}\n`
+  return `${renderValidationIssue({ kind: 'cycle', code: 'cycle.forbid', source, target, template, values: { source: typeOf(source), target: typeOf(target) } })}\n`
 }
 
 /** Fills {element} with the element type, for every and any. */
-export const renderCycleRequiredMessage = (template: string, element?: Cell): string => `${template.split('{element}').join((element as any)?.diagramElementType ?? '-')}\n`
+export const renderCycleRequiredMessage = (template: string, element?: Cell): string => {
+  return `${renderValidationIssue({ kind: 'cycle', code: element ? 'cycle.every' : 'cycle.any', cell: element, template, values: { element: (element as any)?.diagramElementType ?? '-' } })}\n`
+}
 
 /**
  * Checks whether the target leads back to the source; the edge being checked does not count.

@@ -15,8 +15,15 @@ const DEFAULT_ALIGNMENT: Record<FeedbackState, { align: FeedbackOverlayConfig['a
   hint: { align: 'right', verticalAlign: 'bottom' }
 }
 
+const DEFAULT_ICONS = {
+  correct: { icon: 'mdi-check-circle-outline', color: '#4CAF50' },
+  incorrect: { icon: 'mdi-close-circle-outline', color: '#E60000' },
+  hint: { icon: 'mdi-alert-circle-outline', color: '#FB8C00' }
+}
+
 export const createDefaultFeedbackOverlay = (state: FeedbackState): FeedbackOverlayConfig => ({
-  image: { ...DEFAULT_IMAGE_SPECS[state] },
+  image: { ...DEFAULT_IMAGE_SPECS[state], src: '' },
+  ...DEFAULT_ICONS[state],
   tooltip: FEEDBACK_STATE_LABELS[state],
   ...DEFAULT_ALIGNMENT[state],
   offset: { x: 0, y: 0 },
@@ -31,6 +38,9 @@ export const normalizeFeedbackOverlay = (state: FeedbackState, overlay?: Partial
   return {
     ...base,
     ...overlay,
+    // Existing image configurations must keep their original rendering.
+    icon: overlay.icon ?? null,
+    color: overlay.color ?? null,
     image: {
       ...base.image,
       ...(overlay.image ?? {})

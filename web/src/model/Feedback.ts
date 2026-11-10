@@ -17,6 +17,8 @@ export interface FeedbackOverlayOffset {
 
 export interface FeedbackOverlayConfig {
   image: FeedbackOverlayImageConfig
+  icon?: string | null
+  color?: string | null
   tooltip?: string | null
   align?: AlignValue
   verticalAlign?: VAlignValue

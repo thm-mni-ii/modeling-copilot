@@ -1,0 +1,53 @@
+{
+  "correct": {
+    "image": {
+      "src": "",
+      "width": 26,
+      "height": 26
+    },
+    "align": "left",
+    "verticalAlign": "top",
+    "offset": {
+      "x": 0,
+      "y": 0
+    },
+    "cursor": "pointer",
+    "tooltip": "Correct",
+    "icon": "mdi-check-circle-outline",
+    "color": "#4CAF50"
+  },
+  "incorrect": {
+    "image": {
+      "src": "",
+      "width": 26,
+      "height": 26
+    },
+    "align": "right",
+    "verticalAlign": "top",
+    "offset": {
+      "x": 0,
+      "y": 0
+    },
+    "cursor": "pointer",
+    "tooltip": "Incorrect",
+    "icon": "mdi-close-circle-outline",
+    "color": "#E60000"
+  },
+  "hint": {
+    "image": {
+      "src": "",
+      "width": 26,
+      "height": 26
+    },
+    "align": "right",
+    "verticalAlign": "bottom",
+    "offset": {
+      "x": 0,
+      "y": 0
+    },
+    "cursor": "pointer",
+    "tooltip": "Hint",
+    "icon": "mdi-alert-circle-outline",
+    "color": "#FB8C00"
+  }
+}

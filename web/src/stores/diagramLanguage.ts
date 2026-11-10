@@ -192,13 +192,14 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
   const setContainmentChildTypes = (containerType: string, childTypes: string[]) => {
     if (!definition.value) return
     const syntax = definition.value.syntax
-    const current = syntax.find((entry): entry is ContainmentRule => entry.ruleType === 'containment')?.config.relations ?? []
+    const config = syntax.find((entry): entry is ContainmentRule => entry.ruleType === 'containment')?.config
+    const current = config?.relations ?? []
     // Relation and rule keep their place, so switching and switching back restores the stored state
     const exists = current.some((relation) => relation.containerType === containerType)
     const relations = childTypes.length === 0 ? current.filter((relation) => relation.containerType !== containerType) : exists ? current.map((relation) => (relation.containerType === containerType ? { containerType, childTypes } : relation)) : [...current, { containerType, childTypes }]
 
-    if (relations.length === 0) definition.value.syntax = syntax.filter((entry) => entry.ruleType !== 'containment')
-    else if (syntax.some((entry) => entry.ruleType === 'containment')) addSyntaxToLanguage({ ruleType: 'containment', config: { relations } })
+    if (relations.length === 0 && !config?.messageTemplate?.trim()) definition.value.syntax = syntax.filter((entry) => entry.ruleType !== 'containment')
+    else if (syntax.some((entry) => entry.ruleType === 'containment')) addSyntaxToLanguage({ ruleType: 'containment', config: { ...config, relations } })
     // New rule right after the multiplicity rule, as in the seeds
     else syntax.splice(syntax.findIndex((entry) => entry.ruleType === 'multiplicity') + 1, 0, { ruleType: 'containment', config: { relations } })
   }

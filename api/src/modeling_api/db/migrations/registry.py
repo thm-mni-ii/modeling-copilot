@@ -59,4 +59,19 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v08_public_case_studies.migration",
         ("07_model_activity_tracking",),
     ),
+    Migration(
+        "09_submissions_feedback",
+        "modeling_api.db.migrations.versions.v09_submissions_feedback.migration",
+        ("08_public_case_studies",),
+    ),
+    Migration(
+        "10_language_syntax_defaults",
+        "modeling_api.db.migrations.versions.v10_language_syntax_defaults.migration",
+        ("09_submissions_feedback",),
+    ),
+    Migration(
+        "11_hotel_chain",
+        "modeling_api.db.migrations.versions.v11_hotel_chain.migration",
+        ("10_language_syntax_defaults",),
+    ),
 )

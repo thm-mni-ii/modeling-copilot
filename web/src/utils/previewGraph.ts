@@ -1,5 +1,6 @@
 import { EdgeStyle, Graph, InternalEvent, Point } from '@maxgraph/core'
 import { enableLabelPadding, protectHtmlLabels } from './htmlLabels'
+import { installFeedbackOverlayRenderer } from './feedbackOverlays'
 
 const resizeObservers = new WeakMap<Graph, ResizeObserver>()
 
@@ -7,6 +8,7 @@ export const createPreviewGraph = (container: HTMLDivElement): Graph => {
   container.innerHTML = ''
 
   const graph = new Graph(container)
+  installFeedbackOverlayRenderer(graph)
   // Same default edge routing as in the canvas (DrawingCanvas.vue)
   graph.getStylesheet().getDefaultEdgeStyle().edgeStyle = EdgeStyle.OrthConnector
   graph.setEnabled(false)
