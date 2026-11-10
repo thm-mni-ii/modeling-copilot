@@ -1,10 +1,11 @@
 <template>
   <div class="library-sidebar">
-    <div class="library-actions">
-      <v-btn size="small" block variant="tonal" prepend-icon="mdi-bookshelf" @click="openDialog">Manage Languages ({{ workspace.languages.length }})</v-btn>
-    </div>
-
     <v-dialog v-model="dialog" max-width="760">
+      <template #activator="{ props: activatorProps }">
+        <div ref="libraryActions" class="library-actions">
+          <v-btn v-bind="activatorProps" size="small" block variant="tonal" prepend-icon="mdi-bookshelf" @click="openDialog">Manage model languages ({{ workspace.languages.length }})</v-btn>
+        </div>
+      </template>
       <v-card>
         <v-card-title>Model languages</v-card-title>
         <v-card-subtitle>Add, remove, reorder, or switch language releases.</v-card-subtitle>
@@ -45,6 +46,7 @@ import type { LanguageOverview, LanguageVersionInfo } from '@/services/api/types
 import { notifyError } from '@/composables/useNotifications'
 
 const workspace = useModelWorkspaceStore()
+const libraryActions = ref<HTMLDivElement | null>(null)
 const dialog = ref(false)
 const loading = ref(false)
 const catalog = ref<LanguageOverview[]>([])
@@ -52,6 +54,7 @@ const versions = ref<Record<string, LanguageVersionInfo[]>>({})
 const loadingVersions = ref(new Set<ApiId>())
 const newLanguageId = ref<ApiId | null>(null)
 const newVersionId = ref<ApiId | null>(null)
+let guiding = false
 
 const availableLanguages = computed(() => catalog.value.filter((language) => !workspace.languages.some((reference) => reference.languageId === language.id)))
 const versionLabel = (version: LanguageVersionInfo) => `${version.releaseName || 'Release'} · v${version.versionNumber}`
@@ -83,6 +86,25 @@ const openDialog = async () => {
     loading.value = false
   }
 }
+
+const openGuidedDialog = async () => {
+  const button = libraryActions.value?.querySelector('button')
+  if (!button || dialog.value || guiding) return
+  guiding = true
+  button.focus()
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const color = getComputedStyle(button).getPropertyValue('--v-theme-primary')
+    await button.animate([
+      { boxShadow: `0 0 0 0 rgba(${color}, 0)` },
+      { boxShadow: `0 0 0 5px rgba(${color}, 0.45)` },
+      { boxShadow: `0 0 0 0 rgba(${color}, 0)` }
+    ], { duration: 650 }).finished.catch(() => undefined)
+  }
+  guiding = false
+  if (button.isConnected && !dialog.value) button.click()
+}
+
+defineExpose({ openGuidedDialog })
 
 const selectNewLanguage = async (languageId: ApiId | null) => {
   newVersionId.value = null
@@ -127,10 +149,25 @@ const removeLanguage = async (languageId: ApiId) => {
 <style scoped>
 .library-sidebar {
   padding: 8px;
+  flex-shrink: 0;
 }
 .library-actions {
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(var(--v-theme-outline), 0.14);
+}
+.library-actions :deep(.v-btn) {
+  height: auto;
+  min-height: 32px;
+  padding-block: 6px;
+  padding-inline: 8px;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: normal;
+}
+.library-actions :deep(.v-btn__content) {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .language-list {
   display: grid;

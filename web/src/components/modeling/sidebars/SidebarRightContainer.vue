@@ -12,7 +12,7 @@
         <SidebarSync v-else-if="activeTab === 'sync'" :show-header="false" />
         <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" :selected-edit-ids="selectedTaskEditIds" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" />
         <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="evaluationModelId" :open-evaluation-id="openEvaluationId ?? null" />
-        <SidebarLibrary v-else />
+        <SidebarLibrary v-else ref="languageLibrary" />
       </div>
     </template>
   </SidebarFrame>
@@ -26,7 +26,7 @@ const activeTab = ref<'feedback' | 'persistence' | 'sync' | 'languages' | 'task'
 </script>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
@@ -80,6 +80,13 @@ const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'tas
 
 const DEFAULT_WIDTH = 210
 const sidebarWidth = ref(DEFAULT_WIDTH)
+const languageLibrary = ref<InstanceType<typeof SidebarLibrary> | null>(null)
+const openLanguages = async () => {
+  activeTab.value = 'languages'
+  await nextTick()
+  void languageLibrary.value?.openGuidedDialog()
+}
+defineExpose({ openLanguages })
 watch(() => props.hasJourney, (hasJourney) => {
   sidebarWidth.value = hasJourney ? Math.max(280, sidebarWidth.value) : DEFAULT_WIDTH
 }, { immediate: true })
