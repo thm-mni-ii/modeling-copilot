@@ -18,6 +18,7 @@ from modeling_api.routes import (
     auth,
     evaluations,
     feedback,
+    group_work,
     languages,
     models,
     server_time,
@@ -82,6 +83,7 @@ api.include_router(feedback.router)
 api.include_router(evaluations.router)
 api.include_router(server_time.router)
 api.include_router(share.router)
+api.include_router(group_work.router)
 api.include_router(submissions.router)
 app.include_router(api)
 
