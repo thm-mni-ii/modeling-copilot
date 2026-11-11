@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build an element inventory from one graph-result/v1 without reinterpreting it."""
+"""Build an element inventory from one graph-result/v3 without reinterpreting it."""
 import argparse
 from copy import deepcopy
 import hashlib
@@ -63,13 +63,13 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
             or payload.get("status") != "ok"):
         raise ValueError("a successful workflow-result/v1 is required")
     data = payload.get("result")
-    if not isinstance(data, dict) or data.get("schema") != "graph-result/v1":
-        raise ValueError("result must be a graph-result/v1 object")
+    if not isinstance(data, dict) or data.get("schema") != "graph-result/v3":
+        raise ValueError("result must be a graph-result/v3 object")
     evaluation_id = identifier(data.get("evaluationId"))
     graph, source = data.get("graph"), data.get("source")
-    if (not isinstance(graph, dict) or type(graph.get("schemaVersion")) is not int or graph["schemaVersion"] != 1
-            or any(not isinstance(graph.get(key), list) for key in ("nodes", "edges", "languages", "excluded"))):
-        raise ValueError("result.graph must contain schemaVersion=1 and nodes/edges/languages/excluded arrays")
+    if (not isinstance(graph, dict) or type(graph.get("schemaVersion")) is not int or graph["schemaVersion"] != 3
+            or any(not isinstance(graph.get(key), list) for key in ("nodes", "edges", "languages"))):
+        raise ValueError("result.graph must contain schemaVersion=3 and nodes/edges/languages arrays")
     if not isinstance(source, dict) or not all(
         isinstance(source.get(key), str) and source[key] for key in ("key", "role", "label", "modelId", "versionId")
     ):
@@ -87,7 +87,7 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
     if not isinstance(diagnostics, list) or any(not isinstance(item, dict) for item in diagnostics):
         raise ValueError("result.diagnostics must be an array of objects")
     if data.get("graphHash") != content_hash({field: data[field] for field in GRAPH_HASH_FIELDS}):
-        raise ValueError("graph hash does not match the graph-result/v1 content")
+        raise ValueError("graph hash does not match the graph-result/v3 content")
     if store is not None:
         bundle = store.snapshot()
         if evaluation_id != store.evaluation_id or data["inputHash"] != bundle["inputHash"]:
@@ -103,33 +103,42 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
     elements, seen, seen_edges = [], set(), set()
     diagnostics = []
     completeness = deepcopy(completeness)
-    for section, kinds in (("nodes", {"element", "connection"}), ("edges", {"contains", "endpoint"})):
+    for section in ("nodes", "edges"):
         for cell in graph[section]:
-            if not isinstance(cell, dict) or cell.get("kind") not in kinds:
+            if not isinstance(cell, dict):
+                raise ValueError(f"invalid object in graph.{section}")
+            if section == "edges" and cell.get("kind") not in ("contains", "endpoint"):
                 raise ValueError(f"invalid cell kind in graph.{section}")
             if section == "edges":
-                if any(key not in cell for key in ("source", "target", "type", "directed", "label", "language")):
-                    raise ValueError("graph edges need source/target/type/directed/label/language")
-                edge_key = (cell["kind"], cell.get("source"), cell.get("target"), cell.get("type"))
+                if any(key not in cell for key in ("source", "target", "role")):
+                    raise ValueError("graph edges need source/target/role")
+                edge_key = (cell["kind"], cell.get("source"), cell.get("target"), cell.get("role"))
                 if any(value is not None and not isinstance(value, str) for value in edge_key):
-                    raise ValueError("graph edge references and type must be strings or null")
+                    raise ValueError("graph edge references and role must be strings or null")
                 if cell["kind"] == "contains" and not all(cell.get(end) for end in ("source", "target")):
                     raise ValueError("contains edges need non-empty source and target IDs")
                 if edge_key in seen_edges:
-                    raise ValueError("graph edges need unique kind/source/target/type combinations")
+                    raise ValueError("graph edges need unique kind/source/target/role combinations")
                 seen_edges.add(edge_key)
                 continue
+            if cell.get("kind") not in ("modelElement", "structuralElement", "connection", "connectionLabel", None):
+                raise ValueError("invalid graph node kind")
             identity = cell.get("id")
             if not isinstance(identity, str) or not identity.strip() or identity in seen:
                 raise ValueError("graph cells need unique non-empty IDs")
             seen.add(identity)
             if cell.get("comparisonRole") not in ("semantic", "structural", "unsupported"):
                 raise ValueError("graph nodes need a comparisonRole")
-            if (any(key not in cell for key in ("type", "nativeType", "language", "definition"))
+            if (any(key not in cell for key in (
+                    "type", "kind", "comparisonGroup", "comparisonRole", "label", "language",
+                    "definition", "languageResolution"))
                     or cell.get("languageResolution") not in ("resolved", "ambiguous", "unresolved")
-                    or not isinstance(cell.get("definitionCandidates"), list)
-                    or not isinstance(cell.get("origin"), dict) or not isinstance(cell.get("properties"), dict)):
-                raise ValueError("graph nodes need their V1 type, language, properties and origin metadata")
+                    or (cell.get("kind") is not None and not isinstance(cell.get("kind"), str))
+                    or (cell.get("comparisonGroup") is not None and not isinstance(cell.get("comparisonGroup"), str))
+                    or ("definitionCandidates" in cell and not isinstance(cell["definitionCandidates"], list))
+                    or ("properties" in cell and not isinstance(cell["properties"], dict))
+                    or ("directed" in cell and cell["directed"] is not None and type(cell["directed"]) is not bool)):
+                raise ValueError("graph nodes need valid V3 type, kind and language metadata")
             if cell["comparisonRole"] == "structural":
                 continue
             text_language = cell.get("textLanguage")

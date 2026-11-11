@@ -29,7 +29,7 @@ class ParserRequest(TypedDict, total=False):
 
 
 class ParserData(TypedDict):
-    schema: Literal["graph-result/v1"]
+    schema: Literal["graph-result/v3"]
     evaluationId: str
     source: ModelSource
     inputHash: str
@@ -100,13 +100,13 @@ def run(payload: ParserRequest, store: Workspace | None = None) -> ParserResult:
                  "workflow_io.py": Path(workflow_io.__file__)}
     producer = {"service": SERVICE, "version": "0.4.2",
                 "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()})}
-    result: ParserData = {"schema": "graph-result/v1", "evaluationId": evaluation_id, "source": source,
+    result: ParserData = {"schema": "graph-result/v3", "evaluationId": evaluation_id, "source": source,
                           "inputHash": bundle["inputHash"], "producer": producer,
                           "languageResources": [{"languageId": language["languageId"], "versionId": language["versionId"],
                                                  "hash": content_hash(language["data"])} for language in languages], **parsed}
     result["graphHash"] = content_hash({field: result[field] for field in ("source", "languageResources", "producer", "graph", "completeness", "diagnostics")})
     graph = result["graph"]
-    elements = sum(node["kind"] == "element" for node in graph["nodes"])
+    elements = sum(node["kind"] != "connection" for node in graph["nodes"])
     connections = sum(node["kind"] == "connection" for node in graph["nodes"])
     containments = sum(edge["kind"] == "contains" for edge in graph["edges"])
     endpoints = sum(edge["kind"] == "endpoint" for edge in graph["edges"])

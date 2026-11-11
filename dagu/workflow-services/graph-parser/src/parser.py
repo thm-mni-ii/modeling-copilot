@@ -18,66 +18,45 @@ class LanguageVersion(LanguageReference):
 class DefinitionReference(LanguageReference):
     # JSON Pointer relative to LanguageVersion.data.
     path: str
+    definitionId: NotRequired[str]
 
 
 DefinitionEntry = tuple[DefinitionReference, dict]
 Scalar = str | int | float | bool | None
 
 
-class Anchor(TypedDict, total=False):
-    cellId: str | None
-    pointId: str
-    name: str
-    groups: list[str]
-    role: Literal["input", "output", "bidirectional"]
-    x: str | float
-    y: str | float
-    dx: str
-    dy: str
-    perimeter: str
-    position: dict[str, str]
-    pointSource: Literal["language", "model"]
-
-
 class DefinitionBinding(TypedDict):
     language: LanguageReference | None
     languageResolution: Literal["resolved", "ambiguous", "unresolved"]
     definition: DefinitionReference | None
-    definitionCandidates: list[DefinitionReference]
+    definitionCandidates: NotRequired[list[DefinitionReference]]
 
 
 class GraphNode(DefinitionBinding):
     id: str
-    kind: Literal["element", "connection"]
+    kind: Literal["modelElement", "structuralElement", "connection", "connectionLabel"] | None
     type: str | None
-    nativeType: str | None
+    comparisonGroup: str | None
     label: str
-    properties: dict[str, Scalar]
+    properties: NotRequired[dict[str, Scalar]]
     comparisonRole: Literal["semantic", "structural", "unsupported"]
-    origin: dict
+    connectionLabelId: NotRequired[str]
     directed: NotRequired[bool | None]
 
 
 class GraphEdge(TypedDict):
     id: NotRequired[str]
     kind: Literal["contains", "endpoint"]
-    type: str | None
+    role: str | None
     source: str | None
     target: str | None
-    directed: bool | None
-    label: str
-    language: LanguageReference | None
-    properties: NotRequired[dict[str, Scalar]]
-    origin: NotRequired[dict]
-    port: NotRequired[dict]
 
 
 class Graph(TypedDict):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[3]
     languages: list[LanguageReference]
     nodes: list[GraphNode]
     edges: list[GraphEdge]
-    excluded: list[dict]
 
 
 def content_hash(value: object) -> str:
@@ -131,14 +110,18 @@ def label_of(cell: ET.Element) -> str:
 
 
 def type_of(cell: ET.Element) -> str:
-    return cell.get("connectionId", "") if flag(cell.get("edge")) else (
-        cell.get("diagramElementType") or object_field(cell, "diagramAttributes").get("type") or cell.get("connectionLabelId", ""))
+    if flag(cell.get("edge")):
+        return cell.get("connectionId", "")
+    if cell.get("connectionLabelId") is not None:
+        return cell.get("connectionLabelId", "")
+    return cell.get("diagramElementType") or object_field(cell, "diagramAttributes").get("type") or ""
 
 
-def language_catalog(languages: object) -> tuple[dict, dict, set, set, list]:
+def language_catalog(languages: object) -> tuple[dict, dict, set, set, list, dict]:
     if not isinstance(languages, list):
         raise ValueError("input.languages must be an array of resolved language versions")
     elements, connections, feedback_elements, feedback_connections, references = {}, {}, set(), set(), []
+    comparison_groups = {}
     seen = set()
     for language in languages:
         if not isinstance(language, dict) or not all(isinstance(language.get(key), str) and language[key] for key in ("languageId", "versionId")):
@@ -160,7 +143,10 @@ def language_catalog(languages: object) -> tuple[dict, dict, set, set, list]:
                 if not isinstance(definition, dict) or not isinstance(definition.get("type"), str) or not definition["type"]:
                     raise ValueError("each language definition needs a non-empty type")
                 definition_path = f"{path}/{index}"
-                entry = ({**reference, "path": definition_path}, definition)
+                definition_reference = {**reference, "path": definition_path}
+                if isinstance(definition.get("id"), str) and definition["id"]:
+                    definition_reference["definitionId"] = definition["id"]
+                entry = (definition_reference, definition)
                 candidates = catalog.setdefault(definition["type"], [])
                 candidates.append(entry)
                 if nested:
@@ -170,6 +156,20 @@ def language_catalog(languages: object) -> tuple[dict, dict, set, set, list]:
         register(data.get("connections"), connections, "/connections")
         for index, connection in enumerate(data.get("connections", [])):
             register(connection.get("additionalLabels", []), elements, f"/connections/{index}/additionalLabels")
+        evaluation = data.get("evaluation", {})
+        if not isinstance(evaluation, dict):
+            raise ValueError("language evaluation must be an object")
+        configured_groups = evaluation.get("comparisonGroups", [])
+        if not isinstance(configured_groups, list):
+            raise ValueError("language evaluation comparisonGroups must be an array")
+        for group in configured_groups:
+            if (not isinstance(group, dict) or not isinstance(group.get("id"), str) or not group["id"]
+                    or not isinstance(group.get("elementTypes"), list)
+                    or any(not isinstance(element_type, str) or not element_type for element_type in group["elementTypes"])):
+                raise ValueError("each comparison group needs an id and elementTypes array")
+            for element_type in group["elementTypes"]:
+                key = (reference["languageId"], reference["versionId"], element_type)
+                comparison_groups.setdefault(key, set()).add(group["id"])
         feedback = data.get("feedback", {})
         if not isinstance(feedback, dict) or not isinstance(feedback.get("canvas", {}), dict):
             raise ValueError("language feedback/canvas must be objects")
@@ -186,7 +186,7 @@ def language_catalog(languages: object) -> tuple[dict, dict, set, set, list]:
                         raise ValueError("feedback types must be strings")
                     target.add(element_type)
     references.sort(key=lambda ref: (ref["languageId"], ref["versionId"]))
-    return elements, connections, feedback_elements, feedback_connections, references
+    return elements, connections, feedback_elements, feedback_connections, references, comparison_groups
 
 
 def parse_model(value: object) -> dict:
@@ -247,7 +247,7 @@ def parse_model(value: object) -> dict:
         scope.add(identity)
         pending.extend(children.get(identity, []))
 
-    elements, connections, feedback_elements, feedback_connections, references = language_catalog(value.get("languages"))
+    elements, connections, feedback_elements, feedback_connections, references, comparison_groups = language_catalog(value.get("languages"))
     excluded = set(cells) - scope
     for identity in scope:
         cell = cells[identity]
@@ -271,10 +271,23 @@ def parse_model(value: object) -> dict:
                 changed = True
 
     model_cells = {identity: cell for identity, cell in cells.items() if identity not in excluded}
+    for identity, cell in cells.items():
+        parent_id = cell.get("parent")
+        if identity not in model_cells and parent_id is not None and parent_id not in cells:
+            is_connection = flag(cell.get("edge"))
+            model_catalog = connections if is_connection else elements
+            feedback_catalog = feedback_connections if is_connection else feedback_elements
+            cell_type = type_of(cell)
+            feedback_type = (cell_type in feedback_catalog or cell_type == "__feedback_note_link__") and cell_type not in model_catalog
+            roles = (cell.get("cellRole"), cell.get("canvasRole"), style_of(cell).get("cellRole"))
+            if ("feedback" in roles or feedback_type
+                    or not (flag(cell.get("vertex")) or is_connection or cell_type or "connectionLabelId" in cell.attrib)):
+                continue
+            diagnose("INVALID_OWNER", [identity], "Parent reference does not name a stored cell.",
+                     sourceField="parent", originalParentId=parent_id, nativeType=cell_type or None,
+                     label=label_of(cell))
     parents = {identity: None if cell.get("parent") == modeling_layer else cell.get("parent")
                for identity, cell in model_cells.items()}
-    diagnose("COMPARISON_SCOPE", [],
-             "Comparison includes only recursive modeling-layer contents; canvas infrastructure, other layers and feedback are excluded.", "info")
     nodes, edges = {}, []
     reserved_ids = set(cells)
 
@@ -289,6 +302,7 @@ def parse_model(value: object) -> dict:
     candidates_by_cell: dict[str, list[DefinitionEntry]] = {}
     pinned_by_cell = {}
     bindings = {}
+    node_kinds = {}
 
     def belongs_to(child: DefinitionReference, parent: DefinitionReference, section: str) -> bool:
         return (all(child[key] == parent[key] for key in ("languageId", "versionId"))
@@ -297,8 +311,9 @@ def parse_model(value: object) -> dict:
 
     for identity, cell in sorted(model_cells.items()):
         catalog = connections if flag(cell.get("edge")) else elements
+        is_connection_label = cell.get("connectionLabelId") is not None
         candidates = [entry for entry in catalog.get(type_of(cell), [])
-                      if ("/additionalLabels/" in entry[0]["path"]) == bool(cell.get("connectionLabelId"))]
+                      if ("/additionalLabels/" in entry[0]["path"]) == is_connection_label]
         attributes = object_field(cell, "diagramAttributes")
         language_id = cell.get("languageId", attributes.get("languageId"))
         version_id = cell.get("languageVersionId", attributes.get("languageVersionId"))
@@ -333,8 +348,19 @@ def parse_model(value: object) -> dict:
         contextual = [entry for entry in available if parent and any(
             belongs_to(entry[0], parent[0], section) for section in ("children", "additionalLabels"))]
         candidates = contextual or independent
-        declared_child = bool(contextual) or bool(cell.get("connectionLabelId")) or bool(available and not independent)
+        declared_child = bool(contextual) or cell.get("connectionLabelId") is not None or bool(available and not independent)
         entry = candidates[0] if len(candidates) == 1 else None
+        if flag(cell.get("edge")):
+            node_kind = "connection"
+        elif cell.get("connectionLabelId") is not None:
+            node_kind = "connectionLabel"
+        elif len(contextual) == 1:
+            node_kind = "structuralElement"
+        elif contextual or (available and not independent):
+            node_kind = None
+        else:
+            node_kind = "modelElement" if type_of(cell) else None
+        node_kinds[identity] = node_kind
         definitions[identity] = entry
         remaining = candidates or available
         origins = {(candidate[0]["languageId"], candidate[0]["versionId"]) for candidate in remaining}
@@ -344,30 +370,25 @@ def parse_model(value: object) -> dict:
             language = {"languageId": language_id, "versionId": version_id}
         resolution = "resolved" if language else "ambiguous" if origins else "unresolved"
         bindings[identity] = {"language": language, "languageResolution": resolution,
-                              "definition": entry[0] if entry else None,
-                              "definitionCandidates": [] if entry else [candidate[0] for candidate in remaining]}
+                              "definition": entry[0] if entry else None}
+        if not entry and remaining:
+            bindings[identity]["definitionCandidates"] = [candidate[0] for candidate in remaining]
         if resolution != "resolved":
             diagnose("AMBIGUOUS_LANGUAGE_ORIGIN" if origins else "UNRESOLVED_LANGUAGE_ORIGIN", [identity],
-                     "Language origin cannot be uniquely resolved.", definitionCandidates=bindings[identity]["definitionCandidates"])
+                     "Language origin cannot be uniquely resolved.",
+                     definitionCandidates=bindings[identity].get("definitionCandidates", []))
         if entry is None:
             code = "UNRESOLVED_CHILD_DEFINITION" if declared_child else (
                 "AMBIGUOUS_DEFINITION" if candidates else "UNRESOLVED_DEFINITION")
             diagnose(code, [identity],
                      "Declared child cannot be uniquely resolved in its parent context." if declared_child else
                      "Type definition cannot be uniquely resolved.", nativeType=type_of(cell),
-                     definitionCandidates=bindings[identity]["definitionCandidates"])
-
-    def origin(identity: str) -> dict:
-        cell = model_cells[identity]
-        parent = definitions.get(parents[identity])
-        contextual = [entry[0] for entry in candidates_by_cell[identity] if parent and any(
-            belongs_to(entry[0], parent[0], section) for section in ("children", "additionalLabels"))]
-        return {"cellIds": [identity], "derived": False, "rule": "original-cell/v1",
-                "xmlAttributes": dict(cell.attrib), "properties": scalar_properties(cell),
-                "contextDefinitionCandidates": contextual}
+                     definitionCandidates=bindings[identity].get("definitionCandidates", []))
 
     for identity, cell in sorted(model_cells.items()):
         entry = definitions[identity]
+        node_kind = node_kinds[identity]
+        native_type = type_of(cell)
         properties = scalar_properties(cell)
         for key in ("languageId", "languageVersionId", "comparisonRole"):
             properties.pop(key, None)
@@ -378,66 +399,28 @@ def parse_model(value: object) -> dict:
         if explicit_role is not None and explicit_role not in ("semantic", "structural"):
             diagnose("INVALID_COMPARISON_ROLE", [identity], "Explicit comparison role is not semantic or structural.")
         comparison_role = "semantic" if entry else "unsupported"
-        if entry and explicit_role in ("semantic", "structural"):
+        if node_kind == "structuralElement":
+            comparison_role = "structural"
+        elif node_kind in ("connectionLabel", None):
+            comparison_role = "unsupported"
+        elif entry and explicit_role in ("semantic", "structural"):
             comparison_role = explicit_role
-        nodes[identity] = {"id": identity, "kind": "connection" if flag(cell.get("edge")) else "element",
-                           "type": entry[1]["type"] if entry else None, "nativeType": type_of(cell) or None,
-                           "label": label_of(cell), "properties": properties,
-                           "comparisonRole": comparison_role,
-                           "origin": origin(identity), **bindings[identity]}
-
-    def anchor(cell: ET.Element, end: str) -> Anchor:
-        style = style_of(cell)
-        prefix = "exit" if end == "source" else "entry"
-        result = {"cellId": cell.get(end)}
-        for key, suffix in (("pointId", "PointId"), ("x", "X"), ("y", "Y"),
-                            ("dx", "Dx"), ("dy", "Dy"), ("perimeter", "Perimeter")):
-            if prefix + suffix in style:
-                result[key] = style[prefix + suffix]
-        geometry = next((child for child in cell if child.get("as") == "geometry"), None)
-        if geometry is not None:
-            point = next((child for child in geometry if child.get("as") == end + "Point"), None)
-            if point is not None:
-                result["position"] = {axis: point.get("_" + axis, point.get(axis, "0")) for axis in ("x", "y")}
-
-        entry = definitions.get(cell.get(end))
-        points = entry[1].get("anchorPoints", []) if entry else []
-        point_source = "language"
-        # Retain instance anchor metadata when no definition could be resolved.
-        if not entry and cell.get(end) in cells:
-            try:
-                points = json.loads(cells[cell.get(end)].get("connectionPointsJson", "[]"))
-            except (ValueError, TypeError):
-                points = []
-            point_source = "model"
-
-        def number_text(value: object) -> str:
-            # Legacy editor IDs omit .0 for integers; keep other coordinates precise.
-            return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
-
-        def point_id(point: dict) -> str:
-            return point.get("id") or f"point-{number_text(point.get('x'))}-{number_text(point.get('y'))}"
-
-        def matches(point: dict) -> bool:
-            if result.get("pointId"):
-                return point_id(point) == result["pointId"]
-            try:
-                return all(abs(float(result[axis]) - float(point[axis])) < 0.000001 for axis in ("x", "y"))
-            except (KeyError, TypeError, ValueError):
-                return False
-
-        matches_found = [point for point in points if isinstance(point, dict) and matches(point)] if isinstance(points, list) else []
-        if len(matches_found) == 1:
-            point = matches_found[0]
-            result["pointId"] = point_id(point)
-            result["pointSource"] = point_source
-            for key in ("name", "groups", "role"):
-                if key in point:
-                    result[key] = point[key]
-            for axis in ("x", "y"):
-                if axis in point:
-                    result.setdefault(axis, point[axis])
-        return result
+        language = bindings[identity]["language"]
+        group_ids = comparison_groups.get(
+            (language["languageId"], language["versionId"], native_type), set()
+        ) if node_kind == "modelElement" and language else set()
+        comparison_group = next(iter(group_ids)) if len(group_ids) == 1 else None
+        if len(group_ids) > 1:
+            diagnose("AMBIGUOUS_COMPARISON_GROUP", [identity], "Element type belongs to multiple comparison groups.",
+                     language=language, elementType=native_type, comparisonGroupIds=sorted(group_ids))
+        nodes[identity] = {"id": identity, "kind": node_kind, "type": native_type or None,
+                           "comparisonGroup": comparison_group,
+                           "label": label_of(cell), "comparisonRole": comparison_role,
+                           **bindings[identity]}
+        if properties:
+            nodes[identity]["properties"] = properties
+        if node_kind == "connectionLabel":
+            nodes[identity]["connectionLabelId"] = cell.get("connectionLabelId", "")
 
     for identity, cell in sorted(model_cells.items()):
         if not flag(cell.get("edge")):
@@ -451,21 +434,14 @@ def parse_model(value: object) -> dict:
         elif stored_direction is None and entry and isinstance(definition.get("undirected", False), bool):
             directed = not definition.get("undirected", False)
         if directed is None:
-            diagnose("UNRESOLVED_DIRECTION", [identity], "Connection direction cannot be resolved.", sourceField="connectionUndirected")
+            diagnose("UNRESOLVED_DIRECTION", [identity], "Connection direction cannot be resolved.",
+                     sourceField="connectionUndirected")
         nodes[identity]["directed"] = directed
-        nodes[identity]["origin"]["storedUndirected"] = stored_direction
         for end in ("source", "target"):
             terminal = cell.get(end)
             connected = terminal if terminal in nodes else None
-            metadata = anchor(cell, end)
             edge = {"id": derived_id("endpoint", identity, end), "source": connected if end == "source" else identity,
-                    "target": identity if end == "source" else connected, "kind": "endpoint", "type": end,
-                    "directed": True, "label": "", "language": None, "properties": {},
-                    "origin": {"cellIds": [identity], "sourceField": end, "derived": True, "rule": "connection-endpoint/v1", "anchor": metadata}}
-            if metadata.get("pointSource") == "language":
-                port = {key: metadata[key] for key in ("pointId", "name", "groups", "role") if key in metadata}
-                if set(port) - {"pointId"}:
-                    edge["port"] = port
+                    "target": identity if end == "source" else connected, "kind": "endpoint", "role": end}
             edges.append(edge)
             if connected is None:
                 diagnose("OPEN_ENDPOINT", [identity], "Connection endpoint is missing or does not name a model node.",
@@ -473,6 +449,11 @@ def parse_model(value: object) -> dict:
 
     for identity in sorted(model_cells):
         parent = parents[identity]
+        if node_kinds[identity] == "connectionLabel" and (
+                parent not in nodes or node_kinds.get(parent) != "connection"):
+            diagnose("INVALID_CONNECTION_LABEL_OWNER", [identity],
+                     "Connection label parent does not name a stored connection.",
+                     sourceField="parent", originalParentId=model_cells[identity].get("parent"))
         if parent in nodes:
             child_definition = definitions[identity]
             relation = None
@@ -482,9 +463,7 @@ def parse_model(value: object) -> dict:
                     relation = "content"
                 elif "/children/" in path or "/additionalLabels/" in path:
                     relation = "component"
-            edges.append({"source": parent, "target": identity,
-                          "kind": "contains", "type": relation, "directed": True, "label": "",
-                          "language": None})
+            edges.append({"source": identity, "target": parent, "kind": "contains", "role": relation})
         elif parent is not None:
             diagnose("INVALID_OWNER", [identity], "Parent does not name an available model node.", sourceField="parent", originalParentId=parent)
 
@@ -506,10 +485,9 @@ def parse_model(value: object) -> dict:
         diagnose("MULTIPLE_LANGUAGE_ORIGINS", [identity for identity in model_cells if bindings[identity]["language"]], "Elements from multiple language definitions were observed.", "info",
                  languages=[{"languageId": language_id, "versionId": version_id} for language_id, version_id in sorted(observed)])
     diagnostics.sort(key=lambda item: (item["code"], item["elementIds"], content_hash(item)))
-    graph: Graph = {"schemaVersion": 1, "languages": references,
+    graph: Graph = {"schemaVersion": 3, "languages": references,
                     "nodes": sorted(nodes.values(), key=lambda node: node["id"]),
-                    "edges": sorted(edges, key=lambda edge: (edge["kind"], edge["source"] or "", edge["target"] or "", edge["type"] or "")),
-                    "excluded": []}
+                    "edges": sorted(edges, key=lambda edge: (edge["kind"], edge["source"] or "", edge["target"] or "", edge["role"] or ""))}
     return {"graph": graph,
             "completeness": {"interpretation": "partial" if any(item["severity"] != "info" for item in diagnostics) else "complete"},
             "diagnostics": diagnostics}

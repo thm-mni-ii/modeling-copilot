@@ -1,7 +1,7 @@
 # graph-parser
 
 Überführt einen eingefrorenen maxGraph-Snapshot anhand seiner mitgelieferten
-Sprachdefinitionen in einen V1-Vergleichsgraphen. Alle Sprachen verwenden denselben
+Sprachdefinitionen in einen Graph-V3-Vergleichsgraphen. Alle Sprachen verwenden denselben
 Parserpfad. Der Parser beschreibt Struktur und Herkunft neutral und erzeugt keine
 Bewertung oder Rückmeldung zur fachlichen Richtigkeit.
 
@@ -30,10 +30,13 @@ Bewertung oder Rückmeldung zur fachlichen Richtigkeit.
 
 ## Konfiguration und allgemeine Verarbeitung
 
-Es werden keine neuen Konfigurationsparameter eingeführt. `comparisonConfig: {}`
-reicht aus; vorhandene Einträge bleiben unverändert im Eingabesnapshot.
-Sprachprofile, manuelle Typzuordnungen, bestimmte Ressourcenhashes und sprachspezifische
-Textgrammatiken werden nicht zur Verarbeitung vorausgesetzt.
+Es werden keine neuen Konfigurationsparameter eingeführt. `comparisonConfig` bleibt
+unverändert im Eingabesnapshot. Vergleichsgruppen werden je Sprachversion aus
+`language.data.evaluation.comparisonGroups` gelesen, wie sie Migration 13 definiert.
+Nicht gruppierte Modellinstanzen behalten ihren konkreten Typ als Vergleichsgrundlage;
+der Parser bildet keine Kandidatenpaare. Sprachprofile, manuelle Typzuordnungen,
+bestimmte Ressourcenhashes und sprachspezifische Textgrammatiken werden nicht
+vorausgesetzt.
 
 Der Vergleichsbereich wird vor der fachlichen Definitionsauflösung anhand der
 Plattformstruktur bestimmt: genau eine Canvas-Wurzel ohne `parent`, deren erster
@@ -52,12 +55,16 @@ Feedbackerkennung innerhalb des Modeling-Layers gilt weiter. Verbindungen zu
 vorhandenen ausgeschlossenen Zellen und ihre Kindbeschriftungen werden ebenfalls
 rekursiv ausgeschlossen. Tatsächlich fehlende Endpunktzellen bleiben dagegen als
 `OPEN_ENDPOINT` diagnostizierbar. Der vollständige Eingabesnapshot bleibt unverändert.
+Modelltypisierte Waisen mit fehlender Eltern-ID, deren Layerzugehörigkeit nicht mehr
+ermittelt werden kann, bleiben als `INVALID_OWNER`-Diagnose erkennbar, werden aber
+nicht willkürlich dem Modeling-Layer zugeordnet.
 
 Jede eindeutige mitgelieferte Element- oder Verbindungsdefinition für übernommene Zellen wird verarbeitet.
-`type` erhält ihren Typstring, `nativeType` die ursprüngliche Typangabe der Zelle.
-Typstrings verschiedener Sprachen oder Versionen sind erst zusammen mit ihrem
-Sprach- und Definitionsbezug identifizierbar. Ohne eindeutige Definition bleibt
-`type: null`; die Originalangaben und alle Kandidaten bleiben erhalten.
+`type` erhält den konkreten Typ aus der Zelle, auch wenn keine eindeutige
+Sprachdefinition dazu auflösbar ist. `definition` verweist bei einer eindeutigen
+Zuordnung auf die Definition; die Referenz enthält den Pfad innerhalb der
+Sprachversion und, falls vorhanden, deren Definitions-ID. Mehrdeutige oder
+unbekannte Typen bleiben als Knoten samt Diagnosen erhalten.
 
 Übernommene Kindzellen bleiben eigenständige Knoten. Freie Labels, auch mehrzeilige,
 bleiben unverändert und werden nicht in vermeintliche Attribute zerlegt.
@@ -66,17 +73,18 @@ fehlende Schlüssel, leere Strings, `?` und ausdrücklich gesetzte Werte bleiben
 unterscheidbar. Es gibt keine Konvertierung anhand von Feldnamen oder vermuteter
 Bedeutung. Typ, Label und Herkunftsmetadaten werden separat geführt.
 
-`comparisonRole` ist bei eindeutig definierten Knoten standardmäßig `semantic`, bei
-fehlender oder mehrdeutiger Definition `unsupported`. Eine ausdrücklich gespeicherte
-Rolle `semantic` oder `structural` an der Zelle, in `diagramAttributes` oder in der
-aufgelösten Definition wird übernommen. Die Zelle hat dabei Vorrang. Ungültige
-explizite Rollen erzeugen eine Diagnose. Rendering, Typnamen und Containerposition
-begründen keine strukturelle Rolle.
+`kind` unterscheidet `modelElement`, `structuralElement`, `connection` und
+`connectionLabel`. Nur eine eindeutige Zuordnung zu einer verschachtelten
+`children`-Definition des aufgelösten Parent-Typs begründet `structuralElement`;
+eigenständige Elemente bleiben `modelElement`. Bei mehrdeutigen Child-Definitionen
+bleibt `kind` ungeklärt (`null`) und eine Diagnose erhalten. Eine vorhandene
+`comparisonRole` bleibt ergänzende Kompatibilitätsinformation; sie ersetzt nicht
+diese Klassifikation.
 
-## V1-Vertrag und Herkunft
+## Graph-V3-Vertrag und Herkunft
 
-Ausgabe: `workflow-result/v1`, darunter `result.schema: graph-result/v1` und
-`result.graph.schemaVersion: 1`. `result` enthält `evaluationId`, die vollständige
+Ausgabe: `workflow-result/v1`, darunter `result.schema: graph-result/v3` und
+`result.graph.schemaVersion: 3`. `result` enthält `evaluationId`, die vollständige
 Modellquelle `source`, `inputHash`, `languageResources`, `producer`, `graphHash`,
 `graph`, `completeness.interpretation` und `diagnostics`.
 
@@ -95,38 +103,36 @@ liegen außerhalb des fachlichen Graphen.
 `graphHash` ist SHA-256 des kanonischen Objekts mit genau `source`, `languageResources`,
 `producer`, `graph`, `completeness` und `diagnostics`. Das UTF-8-JSON verwendet sortierte
 Objektschlüssel, keine zusätzlichen Leerzeichen und keine ASCII-Escapes. Mengen
-(Knoten, Kanten, Ausschlüsse, Sprachreferenzen, Definitionskandidaten und Diagnosen)
+(Knoten, Kanten, Sprachreferenzen, Definitionskandidaten und Diagnosen)
 werden stabil geordnet; fachlich geordnete Inhalte behalten ihre Reihenfolge.
 Das eigene Hashfeld, Zeitstempel und Laufzeitmessungen sind nicht enthalten.
 `inputHash` verweist auf den vollständigen Snapshot aus Paket 01.
 
 | Inhalt | Verhalten |
 | --- | --- |
-| Knoten | `kind: element` oder `connection`, `type`, `nativeType`, unverändertes `label`, `properties`, `comparisonRole`, Sprachbindung und `origin`. |
-| Modellierte Beziehungen | Genau ein Knoten mit Original-ID, Label, Eigenschaften, Herkunft und `directed: true/false/null`, unabhängig von Kindern, Einbettung oder weiteren Anschlüssen. |
-| Anschlüsse | Zwei technische `endpoint`-Kanten: Quelle → Beziehungsknoten und Beziehungsknoten → Ziel, mit `type: source/target`. Fehlende Enden bleiben `null`; Originalziel, Anschluss-ID, Koordinaten und freie Endposition stehen in `origin.anchor`. |
-| Ports | Nur ausdrücklich in der aufgelösten Sprachdefinition vorhandene Namen, Gruppen oder Rollen stehen unter `port`. Layout und nur im Modell gespeicherte Anschlussmetadaten bleiben Herkunft. |
-| Zugehörigkeit | `contains` erhält die unmittelbare Elternstruktur innerhalb des Modeling-Layers. `type: content` für eigenständige Definitionen, `component` für deklarierte Kinder/Zusatzlabels, sonst `null`. Wurzel und Layer erzeugen keine Kanten; fachliche Zwischencontainer bleiben sichtbar. Es gibt kein zweites persistiertes Besitzerfeld. |
-| Ausschlüsse | Das V1-Feld `graph.excluded` bleibt als leere Liste erhalten. Reguläre Bereichsausschlüsse erzeugen weder XML-Einzeleinträge noch Einzelwarnungen. Konflikte mit regulären Definitionen verhindern weiterhin rein typbasierte Feedbackausschlüsse innerhalb des Modeling-Layers. |
-| Identität | Originalknoten behalten ihre IDs; `endpoint`-IDs kodieren Transformationsrolle und Quellidentität kollisionssicher unter `@graph:`. `contains` wird durch `kind`, `source`, `target` identifiziert und besitzt keine zusätzliche ID. Die Reihenfolge der direkten Wurzelkinder bestimmt den Vergleichsbereich. |
-| Originalwerte | Knoten behalten `origin.cellIds`, XML-Attribute, Eigenschaften und Regelbezug. `endpoint` behält Herkunft und Anschlussdaten. Die aus Quelle, Ziel und allgemeiner Erzeugungsregel rekonstruierbare Herkunft wird bei `contains` nicht nochmals gespeichert. |
+| Knoten | `kind` trägt die Knotenkategorie; `type` den konkreten Zelltyp und `label` den gespeicherten Text einschließlich Leertext. `comparisonGroup` ist für Modellinstanzen mit Gruppe gesetzt, andernfalls `null`. `properties` und `definitionCandidates` erscheinen nur bei nicht leeren Werten. |
+| Modellierte Beziehungen | Genau ein `connection`-Knoten mit Original-ID, konkretem Verbindungstyp und eigener `directed`-Information. Keine zusätzliche, unabhängig gepflegte Verbindungsstruktur und keine abgeleitete fachliche Richtungsregel. |
+| Anschlüsse | Zwei technische `endpoint`-Kanten mit `role: source/target` bewahren Rollen und Reihenfolge der Endpunkte. Fehlende Enden bleiben `null` und erzeugen `OPEN_ENDPOINT`. |
+| Verbindungsbeschriftungen | Zellen mit `connectionLabelId` erhalten `kind: connectionLabel`, behalten Kennung und Text und bleiben über ihre gespeicherte `contains`-Beziehung der ursprünglichen Verbindung zugeordnet. |
+| Zugehörigkeit | `contains` erhält jede unmittelbare Elternbeziehung innerhalb des Modeling-Layers in Richtung Kind → Parent. `role: content` für eigenständige Definitionen, `component` für deklarierte Kinder/Zusatzlabels, sonst `null`. Wurzel und Layer erzeugen keine Kanten; fachliche Zwischencontainer bleiben eigenständige Knoten. |
+| Identität | Originalknoten behalten ihre IDs; `endpoint`-IDs kodieren Transformationsrolle und Quellidentität kollisionssicher unter `@graph:`. Eine Kante wird durch `kind`, `source`, `target` und `role` identifiziert. Die Reihenfolge der direkten Wurzelkinder bestimmt den Vergleichsbereich. |
+| Eigenschaften | `contains` besteht aus `kind`, `source`, `target` und `role`; `endpoint` ergänzt die eigene `id`. Technische Kanten tragen keine redundanten Labels, Sprachen, Richtungs- oder Eigenschaftenfelder. Die fachliche Verbindungsrichtung liegt nur am Verbindungsknoten. |
 
-`contains` enthält genau `kind`, `source`, `target`, `directed`, `label`, `language`
-und `type`; leere `properties` entfallen. Technische Kanten werden stabil nach
-Art, Quelle, Ziel und Typ sortiert. Die Zusammenfassung zählt Elementknoten
-(einschließlich verschachtelter Inhalte), modellierte Verbindungen, Zugehörigkeiten
-und technische Anschlüsse separat; sie errät keine sprachspezifischen Attributrollen.
-
-Gespeichertes `connectionUndirected` (`0/1/false/true`) hat Vorrang. Ohne diesen Wert
-gilt die eindeutig aufgelöste Sprachdefinition (`undirected`, gemäß bestehendem
-Sprachschema standardmäßig `false`). Ungültige oder nicht auflösbare Richtungen bleiben
-`null` mit Diagnose. Eine unbekannte Richtung wird nicht als ungerichtet behandelt.
-Darstellungsstil, Position, Farbe und Größe werden nicht in fachliche Eigenschaften übernommen.
+Technische Kanten werden stabil nach Art, Quelle, Ziel und Rolle sortiert. Die Zusammenfassung zählt Elementknoten,
+modellierte Verbindungen, Zugehörigkeiten und technische Anschlüsse separat.
+`comparisonGroup` ist die Gruppen-ID aus der jeweiligen Sprachversion; ohne eindeutige
+Gruppenzuordnung bleibt sie `null`. Strukturelle Elemente und Verbindungen werden
+nicht allein über eine Vergleichsgruppe als semantische Modellinstanzen behandelt.
+`graph-result/v3` verwendet `kind` für Knotenkategorien und `role` für Kantenrollen.
+Die bisherige Reduktion bleibt bestehen; `graph.excluded` wird nicht ausgegeben.
+Verbraucher müssen `contains` als Kind → Parent interpretieren. Ein bekannter Quelltyp
+bleibt auch ohne aufgelöste Definition in `type` erhalten.
 
 ## Sprachherkunft und Diagnosen
 
-Jedes Element und jede modellierte Beziehung trägt `language`, `languageResolution`,
-`definition` und `definitionCandidates`. Alle zum Modell mitgelieferten Definitionen
+Jedes Element und jede modellierte Beziehung trägt `language`, `languageResolution`
+und `definition`. Nicht leere `definitionCandidates` werden zusätzlich ausgegeben.
+Alle zum Modell mitgelieferten Definitionen
 werden gleichberechtigt berücksichtigt. Eine ausdrückliche Originalreferenz
 (`languageId` und `languageVersionId` an der Zelle oder in `diagramAttributes`) muss
 auf eine mitgelieferte Version verweisen; sie erhält Herkunft auch bei unbekanntem Typ.
@@ -134,13 +140,14 @@ Farbe, Form, Label und die Sprache eines Endpunkts liefern keinen Herkunftsbeleg
 
 Der Parent-Kontext wird für deklarierte `children` und `additionalLabels` vor der
 endgültigen Typ-/Sprachbindung ausgewertet, unabhängig von Zell-ID-Reihenfolgen.
-Eine passende Kinddefinition hat Vorrang; andernfalls bleiben eigenständige
-Definitionen auch in fachlichen Containern verfügbar. Fehlende oder mehrdeutige
-Child-Kontexte erzeugen `UNRESOLVED_CHILD_DEFINITION`, behalten den Knoten als
-`unsupported` und machen die Interpretation `partial`. `AMBIGUOUS_DEFINITION`
-bezieht sich auf mehrere eigenständige Definitionen. Der aufgelöste Parent-Kontext
-steht ergänzend unter `origin.contextDefinitionCandidates`. Eigenständige Inhalte
-werden nicht durch eine vermutete fachliche Besitzerregel ausgeschlossen. Sind
+Eine eindeutige passende `children`-Definition begründet einen strukturellen Knoten;
+andernfalls bleiben eigenständige Definitionen auch in fachlichen Containern
+`modelElement`. Fehlende oder mehrdeutige Child-Kontexte erzeugen
+`UNRESOLVED_CHILD_DEFINITION`, behalten den Knoten mit ungeklärtem `kind` und
+machen die Interpretation `partial`. `AMBIGUOUS_DEFINITION` bezieht sich auf mehrere
+eigenständige Definitionen. Nicht leere Definitionskandidaten stehen in der Diagnose.
+Eigenständige Inhalte werden nicht durch eine vermutete
+fachliche Besitzerregel ausgeschlossen. Sind
 auch nach dieser Auflösung mehrere Definitionen derselben Version möglich,
 ist die Sprache weiterhin `resolved`, die Definition aber `null`. Bei mehreren
 Sprachversionen ist die Herkunft `ambiguous`, ohne Beleg `unresolved`. Technische
@@ -149,9 +156,10 @@ Strukturkanten haben keine eigene Modellierungssprache.
 Diagnosen enthalten `code`, `severity`, `scope`, `message`, vollständige `source`,
 `elementIds` und bei Bedarf Definitionen oder Originalfeldreferenzen. Codes:
 `INVALID_LANGUAGE_REFERENCE`, `AMBIGUOUS_LANGUAGE_ORIGIN`, `UNRESOLVED_LANGUAGE_ORIGIN`,
-`AMBIGUOUS_DEFINITION`, `UNRESOLVED_DEFINITION`, `UNRESOLVED_CHILD_DEFINITION`, `INVALID_COMPARISON_ROLE`,
-`UNRESOLVED_DIRECTION`, `OPEN_ENDPOINT`, `INVALID_OWNER`, `CONTAINMENT_CYCLE` und
-`MULTIPLE_LANGUAGE_ORIGINS` sowie die einmalige Bereichsinformation `COMPARISON_SCOPE`.
+`AMBIGUOUS_DEFINITION`, `UNRESOLVED_DEFINITION`, `UNRESOLVED_CHILD_DEFINITION`,
+`INVALID_COMPARISON_ROLE`, `AMBIGUOUS_COMPARISON_GROUP`, `OPEN_ENDPOINT`,
+`INVALID_CONNECTION_LABEL_OWNER`, `INVALID_OWNER`, `CONTAINMENT_CYCLE` und
+`MULTIPLE_LANGUAGE_ORIGINS`.
 
 Konkrete Interpretationslücken sind Warnungen und setzen `interpretation: partial`;
 ein vollständig aufgelöstes leeres Modell ist `complete`. Zyklen bleiben mit ihren
@@ -162,18 +170,13 @@ Versionen derselben Sprache zählen dabei nicht als mehrere Sprachen. Aufgabenab
 Zulässigkeit der Sprachwahl und daraus abgeleitetes Feedback bleiben nachgelagerten Regeln vorbehalten.
 Sprachbeobachtungen beziehen sich ausschließlich auf übernommene Knoten;
 `graph.languages` dokumentiert weiterhin alle mitgelieferten Sprachreferenzen.
-Reguläre Bereichsausschlüsse und `COMPARISON_SCOPE` setzen die Interpretation nicht
-auf `partial`. Inventar und Matching verwenden den begrenzten Graphen ohne neue XML-Auswahl.
+Reguläre Bereichsausschlüsse setzen die Interpretation nicht auf `partial`.
+Inventar und Matching verwenden den begrenzten Graphen ohne neue XML-Auswahl.
 
 ## Prüfstand
 
-Der generische Stand einschließlich Modeling-Layer-Abgrenzung wurde ausschließlich
-statisch anhand von Parser, direktem Aufrufer, Editor, Export und Verbrauchern durchgesehen.
-Frühere Ausführungen während der Entwicklung bezogen sich auf einen inzwischen
-entfernten sprachspezifischen Zwischenstand und belegen diese Fassung nicht.
-Keine neuen Testdateien, Builds oder vollständigen Testsuiten. Eine Laufzeitprüfung
-des generischen Standes ist gemäß der aktuellen gemeinsamen README nicht ausgeführt.
-Auch für diese Abgrenzung wurden keine Laufzeit-, Test-, Build-, Lint- oder
-Syntaxprüfungen ausgeführt. Die strukturelle Zuordnung setzt die gespeicherte
-Plattformreihenfolge voraus; vertauschte, ansonsten gleich strukturierte Layer
-können ohne zusätzliche Kennzeichnung nicht als solche erkannt werden.
+Mit `PYTHONPATH=src python -m unittest discover -s tests` prüft der gezielte
+Lauf SERM-Container und Attribute,
+unterscheidbare strukturelle Child-Definitionen, UML-Freitextlabels, ERM-Verbindungen
+und Zusatzlabels sowie unbekannte Typen, fehlende Referenzen und mehrdeutige
+Child-Definitionen.

@@ -8,13 +8,14 @@ Labelzerlegung, Übersetzung oder Matchingentscheidung.
 ## Eingabe und Aufruf
 
 - Eingabe ist die erfolgreiche `workflow-result/v1`-Hülle mit
-  `result.schema: graph-result/v1` und `result.graph.schemaVersion: 1` aus Paket 02.
+  `result.schema: graph-result/v3` und `result.graph.schemaVersion: 3` aus Paket 02.
   Benötigt werden `evaluationId`, vollständige `source`, `inputHash`, `graphHash`,
   `producer`, `languageResources`, `graph`, `completeness` und `diagnostics`.
-- `graph` enthält `nodes`, `edges`, `languages` und `excluded`. Knoten- und
-  Kanten-IDs müssen gemeinsam eindeutige, nicht leere Strings sein. Die vorhandenen
-  V1-Knotenrollen sowie Typ-, Sprach-, Eigenschafts- und Herkunftsfelder werden
-  vorausgesetzt. Der Graphhash wird nach dem tatsächlichen Parservertrag geprüft:
+- `graph` enthält `nodes`, `edges` und `languages`. Knoten- und
+  Kanten-IDs müssen gemeinsam eindeutige, nicht leere Strings sein. Der V3-Vertrag
+  verwendet `kind` für Knotenkategorien und `role` für Kantenrollen; `properties` und
+  `definitionCandidates` sind optionale, nicht leere Felder. Der Graphhash wird nach
+  dem tatsächlichen Parservertrag geprüft:
   SHA-256 über genau `source`, `languageResources`, `producer`, `graph`,
   `completeness` und `diagnostics`.
 - Im Workflow: `WORKFLOW_EVALUATION_ID`,
@@ -31,12 +32,12 @@ Labelzerlegung, Übersetzung oder Matchingentscheidung.
 
 ## Inventarmenge und Texte
 
-`elements` enthält jeden Graphknoten der Art `element` oder `connection` mit
+`elements` enthält jeden Graphknoten außer `kind: structuralElement` mit
 `comparisonRole: semantic` oder `unsupported`, auch mit leerem oder fehlendem
 Label. Gleiche Labels bleiben getrennte Instanzen mit ihren unveränderten IDs.
 Die ausdrücklich als `structural` gekennzeichneten Knoten bleiben Kontext im
-Graphen. Technische `contains`-/`endpoint`-Kanten und Einträge aus `graph.excluded`
-werden keine Labelkandidaten. Separate `properties` erzeugen keine neuen Einträge.
+Graphen. Technische `contains`-/`endpoint`-Kanten werden keine Labelkandidaten.
+Separate `properties` erzeugen keine neuen Einträge.
 Es gibt keine Filter nach Typ, Modellierungssprache, `allowLabelEdit` oder Inhalt.
 
 Jeder Eintrag enthält ausschließlich die unveränderte Graph-ID und das eigene
@@ -86,16 +87,17 @@ Element-IDs und Inhaltshash geordnet. Fachlich geordnete Inhalte behalten ihre
 Reihenfolge. Zeitstempel und Laufzeitmessungen werden nicht ergänzt.
 
 Falsche Hüllen/Versionen, widersprüchliche Lauf-/Quell-/Hashbezüge, ungültige IDs
-oder fehlende V1-Strukturmetadaten liefern Exitcode 1 und eine Meldung auf stderr;
+oder fehlende V3-Strukturmetadaten liefern Exitcode 1 und eine Meldung auf stderr;
 es wird kein neues Erfolgsartefakt veröffentlicht. Ein leeres Inventar ist gültig.
 `interpretation: partial` wird niemals zu `complete` aufgewertet.
 
 ## Prüfstand und Übergabe
 
-Nur statisch durchgesehen. Keine Tests erstellt, erweitert oder ausgeführt und
-keine manuellen Modell-/Containerläufe, Smoke-Tests, Builds, Benchmarks, Lint- oder
-Syntaxprüfungen ausgeführt. Die Laufzeitfunktion ist ungeprüft.
+Die sechs vorhandenen Graph-Parser-Unit-Tests liefen erfolgreich, einschließlich
+SERM-, UML- und ERM-Fixtures. Das Parser-Image erzeugte ein `graph-result/v3`, das
+vom neu gebauten Elementinventar-Image erfolgreich verarbeitet wurde. Vollständige
+Modellabgaben waren nicht Teil dieser Prüfung.
 
 Paket 04 liest die beiden kompakten Inventare über den bestehenden Workspace.
 Strukturelles Matching, Feedback und Bewertung bleiben Folgeaufgaben. Der aktuelle
-kompakte Vertrag wurde ausschließlich statisch durchgesehen.
+kompakte Vertrag bleibt auf diese Schnittstelle beschränkt.
