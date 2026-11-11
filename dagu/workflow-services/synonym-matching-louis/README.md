@@ -1,0 +1,619 @@
+# Synonym Matching Louis
+
+Zwei Labelmengen hinein, eine Synonymmatrix mit Original-IDs, Einzelscores und
+Combined Score heraus. Der Service verarbeitet extrahierte Labels, kein Graph-XML.
+
+## Zwei Ausführungspfade
+
+- **Service:** `src/main.py` → `synonym_matching.service.match()` → Engine.
+- **Forschung:** `research/experiments.json` legt alle Versuche fest, `research/compare.py` führt sie aus. Beide verwenden denselben Matching-Kern.
+
+Der Service importiert keine Forschungsmodule. Docker enthält nur den Service,
+Schemas und Vorbereitungsskripte. Forschungsergebnisse verändern den Standard nicht.
+
+## Lokal starten
+
+Alle folgenden Befehle im Ordner `dagu/workflow-services/synonym-matching-louis`:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python src/main.py --input examples/input.json
+```
+
+Eine bereits vorhandene `.venv` nur aktivieren, nicht neu anlegen.
+Die CLI liest alternativ JSON aus `TEMPLATE_INPUT` oder stdin und liefert eine
+JSON-Zeile. Fehler erscheinen auf stderr mit Exitcode 1.
+
+```python
+from synonym_matching import match
+
+result = match(["Kunde"], ["Kund"], config={"methods": ["levenshtein"]})
+```
+
+Für diesen Python-Aufruf `PYTHONPATH=src` setzen. Ohne explizite Methodenauswahl gilt jetzt die vorläufige semantische Pipeline:
+
+```python
+# In src/synonym_matching/config.py als DEFAULT_CONFIG festgelegt:
+{
+    "methods": ["levenshtein", "jaro_winkler", "char_trigram", "multilingual"],
+    "preprocessing": ["normalize"],
+    "embedding_preprocessing": ["normalize"],
+    "combiner": {"kind": "variant", "name": "weighted_fusion",
+                 "options": {"embedding_weight": 0.5}},
+}
+```
+
+Combined Score = 50 % Mittel(Levenshtein, Jaro-Winkler, Zeichen-Trigramme)
++ 50 % multilinguales Embedding. Kein Lowercasing, keine Übersetzung, kein Lexikon.
+Der Modellpfad ist `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`.
+Damit funktioniert der Standard auch ohne explizite DE/EN-Sprachangaben.
+
+Auswahlgrundlage: `vergleich-vereinfacht.json`, Threshold 0,5, 35 auswertbare
+synthetische Szenarien mit voller Sprachabdeckung: Precision 0,714, Recall 0,745,
+F1 0,729 (14 FP, 12 FN). Diese Pipeline ist gemeinsam mit der Exakt-Regel vorne;
+die zusätzliche Regel wird für den ersten Lauf nicht benötigt. Die DE→EN-Variante
+mit F1 0,773 deckt nur 33 Szenarien ab und ist deshalb kein direkt vergleichbarer
+Gesamtsieger. Keine Aussage über geprüfte reale Schülerabgaben und kein Training.
+Die Umstellung erfolgt manuell; neue Forschungsläufe ändern DEFAULT_CONFIG nicht.
+
+Eine explizite Liste `config.methods` ersetzt die Pipeline vollständig; ohne
+expliziten `combiner` gilt dann wie bisher der einfache Mittelwert dieser Methoden.
+Die ursprünglichen fünf Stringverfahren bleiben als `STRING_BASELINES` in
+`methods.py` verfügbar. Der Threshold bleibt optional und wird nicht automatisch
+auf 0,5 gesetzt. Für dieselbe Filterung wie im Vergleich `input.threshold=0.5`
+übergeben. Ausgabeformat und IDs bleiben unverändert. Der Standard braucht jetzt
+das vorbereitete multilinguale Modell (im Docker-Image bereits enthalten).
+
+## Schnittstelle
+
+```json
+{
+  "step": "synonym_matching",
+  "input": {
+    "referenceModel": {"elements": [{"id": "r1", "label": "Kunde", "language": "de"}]},
+    "studentModel": {"elements": [{"id": "s1", "label": "Kund", "language": "de"}]},
+    "config": {"methods": ["levenshtein"], "combiner": {"kind": "mean"}},
+    "threshold": 0.5
+  }
+}
+```
+
+```json
+{"synonymMatrix": [{"referenceElement": {"id": "r1", "label": "Kunde", "language": "de"}, "matches": [{"submissionElement": {"id": "s1", "label": "Kund", "language": "de"}, "scores": {"levenshtein": 0.8}, "combinedScore": 0.8}]}]}
+```
+
+Ohne Threshold bleiben alle nichtleeren Kandidaten enthalten. Treffer sind
+absteigend sortiert; Gleichstände behalten die Eingabereihenfolge. Keine
+1:1-Zuordnung im Service. Leere Mengen sind erlaubt, leere Labels keine Kandidaten.
+Doppelte Labels mit unterschiedlichen IDs bleiben erhalten; doppelte IDs innerhalb
+einer Seite sind ungültig. Erst die Ausgabe rundet Scores auf vier Stellen.
+
+## Wo ändere ich was?
+
+```text
+src/main.py                      JSON einlesen und ausgeben
+src/synonym_matching/
+  service.py                     Matching-Ablauf und öffentlicher match()-Aufruf
+  methods.py                     einzelne Similarity-Verfahren und Modellladen
+  preprocessing.py               Textvorbereitung
+  combinations.py                alle Kombinationen und Gewichtungen
+  config.py                      Eingaben der Matching-Konfiguration prüfen
+  translation.py, lexicons.py     Übersetzungs- und Lexikonzugriff
+  cache.py                       Ergebnisse pro Label wiederverwenden
+research/
+  experiments.json               Baukasten: Preprocessing, Verfahren, Ketten, Mischungen
+  experiments.py                 aus experiments.json die Versuche bauen, Sprachprüfung
+  compare.py                     Versuche ausführen, Zeiten messen, Ergebnisse speichern
+  evaluation.py                  Zuordnung und Metriken
+  rank_results.py                Top 3 berechnen und lesbar ausgeben
+  build_model_cases.py            Testdaten erzeugen
+  model-cases.json                Testdaten mit erwarteten Zuordnungen
+```
+
+`MatchingEngine` bleibt als wiederverwendbares Objekt erhalten, damit Modelle und
+berechnete Embeddings nicht für jedes Paar neu geladen werden. Es gibt keine
+weiteren Runner-Klassen oder ein Plugin-Framework. Der Serviceausgang enthält nur
+die Synonymmatrix, der Forschungslauf speichert seine vollständigen Ergebnisse.
+
+## Verfahren und Modelle
+
+- `methods.py`: String-/Tokenvergleiche, Exact Match, Wortreihenfolge,
+  übersetzte Strings, Embeddings und Lexikonadapter. `METHOD_TRAITS` legt fest, was die
+  Engine für ein Verfahren vorbereitet (`translate`, `german_only`, `original_text`);
+  ein neues Verfahren trägt sich dort ein, die Engine bleibt unverändert.
+- `preprocessing.py`: `normalize`, `lowercase`, `split_identifiers`, `lemmatize`,
+  `stem`, `remove_stopwords`, `split_compounds`. Geordnete Liste, `[]` für Rohtexte.
+  Zusätzlich darf einmal `translate` (DE→EN, gebündelt) in der Liste stehen, z. B.
+  `"preprocessing": ["normalize", "translate", "lowercase"]`: Schritte davor laufen auf
+  dem Originaltext, Schritte danach auf dem englischen Text. Das gilt für jedes
+  Verfahren (`embedding_preprocessing` entsprechend für Embeddings). Nach `translate`
+  wird nicht ein zweites Mal übersetzt; Sprachen außer de/en ergeben einen Fehler.
+  Das ist dieselbe Schreibweise wie in den Ketten der Forschung.
+- `combinations.py`: Mean, Max, Weighted Mean sowie feste
+  Kombinationen und Regeln. `config.combiner` wählt die Kombination. Dazu gehört
+  `consensus_fusion`: Übersetzungs- und multilinguales Embedding werden gemittelt, wenn
+  sie höchstens `max_gap` (Standard 0.2, fest und nicht getunt) auseinanderliegen,
+  sonst gilt der niedrigere Wert.
+- `service.py`: `compute_scores()` liefert ungerundete NumPy-Matrizen;
+  `match()` ergänzt Kombination und Kandidatenlisten. Keine globalen Seed-Änderungen.
+- `cache.py`, `translation.py`, `lexicons.py`: Wiederverwendung pro Label und Engine.
+
+Die zwei Embedding-Pfade verwenden standardmäßig
+`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` beziehungsweise
+`sentence-transformers/all-MiniLM-L6-v2` nach `Helsinki-NLP/opus-mt-de-en`.
+Das sind kompakte CPU-Ausgangsmodelle, keine nachgewiesenen Sieger für reale Abgaben.
+Modellnamen und Revisionen sind über `config.embedding` austauschbar.
+
+Lokale Ressourcen einmal vorbereiten:
+
+```bash
+PYTHONPATH=src python scripts/download_models.py
+python scripts/download_lexicons.py
+python -m spacy download de_core_news_sm
+python -m spacy download en_core_web_sm
+```
+
+Downloads sind für die jeweils genutzten Verfahren nötig. WordNet und Übersetzung
+unterstützen hier DE/EN, OpenThesaurus nur DE; Sprachen dafür explizit angeben.
+WordNet sucht gemeinsame englische Synsets, OpenThesaurus gemeinsame deutsche
+Synonymgruppen. Beide liefern binäre Evidenz, keine Wahrscheinlichkeiten.
+Unbekannt ergibt 0, auch bei identischen unbekannten Labels. Nicht transitive Suche;
+Wortmehrdeutigkeit bleibt ohne Kontext ungelöst. Eigene Lexikonpfade sind über
+`config.lexicons` möglich. Lokale Daten liegen unter `.cache/lexicons/`.
+
+Lemmatisierung braucht spaCy-Modelle, Stemming keinen Korpusdownload.
+Kompositazerlegung ist eine einfache DE-Heuristik mit OpenThesaurus-Wortliste.
+Stopword Removal kann Negation entfernen. Beide sind bewusst Ablationen.
+
+## Forschung: ein Vergleichslauf
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --output results/vergleich.json
+```
+
+Ein Befehl führt **alle** in `research/experiments.json` aktivierten Verfahren,
+Kombinationen und Preprocessing-Ablationen aus. Optional: `--config` (andere
+Konfigurationsdatei) und `--data` (andere Testdaten). Es gibt keine Flags je Verfahren.
+
+**Änderungen an Experimenten (Baukasten):** nur `research/experiments.json` bearbeiten.
+Die Datei besteht aus vier Bausteinarten, die zusammengesteckt werden:
+
+- `preprocessing`: benannte Schrittlisten (Preprocessing-Bausteine), z. B.
+  `"lemma": ["normalize", "lemmatize", "lowercase"]`.
+- `methods`: die verfügbaren Verfahren mit ihren Eigenschaften.
+  `"enabled": false` schaltet ein Verfahren samt aller Ketten ab,
+  `"languages"` begrenzt die unterstützten Sprachen. Ein Eintrag mit `files` ist ein
+  Wortvektormodell (Pfade relativ zum Serviceverzeichnis, Revision und Quelle angeben).
+- `chains`: benannte Ketten. Eine Kette ist die Liste der Schritte der Reihe nach,
+  das **letzte Glied ist das Verfahren**: `"jw": ["$pre", "jaro_winkler"]`.
+  Erlaubt sind Preprocessing-Schritte, `translate` (DE→EN, höchstens einmal) und der
+  Platzhalter `$pre`. `$pre` steht für *jede* Pipeline aus `preprocessing`; eine
+  Kette mit `$pre` läuft also einmal je Pipeline (so entsteht die Ablation).
+  `["normalize", "translate", "levenshtein"]` übersetzt nach `normalize` und rechnet
+  Levenshtein auf dem englischen Text; Schritte hinter `translate` gelten für den
+  englischen Text. Jede Kette läuft auch allein; ihr Name entsteht automatisch
+  (`normalize+stem → levenshtein`). Eine Kette ergibt genau **eine** Matrix.
+- `mixes`: Mischungen von Ketten, die über ihren Namen aus `chains` verwendet werden.
+  - Gewichtet: `{"weights": {"lev": 1, "multi": 3}}` (25 % / 75 %). Mit `"name"` selbst
+    benennen, sonst entsteht der Name aus den Anteilen.
+  - Service-Variante: `{"name": "string_multi_50_50", "variant": "weighted_fusion",
+    "options": {...}, "parts": ["lev", "jw", "trigram", "multi"]}` mit einer Variante
+    aus `src/synonym_matching/combinations.py` (für nichtlineare Regeln wie
+    `maximum_fusion`); je Verfahren genau eine Kette.
+  - Enthält eine Mischung eine Kette mit `$pre`, läuft sie einmal je Pipeline
+    (`lemma/string_multi_50_50`), sonst einmal. `"global_ranking": true` ergänzt die
+    Rangheuristik.
+- `languages`: erlaubte Sprachen (Standard `["de", "en"]`, wie im Studium gemischt).
+  Fälle mit anderen Sprachen (hier die spanischen Fälle 11 und 22) werden nicht
+  ausgewertet, aber im Terminal und unter `excluded_cases` im JSON aufgeführt.
+  Damit sind zwei der 28 ursprünglichen Falltypen standardmäßig nicht Teil der
+  Rankings; `"es"` ergänzen, um sie wieder aufzunehmen.
+- Identische Konfigurationen (gleiche Ketten, normierte Gewichte) werden nur einmal
+  ausgeführt und unter `skipped_definitions` vermerkt. Mischungen mit deaktivierten
+  Verfahren werden ebenfalls übersprungen.
+- Fehlende Dateien und nicht unterstützte Sprachen erscheinen als „nicht verfügbar“
+  mit Grund, nie als Nullergebnis.
+
+Neue Rechenregeln gehören in `src/synonym_matching/combinations.py`, neue
+Similarity-Funktionen zunächst in die Forschung und später in `methods.py`.
+`DEFAULT_CONFIG` bleibt unabhängig von `experiments.json`.
+
+Die Konfiguration vergleicht mit allen Ressourcen 38 Szenarien:
+28 ursprüngliche Kategorien und sechs zusätzliche schwierige Kontrastkategorien.
+Testdaten mit erwarteten Paarzuordnungen stehen in `research/model-cases.json`;
+`python -m research.build_model_cases` erzeugt sie aus dem Repository-Beispielmodell
+und synthetischen Varianten. `examples/order-management-input.json` ist eine
+Serviceeingabe mit Labels dieses Modells. Reale geprüfte Schülerabgaben fehlen.
+
+Ein Lauf speichert **eine JSON** (Formatversion 3), keine Markdown-Berichte: Dataset,
+Konfiguration, Rohscores, kombinierte Matrizen, Entscheidungen, Precision/Recall/F1, Top-1,
+Laufzeiten, Seed, Modellrevisionen, Ressourcen-/Codehashes und Paketversionen.
+Bestehende Dateien werden nicht überschrieben. Nicht unterstützte Sprachen werden
+als nicht verfügbar markiert; technische Fehler führen zu Exitcode 1.
+
+Top 3 je Kategorie, je **Sprachgruppe** (`de`, `de-en`, `de-es`, …) und insgesamt
+erscheinen im Terminal und unter `rankings` im
+JSON. Die Sprachgruppen werden aus den nichtleeren Labels der Fälle abgeleitet; Gruppen
+mit wenigen Szenarien (z. B. `de-es`: 1) sind kaum aussagekräftig, die Szenarioanzahl
+steht jeweils dabei. Preprocessing, Einzelmethoden und Gewichte werden ausgeschrieben,
+darunter „Nicht vollständig ausgeführt“ mit Grund und Zahl der betroffenen Läufe.
+Dateihashes der Wortvektormodelle stammen aus dem Download-Manifest
+(`.cache/word-vectors/huggingface-download-manifest.json`), wenn Pfad und Dateigröße
+passen (`sha256_source: manifest`); sonst werden sie berechnet. Auf gespeicherten
+Ergebnissen ohne erneute Modellberechnung:
+
+```bash
+PYTHONPATH=src python -m research.rank_results --input results/vergleich.json
+```
+
+Das ergänzt Rankings in derselben JSON. `--strategy mutual_best` oder `hungarian`
+wählt eine andere bereits berechnete Zuordnung; `--output neue-datei.json` schreibt
+optional eine vollständige Kopie. Die Formatierung liegt in `rank_results.py`.
+
+## Grenzen der Auswertung
+
+- Kombinationen begrenzen Roh-Cosinus [-1,1] auf [0,1]. String-, Cosinus- und
+  Lexikonwerte sind dadurch nicht kalibriert. Rohscore-Verteilungen bleiben im JSON.
+- Fester Threshold 0,5, kein Tuning auf Testantworten. Rankings sind explorativ.
+  Micro-F1, dann Precision und Recall; reine Negativfälle nach korrekter Ablehnung.
+  Gleichstände werden gekennzeichnet. Leere Mengen sind keine Qualitätserfolge.
+- Gesamtvergleiche zeigen getrennt vollständige Abdeckung und gemeinsame Fallmengen.
+  Einzelpaare ergeben oft Gleichstände. Größere Matrizen beeinflussen Micro-F1 stärker.
+- Top-1 betrachtet die ungefilterte Rangliste bei mehreren Kandidaten. Mutual Best
+  behält Gleichstände. Hungarian maximiert die zugelassenen Scores mit Nichtzuordnung
+  und höchstens 1:1; unter Threshold liegende Kanten sind vorher gesperrt.
+  SciPy verwendet einen Jonker-Volgenant-Solver. Mehrere annotierte korrekte Alternativen
+  können deshalb bei 1:1 den Recall senken, ohne dass die gewählte Zuordnung falsch ist.
+- Rechenzeiten enthalten kein Modellladen; die Ladezeit steht getrennt in
+  `model_load_seconds` und im Terminal. Geteilte Modelle (z. B. der Übersetzer) werden
+  dem ersten Verfahren zugerechnet, das sie braucht; spaCy-Ladezeiten sind nicht
+  getrennt. Das sind keine End-to-End-Latenzen; Kandidatenaufbau und
+  JSON-Konvertierung sind ausgeschlossen.
+- „Bank/Bank“ mit verschiedener Bedeutung bleibt ohne Kontext unlösbar. Die
+  Kandidatenheuristik nutzt Konkurrenz in der Matrix, keine Graphstruktur.
+
+
+## Docker und Tests
+
+Im Serviceverzeichnis:
+
+```bash
+docker build -t modeling-copilot/synonym-matching-louis:0.1.1 .
+docker run --rm --network none -i modeling-copilot/synonym-matching-louis:0.1.1 < examples/order-management-input.json
+python -m pytest -q
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 RUN_MODEL_TESTS=1 RUN_LEXICON_TESTS=1 python -m pytest -q
+```
+
+Das Image lädt Abhängigkeiten, Standardmodelle, DE/EN-spaCy-Modelle und Lexika beim
+Build. Ein Container verarbeitet eine Eingabe und endet. Daten bleiben im Image,
+RAM-Caches nur im Prozess. Andere Modelle benötigen ein entsprechend vorbereitetes
+Image. Die Standardmodelle sind auf feste Hugging-Face-Commits gepinnt
+(`EMBEDDING_REVISIONS` in `methods.py`, `TRANSLATION_REVISION` in `translation.py`);
+bei eigenem `model` gilt weiter `main`. Geladene Revisionen werden
+in Experimenten dokumentiert. Die Dagu-Datenübergabe ist weiterhin Demo-Stand und
+muss vom aufrufenden Dienst angepasst werden.
+
+**Modelle und Speicherplatz** (drei verschiedene Dinge nicht verwechseln):
+
+- *Modellgewichte im Image:* nur die drei Standardmodelle im Hugging-Face-Cache
+  (`HF_HOME=/app/.cache/huggingface`, etwa 1,1 GB: multilinguales MiniLM, all-MiniLM-L6-v2,
+  Opus-MT DE→EN), jeweils genau einmal. `pip` läuft mit `--no-cache-dir`.
+- *Forschungsmodelle:* Word2Vec/FastText liegen nur lokal unter `.cache/word-vectors/`
+  (ca. 14 GB, je Modell eine Datei per `hf download --local-dir`). Sie sind per
+  `.dockerignore` und fehlendes `COPY` nie im Image. Nicht zusätzlich in den
+  Hugging-Face-Cache laden.
+- *Berechnete Ergebnisse:* der Label-Cache für Übersetzungen und Embeddings
+  (`cache.py`) liegt nur im Prozessspeicher und ist unabhängig von den Gewichten.
+- `fasttext` und `gensim` stehen in `requirements-research.txt` und nicht im Image.
+
+Lexikonquellen: [WordNet/NLTK](https://www.nltk.org/howto/wordnet.html),
+[WordNet-Lizenz](https://wordnet.princeton.edu/license-and-commercial-use),
+[OpenThesaurus](https://www.openthesaurus.de/about/download/api).
+OpenThesaurus bietet CC BY-SA 4.0 oder LGPL; Lizenzhinweise werden mit heruntergeladen.
+
+## Übergabe für die Anbindung
+
+Der Aufrufer startet den Container mit dem oben beschriebenen JSON über stdin oder
+`TEMPLATE_INPUT`. Er liest genau ein Objekt mit `synonymMatrix` aus stdout und
+prüft den Exitcode; Fehlerdetails stehen auf stderr. Es ist kein HTTP-Endpunkt
+nötig. Die IDs und Sprachangaben müssen aus den Modelllabels übernommen werden.
+
+Ohne `input.config` verwendet der Container die oben dokumentierte 50:50-Pipeline.
+`"config": {"methods": ["multilingual"]}` wählt stattdessen nur das Embedding;
+`"config": {"methods": ["levenshtein"]}` nur die Stringmetrik.
+Explizite bisherige Konfigurationen behalten ihre Wirkung.
+
+Die öffentlichen Aufrufe `from synonym_matching import match, MatchingEngine`
+bleiben erhalten. Interne Importe aus `engine`, `variants` und `combiners` wurden
+auf `service` bzw. `combinations` zusammengeführt. Der neue Forschungsbefehl ist
+`python -m research.compare`; ältere Ergebnis-JSONs bleiben mit `rank_results`
+auswertbar. Die Dagu-Datenübergabe ergänzt der aufrufende Dienst.
+
+## Neue Forschungsvarianten 21–32
+
+Diese Erweiterungen liegen ausschließlich unter `research/`. Service-Standard,
+Schnittstelle, Docker-Abhängigkeiten und bestehende Vergleiche bleiben erhalten.
+
+| Nr. | Umsetzung |
+| --- | --- |
+| 21 | Word2Vec + Greedy-1:1-Wort-Matching |
+| 22 | FastText + dasselbe Wort-Matching |
+| 23 | FastText-Wort-Matching + Levenshtein, je 50 % |
+| 27 | Gewichtete Fusion der GloVe-, FastText- und Paragram-Wort-Matching-Scores; zunächst gleiche Gewichte |
+| 30 | 50:50-String/Embedding-Hybrid + Zeilen-/Spaltenrang-Fusion |
+| 32 | Nr. 22 mit vorhandenem Hungarian-Assignment auf der Labelmatrix; keine zweite FastText-Berechnung |
+
+Aktivierung: Die Wortvektor- und Ranking-Einträge stehen bereits in
+`research/experiments.json` und laufen im normalen Vergleichsbefehl mit
+(`"enabled": false` schaltet sie ab):
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --output results/vergleich.json
+```
+
+Fehlende Vektoren ergeben **nicht verfügbar**, keine erfundenen
+Scores oder Qualitätserfolge.
+
+### Wort-Matching und Vektoren
+
+`research/word_matching.py` implementiert die gepostete Paper-Regel:
+Wortpaar mit höchstem Score wählen, Zeile und Spalte entfernen, wiederholen.
+Dann `(Summe + |m-n| * delta) / max(m,n)`, standardmäßig `delta=0.2`.
+Das ist greedy, nicht global optimal. Gleichstände folgen der Tokenreihenfolge.
+Wörter werden als Menge ohne Wiederholungen verwendet. Das Wort-Matching und
+Hungarian auf der gesamten Labelmatrix sind zwei unterschiedliche Ebenen.
+
+Beidseitig leere Wortmengen erhalten 0; einseitig leer ergibt laut Formel delta.
+Original leere Labels bleiben entsprechend der Servicekonvention 0 und werden
+nicht zu Kandidaten. Unbekannte Wörter bleiben in der Wortanzahl, erhalten aber
+keine erfundene Vektorevidenz. Wort-Cosinus wird vor dem Matching auf [0,1]
+begrenzt. Ressourcenpfade, Optionen und Dateihashes stehen im Ergebnis.
+
+Vortrainierte Vektoren selbst bereitstellen; es wird nichts automatisch trainiert
+oder heruntergeladen. Die Modelle stehen mit Pfad, Quelle und Revision in
+`research/experiments.json` unter `methods`.
+Pfade beziehen sich auf das Serviceverzeichnis. Nur vorhandene Modelle eintragen.
+Für reine Vektordateien wird Gensim bei Bedarf importiert; vollständige
+FastText-Binärmodelle nutzen den nativen FastText-Loader:
+
+```bash
+.venv/bin/python -m pip install -r requirements-research.txt
+```
+
+Unterstützt: `word2vec_text`, `word2vec_binary`, `fasttext_bin` (mit Subwords),
+`glove` (Text ohne Header). Die kleinen Vektoren der Tests prüfen nur die
+Funktion und sind kein Qualitätsbenchmark.
+FastText-Textvektoren enthalten keine Subword-Informationen; nur ein vollständiges
+FastText-Binärmodell kann unbekannte Wörter über Subwords repräsentieren.
+
+Getrennte Sprachdateien müssen im selben ausgerichteten Raum liegen und benötigen
+`aligned: true`. Gleiche Dimension allein reicht nicht. Alternativ steht in der Kette
+der Schritt `translate` (DE→EN) vor dem englischen Wortvektor-Verfahren
+(`["$pre", "translate", "fasttext_en_matching"]`).
+Andere Sprachen als de/en werden dabei nicht unterstützt (nicht verfügbar).
+Englische Labels bleiben unverändert. Die Übersetzung wird über alle Verfahren
+hinweg wiederverwendet.
+
+Optionen je Modell: das Preprocessing kommt aus der Kette (`$pre` für alle Pipelines
+in `experiments.json`, wie bei den Stringverfahren),
+`lowercase` (Standard true, passend zum Vokabular des Modells und nach der Kette
+angewendet), `nouns_only` (Standard false), `delta` (Standard 0.2) und `matching`:
+`greedy` (Standard, siehe oben), `optimal` (die 1:1-Wortpaare maximieren die Summe,
+Hungarian auf Wortebene) oder `bidirectional` (jedes Wort sucht sein bestes Gegenstück,
+Mittel beider Richtungen, nicht 1:1, symmetrisch). Eine Variante eines Modells schreibst
+du mit `"based_on"`: `{"based_on": "fasttext_de_matching", "matching": "optimal"}`
+übernimmt Dateien und Optionen; das Modell wird für Varianten mit denselben Dateien
+nur einmal geladen. Bei den kurzen Labels (1–3 Wörter) ergaben `greedy` und `optimal`
+in den synthetischen Fällen praktisch dieselben Werte.
+Jedes Modell wird einmal geladen, für alle Preprocessing-Varianten verwendet und
+danach freigegeben. Die frühere feste Vorverarbeitung (normalize, split_identifiers)
+entspricht der Pipeline `identifiers_cased`; die Ergebnisse stimmen mit den früheren
+Einzelläufen überein.
+Nomenfilterung nutzt die vorhandenen DE/EN-spaCy-Modelle und kann als eigene
+Ablation in einem separaten Lauf aktiviert werden. Bei Übersetzung wird POS im
+englischen Zieltext bestimmt. Für einen fairen Vergleich die Vorverarbeitung
+zwischen Vektormodellen gleich halten. Die vollständigen Optionen werden gespeichert.
+
+Ein weiteres Modell ist ein neuer Eintrag mit `files`, `format`, Quelle und Revision
+unter `methods`, eine Kette dafür unter `chains` und optional eine Mischung unter
+`mixes`; der Befehl bleibt gleich.
+
+Modellgröße/RAM-Bedarf, Quelle und Lizenz vor dem Download prüfen. Eigene Felder
+wie `model`, `source` und `license` werden mit der Ressourcenkonfiguration gespeichert.
+Quellen: [Gensim-Vektorformate](https://radimrehurek.com/gensim/models/keyedvectors.html),
+[FastText-Binärmodelle](https://radimrehurek.com/gensim/models/fasttext.html),
+[ausgerichtete FastText-Sprachräume](https://fasttext.cc/docs/en/aligned-vectors).
+
+### Globales Ranking
+
+Nr. 30 ist eine ausdrücklich eigene Rangheuristik: Originalscore mal
+`2/(Zeilenrang + Spaltenrang)`, mittlere Ränge bei Gleichständen. Sie erhöht keine
+schwachen Scores und erzwingt kein 1:1. Anschließende Threshold-/Mutual-Best-/
+Hungarian-Auswahl bleibt separat vergleichbar. Keine Nachbildung einer nicht
+vorliegenden Paper-Architektur und keine Aussage über eine verbesserte Qualität.
+
+### Lokaler Vergleich mit vortrainierten Vektoren
+
+Historischer Erstlauf (die Ressourcen sind lokal inzwischen gelöscht, da sie nicht
+von Hugging Face stammten; die Verfahren GloVe, Paragram sowie englisches Word2Vec
+sind in `experiments.json` nicht mehr enthalten und der Lauf ist so nicht
+reproduzierbar). Es wurden lokal folgende englische 300D-Vektoren bereitgestellt:
+`word2vec-google-news-300`, `fasttext-wiki-news-subwords-300` (statischer Export),
+`glove-wiki-gigaword-300` und `Paragram-SL999-300`. Deutsche Labels werden vorher
+mit dem vorhandenen Übersetzungsmodell ins Englische übersetzt. Alle vier Pfade
+verwenden `normalize`, `split_identifiers`, danach Übersetzung und Lowercasing;
+kein Nomenfilter, `delta=0.2`. Die Fusion nutzt gleiche Gewichte, Threshold 0.5.
+Spanische Fälle sind für diese Pfade nicht verfügbar und werden bei einem
+gemeinsamen Vergleich ausgeschlossen. Das ist ein synthetischer Diagnoselauf,
+kein unabhängiger Nachweis der besten Pipeline.
+
+Modellnamen, Optionen und SHA256-Dateihashes werden im Ergebnis gespeichert.
+Modelle werden nacheinander geladen und nach der Rohscoreberechnung freigegeben.
+Wortmodelle laufen vor den Sentence-Embeddings. Der native FastText-Loader
+vermeidet Gensims zusätzliche Matrixkopien und die vorberechneten Vektoren für
+den gesamten Wortschatz; abgefragt werden nur die benötigten Wörter.
+Ungültige UTF-8-Bytes in einzelnen Vokabelschlüsseln werden beim Einlesen durch
+das Unicode-Ersatzzeichen ersetzt; die Vektoren bleiben unverändert.
+
+Für einen erneuten Lauf einen neuen Ausgabedateinamen wählen. Modelle und Ergebnisse
+bleiben lokal und sind nicht im Docker-Image enthalten. Die Wortvektoren stammen
+aus [Gensim Data](https://github.com/piskvorky/gensim-data) bzw.
+von [John Wieting](https://www.cs.cmu.edu/~jwieting/). Für Google-News-Vektoren nennt
+die Gensim-Metadatei keine Lizenz; eine Weiterverteilung ist damit nicht geklärt.
+
+Erster Lauf: `results/vergleich-wortvektoren.json`, 183 Konfigurationen, keine
+technischen Fehler. Die 6.038 verfügbaren Ergebnisse des bisherigen Katalogs
+behalten ihre Scores und Zuordnungen (Scoretoleranz 1e-7).
+Die folgende Vorauswahl vergleicht **dieselben 33 nichtleeren Szenarien**:
+alle aus `research/model-cases.json` außer den spanischsprachigen Fällen 11 und 22
+und den technischen Fällen ohne gültiges Labelpaar. Threshold ist 0.5.
+
+| Pipeline | Precision | Recall | F1 | Top-1 |
+| --- | ---: | ---: | ---: | ---: |
+| Bisheriger Service: normalize + String/Multilingual 50:50 | 0.702 | 0.767 | 0.733 | 0.741 |
+| normalize + derselbe Hybrid + globales Ranking | 0.775 | 0.721 | 0.747 | 0.741 |
+| Word2Vec + Wort-Matching | 0.635 | 0.767 | 0.695 | 0.704 |
+| FastText + Wort-Matching | 0.500 | 0.814 | 0.619 | 0.741 |
+| lowercase + FastText-Wort-Matching/Levenshtein 50:50 | 0.667 | 0.791 | 0.723 | 0.815 |
+| GloVe/FastText/Paragram gleich gewichtet | 0.654 | 0.791 | 0.716 | 0.741 |
+| Bestehender Vergleich: lowercase + String/Übersetzungs-Embedding 50:50 | 0.756 | 0.791 | 0.773 | 0.815 |
+
+Top-1 zählt nur Referenzlabels mit korrekter Entsprechung und mehreren Kandidaten;
+es bewertet die Rangliste vor der Zuordnungsfilterung. Bei FastText erhöht
+Hungarian den F1 von 0.619 auf 0.682; Mutual Best erreicht 0.753.
+Die Dreifachfusion erreicht mit Mutual Best 0.810 und mit Hungarian 0.779;
+dieselben Filter sind deshalb auch mit den bisherigen Verfahren zu vergleichen.
+Der bisherige Übersetzungs-Hybrid erreicht beispielsweise mit Mutual Best 0.835.
+Das sind keine getrennt optimierten oder unabhängig getesteten Modelle.
+
+FastText allein liefert in diesen Daten viele falsche Treffer für verwandte
+Begriffe, Antonyme und Oberbegriffe. Globales Ranking reduziert falsche Treffer,
+übersieht aber auch mehr korrekte. Im Graph-Label-Fall 21 erzielt keine dieser
+Varianten alle richtigen Zuordnungen. Die Servicepipeline bleibt vorerst erhalten.
+
+Der Gesamtlauf benötigte rund 505 Sekunden einschließlich Laden der Modelle.
+Das erstmalige Laden der Wortvektoren dauerte etwa 15 s (Word2Vec), 154 s
+(FastText), 62 s (GloVe) und 256 s (Paragram). Geteilte Features und Caches machen
+die gespeicherten Featurezeiten nicht zu unabhängigen End-to-End-Laufzeiten je
+Pipeline; warme Service-Latenzen lassen sich daraus nicht ableiten.
+
+### Geplanter Sprachvergleich: Modelle von Hugging Face
+
+Drei Hugging-Face-Wortvektormodelle sind in `research/experiments.json` konfiguriert;
+die Servicepipeline bleibt unverändert. Die Ressourcen liegen nach dem Download lokal
+unter `.cache/word-vectors/` und werden nicht mit Git versioniert.
+Die ersten synthetischen Diagnoseläufe sind unten zusammengefasst.
+
+| Verfahren in `experiments.json` | Vergleich | Ressourcen |
+| --- | --- | --- |
+| `word2vec_de_matching` | Deutsches Word2Vec ohne Übersetzung | ca. 738 MB |
+| `fasttext_de_matching` | Deutsches FastText ohne Übersetzung | ca. 7.24 GB |
+| `fasttext_en_matching` | DE→EN-Übersetzung + englisches FastText | ca. 7.24 GB |
+
+Word2Vec verwendet den Hugging-Face-Mirror
+[Word2vec/german_model](https://huggingface.co/Word2vec/german_model)
+des deutschen Müller-Modells. `german.model` hat das Word2Vec-Binärformat.
+Die Model Card nennt MIT; die Konfiguration erhält die Groß-/Kleinschreibung.
+Eine Lowercase-Ablation sollte als separate Konfiguration mit `lowercase: true`
+und eigenem Ergebnisnamen laufen: Großschreibung von Substantiven kann relevant sein.
+
+FastText nutzt die offiziellen Repositories
+[facebook/fasttext-de-vectors](https://huggingface.co/facebook/fasttext-de-vectors)
+und [facebook/fasttext-en-vectors](https://huggingface.co/facebook/fasttext-en-vectors),
+jeweils mit CC BY-SA 3.0. Beide Profile verwenden vollständige Binärmodelle mit
+Subword-Unterstützung. Sie unterscheiden sich damit auch vom früher getesteten
+statischen englischen Export; dessen Resultate sind ein separater Vergleich.
+Auch die Trainingskorpora sind ein Einflussfaktor bei einem Sprachvergleich.
+
+Die beiden monolingualen FastText-Modelle sind nicht automatisch ausgerichtet.
+Direkte DE/EN-Cosinusvergleiche zwischen ihnen sind deshalb nicht vorgesehen.
+Für ausgerichtete Vektoren wurde keine passende Hugging-Face-Quelle verifiziert;
+dieser Versuch ist vorerst zurückgestellt. Der bestehende Loader unterstützt
+ausgerichtete lokale Dateien weiterhin. Service-Embeddings und Übersetzer werden
+bereits von Hugging Face bezogen.
+
+Ressourcen bei Bedarf einzeln herunterladen; Hugging Face macht große Modelle
+nicht kleiner. Zusammen sind es ca. 15.2 GB, zusätzlich wird ausreichend RAM
+benötigt. Die Revisionen sind festgelegt und werden mit den Dateihashes im
+Ergebnis gespeichert. `hf` ist über das vorhandene `huggingface_hub` verfügbar.
+
+```bash
+.venv/bin/hf download Word2vec/german_model german.model \
+  --revision 1dfd63ac969f4d0fe5b76eeb20534aa8617d791f \
+  --local-dir .cache/word-vectors/word2vec-de
+.venv/bin/hf download facebook/fasttext-de-vectors model.bin \
+  --revision 2fdd228795139196371a78578790c8191282e25a \
+  --local-dir .cache/word-vectors/fasttext-de
+.venv/bin/hf download facebook/fasttext-en-vectors model.bin \
+  --revision a80392390daaee1a91000da45c376d512e1dc555 \
+  --local-dir .cache/word-vectors/fasttext-en
+```
+
+Nach Bereitstellung der Dateien läuft alles mit dem einen Befehl aus dem Abschnitt
+„Forschung: ein Vergleichslauf“; ohne Datei ergibt das jeweilige Verfahren
+„nicht verfügbar“. Die früheren Einzelläufe je Profil und das manuelle Zusammenführen
+entfallen.
+
+Nur identische Fallmengen bei Threshold 0.5 vergleichen: deutsche Modelle und
+Übersetzungspipeline auf rein deutschen Mengen; die Übersetzungspipeline kann
+zusätzlich gemischte DE/EN-Mengen verarbeiten. Spanisch bleibt hier nicht verfügbar.
+Precision, Recall, F1, Top-1 und Laufzeit werden vom vorhandenen Runner gespeichert,
+ebenso Modellkonfigurationen und Dateihashes. GloVe/Paragram sind nicht mehr enthalten.
+
+### Ergebnisse des Sprachvergleichs
+
+`results/vergleich-gesamt-hf.json` vereint 201 Konfigurationen: den bisherigen
+Katalog, die neuen deutschen/englischen Modellprofile und eine zusätzliche
+Word2Vec-Lowercase-Ablation. Unveränderte Baselines werden einmal übernommen.
+Pro neuem Lauf wurden 6.300 bisherige Nicht-Wortvektor-Ergebnisse geprüft:
+Scores (Toleranz 1e-7) und Zuordnungen bleiben unverändert. Alle drei neuen Läufe
+haben keine technischen Fehler; fehlende Sprach-/Modellabdeckung bleibt markiert.
+
+F1 bei festem Threshold 0.5, ohne Optimierung von Gewichten oder Thresholds:
+
+| Pipeline | 28 rein deutsche Fälle | 33 DE/EN-Fälle |
+| --- | ---: | ---: |
+| Aktueller Service: normalize + String/Multilingual 50:50 | 0.800 | 0.733 |
+| Deutsches Word2Vec + Wort-Matching, Großschreibung erhalten | 0.571 | nicht abgedeckt |
+| Deutsches Word2Vec + Wort-Matching, Lowercasing | 0.250 | nicht abgedeckt |
+| Deutsches FastText + Wort-Matching | 0.690 | nicht abgedeckt |
+| Deutsches FastText + Levenshtein, lowercase, 50:50 | 0.714 | nicht abgedeckt |
+| Übersetzung + englisches FastText + Wort-Matching | 0.746 | 0.688 |
+| Übersetzung + englisches FastText/Levenshtein, lowercase, 50:50 | 0.786 | 0.750 |
+| Bestehender Vergleich: normalize + String/Übersetzungs-Embedding 50:50 | 0.807 | 0.800 |
+
+Die 33 Fälle enthalten dieselben 28 deutschen und fünf gemischte DE/EN-Szenarien;
+die zwei spanischsprachigen Szenarien und drei technischen Leerfälle sind ausgeschlossen.
+Die Werte der beiden Spalten sind wegen unterschiedlicher Fallmengen separat zu lesen.
+Der Gesamtkatalog enthält auch String-Baselines: Jaro-Winkler mit Lowercasing
+erreicht auf den 28 deutschen Fällen beispielsweise F1 0.844. Das macht es noch
+nicht zur geeigneten mehrsprachigen Servicepipeline.
+
+Deutsches Word2Vec profitiert hier stark vom Erhalt der Großschreibung.
+Die Umstellung auf deutsche Modelle allein liefert keine allgemeine Verbesserung.
+Der englische FastText-Hybrid verbessert gegenüber dem aktuellen Service den F1
+auf der DE/EN-Menge, liegt aber unter dem bestehenden Übersetzungs-/Sentence-Hybrid.
+Alle Aussagen betreffen kleine synthetische Diagnosedaten, keine unabhängige
+Testmenge oder durch Tuning gewählte finale Pipeline. Der Service bleibt unverändert.
+
+Precision, Recall, Top-1, Laufzeiten sowie Threshold-, Mutual-Best- und
+Hungarian-Ergebnisse stehen in den JSON-Dateien. Die Gesamtdatei speichert auch
+Quell-Dateihashes und getrennte Rankings für rein deutsche, alle unterstützten
+DE/EN- und ausschließlich gemischte DE/EN-Fälle. Die Rohfeatures und vollständige
+Provenienz stehen in den jeweiligen Quelldateien:
+
+- `results/vergleich-wortvektoren.json` (bisheriger Katalog)
+- `results/vergleich-deutsche-wortvektoren.json` (deutsches Profil)
+- `results/vergleich-englische-hf-wortvektoren.json` (englisches HF-Profil)
+- `results/vergleich-deutsches-word2vec-lowercase.json` (nur deutsches Word2Vec,
+  Konfiguration wie im deutschen Profil mit `lowercase: true`)
+
+Die neuen vollständigen Profil-Läufe dauerten rund 27 s, 23 s und 13 s inklusive
+Modellladen; die FastText-Binärmodelle wurden dabei mit `fasttext==0.9.3` nativ
+geladen. Eine erste Gensim-Ausführung wurde wegen hoher Speicherauslastung
+abgebrochen und liefert keine Ergebnisdatei. Feature-Caches und Modell-Ladezeiten
+verhindern einen direkten Vergleich mit warmen Service-Latenzen.

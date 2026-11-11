@@ -70,7 +70,7 @@
       <!-- Canvas Area: Sidebar + Graph -->
       <div class="canvas-area" :class="{ 'canvas-area--help-selection': props.helpSelectionMode }">
         <!-- Elements Sidebar -->
-        <SidebarContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && (props.modelManagement || sidebarLanguages.length > 0)" :inert="props.helpSelectionMode || undefined" :languages="sidebarLanguages" :model-management="props.modelManagement" />
+        <SidebarContainer v-if="props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && (props.modelManagement || sidebarLanguages.length > 0)" :inert="props.helpSelectionMode || undefined" :languages="sidebarLanguages" :model-management="props.modelManagement" @manage-languages="openModelLanguages" />
 
         <!-- Graph Container -->
         <div ref="graphWrapper" class="graph-wrapper">
@@ -124,7 +124,7 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :selected-task-edit-ids="props.selectedTaskEditIds" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
+        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" ref="rightSidebar" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :selected-task-edit-ids="props.selectedTaskEditIds" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
           <template v-if="$slots['sidebar-top']" #top><slot name="sidebar-top" /></template>
         </SidebarRightContainer>
         <CollabConnector v-if="props.modelManagement" />
@@ -539,6 +539,12 @@ const connectionPreview = useConnectionPreviewPreference()
 const connectionPreviewEnabled = computed(() => props.connectionPreviewAllowed && connectionPreview.value)
 const activeLayerView = ref<CanvasLayerView>('both')
 const rightSidebarCollapsed = ref(false)
+const rightSidebar = ref<InstanceType<typeof SidebarRightContainer> | null>(null)
+const openModelLanguages = async () => {
+  rightSidebarCollapsed.value = false
+  await nextTick()
+  void rightSidebar.value?.openLanguages()
+}
 const rightSidebarId = `model-tools-${globalThis.crypto.randomUUID()}`
 const showRightSidebar = computed(() => props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement)
 
