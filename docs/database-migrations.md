@@ -172,6 +172,19 @@ questionnaire service without importing migration implementations.
     allow retries without overwriting edits. Path updates check the revision;
     personal progress and completed migrations are preserved.
 
+14. `versions/v13_language_comparison_groups/migration.py` adds evaluation
+    settings to every stored language version that does not already have them,
+    including historical releases, checkpoints and archived languages. Known
+    element types are grouped when at least two members are present: SERM
+    entity variants, attribute variants and generalization variants; ERM
+    entity, relationship and attribute variants; and UML concrete and abstract
+    classes. UML interfaces remain separate. Unknown types are not inferred,
+    so other languages receive an empty group list unless they contain these
+    known type identifiers. Existing evaluation settings are never overwritten.
+    Preview is read-only; retries preserve completed updates, concurrent changes
+    are rejected, and completed migrations are skipped. Version identities and
+    references remain unchanged.
+
 `schema_migrations` records each step as `running`, `failed`, or `completed`.
 The API refuses startup until all registered steps have completed. Repeated starts skip
 completed steps. Concurrent claims fail instead of executing a step twice.

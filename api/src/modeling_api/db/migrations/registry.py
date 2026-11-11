@@ -79,4 +79,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v12_laboratory_management.migration",
         ("11_hotel_chain",),
     ),
+    Migration(
+        "13_language_comparison_groups",
+        "modeling_api.db.migrations.versions.v13_language_comparison_groups.migration",
+        ("12_laboratory_management",),
+    ),
 )
