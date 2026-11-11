@@ -139,7 +139,7 @@ services:
     restart: unless-stopped
 
   workflow-synonym-matching:
-    image: modeling-copilot/synonym-matching:0.1.1
+    image: modeling-copilot/synonym-matching:0.2.0
     build:
       context: ./dagu/workflow-services
       dockerfile: synonym-matching/Dockerfile
@@ -159,7 +159,7 @@ services:
     profiles: [workflow-services]
 
   workflow-model-label-extraction:
-    image: modeling-copilot/model-label-extraction:0.1.1
+    image: modeling-copilot/model-label-extraction:0.2.0
     build:
       context: ./dagu/workflow-services
       dockerfile: model-label-extraction/Dockerfile

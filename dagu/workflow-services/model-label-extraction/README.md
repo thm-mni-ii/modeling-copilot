@@ -32,24 +32,37 @@ Labelzerlegung, Übersetzung oder Matchingentscheidung.
 
 ## Inventarmenge und Texte
 
-`elements` enthält jeden Graphknoten außer `kind: structuralElement` mit
-`comparisonRole: semantic` oder `unsupported`, auch mit leerem oder fehlendem
-Label. Gleiche Labels bleiben getrennte Instanzen mit ihren unveränderten IDs.
-Die ausdrücklich als `structural` gekennzeichneten Knoten bleiben Kontext im
-Graphen. Technische `contains`-/`endpoint`-Kanten werden keine Labelkandidaten.
-Separate `properties` erzeugen keine neuen Einträge.
-Es gibt keine Filter nach Typ, Modellierungssprache, `allowLabelEdit` oder Inhalt.
+`elements` enthält ausschließlich Knoten mit `kind: modelElement` und
+`comparisonRole: semantic`. Strukturelle, Verbindungs-, Beschriftungs- und nicht
+eindeutig klassifizierte Knoten werden nicht als freie Elemente ausgegeben.
+Gleiche Labels bleiben getrennte Instanzen mit ihren unveränderten IDs.
+Die Graphstruktur bleibt unverändert unter dem referenzierten `graphPath`.
 
-Jeder Eintrag enthält ausschließlich die unveränderte Graph-ID und das eigene
-Ergebnis der Textaufbereitung. Originalknoten, Labels, Typen, Eigenschaften,
-Sprachbindung und Parserdiagnosen werden über `graphPath`/`graphHash` referenziert:
+Jeder Elementeintrag übernimmt Identität, konkreten Typ, Vergleichsgruppe und
+Sprachreferenz vom Graph Parser; nur der Beschriftungstext wird aufbereitet:
 
 | Feld | Vertrag |
 | --- | --- |
 | `id` | Unveränderte ID des Knotens im referenzierten Modellgraphen. |
+| `type` | Unveränderter konkreter Modelltyp oder `null`. |
+| `comparisonGroup` | Unveränderte Vergleichsgruppe oder `null`. |
+| `language` | Unveränderte Sprachreferenz `{languageId, versionId}` oder `null`. |
 | `matchText` | Text ohne ausschließlich die bekannten, attributfreien Editor-Tags `b`, `strong`, `i`, `em`, `u`, `br`, `div` (Groß-/Kleinschreibung unerheblich). `br` wird zum Zeilenumbruch, `div` trennt Textblöcke. Reine Blockgrenzen erzeugen keinen führenden oder abschließenden Umbruch; explizite `br` bleiben erhalten. |
 | `labelStatus` | `present` bei nicht leerem Vergleichstext, `missing` bei fehlendem/`null`-Label oder nach Formatentfernung nur leerem beziehungsweise Whitespace-Text. Andere JSON-Werte bleiben im Graphen, erhalten hier `unsupported` und leeren `matchText`. |
 | `textLanguage` | Nur eine ausdrücklich am Graphknoten vorhandene natürliche Sprachangabe (nicht leerer String), sonst `null`. Der aktuelle Parser liefert keine solche Angabe. Keine Erkennung oder Ableitung aus `language`. |
+
+`connectionTexts` enthält für jeden Verbindungsknoten genau einen `self`-Eintrag,
+auch bei leerem Label. Jeder `connectionLabel`-Knoten erzeugt zusätzlich einen
+`additionalLabel`-Eintrag. Sein Eigentümer wird ausschließlich über eine eindeutige
+`contains`-Kante vom Beschriftungsknoten zu einem Verbindungsknoten ermittelt.
+Fehlt dieser Besitzer oder ist er mehrdeutig, bleibt der Eintrag mit
+`ownerConnectionId: null` erhalten und erhält eine Diagnose. Verbindungsrichtung,
+Endpunkte und Graphkanten werden nicht in die Textprojektion kopiert.
+
+Beide Textlisten behalten leere Labels; nicht-textuelle Werte ergeben
+`labelStatus: unsupported`, eine Diagnose und `interpretation: partial`, ohne
+andere gültige Einträge abzubrechen. Graphdiagnosen und Interpretationsstatus werden
+übernommen. Es gibt keine Übersetzung, Synonymerkennung oder Ähnlichkeitsberechnung.
 
 Die Regeln entsprechen den zugelassenen Anzeigeformatierungen in
 `web/src/utils/htmlLabels.ts`. Unbekannte Tags, Tags mit Attributen, fachliche
@@ -61,8 +74,7 @@ sonstige Whitespace-Normalisierung. Eine Leerheitsprüfung verändert den Text n
 
 Die Modellierungssprache und ihre Definitionsbindung bleiben ausschließlich im
 Graphen und sind unabhängig von der natürlichen Sprache `textLanguage`.
-`comparisonRole: unsupported` bedeutet keine automatische Textsperre: Ein lesbares
-Label kann `labelStatus: present` haben, während die Parserdiagnose erhalten bleibt.
+Knoten mit `comparisonRole: unsupported` werden nicht als `elements` aufgenommen.
 Ein fehlendes Label allein macht die Interpretation nicht unvollständig.
 
 ## Ausgabe und Herkunft
@@ -72,12 +84,13 @@ Ausgabe ist `workflow-result/v1`, `schemaVersion: 1`, `status: ok`,
 
 | Feld | Inhalt |
 | --- | --- |
-| `schema` | `element-inventory/v1` |
+| `schema` | `element-inventory/v2` |
 | `evaluationId`, `source`, `inputHash`, `graphHash` | Unveränderte Lauf-, Modell- und Eingabebindung des Parserergebnisses. |
 | `graphPath` | Relativer Eingabepfad im Auswertungsbereich; im Workflow aus `WORKFLOW_INPUT_PATH`, eigenständig standardmäßig `graphs/<source.key>.json`. Beim eigenständigen Aufruf muss der Aufrufer den referenzierten Graphen für spätere Nachverfolgung separat aufbewahren. |
 | `producer` | Service `model-label-extraction`, bestehende Serviceversion und `resourceHash` über die tatsächlichen Quelldateien `main.py` und `workflow_io.py`. |
-| `elements` | Nach Graph-ID sortierte Einträge mit genau `id`, `matchText`, `labelStatus`, `textLanguage`. |
-| `completeness`, `diagnostics` | Vollständigkeitsstatus berücksichtigt die Eingabe; nur eigene Textdiagnosen werden ausgegeben. Nicht textuelle Labels ergänzen `UNSUPPORTED_LABEL_TEXT` und setzen die Interpretation auf `partial`. Parserdiagnosen bleiben ausschließlich im referenzierten Graphartefakt. |
+| `elements` | Nach ID sortierte Einträge mit `id`, `type`, `comparisonGroup`, `language`, `matchText`, `labelStatus` und `textLanguage`. |
+| `connectionTexts` | Nach Verbindungs-ID, Art, Label-ID und ID sortierte eigene Verbindungstexte und zusätzliche Beschriftungen. |
+| `completeness`, `diagnostics` | Interpretationsstatus und Graphdiagnosen werden übernommen. Textextraktionsdiagnosen werden ergänzt; nicht-textuelle Werte oder ungelöste Besitzer setzen die Interpretation auf `partial`. |
 | `inventoryHash` | SHA-256 über das gesamte `result` vor Ergänzung dieses Hashfelds. |
 
 Hashes sind wie beim Parser 64-stellige Hexstrings ohne Präfix. Kanonisches
@@ -93,10 +106,10 @@ es wird kein neues Erfolgsartefakt veröffentlicht. Ein leeres Inventar ist gül
 
 ## Prüfstand und Übergabe
 
-Die sechs vorhandenen Graph-Parser-Unit-Tests liefen erfolgreich, einschließlich
-SERM-, UML- und ERM-Fixtures. Das Parser-Image erzeugte ein `graph-result/v3`, das
-vom neu gebauten Elementinventar-Image erfolgreich verarbeitet wurde. Vollständige
-Modellabgaben waren nicht Teil dieser Prüfung.
+Acht gezielte Tests für SERM-/UML-/ERM-Projektionen, Verbindungsbeschriftungen,
+ungültige Besitzer, Textstatus, Determinismus und Hash-/Evaluation-Validierung
+bestanden. Das neu gebaute Extractor-Image erzeugte `element-inventory/v2`; das
+neue Synonym-Matching-Image akzeptierte diese Ausgabe gegen sein V2-Schema.
 
 Paket 04 liest die beiden kompakten Inventare über den bestehenden Workspace.
 Strukturelles Matching, Feedback und Bewertung bleiben Folgeaufgaben. Der aktuelle

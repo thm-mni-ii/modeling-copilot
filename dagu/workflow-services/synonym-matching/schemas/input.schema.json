@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "synonym-matching inventory pair input V1",
+  "title": "synonym-matching inventory pair input V2",
   "type": "object",
   "required": ["studentInventory", "referenceInventory"],
   "additionalProperties": false,
@@ -27,10 +27,33 @@
     },
     "element": {
       "type": "object",
-      "required": ["id", "matchText", "labelStatus", "textLanguage"],
+      "required": ["id", "type", "comparisonGroup", "language", "matchText", "labelStatus", "textLanguage"],
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string", "minLength": 1},
+        "type": {"type": ["string", "null"]},
+        "comparisonGroup": {"type": ["string", "null"]},
+        "language": {"oneOf": [
+          {"type": "null"},
+          {"type": "object", "required": ["languageId", "versionId"], "properties": {
+            "languageId": {"type": "string", "minLength": 1},
+            "versionId": {"type": "string", "minLength": 1}
+          }}
+        ]},
+        "matchText": {"type": "string"},
+        "labelStatus": {"enum": ["present", "missing", "unsupported"]},
+        "textLanguage": {"type": ["string", "null"], "minLength": 1}
+      }
+    },
+    "connectionText": {
+      "type": "object",
+      "required": ["id", "ownerConnectionId", "kind", "connectionLabelId", "matchText", "labelStatus", "textLanguage"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "ownerConnectionId": {"type": ["string", "null"], "minLength": 1},
+        "kind": {"enum": ["self", "additionalLabel"]},
+        "connectionLabelId": {"type": ["string", "null"]},
         "matchText": {"type": "string"},
         "labelStatus": {"enum": ["present", "missing", "unsupported"]},
         "textLanguage": {"type": ["string", "null"], "minLength": 1}
@@ -38,10 +61,10 @@
     },
     "inventoryBody": {
       "type": "object",
-      "required": ["schema", "evaluationId", "source", "inputHash", "graphHash", "graphPath", "inventoryHash", "producer", "elements", "completeness", "diagnostics"],
+      "required": ["schema", "evaluationId", "source", "inputHash", "graphHash", "graphPath", "inventoryHash", "producer", "elements", "connectionTexts", "completeness", "diagnostics"],
       "additionalProperties": false,
       "properties": {
-        "schema": {"const": "element-inventory/v1"},
+        "schema": {"const": "element-inventory/v2"},
         "evaluationId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$"},
         "source": {"$ref": "#/definitions/source"},
         "inputHash": {"$ref": "#/definitions/hash"},
@@ -50,6 +73,7 @@
         "graphPath": {"type": "string", "minLength": 1},
         "producer": {"type": "object"},
         "elements": {"type": "array", "items": {"$ref": "#/definitions/element"}},
+        "connectionTexts": {"type": "array", "items": {"$ref": "#/definitions/connectionText"}},
         "completeness": {
           "type": "object", "required": ["interpretation"],
           "properties": {"interpretation": {"enum": ["complete", "partial"]}}

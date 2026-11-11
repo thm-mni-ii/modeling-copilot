@@ -24,7 +24,7 @@ def producer_metadata():
     files.update({path.relative_to(SERVICE_ROOT).as_posix(): path for path in (SERVICE_ROOT / "src").rglob("*.py")})
     files.update({path.relative_to(SERVICE_ROOT).as_posix(): path for path in (SERVICE_ROOT / "schemas").glob("*.json")})
     return {
-        "service": SERVICE, "version": "0.1.1",
+        "service": SERVICE, "version": "0.2.0",
         "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in files.items()}),
         "runtime": {"python": platform.python_version(), "unicode": unicodedata.unidata_version},
         "packages": {name: version(name) for name in (

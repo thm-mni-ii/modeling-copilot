@@ -218,7 +218,7 @@ steps:
       artifact: labels-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/model-label-extraction:0.1.1
+      image: modeling-copilot/model-label-extraction:0.2.0
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -284,7 +284,7 @@ steps:
       artifact: candidates-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/synonym-matching:0.1.1
+      image: modeling-copilot/synonym-matching:0.2.0
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID

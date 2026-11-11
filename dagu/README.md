@@ -104,7 +104,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:0.2.1 modeling-copilot/graph-parser:0.4.2 modeling-copilot/model-label-extraction:0.1.1 modeling-copilot/synonym-matching:0.1.1 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:0.2.1 modeling-copilot/graph-parser:0.4.2 modeling-copilot/model-label-extraction:0.2.0 modeling-copilot/synonym-matching:0.2.0 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre
