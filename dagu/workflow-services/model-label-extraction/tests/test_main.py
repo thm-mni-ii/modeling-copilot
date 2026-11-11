@@ -55,7 +55,7 @@ def payload(nodes=None, edges=None):
         "source": copy.deepcopy(SOURCE),
         "inputHash": "1" * 64,
         "languageResources": [],
-        "producer": {"service": "graph-parser", "version": "0.4.2", "resourceHash": "2" * 64},
+        "producer": {"service": "graph-parser", "version": "0.1.0", "resourceHash": "2" * 64},
         "graphHash": "",
         "graph": graph,
         "completeness": {"interpretation": "complete"},

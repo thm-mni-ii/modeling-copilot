@@ -104,15 +104,16 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:0.2.1 modeling-copilot/graph-parser:0.4.2 modeling-copilot/model-label-extraction:0.2.0 modeling-copilot/synonym-matching:0.2.0 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:latest modeling-copilot/graph-parser:latest modeling-copilot/model-label-extraction:latest modeling-copilot/synonym-matching:latest | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre
-Image-Daten beim Weiterreichen als Text beschädigen. Bei einer anderen lokalen
-Kubernetes-Installation stattdessen deren Image-Import oder eine erreichbare
-Registry verwenden. Keine produktiven Cluster hierfür verändern. Die Images
-werden mit `IfNotPresent` gestartet; ein bereits gecachter alter Tag wird nicht
-automatisch durch einen neuen Docker-Build ersetzt.
+Image-Daten beim Weiterreichen als Text beschädigen. Nach jedem lokalen Build
+müssen die `latest`-Images erneut in den Kubernetes-Knoten importiert werden.
+Bei einer anderen lokalen Kubernetes-Installation stattdessen deren Image-Import
+oder eine erreichbare Registry verwenden. Keine produktiven Cluster hierfür
+verändern. Die Images werden mit `IfNotPresent` gestartet; ein bereits
+gecachtes Image wird nicht automatisch durch einen neuen Docker-Build ersetzt.
 
 Die API liest große Zwischenresultate über Dagu-Artefakte und die kleine
 Abschlussübersicht über den `/outputs`-Endpunkt. So wird nicht das letzte

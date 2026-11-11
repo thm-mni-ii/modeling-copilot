@@ -87,7 +87,7 @@ Ausgabe ist `workflow-result/v1`, `schemaVersion: 1`, `status: ok`,
 | `schema` | `element-inventory/v2` |
 | `evaluationId`, `source`, `inputHash`, `graphHash` | Unveränderte Lauf-, Modell- und Eingabebindung des Parserergebnisses. |
 | `graphPath` | Relativer Eingabepfad im Auswertungsbereich; im Workflow aus `WORKFLOW_INPUT_PATH`, eigenständig standardmäßig `graphs/<source.key>.json`. Beim eigenständigen Aufruf muss der Aufrufer den referenzierten Graphen für spätere Nachverfolgung separat aufbewahren. |
-| `producer` | Service `model-label-extraction`, bestehende Serviceversion und `resourceHash` über die tatsächlichen Quelldateien `main.py` und `workflow_io.py`. |
+| `producer` | Service `model-label-extraction`, Serviceversion `0.1.0` und `resourceHash` über die tatsächlichen Quelldateien `main.py` und `workflow_io.py`. |
 | `elements` | Nach ID sortierte Einträge mit `id`, `type`, `comparisonGroup`, `language`, `matchText`, `labelStatus` und `textLanguage`. |
 | `connectionTexts` | Nach Verbindungs-ID, Art, Label-ID und ID sortierte eigene Verbindungstexte und zusätzliche Beschriftungen. |
 | `completeness`, `diagnostics` | Interpretationsstatus und Graphdiagnosen werden übernommen. Textextraktionsdiagnosen werden ergänzt; nicht-textuelle Werte oder ungelöste Besitzer setzen die Interpretation auf `partial`. |

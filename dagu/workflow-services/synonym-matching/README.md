@@ -3,7 +3,7 @@
 Erzeugt für genau ein Abgabe-/Referenzpaar vollständige semantische Kandidatenevidenz.
 Der Service verarbeitet ausschließlich die V2-Inventare aus Paket 03. Er liest kein
 Modell-XML und vergibt keine IDs. Die Implementierung und Capability heißen
-`synonym-matching`, Serviceversion `0.2.0`.
+`synonym-matching`, Serviceversion `0.1.0`.
 
 **Stand:** An die lokale Auswertungspipeline bis Phase 4 angebunden. Ein eigener
 Paarlauf verarbeitet jede Musterlösung gegen das einmal erzeugte Abgabeinventar;

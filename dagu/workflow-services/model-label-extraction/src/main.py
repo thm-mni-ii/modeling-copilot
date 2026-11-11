@@ -213,7 +213,7 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
                                             text["connectionLabelId"] or "", text["id"]))
     diagnostics.sort(key=lambda item: (item.get("code", ""), item.get("elementIds", []), content_hash(item)))
     resources = {"main.py": Path(__file__), "workflow_io.py": Path(workflow_io.__file__)}
-    producer = {"service": SERVICE, "version": "0.2.0",
+    producer = {"service": SERVICE, "version": "0.1.0",
                 "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()})}
     graph_path = os.environ.get("WORKFLOW_INPUT_PATH", f"graphs/{source['key']}.json")
     if store is not None:

@@ -94,7 +94,7 @@ Herkunft; die Hashes schalten keine Definitionen frei. `graph.languages` enthäl
 entsprechenden Sprachreferenzen einschließlich der aufgelösten Abhängigkeiten.
 Die tatsächlich verwendeten Sprachen ergeben sich aus den Modellknoten.
 
-`producer` nennt Service `graph-parser`, die bestehende Serviceversion `0.4.2` und
+`producer` nennt Service `graph-parser`, die aktuelle Serviceversion `0.1.0` und
 `resourceHash`: SHA-256 des kanonischen Objekts aus den tatsächlich ausgeführten
 Quelldateien `main.py`, `parser.py` und `workflow_io.py`. Damit ist die allgemeine
 Verarbeitung eindeutig an eine unveränderliche Ressource gebunden. Diese Metadaten
