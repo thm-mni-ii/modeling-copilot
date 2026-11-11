@@ -90,7 +90,7 @@
             <div class="text-body-2 font-weight-medium">{{ entry.title }}</div>
             <div v-if="entry.resultSummary" class="result-summary mt-1">{{ entry.resultSummary }}</div>
             <div v-else-if="entry.description" class="text-caption text-medium-emphasis mt-1">{{ entry.description }}</div>
-            <JsonResultViewer v-if="entry.result" :data="entry.result" class="mt-1" />
+            <JsonResultViewer :data="entry.result ?? { title: entry.title, description: entry.description ?? null, resultSummary: entry.resultSummary ?? null }" class="mt-1" />
           </v-timeline-item>
         </v-timeline>
       </template>
@@ -324,7 +324,13 @@ onBeforeUnmount(() => {
   font-size: 0.7rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
+.evaluation-timeline.v-timeline {
+  grid-template-columns: 0 min-content minmax(0, 1fr);
+}
 .evaluation-timeline :deep(.v-timeline-item__body) {
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding-block-end: 8px;
 }
 .result-summary {

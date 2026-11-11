@@ -9,7 +9,7 @@
       <v-btn icon size="x-small" variant="text" :title="copied ? 'Kopiert!' : 'Als JSON kopieren'" @click="copy">
         <v-icon size="14">{{ copied ? 'mdi-check' : 'mdi-content-copy' }}</v-icon>
       </v-btn>
-      <v-btn v-if="isLarge" icon size="x-small" variant="text" title="Groß anzeigen" @click="dialog = true">
+      <v-btn icon size="x-small" variant="text" title="Groß anzeigen" @click="dialog = true">
         <v-icon size="14">mdi-arrow-expand</v-icon>
       </v-btn>
     </div>
@@ -37,7 +37,6 @@ import type { JsonObject } from '@/services/api/types/common'
 
 const props = defineProps<{ data: JsonObject }>()
 const formatted = computed(() => JSON.stringify(props.data, null, 2))
-const isLarge = computed(() => formatted.value.length > 400)
 const expanded = ref(false)
 const dialog = ref(false)
 const copied = ref(false)
