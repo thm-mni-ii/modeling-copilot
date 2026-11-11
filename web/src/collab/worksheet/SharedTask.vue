@@ -10,13 +10,13 @@
       :history="history"
       :evaluation-workflows="evaluationWorkflows"
       shared
-      :notes="NOTES_ENABLED ? notes ?? null : null"
+      :notes="notesEnabled ? notes ?? null : null"
       @select-connection="emit('select-connection', $event)"
       @select-task-edits="emit('select-task-edits', $event)"
       @start-evaluation="emit('start-evaluation')"
       @update:task-edit-document="write"
     >
-      <template v-if="NOTES_ENABLED" #default>
+      <template v-if="notesEnabled" #default>
         <div class="shared-notes">
           <!-- Trennlinie mit Beschriftung statt eigener Leiste; formatiert wird über die Leiste des Textes. -->
           <div class="shared-notes__divider">
@@ -46,14 +46,17 @@ import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/
 import { MARKS_MAP, NOTES_TEXT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { baseOf, taskHistoryOf } from '@/collab/sharing/shareTask'
 import { linkOf } from '@/collab/storage/workpiece'
+import { roleOf } from '@/collab/rooms/roomRole'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { currentShare } from '@/collab/sharing/shareModel'
 import type { TaskVersionReference } from '@/services/api/types/common'
 import { sharedTaskEdit, sharedTaskHistory, sharedTaskReference, sharedTaskSettings, writeSharedTask, type SharedTaskSettings } from './sharedTask'
 
-// Notizen vorerst aus: Sie gehen beim Beenden des Teilens noch nicht ins private Modell zurück.
+// Notizen beim Teilen vorerst aus: Sie gehen beim Beenden des Teilens noch nicht ins private Modell zurück.
 // Ohne Notizen bleibt der Text `notes` im Task-Workpiece leer und die Leiste wirkt nur auf die Task.
 const NOTES_ENABLED = false
+// Im Gruppenraum bleibt alles in collab-kit, es gibt nichts zurückzuführen; dort sind die Notizen an.
+const notesEnabled = ref(NOTES_ENABLED)
 
 /**
  * The task shared along with a model of a room: its text fixed in a CK task, the marks on it as
@@ -120,7 +123,7 @@ const history = computed(() => ({
   canRedo: canRedo.value,
   undo: () => step('undo'),
   redo: () => step('redo'),
-  ...(NOTES_ENABLED ? { notes: { canUndo: canUndoNotes.value, canRedo: canRedoNotes.value, undo: () => stepNotes('undo'), redo: () => stepNotes('redo') } } : {})
+  ...(notesEnabled.value ? { notes: { canUndo: canUndoNotes.value, canRedo: canRedoNotes.value, undo: () => stepNotes('undo'), redo: () => stepNotes('redo') } } : {})
 }))
 
 let base: JsonObject = { type: 'doc' }
@@ -170,6 +173,9 @@ onMounted(async () => {
     const ck = await loadCollabKit()
     const link = taskLinkOf(await ck.workpieces.get(props.workpieceId))
     if (!link || unmounted) return
+    const roomId = linkOf(workspace.preferences)?.roomId
+    const inGroup = (id: string) => ck.rooms.get(id).then((room) => roleOf(room).kind === 'group')
+    if (!NOTES_ENABLED && roomId) notesEnabled.value = await inGroup(roomId).catch(() => false)
     const shared = await ck.tasks.get(link.taskId)
     const html = typeof shared.detail?.contentHtml === 'string' ? shared.detail.contentHtml : ''
     if (unmounted) return
@@ -205,7 +211,7 @@ onMounted(async () => {
         notes.value?.setEditable(opened.mayWrite)
       })
     )
-    if (NOTES_ENABLED) {
+    if (notesEnabled.value) {
       notesText = opened.text(NOTES_TEXT)
       // Der Verlauf trägt den Schritt erst nach der Änderung ein, daher einen Takt später lesen.
       stops.push(notesText.onChange(() => queueMicrotask(refreshHistory)))

@@ -31,7 +31,7 @@
             <td>
               <v-chip v-for="member in group.members" :key="member.username" size="small" class="mr-1 my-1" :title="member.username">{{ member.name }}</v-chip>
             </td>
-            <td :class="problemOf(group) ? 'text-warning' : 'text-success'">{{ problemOf(group) ?? 'ready' }}</td>
+            <td :class="problemOf(group) ? 'text-warning' : 'text-success'">{{ problemOf(group) ?? (createdRooms.some((room) => room.name === group.name) ? 'created' : 'ready') }}</td>
           </tr>
         </tbody>
       </v-table>
@@ -59,10 +59,19 @@
         </v-table>
       </v-alert>
 
+      <v-alert v-if="createdRooms.length" type="success" variant="tonal" density="compact" class="mt-4" :title="`${createdRooms.length} ${createdRooms.length === 1 ? 'room was' : 'rooms were'} created`">
+        <template v-if="missingPeople.length">
+          Not in the Feedbacksystem, so not in their room:
+          <ul class="ml-4">
+            <li v-for="room in missingPeople" :key="room.roomId">{{ room.name }}: {{ room.missing.join(', ') }}</li>
+          </ul>
+        </template>
+      </v-alert>
+      <v-alert v-if="createFailure" type="error" variant="tonal" density="compact" class="mt-4">{{ createFailure }} Rooms created before stay; creating again sends only the others.</v-alert>
+
       <div class="d-flex align-center justify-end ga-3 mt-4">
-        <!-- Bis die Route im Backend steht, legt der Reiter noch nichts an. -->
-        <span class="text-caption text-medium-emphasis">Creating the rooms follows with the backend.</span>
-        <v-btn color="primary" variant="flat" disabled>Create {{ ready.length }} {{ ready.length === 1 ? 'room' : 'rooms' }}</v-btn>
+        <span v-if="creating" class="text-caption text-medium-emphasis">{{ progress }} of {{ progressTotal }} rooms created</span>
+        <v-btn color="primary" variant="flat" :disabled="!ready.length" :loading="creating" @click="create">Create {{ ready.length }} {{ ready.length === 1 ? 'room' : 'rooms' }}</v-btn>
       </div>
     </template>
   </div>
@@ -70,13 +79,26 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, shallowRef } from 'vue'
+import type { AxiosError } from 'axios'
 import { notifyError } from '@/composables/useNotifications'
+import httpClient from '@/services/api/httpClient'
 import taskService from '@/services/task/task.service'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
 import { decodeCsv, parseGroupWorkCsv, type CsvGroup, type GroupWorkCsv } from './groupWorkCsv'
 
 /** Meldet, dass Räume angelegt wurden, damit <ck-management> neu lädt. */
-defineEmits<{ created: [] }>()
+const emit = defineEmits<{ created: [] }>()
+
+/** Wie viele Gruppen eine Anfrage höchstens anlegt; dieselbe Grenze wie MAX_GROUPS in api/…/schemas/group_work.py. */
+const BATCH = 10
+
+/** Ein Raum, wie das Backend ihn angelegt hat. */
+interface CreatedRoom {
+  name: string
+  roomId: string
+  workpieceIds: string[]
+  missing: string[]
+}
 
 interface Choice {
   taskId: string | null
@@ -98,6 +120,8 @@ const load = async (files: File | File[] | null | undefined) => {
   const file = Array.isArray(files) ? files[0] : files
   csv.value = null
   failure.value = ''
+  createdRooms.value = []
+  createFailure.value = ''
   if (!file) return
   reading.value = true
   try {
@@ -150,7 +174,42 @@ const problemOf = (group: CsvGroup) => {
   const missing = group.caseStudies.filter((caseStudy) => !choices[caseStudy]?.versionId)
   return missing.length ? `no task for ${missing.map((caseStudy) => `F${caseStudy}`).join(', ')}` : null
 }
-const ready = computed(() => csv.value?.groups.filter((group) => !problemOf(group)) ?? [])
+// Was schon angelegt ist, geht bei einem neuen Versuch nicht noch einmal hinaus.
+const createdRooms = ref<CreatedRoom[]>([])
+const ready = computed(() => csv.value?.groups.filter((group) => !problemOf(group) && !createdRooms.value.some((room) => room.name === group.name)) ?? [])
+const missingPeople = computed(() => createdRooms.value.filter((room) => room.missing.length))
+const creating = ref(false)
+const createFailure = ref('')
+const progress = ref(0)
+const progressTotal = ref(0)
+
+/** Die Gruppe, wie das Backend sie annimmt: Anmeldenamen und je Fallstudie die gewählte Aufgabe. */
+const requestOf = (group: CsvGroup) => ({
+  name: group.name,
+  usernames: group.members.map((member) => member.username),
+  tasks: group.caseStudies.map((caseStudy) => ({ taskId: choices[caseStudy].taskId, versionId: choices[caseStudy].versionId }))
+})
+
+/** Legt die bereiten Gruppen in Paketen an; bricht eines ab, bleiben die vorigen, und ein neuer Versuch schickt nur den Rest. */
+const create = async () => {
+  const groups = ready.value
+  creating.value = true
+  createFailure.value = ''
+  progress.value = 0
+  progressTotal.value = groups.length
+  try {
+    for (let start = 0; start < groups.length; start += BATCH) {
+      const { data } = await httpClient.post<{ rooms: CreatedRoom[] }>('/v1/group-work', { groups: groups.slice(start, start + BATCH).map(requestOf) })
+      createdRooms.value = [...createdRooms.value, ...data.rooms]
+      progress.value += data.rooms.length
+    }
+  } catch (error) {
+    createFailure.value = (error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message
+  } finally {
+    creating.value = false
+    if (progress.value) emit('created')
+  }
+}
 
 onMounted(async () => {
   loadingTasks.value = true
