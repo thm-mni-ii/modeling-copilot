@@ -5,6 +5,7 @@ import type { LanguageVersionReference } from '@/services/api/types/common'
 import { languageReferenceKey } from '@/services/model/workspaceLanguageResolver'
 import { createModelSerializer, exportModelAsXml } from './modelPersistence'
 import { validateModelCellIds } from './modelPatches'
+import { evaluationConfigErrors, evaluationElementTypes } from './languageEvaluation'
 
 export interface PackagedLanguage extends LanguageVersionReference {
   name: string
@@ -77,6 +78,8 @@ export const parseModelPackage = (text: string): ModelPackage => {
       throw new Error('The package contains an invalid modeling language.')
     }
     ;[...language.data.elements, ...language.data.connections].forEach(checkDefinition)
+    const errors = evaluationConfigErrors(language.data.evaluation, evaluationElementTypes(language.data.elements as DiagramElement[]))
+    if (errors.length) throw new Error(errors.join('\n'))
   }
   const result = value as unknown as ModelPackage
   const definitions = new Map(result.languages.map((language) => [languageReferenceKey(language), language]))

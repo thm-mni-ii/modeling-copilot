@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "semantic-candidates/v1 in workflow-result/v1",
+  "type": "object",
+  "required": ["schema", "schemaVersion", "status", "capability", "mode", "summary", "result"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "workflow-result/v1"},
+    "schemaVersion": {"const": 1, "type": "integer"},
+    "status": {"const": "ok"},
+    "capability": {"const": "synonym-matching"},
+    "mode": {"const": "match"},
+    "summary": {"type": "string"},
+    "result": {
+      "type": "object",
+      "required": ["schema", "evaluationId", "inputHash", "pair", "graphHashes", "inventoryHashes", "inventoryPaths", "semanticConfig", "semanticConfigHash", "producer", "methods", "combiner", "threshold", "filtered", "evaluatedPairCount", "processedTexts", "synonymMatrix", "unscoredElements", "completeness", "diagnostics", "candidateHash"],
+      "additionalProperties": false,
+      "properties": {
+        "schema": {"const": "semantic-candidates/v1"},
+        "evaluationId": {"type": "string"},
+        "inputHash": {"$ref": "input.schema.json#/definitions/hash"},
+        "candidateHash": {"$ref": "input.schema.json#/definitions/hash"},
+        "semanticConfigHash": {"$ref": "input.schema.json#/definitions/hash"},
+        "pair": {
+          "type": "object", "required": ["studentKey", "referenceKey"],
+          "properties": {"studentKey": {"const": "submission"}, "referenceKey": {"type": "string"}}
+        },
+        "graphHashes": {"$ref": "#/definitions/pairHashes"},
+        "inventoryHashes": {"$ref": "#/definitions/pairHashes"},
+        "inventoryPaths": {
+          "type": "object", "required": ["student", "reference"],
+          "properties": {
+            "student": {"type": "string", "pattern": "^labels/[A-Za-z0-9_-]{1,100}\\.json$"},
+            "reference": {"type": "string", "pattern": "^labels/[A-Za-z0-9_-]{1,100}\\.json$"}
+          }
+        },
+        "semanticConfig": {"type": "object", "required": ["engine", "resources", "methods", "combiner", "threshold", "filtered", "producer"]},
+        "producer": {"type": "object", "required": ["service", "version", "resourceHash", "runtime", "packages"]},
+        "methods": {"type": "array", "items": {"type": "object", "required": ["name", "rawScoreRange", "combinationContributionRange", "contributesToCombination"]}},
+        "combiner": {"type": "object", "required": ["kind", "name", "options", "methods", "contributingMethods", "contributionTransform", "formula", "scoreRange", "scoreMeaning"]},
+        "threshold": {"type": "null"},
+        "filtered": {"const": false},
+        "evaluatedPairCount": {"type": "integer", "minimum": 0},
+        "processedTexts": {
+          "type": "object", "required": ["student", "reference"],
+          "additionalProperties": {"type": "array", "items": {
+            "type": "object", "required": ["id", "texts"],
+            "properties": {"id": {"type": "string"}, "texts": {"type": "object", "additionalProperties": {"type": "string"}}}
+          }}
+        },
+        "synonymMatrix": {"type": "array", "items": {
+          "type": "object", "required": ["referenceElementId", "matches"],
+          "properties": {
+            "referenceElementId": {"type": "string", "minLength": 1},
+            "matches": {"type": "array", "items": {
+              "type": "object", "required": ["submissionElementId", "scores", "combinedScore", "aliasEvidence"],
+              "additionalProperties": false,
+              "properties": {
+                "submissionElementId": {"type": "string", "minLength": 1},
+                "scores": {
+                  "type": "object", "required": ["levenshtein", "jaro_winkler", "char_trigram", "multilingual"],
+                  "properties": {
+                    "levenshtein": {"$ref": "#/definitions/unitScore"},
+                    "jaro_winkler": {"$ref": "#/definitions/unitScore"},
+                    "char_trigram": {"$ref": "#/definitions/unitScore"},
+                    "multilingual": {"type": "number", "minimum": -1, "maximum": 1}
+                  },
+                  "additionalProperties": false
+                },
+                "combinedScore": {"$ref": "#/definitions/unitScore"},
+                "aliasEvidence": {"type": "array", "maxItems": 0}
+              }
+            }}
+          }
+        }},
+        "unscoredElements": {"type": "array", "items": {
+          "type": "object", "required": ["side", "id", "reason"],
+          "properties": {
+            "side": {"enum": ["student", "reference"]},
+            "id": {"type": "string"},
+            "reason": {"enum": ["missing_text", "unsupported_text"]}
+          }
+        }},
+        "completeness": {
+          "type": "object", "required": ["technical", "interpretation"],
+          "properties": {"technical": {"const": "complete"}, "interpretation": {"enum": ["complete", "partial"]}}
+        },
+        "diagnostics": {"type": "array", "items": {"type": "object"}}
+      }
+    }
+  },
+  "definitions": {
+    "unitScore": {"type": "number", "minimum": 0, "maximum": 1},
+    "pairHashes": {
+      "type": "object", "required": ["student", "reference"],
+      "properties": {
+        "student": {"$ref": "input.schema.json#/definitions/hash"},
+        "reference": {"$ref": "input.schema.json#/definitions/hash"}
+      }
+    }
+  }
+}

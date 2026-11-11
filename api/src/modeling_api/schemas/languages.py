@@ -98,6 +98,33 @@ class LanguageVersion(LanguageVersionInfo):
     data: JsonObject = Field(description="Complete modeling-language definition.")
 
 
+class ComparisonGroup(ApiSchema):
+    """Direct pairwise candidate permissions between element types."""
+
+    id: Name
+    name: Name
+    element_types: list[str] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def unique_element_types(self) -> "ComparisonGroup":
+        if len(set(self.element_types)) != len(self.element_types):
+            raise ValueError("Comparison group element types must be distinct.")
+        return self
+
+
+class LanguageEvaluationConfig(ApiSchema):
+    """Versioned, language-independent model comparison configuration."""
+
+    comparison_groups: list[ComparisonGroup]
+
+    @model_validator(mode="after")
+    def unique_group_ids(self) -> "LanguageEvaluationConfig":
+        ids = [group.id for group in self.comparison_groups]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Comparison group identifiers must be unique.")
+        return self
+
+
 class CreateLanguageVersion(ApiSchema):
     """Request to append a checkpoint or release to a language."""
 
@@ -122,4 +149,26 @@ class CreateLanguageVersion(ApiSchema):
     def valid_release_name(self) -> "CreateLanguageVersion":
         if self.kind == "checkpoint" and self.release_name is not None:
             raise ValueError("releaseName is only allowed for releases.")
+        return self
+
+    @model_validator(mode="after")
+    def valid_evaluation(self) -> "CreateLanguageVersion":
+        if "evaluation" not in self.data:
+            return self
+        config = LanguageEvaluationConfig.model_validate(self.data["evaluation"])
+        element_types: set[str] = set()
+
+        def collect(elements):
+            if not isinstance(elements, list):
+                raise ValueError("Element declarations must be a list.")
+            for element in elements:
+                if not isinstance(element, dict) or not isinstance(element.get("type"), str):
+                    raise ValueError("Element declarations must have a type identifier.")
+                element_types.add(element["type"])
+                collect(element.get("children", []))
+
+        collect(self.data.get("elements", []))
+        for group in config.comparison_groups:
+            if not set(group.element_types) <= element_types:
+                raise ValueError("Comparison groups must reference declared element types, including child types.")
         return self

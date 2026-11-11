@@ -68,6 +68,10 @@
 
         <v-divider class="my-2" />
 
+        <v-alert v-if="detail.workflow.labels.phase === '4'" type="info" density="compact" variant="tonal" class="mb-2">
+          Zwischenergebnisse bis Phase 4: Graphen, Elementinventare und semantische Kandidaten je Musterlösung.
+        </v-alert>
+
         <div class="evaluation-progress">
           <div class="d-flex align-center justify-space-between text-caption text-medium-emphasis mb-1">
             <span>Fortschritt</span>
@@ -154,7 +158,7 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
     result: step.result
   }))
   if (detail.value.finalResult) {
-    entries.push({ id: '__final__', icon: 'mdi-flag-checkered', color: 'success', title: 'Endergebnis', result: detail.value.finalResult })
+    entries.push({ id: '__final__', icon: 'mdi-flag-checkered', color: 'success', title: detail.value.workflow.labels.phase === '4' ? 'Ergebnisübersicht bis Phase 4' : 'Endergebnis', result: detail.value.finalResult })
   } else if (detail.value.state === 'failed' || detail.value.state === 'cancelled') {
     entries.push({ id: '__outcome__', icon: 'mdi-alert', color: 'error', title: detail.value.state === 'failed' ? 'Fehlgeschlagen' : 'Abgebrochen', description: 'Workflow wurde nicht erfolgreich abgeschlossen.' })
   }

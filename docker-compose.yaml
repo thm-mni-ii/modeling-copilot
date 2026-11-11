@@ -139,7 +139,7 @@ services:
     restart: unless-stopped
 
   workflow-synonym-matching:
-    image: modeling-copilot/synonym-matching:0.3.0
+    image: modeling-copilot/synonym-matching:0.1.1
     build:
       context: ./dagu/workflow-services
       dockerfile: synonym-matching/Dockerfile
@@ -152,14 +152,14 @@ services:
     profiles: [workflow-services]
 
   workflow-graph-parser:
-    image: modeling-copilot/graph-parser:0.4.1
+    image: modeling-copilot/graph-parser:0.4.2
     build:
       context: ./dagu/workflow-services
       dockerfile: graph-parser/Dockerfile
     profiles: [workflow-services]
 
   workflow-model-label-extraction:
-    image: modeling-copilot/model-label-extraction:0.1.0
+    image: modeling-copilot/model-label-extraction:0.1.1
     build:
       context: ./dagu/workflow-services
       dockerfile: model-label-extraction/Dockerfile
@@ -187,7 +187,7 @@ services:
     profiles: [workflow-services]
 
   workflow-data:
-    image: modeling-copilot/workflow-data:0.2.0
+    image: modeling-copilot/workflow-data:0.2.1
     build:
       context: ./dagu/workflow-services
       dockerfile: workflow-data/Dockerfile

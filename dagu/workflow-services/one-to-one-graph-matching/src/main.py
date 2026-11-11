@@ -19,9 +19,9 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
     graph = data.get("graph") if isinstance(data, dict) else None
     if graph is None and payload.get("mode") != "demo":
         raise ValueError("a graph in result.graph is required; use mode=demo for a standalone placeholder")
-    if graph is not None and (not isinstance(graph, dict) or graph.get("schemaVersion") != 2
+    if graph is not None and (not isinstance(graph, dict) or type(graph.get("schemaVersion")) is not int or graph.get("schemaVersion") != 1
                               or not isinstance(graph.get("nodes"), list) or not isinstance(graph.get("edges"), list)):
-        raise ValueError("result.graph must contain schemaVersion=2 and nodes/edges arrays")
+        raise ValueError("result.graph must contain schemaVersion=1 and nodes/edges arrays")
     result = {"status": "not_implemented",
               "assessmentAvailable": False, "mapping": []}
     if graph is not None:

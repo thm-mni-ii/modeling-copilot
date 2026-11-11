@@ -12,6 +12,17 @@ export type { DiagramSyntax } from './Syntax'
 export type { GlobalSettings } from './GlobalSettings'
 export type { DiagramFeedbackConfig } from './Feedback'
 
+/** Members are pairwise candidates; overlapping groups do not imply transitivity. */
+export interface ComparisonGroup {
+  id: string
+  name: string
+  elementTypes: string[]
+}
+
+export interface DiagramEvaluationConfig {
+  comparisonGroups: ComparisonGroup[]
+}
+
 /** Complete editor payload stored unchanged in `LanguageVersion.data`. */
 export interface DiagramLanguage {
   elements: DiagramElement[]
@@ -19,11 +30,14 @@ export interface DiagramLanguage {
   syntax: DiagramSyntax[]
   globalSettings?: GlobalSettings
   feedback: DiagramFeedbackConfig
+  /** Absent in older definitions: only identical types are candidates. */
+  evaluation?: DiagramEvaluationConfig
 }
 
 export const createEmptyDiagramLanguage = (): DiagramLanguage => ({
   elements: [],
   connections: [],
+  evaluation: { comparisonGroups: [] },
   syntax: [
     {
       ruleType: 'multiplicity',

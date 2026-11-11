@@ -131,7 +131,7 @@ import type { JsonObject } from '@/services/api/types/common'
 import type { CanvasWindowDefinition } from '@/model/CanvasWindow'
 import { collectTaskEdits, flashTaskEdits, removeTaskEdit, type TaskEditFocus } from '@/utils/taskEdits'
 import type { TaskEditDocument } from '@/services/api/types/model'
-import { notifyError, notifySuccess } from '@/composables/useNotifications'
+import { notifyError, notifySuccess, notifyWarning } from '@/composables/useNotifications'
 import paths, { type PathModelContext, type HelpRequest, type HelpTextRange } from '@/services/learningPaths'
 import modelService from '@/services/model/model.service'
 import type { ModelVersion } from '@/services/api/types/model'
@@ -453,7 +453,9 @@ const startEvaluation = async () => {
     }
     const evaluation = (await evaluationService.start(modelId)).data
     startedEvaluationId.value = evaluation.id
-    notifySuccess('Evaluation started.')
+    if (evaluation.state === 'failed') notifyError('The evaluation start was rejected. See the evaluation details.')
+    else if (evaluation.state === 'unknown') notifyWarning('The evaluation start could not be confirmed. Its run ID is retained for clarification.')
+    else notifySuccess('Evaluation started.')
   } catch (error) {
     notifyError((error as { response?: { data?: { message?: string } } }).response?.data?.message ?? 'The evaluation could not be started.')
   }

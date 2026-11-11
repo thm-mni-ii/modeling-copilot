@@ -1,4 +1,4 @@
-description: Hauptworkflow für die Modellauswertung mit Snapshots, Graphen und Bezeichnungslisten. Noch keine fachliche Bewertung.
+description: Auswertung bis Phase 4 mit eingefrorenen Eingaben, Graphen, Elementinventaren und semantischen Kandidaten je Musterlösung. Noch keine fachliche Bewertung.
 artifacts:
   enabled: true
 kubernetes:
@@ -14,10 +14,11 @@ labels:
   domain: generic
   visibility: frontend
   version: v1
+  phase: '4'
 params:
   schema:
     type: object
-    required: [evaluation_id, evaluation_input, parser_models, model_count, reference_count]
+    required: [evaluation_id, evaluation_input, parser_models, reference_models, model_count, reference_count]
     properties:
       evaluation_id:
         type: string
@@ -28,6 +29,9 @@ params:
       parser_models:
         type: string
         description: JSON-Liste der Modellschlüssel; enthält keine XML-Daten.
+      reference_models:
+        type: string
+        description: JSON-Liste der Referenzschlüssel für den paarweisen Vergleich mit der Abgabe.
       model_count:
         type: integer
       reference_count:
@@ -38,6 +42,7 @@ params:
     evaluation_id: ''
     evaluation_input: ''
     parser_models: '[]'
+    reference_models: '[]'
     model_count: 0
     reference_count: 0
 steps:
@@ -47,7 +52,7 @@ steps:
       artifact: initialization.json
     action: k8s.run
     with:
-      image: modeling-copilot/workflow-data:0.2.0
+      image: modeling-copilot/workflow-data:0.2.1
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -70,7 +75,7 @@ steps:
       max_concurrent: 4
 
   - name: extract_labels
-    description: Extrahiert die Bezeichnungen des aktuellen Modells und jeder Musterlösung.
+    description: Erstellt die vollständigen Elementinventare des aktuellen Modells und jeder Musterlösung.
     depends: [parse_models]
     action: dag.run
     with:
@@ -84,18 +89,35 @@ steps:
       items: ${parser_models}
       max_concurrent: 4
 
-  - name: publish_results
-    description: Veröffentlicht Laufkontext, Graphen und Bezeichnungslisten.
+  - name: match_synonyms
+    description: Vergleicht das Abgabeinventar mit jeder Musterlösung und erhält alle semantischen Kandidaten.
     depends: [extract_labels]
+    action: dag.run
+    with:
+      dag: synonym-matching-pair
+      params:
+        EVALUATION_ID: ${evaluation_id}
+        REFERENCE_KEY: ${ITEM.key}
+        OUTPUT_PREFIX: candidates
+    parallel:
+      items: ${reference_models}
+      max_concurrent: 1
+
+  - name: publish_results
+    description: Veröffentlicht die Zwischenergebnisse bis Phase 4; es gibt noch keine strukturelle Zuordnung oder Bewertung.
+    depends: [match_synonyms]
     action: outputs.write
     with:
       values:
+        schema: evaluation-preview/v1
         evaluationId: ${evaluation_id}
+        completedPhase: 4
         modelCount: ${model_count}
         referenceCount: ${reference_count}
         inputSnapshot: inputs/evaluation-input.json
         parsedModels: graphs/
         modelLabels: labels/
+        synonymCandidates: candidates/
         assessmentAvailable: false
 
 ---
@@ -135,7 +157,7 @@ steps:
       artifact: parser-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/graph-parser:0.4.1
+      image: modeling-copilot/graph-parser:0.4.2
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -158,7 +180,7 @@ steps:
 
 ---
 name: model-label-extraction-model
-description: Extrahiert die Bezeichnungen genau eines Modellgraphen als eigenen Kubernetes Job.
+description: Erstellt das vollständige Elementinventar genau eines Modellgraphen als eigenen Kubernetes Job.
 tags:
   - visibility=internal
 artifacts:
@@ -191,12 +213,12 @@ params:
     OUTPUT_PREFIX: labels
 steps:
   - name: extract_labels
-    description: Speichert Original-IDs und Bezeichnungen als Workflow-Artefakt.
+    description: Speichert das vollständige Elementinventar mit Original-IDs, Vergleichstexten und Herkunft als Workflow-Artefakt.
     stdout:
       artifact: labels-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/model-label-extraction:0.1.0
+      image: modeling-copilot/model-label-extraction:0.1.1
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -216,3 +238,69 @@ steps:
         modelKey: ${MODEL_KEY}
         labelsPath: ${OUTPUT_PREFIX}/${MODEL_KEY}.json
         artifactPath: labels-result.json
+
+---
+name: synonym-matching-pair
+
+description: Berechnet semantische Kandidaten für die Abgabe und genau eine Musterlösung.
+tags:
+  - visibility=internal
+artifacts:
+  enabled: true
+kubernetes:
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+  volumes:
+    - name: workflow-data
+      persistent_volume_claim:
+        claim_name: workflow-data
+  volume_mounts:
+    - name: workflow-data
+      mount_path: /work/evaluations
+params:
+  schema:
+    type: object
+    required: [REFERENCE_KEY, EVALUATION_ID]
+    properties:
+      REFERENCE_KEY:
+        type: string
+      EVALUATION_ID:
+        type: string
+      OUTPUT_PREFIX:
+        type: string
+  values:
+    REFERENCE_KEY: ''
+    EVALUATION_ID: ''
+    OUTPUT_PREFIX: candidates
+steps:
+  - name: match_synonyms
+    description: Speichert die vollständige semantische Kandidatenevidenz für ein Referenzpaar.
+    stdout:
+      artifact: candidates-result.json
+    action: k8s.run
+    with:
+      image: modeling-copilot/synonym-matching:0.1.1
+      image_pull_policy: IfNotPresent
+      env:
+        - name: WORKFLOW_EVALUATION_ID
+          value: ${EVALUATION_ID}
+        - name: REFERENCE_KEY
+          value: ${REFERENCE_KEY}
+        - name: WORKFLOW_OUTPUT_PATH
+          value: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
+
+  - name: publish_candidates
+    description: Veröffentlicht Referenzschlüssel und Kandidatenartefakt.
+    depends: [match_synonyms]
+    action: outputs.write
+    with:
+      values:
+        evaluationId: ${EVALUATION_ID}
+        referenceKey: ${REFERENCE_KEY}
+        candidatesPath: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
+        artifactPath: candidates-result.json
