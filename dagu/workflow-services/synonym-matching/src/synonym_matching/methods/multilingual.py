@@ -33,7 +33,8 @@ class MultilingualMethod:
     def compute(self, left, right):
         if not left or not right:
             return np.zeros((len(left), len(right)))
-        self._load()
+        if self.model is None:
+            self._load()
         # Reuse text features while keeping every element instance in the matrices.
         texts = list(dict.fromkeys(left + right))
         for text in texts:

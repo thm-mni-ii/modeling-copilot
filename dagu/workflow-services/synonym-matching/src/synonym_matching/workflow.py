@@ -44,10 +44,18 @@ def run(payload, bundle=None, reference_key=None):
         diagnostics.append({"code": "UNSCORABLE_LABEL_TEXT", "severity": "info", "scope": "element",
                             "message": "Element retained without semantic scores: " + element["reason"],
                             "modelKey": inventories[element["side"]]["source"]["key"], "elementIds": [element["id"]]})
+    if evidence["connectionTextPairCount"]:
+        diagnostics.append({
+            "code": "CONNECTION_TEXT_OWNER_COMPATIBILITY_UNAVAILABLE",
+            "severity": "warning",
+            "scope": "connectionText",
+            "message": "Connection text candidates are retained, but their owners' types and language versions are not present in the inventory.",
+            "elementIds": [],
+        })
     diagnostics.sort(key=lambda item: (item.get("code", ""), item.get("elementIds", []), content_hash(item)))
     student, reference = inventories["student"], inventories["reference"]
     result = {
-        "schema": "semantic-candidates/v1", "evaluationId": student["evaluationId"], "inputHash": student["inputHash"],
+        "schema": "semantic-candidates/v2", "evaluationId": student["evaluationId"], "inputHash": student["inputHash"],
         "pair": {"studentKey": student["source"]["key"], "referenceKey": reference["source"]["key"]},
         "graphHashes": {side: data["graphHash"] for side, data in inventories.items()},
         "inventoryHashes": {side: data["inventoryHash"] for side, data in inventories.items()},
@@ -55,11 +63,16 @@ def run(payload, bundle=None, reference_key=None):
         "semanticConfig": semantic_config,
         "semanticConfigHash": content_hash(semantic_config), "producer": producer,
         "threshold": None, "filtered": False, **evidence,
-        "completeness": {"technical": "complete", "interpretation": "partial" if any(
-            data["completeness"]["interpretation"] == "partial" for data in inventories.values()) else "complete"},
+        "completeness": {"technical": "complete", "interpretation": "partial" if (
+            evidence["connectionTextPairCount"] > 0
+            or any(data["completeness"]["interpretation"] == "partial" for data in inventories.values())
+        ) else "complete"},
         "diagnostics": diagnostics,
     }
     result["candidateHash"] = content_hash(result)
     return {"schema": "workflow-result/v1", "schemaVersion": 1, "status": "ok", "capability": SERVICE,
-            "mode": "match", "summary": f"{evidence['evaluatedPairCount']} semantische Kandidatenpaare berechnet",
+            "mode": "match", "summary": (
+                f"{evidence['candidatePairCount']} zulässige Elementpaare; "
+                f"{evidence['scoredPairCount']} mit Text bewertet"
+            ),
             "result": result}

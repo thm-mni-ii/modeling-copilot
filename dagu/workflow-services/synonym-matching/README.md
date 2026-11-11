@@ -124,19 +124,23 @@ Texte. Diese Instanzen bleiben im vollständigen Inventar und unter
 `unscoredElements` mit `missing_text` beziehungsweise `unsupported_text` erhalten.
 Jede Referenzinstanz erhält eine Matrixzeile, gegebenenfalls mit `matches: []`.
 Gleiche Texte mit verschiedenen IDs bleiben getrennte Kandidateninstanzen.
-Jedes verwendbare Textpaar wird berechnet; Typen, Container und
-Modellierungssprachen sind keine Ausschlussfilter. Es gibt weder Top-k noch
-Threshold-Filterung oder endgültige Zuordnung. `aliasEvidence` bleibt leer;
-Aliasregeln werden nicht eingeführt.
+Vor dem Scoring werden nur Paare mit identischer Sprach-ID und Sprachversion
+zugelassen. Bei zwei gesetzten Vergleichsgruppen müssen diese übereinstimmen;
+sind beide Gruppen nicht gesetzt, müssen die konkreten Typen übereinstimmen.
+Gemischte Gruppierung, inkompatible Sprachen und unterschiedliche Gruppen sind
+keine Kandidaten. Es gibt weder Top-k noch Threshold-Filterung oder endgültige
+Zuordnung. `aliasEvidence` bleibt leer; Aliasregeln werden nicht eingeführt.
+Ein zulässiges Paar bleibt auch ohne Beschriftung erhalten und wird mit
+`scoreStatus: unavailable` und `scores: null` ausgewiesen.
 
 ## Ausgabe und Herkunft
 
 Die Ausgabe ist eine `workflow-result/v1`-Hülle mit `schemaVersion: 1`, `status: ok`,
-`capability: synonym-matching`, `mode: match` und `result.schema: semantic-candidates/v1`.
+`capability: synonym-matching`, `mode: match` und `result.schema: semantic-candidates/v2`.
 `schemas/output.schema.json` beschreibt die Ausgabe; `input.schema.json` definiert
 `element-inventory/v2` mit Typ-, Vergleichsgruppen- und Sprachfeldern sowie
-gesonderten Verbindungstexten. Für das Synonym-Matching werden weiterhin nur
-`id`, `matchText`, `labelStatus` und `textLanguage` der fachlichen Elemente gelesen.
+gesonderten Verbindungstexten. Für die fachlichen Elemente nutzt das Matching
+`id`, `type`, `comparisonGroup`, `language`, `matchText` und `labelStatus`.
 Eigenständige Aufrufer bewahren die Inventare unter
 `labels/<modelKey>.json` sowie die darin referenzierten Graphen separat auf.
 
@@ -149,11 +153,13 @@ Eigenständige Aufrufer bewahren die Inventare unter
 | `producer` | Serviceversion, eigener Code-/Schemahash, Python-/Unicode- und verwendete Paketversionen |
 | `methods`, `combiner` | Alle vier Verfahren, Roh-/Beitragsskalen, Beteiligung und genaue Rechenregel |
 | `threshold`, `filtered` | Immer `null`, `false` |
-| `evaluatedPairCount` | Produkt der beiden Mengen mit verwendbarem Text |
-| `processedTexts` | Tatsächlicher Text je Methodenname und ursprünglicher ID unter `student`/`reference` |
-| `synonymMatrix` | `referenceElementId` pro Zeile und `submissionElementId` pro Kandidat mit vier ungerundeten `scores`, `combinedScore`, `aliasEvidence: []`; keine vollständigen Elementkopien |
+| `candidatePairCount`, `scoredPairCount`, `unavailablePairCount` | Zahl zulässiger Paare und deren Scoring-Verfügbarkeit |
+| `connectionTextPairCount` | Strukturell passende Verbindungstext-Paare; deren Owner-Kompatibilität ist im Inventar nicht enthalten und bleibt daher unbewertet |
+| `processedTexts` | Ein normalisierter Text pro ursprünglicher Element-ID unter `student`/`reference`, unabhängig von der Anzahl der Scoring-Verfahren |
+| `synonymMatrix` | `referenceElementId` pro Zeile und nur fachlich zulässige `submissionElementId`-Kandidaten mit `comparisonBasis`, `scoreStatus`, vier ungerundeten `scores` oder `null`, `combinedScore` und `aliasEvidence: []`; keine vollständigen Elementkopien |
+| `connectionTextMatrix` | Separate Matrix für gleiche Verbindungstext-Art und Beschriftungs-ID; Kandidaten bleiben erhalten, aber werden mangels Owner-Typ- und Sprachversionsdaten mit `scoreStatus: unavailable` ausgewiesen |
 | `unscoredElements` | Seite, ID und Grund für jede Instanz ohne verwendbaren Text; Modellbezug ergibt sich aus `pair` |
-| `completeness`, `diagnostics` | Technisch vollständig bei Erfolg; Interpretation berücksichtigt die Inventare, Diagnosen enthalten nur eigene Hinweise mit Modellschlüssel und Element-ID |
+| `completeness`, `diagnostics` | Technisch vollständig bei Erfolg; Interpretation berücksichtigt Inventare und nicht bewertbare Verbindungstext-Paare, Diagnosen weisen die Einschränkung explizit aus |
 | `candidateHash` | Hash des vollständigen `result` ohne dieses eigene Hashfeld |
 
 Eigene Hashes verwenden SHA-256 als 64-stelligen Hexstring ohne Präfix über

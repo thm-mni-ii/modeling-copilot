@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "semantic-candidates/v1 in workflow-result/v1",
+  "title": "semantic-candidates/v2 in workflow-result/v1",
   "type": "object",
   "required": ["schema", "schemaVersion", "status", "capability", "mode", "summary", "result"],
   "additionalProperties": false,
@@ -13,14 +13,14 @@
     "summary": {"type": "string"},
     "result": {
       "type": "object",
-      "required": ["schema", "evaluationId", "inputHash", "pair", "graphHashes", "inventoryHashes", "inventoryPaths", "semanticConfig", "semanticConfigHash", "producer", "methods", "combiner", "threshold", "filtered", "evaluatedPairCount", "processedTexts", "synonymMatrix", "unscoredElements", "completeness", "diagnostics", "candidateHash"],
+      "required": ["schema", "evaluationId", "inputHash", "pair", "graphHashes", "inventoryHashes", "inventoryPaths", "semanticConfig", "semanticConfigHash", "producer", "methods", "combiner", "threshold", "filtered", "candidatePairCount", "scoredPairCount", "unavailablePairCount", "connectionTextPairCount", "processedTexts", "synonymMatrix", "connectionTextMatrix", "unscoredElements", "completeness", "diagnostics", "candidateHash"],
       "additionalProperties": false,
       "properties": {
-        "schema": {"const": "semantic-candidates/v1"},
+        "schema": {"const": "semantic-candidates/v2"},
         "evaluationId": {"type": "string"},
-        "inputHash": {"$ref": "input.schema.json#/definitions/hash"},
-        "candidateHash": {"$ref": "input.schema.json#/definitions/hash"},
-        "semanticConfigHash": {"$ref": "input.schema.json#/definitions/hash"},
+        "inputHash": {"$ref": "#/definitions/hash"},
+        "candidateHash": {"$ref": "#/definitions/hash"},
+        "semanticConfigHash": {"$ref": "#/definitions/hash"},
         "pair": {
           "type": "object", "required": ["studentKey", "referenceKey"],
           "properties": {"studentKey": {"const": "submission"}, "referenceKey": {"type": "string"}}
@@ -40,37 +40,32 @@
         "combiner": {"type": "object", "required": ["kind", "name", "options", "methods", "contributingMethods", "contributionTransform", "formula", "scoreRange", "scoreMeaning"]},
         "threshold": {"type": "null"},
         "filtered": {"const": false},
-        "evaluatedPairCount": {"type": "integer", "minimum": 0},
+        "candidatePairCount": {"type": "integer", "minimum": 0},
+        "scoredPairCount": {"type": "integer", "minimum": 0},
+        "unavailablePairCount": {"type": "integer", "minimum": 0},
+        "connectionTextPairCount": {"type": "integer", "minimum": 0},
         "processedTexts": {
           "type": "object", "required": ["student", "reference"],
-          "additionalProperties": {"type": "array", "items": {
-            "type": "object", "required": ["id", "texts"],
-            "properties": {"id": {"type": "string"}, "texts": {"type": "object", "additionalProperties": {"type": "string"}}}
-          }}
+          "additionalProperties": false,
+          "properties": {
+            "student": {"$ref": "#/definitions/processedTextList"},
+            "reference": {"$ref": "#/definitions/processedTextList"}
+          }
         },
         "synonymMatrix": {"type": "array", "items": {
           "type": "object", "required": ["referenceElementId", "matches"],
+          "additionalProperties": false,
           "properties": {
             "referenceElementId": {"type": "string", "minLength": 1},
-            "matches": {"type": "array", "items": {
-              "type": "object", "required": ["submissionElementId", "scores", "combinedScore", "aliasEvidence"],
-              "additionalProperties": false,
-              "properties": {
-                "submissionElementId": {"type": "string", "minLength": 1},
-                "scores": {
-                  "type": "object", "required": ["levenshtein", "jaro_winkler", "char_trigram", "multilingual"],
-                  "properties": {
-                    "levenshtein": {"$ref": "#/definitions/unitScore"},
-                    "jaro_winkler": {"$ref": "#/definitions/unitScore"},
-                    "char_trigram": {"$ref": "#/definitions/unitScore"},
-                    "multilingual": {"type": "number", "minimum": -1, "maximum": 1}
-                  },
-                  "additionalProperties": false
-                },
-                "combinedScore": {"$ref": "#/definitions/unitScore"},
-                "aliasEvidence": {"type": "array", "maxItems": 0}
-              }
-            }}
+            "matches": {"type": "array", "items": {"$ref": "#/definitions/elementCandidate"}}
+          }
+        }},
+        "connectionTextMatrix": {"type": "array", "items": {
+          "type": "object", "required": ["referenceConnectionTextId", "matches"],
+          "additionalProperties": false,
+          "properties": {
+            "referenceConnectionTextId": {"type": "string", "minLength": 1},
+            "matches": {"type": "array", "items": {"$ref": "#/definitions/connectionTextCandidate"}}
           }
         }},
         "unscoredElements": {"type": "array", "items": {
@@ -90,12 +85,70 @@
     }
   },
   "definitions": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "unitScore": {"type": "number", "minimum": 0, "maximum": 1},
     "pairHashes": {
       "type": "object", "required": ["student", "reference"],
       "properties": {
-        "student": {"$ref": "input.schema.json#/definitions/hash"},
-        "reference": {"$ref": "input.schema.json#/definitions/hash"}
+        "student": {"$ref": "#/definitions/hash"},
+        "reference": {"$ref": "#/definitions/hash"}
+      }
+    },
+    "processedTextList": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["id", "text"], "additionalProperties": false,
+        "properties": {"id": {"type": "string", "minLength": 1}, "text": {"type": "string", "minLength": 1}}
+      }
+    },
+    "scores": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/definitions/scoresScored"}
+      ]
+    },
+    "elementCandidate": {
+      "type": "object",
+      "required": ["submissionElementId", "comparisonBasis", "scoreStatus", "scores", "combinedScore", "aliasEvidence"],
+      "additionalProperties": false,
+      "properties": {
+        "submissionElementId": {"type": "string", "minLength": 1},
+        "comparisonBasis": {"enum": ["group", "type"]},
+        "scoreStatus": {"enum": ["scored", "unavailable"]},
+        "scores": {"$ref": "#/definitions/scores"},
+        "combinedScore": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/unitScore"}]},
+        "aliasEvidence": {"type": "array", "maxItems": 0}
+      },
+      "allOf": [
+        {"if": {"properties": {"scoreStatus": {"const": "scored"}}},
+         "then": {"properties": {"scores": {"$ref": "#/definitions/scoresScored"}, "combinedScore": {"$ref": "#/definitions/unitScore"}}},
+         "else": {"properties": {"scores": {"type": "null"}, "combinedScore": {"type": "null"}}}}
+      ]
+    },
+    "scoresScored": {
+      "type": "object", "required": ["levenshtein", "jaro_winkler", "char_trigram", "multilingual"],
+      "additionalProperties": false,
+      "properties": {
+        "levenshtein": {"$ref": "#/definitions/unitScore"},
+        "jaro_winkler": {"$ref": "#/definitions/unitScore"},
+        "char_trigram": {"$ref": "#/definitions/unitScore"},
+        "multilingual": {"type": "number", "minimum": -1, "maximum": 1}
+      }
+    },
+    "connectionTextCandidate": {
+      "type": "object",
+      "required": ["submissionConnectionTextId", "referenceOwnerConnectionId", "submissionOwnerConnectionId", "kind", "connectionLabelId", "scoreStatus", "scores", "combinedScore", "unavailableReason"],
+      "additionalProperties": false,
+      "properties": {
+        "submissionConnectionTextId": {"type": "string", "minLength": 1},
+        "referenceOwnerConnectionId": {"type": ["string", "null"]},
+        "submissionOwnerConnectionId": {"type": ["string", "null"]},
+        "kind": {"enum": ["self", "additionalLabel"]},
+        "connectionLabelId": {"type": ["string", "null"]},
+        "scoreStatus": {"const": "unavailable"},
+        "scores": {"type": "null"},
+        "combinedScore": {"type": "null"},
+        "unavailableReason": {"enum": ["missing_text", "unsupported_text", "connection_owner_compatibility_not_in_inventory"]}
       }
     }
   }
