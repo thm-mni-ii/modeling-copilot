@@ -119,6 +119,32 @@ async def share(
     await client.set_grant(
         current["groups"][store.VISITORS], visitor_rights(edit, comment), room_id, anonymous
     )
+    workpiece_id, task_workpiece_id = await create_model_workpiece(room_id, name, contract, units, task)
+    # Auffangnetz: Kopien früherer Shares dieses Raums, die beim Schließen noch offen waren und liegen blieben.
+    await models.delete_room_models(room_id, keep_workpiece_id=workpiece_id)
+    # A new share starts clean: nothing remembered from a lock before may carry over.
+    await store.save(
+        room_id,
+        open=True,
+        joinable=True,
+        workpieceId=workpiece_id,
+        taskWorkpieceId=task_workpiece_id,
+        before=None,
+        autoLocked=False,
+    )
+    return room_id, workpiece_id, True
+
+
+async def create_model_workpiece(
+    room_id: str,
+    name: str,
+    contract: dict[str, Any],
+    units: list[dict[str, Any]],
+    task: dict[str, Any] | None = None,
+) -> tuple[str, str | None]:
+    """Legt ein Modell im Raum an, mit `task` (Titel, Text, Release) samt fester CK-Aufgabe und
+    einem Werkstück für Markierungen und Notizen; gibt das Modell und dieses Werkstück zurück.
+    Genutzt beim Teilen und bei der Gruppenarbeit."""
     task_workpiece_id = None
     if task is not None:
         # The task first, because the contract of the model cannot be changed once created.
@@ -148,19 +174,7 @@ async def share(
     workpiece = await client.create_workpiece(
         {"name": name, "roomId": room_id, "contract": contract, "units": units}
     )
-    # Auffangnetz: Kopien früherer Shares dieses Raums, die beim Schließen noch offen waren und liegen blieben.
-    await models.delete_room_models(room_id, keep_workpiece_id=workpiece["_id"])
-    # A new share starts clean: nothing remembered from a lock before may carry over.
-    await store.save(
-        room_id,
-        open=True,
-        joinable=True,
-        workpieceId=workpiece["_id"],
-        taskWorkpieceId=task_workpiece_id,
-        before=None,
-        autoLocked=False,
-    )
-    return room_id, workpiece["_id"], True
+    return workpiece["_id"], task_workpiece_id
 
 
 async def _own_share(host_id: str) -> dict[str, Any]:

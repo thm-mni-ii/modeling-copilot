@@ -196,6 +196,15 @@ async def get_shared_task(model_id: UUID, user: User) -> Document:
     reference = model.get("taskVersion")
     if reference is None:
         raise conflict("A model without an assigned task cannot share one.")
+    task = await task_for_room(reference)
+    # Beim Teilen bringt das Modell seine Sprachen selbst mit.
+    del task["workspaceLanguages"]
+    return task
+
+
+async def task_for_room(reference: Document) -> Document:
+    """Titel, Text, Release und Einstellungen einer veröffentlichten Aufgabe, wie ein Raum sie bekommt,
+    dazu ihre Sprachen; `reference` ist `{taskId, versionId}`. Genutzt beim Teilen und bei der Gruppenarbeit."""
     version = await db.task_version.find_one(
         {"_id": reference["versionId"], "taskId": reference["taskId"], "kind": "release"}
     )
@@ -213,6 +222,7 @@ async def get_shared_task(model_id: UUID, user: User) -> Document:
             "connectionPreviewAllowed": data.get("connectionPreviewAllowed"),
             "evaluationWorkflows": data.get("evaluationWorkflows", []),
         },
+        "workspaceLanguages": version.get("workspaceLanguages", []),
     }
 
 
