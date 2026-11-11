@@ -4,8 +4,10 @@
   <p v-else-if="!shown.length" class="text-medium-emphasis text-center py-8 mb-0">No room matches the search.</p>
   <template v-else>
     <template v-for="({ room, models, imported: mark, members }, index) in shown" :key="room._id">
-      <!-- Importierte Räume stehen nach Import, der neueste oben; jeder Import bekommt eine Zeile darüber. -->
-      <p v-if="mark && mark.importedAt !== shown[index - 1]?.imported?.importedAt" class="text-body-2 text-medium-emphasis mt-2 mb-2">Imported {{ formattedDate(mark.importedAt) }} · {{ roomsPerImport.get(mark.importedAt) }} {{ roomsPerImport.get(mark.importedAt) === 1 ? 'room' : 'rooms' }}</p>
+      <!-- Importierte Räume stehen nach Kurs, der zuletzt importierte oben; jeder Kurs bekommt eine Zeile darüber. -->
+      <p v-if="mark && courseKey(mark) !== courseKey(shown[index - 1]?.imported)" class="text-subtitle-2 mt-4 mb-2">
+        {{ mark.course || 'Without course' }} <span class="text-medium-emphasis font-weight-regular">· {{ roomsPerCourse.get(courseKey(mark)) }} {{ roomsPerCourse.get(courseKey(mark)) === 1 ? 'room' : 'rooms' }} · last import {{ formattedDate(lastImport.get(courseKey(mark)) ?? mark.importedAt) }}</span>
+      </p>
       <v-card variant="outlined" class="mb-4">
         <v-card-title class="d-flex align-center flex-wrap ga-2">
           <span>{{ room.name }}</span>
@@ -33,7 +35,7 @@ import { computed, onMounted, ref, shallowRef } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
-import { loadGroupRooms, type GroupRoom } from '@/collab/groups/groupRooms'
+import { loadGroupRooms, type GroupRoom, type GroupWorkMark } from '@/collab/groups/groupRooms'
 
 /** `imported`: nur die Räume aus einer Teilnehmerliste, mit Import und Mitgliedern, wie der Reiter „Group work“ sie zeigt. */
 const props = withDefaults(defineProps<{ imported?: boolean; search?: string }>(), { imported: false, search: '' })
@@ -51,17 +53,34 @@ const loading = ref(true)
 
 const formattedDate = (value: string) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 
-// Gesucht wird in Raum, Mitgliedern und Modellen; importierte Räume nach Import, der neueste zuerst, darin nach Namen.
+/** Wie das Backend Kurse vergleicht: Groß- und Kleinschreibung und Leerzeichen zählen nicht. */
+const courseKey = (mark: GroupWorkMark | undefined) => (mark ? mark.course.split(/\s+/).filter(Boolean).join(' ').toLowerCase() : null)
+
+/** Der jüngste Import je Kurs; danach stehen die Kurse, der zuletzt importierte oben. */
+const lastImport = computed(() => {
+  const last = new Map<string | null, string>()
+  for (const { imported } of groupRooms.value) if (imported && (last.get(courseKey(imported)) ?? '') < imported.importedAt) last.set(courseKey(imported), imported.importedAt)
+  return last
+})
+
+// Gesucht wird in Raum, Kurs, Mitgliedern und Modellen; importierte Räume nach Kurs, darin nach Namen.
 const shown = computed(() => {
   const text = props.search.trim().toLowerCase()
-  const matches = (group: GroupRoom) => !text || [group.room.name, ...(group.members ?? []), ...group.models.map((model) => model.workpiece.name)].some((value) => value.toLowerCase().includes(text))
-  const byImport = (a: GroupRoom, b: GroupRoom) => (b.imported?.importedAt ?? '').localeCompare(a.imported?.importedAt ?? '') || a.room.name.localeCompare(b.room.name, undefined, { numeric: true })
-  return groupRooms.value.filter(matches).sort(byImport)
+  const matches = (group: GroupRoom) => !text || [group.room.name, group.imported?.course ?? '', ...(group.members ?? []), ...group.models.map((model) => model.workpiece.name)].some((value) => value.toLowerCase().includes(text))
+  const recency = (group: GroupRoom) => lastImport.value.get(courseKey(group.imported)) ?? ''
+  const byCourse = (a: GroupRoom, b: GroupRoom) => recency(b).localeCompare(recency(a)) || (courseKey(a.imported) ?? '').localeCompare(courseKey(b.imported) ?? '') || a.room.name.localeCompare(b.room.name, undefined, { numeric: true })
+  return groupRooms.value.filter(matches).sort(byCourse)
 })
-const roomsPerImport = computed(() => {
-  const counts = new Map<string, number>()
-  for (const { imported } of shown.value) if (imported) counts.set(imported.importedAt, (counts.get(imported.importedAt) ?? 0) + 1)
+const roomsPerCourse = computed(() => {
+  const counts = new Map<string | null, number>()
+  for (const { imported } of shown.value) if (imported) counts.set(courseKey(imported), (counts.get(courseKey(imported)) ?? 0) + 1)
   return counts
+})
+/** Die Kurse früherer Importe, wie sie zuerst geschrieben wurden, der zuletzt importierte zuerst; der Import schlägt sie vor. */
+const courses = computed(() => {
+  const labels = new Map<string | null, string>()
+  for (const { imported } of [...groupRooms.value].sort((a, b) => (a.imported?.importedAt ?? '').localeCompare(b.imported?.importedAt ?? ''))) if (imported?.course && !labels.has(courseKey(imported))) labels.set(courseKey(imported), imported.course)
+  return [...labels.entries()].sort(([a], [b]) => (lastImport.value.get(b) ?? '').localeCompare(lastImport.value.get(a) ?? '')).map(([, label]) => label)
 })
 
 /** Lädt die Räume neu, etwa nachdem ein Import welche angelegt hat. */
@@ -75,7 +94,7 @@ const reload = async () => {
   }
 }
 
-defineExpose({ reload })
+defineExpose({ reload, courses })
 
 // Der Reiter lädt bei jedem Öffnen neu; wer gerade woran arbeitet, gilt für diesen Moment.
 onMounted(reload)

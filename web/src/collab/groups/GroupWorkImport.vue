@@ -1,5 +1,12 @@
 <template>
   <div class="group-work-import">
+    <!-- Derselbe Kurs und derselbe Gruppenname sind derselbe Raum; ein anderer Kurs, etwa ein anderes Semester, gibt neue Räume. -->
+    <v-text-field v-model="course" label="Course" placeholder="Datenbanken WS 26/27" prepend-icon="mdi-school-outline" density="compact" hint="Same course and group name is the same room; another course, such as another semester, gets rooms of its own." persistent-hint class="mb-2" />
+    <!-- Die Kurse früherer Importe zum Anklicken statt Tippen, damit derselbe Kurs gleich geschrieben wird. -->
+    <div v-if="courses.length" class="d-flex align-center flex-wrap ga-2 mb-4 ml-10">
+      <span class="text-caption text-medium-emphasis">Already used:</span>
+      <v-chip v-for="known in courses" :key="known" size="small" :color="known === course?.trim() ? 'primary' : undefined" :variant="known === course?.trim() ? 'flat' : 'tonal'" @click="course = known">{{ known }}</v-chip>
+    </div>
     <v-file-input label="Participant list from Moodle (CSV)" accept=".csv,.txt,text/csv" prepend-icon="mdi-file-delimited-outline" density="compact" show-size :loading="reading" @update:model-value="load" />
     <v-alert v-if="failure" type="error" variant="tonal" density="compact" class="mb-4">{{ failure }}</v-alert>
 
@@ -31,7 +38,7 @@
             <td>
               <v-chip v-for="member in group.members" :key="member.username" size="small" class="mr-1 my-1" :title="member.username">{{ member.name }}</v-chip>
             </td>
-            <td :class="problemOf(group) ? 'text-warning' : 'text-success'">{{ problemOf(group) ?? (createdRooms.some((room) => room.name === group.name) ? 'created' : 'ready') }}</td>
+            <td :class="statusOf(group).tone">{{ statusOf(group).text }}</td>
           </tr>
         </tbody>
       </v-table>
@@ -59,7 +66,8 @@
         </v-table>
       </v-alert>
 
-      <v-alert v-if="createdRooms.length" type="success" variant="tonal" density="compact" class="mt-4" :title="`${createdRooms.length} ${createdRooms.length === 1 ? 'room was' : 'rooms were'} created`">
+      <v-alert v-if="planFailure" type="error" variant="tonal" density="compact" class="mt-4">The check against the existing rooms failed: {{ planFailure }}</v-alert>
+      <v-alert v-if="appliedRooms.length" type="success" variant="tonal" density="compact" class="mt-4" :title="appliedTitle">
         <template v-if="missingPeople.length">
           Not in the Feedbacksystem, so not in their room:
           <ul class="ml-4">
@@ -67,18 +75,19 @@
           </ul>
         </template>
       </v-alert>
-      <v-alert v-if="createFailure" type="error" variant="tonal" density="compact" class="mt-4">{{ createFailure }} Rooms created before stay; creating again sends only the others.</v-alert>
+      <v-alert v-if="createFailure" type="error" variant="tonal" density="compact" class="mt-4">{{ createFailure }} What was applied before stays; applying again sends only what is still missing.</v-alert>
 
       <div class="d-flex align-center justify-end ga-3 mt-4">
-        <span v-if="creating" class="text-caption text-medium-emphasis">{{ progress }} of {{ progressTotal }} rooms created</span>
-        <v-btn color="primary" variant="flat" :disabled="!ready.length" :loading="creating" @click="create">Create {{ ready.length }} {{ ready.length === 1 ? 'room' : 'rooms' }}</v-btn>
+        <span v-if="creating" class="text-caption text-medium-emphasis">{{ progress }} of {{ progressTotal }} groups done</span>
+        <span v-else-if="!course?.trim()" class="text-caption text-medium-emphasis">Enter the course first.</span>
+        <v-btn color="primary" variant="flat" :disabled="!changes.length || planning || !course?.trim()" :loading="creating" @click="create">{{ changes.length ? `Apply ${changes.length} ${changes.length === 1 ? 'change' : 'changes'}` : 'Nothing to apply' }}</v-btn>
       </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, shallowRef } from 'vue'
+import { computed, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import type { AxiosError } from 'axios'
 import { notifyError } from '@/composables/useNotifications'
 import httpClient from '@/services/api/httpClient'
@@ -86,16 +95,21 @@ import taskService from '@/services/task/task.service'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
 import { decodeCsv, parseGroupWorkCsv, type CsvGroup, type GroupWorkCsv } from './groupWorkCsv'
 
-/** Meldet, dass Räume angelegt wurden, damit <ck-management> neu lädt. */
+/** `courses`: die Kurse früherer Importe, zum Auswählen, damit derselbe Kurs gleich geschrieben wird. */
+withDefaults(defineProps<{ courses?: string[] }>(), { courses: () => [] })
+
+/** Meldet, dass Räume angelegt oder ergänzt wurden, damit <ck-management> und die Übersicht neu laden. */
 const emit = defineEmits<{ created: [] }>()
 
 /** Wie viele Gruppen eine Anfrage höchstens anlegt; dieselbe Grenze wie MAX_GROUPS in api/…/schemas/group_work.py. */
 const BATCH = 10
 
-/** Ein Raum, wie das Backend ihn angelegt hat. */
-interface CreatedRoom {
+/** Ein Raum, wie das Backend ihn angelegt oder ergänzt hat. */
+interface AppliedRoom {
   name: string
   roomId: string
+  created: boolean
+  addedMembers: string[]
   workpieceIds: string[]
   missing: string[]
 }
@@ -120,7 +134,7 @@ const load = async (files: File | File[] | null | undefined) => {
   const file = Array.isArray(files) ? files[0] : files
   csv.value = null
   failure.value = ''
-  createdRooms.value = []
+  appliedRooms.value = []
   createFailure.value = ''
   if (!file) return
   reading.value = true
@@ -174,14 +188,50 @@ const problemOf = (group: CsvGroup) => {
   const missing = group.caseStudies.filter((caseStudy) => !choices[caseStudy]?.versionId)
   return missing.length ? `no task for ${missing.map((caseStudy) => `F${caseStudy}`).join(', ')}` : null
 }
-// Was schon angelegt ist, geht bei einem neuen Versuch nicht noch einmal hinaus.
-const createdRooms = ref<CreatedRoom[]>([])
-const ready = computed(() => csv.value?.groups.filter((group) => !problemOf(group) && !createdRooms.value.some((room) => room.name === group.name)) ?? [])
-const missingPeople = computed(() => createdRooms.value.filter((room) => room.missing.length))
+/** Was das Backend für eine Gruppe vorhat: neuer Raum, oder was dem vorhandenen Raum dieses Kurses fehlt. */
+interface PlannedRoom {
+  name: string
+  roomId: string | null
+  newMembers: string[]
+  newTasks: { taskId: string; versionId: string }[]
+  missing: string[]
+}
+
+const course = ref<string | null>('')
+const plans = ref<Record<string, PlannedRoom>>({})
+const planning = ref(false)
+const planFailure = ref('')
+const appliedRooms = ref<AppliedRoom[]>([])
+const missingPeople = computed(() => appliedRooms.value.filter((room) => room.missing.length))
+const appliedTitle = computed(() => {
+  const created = appliedRooms.value.filter((room) => room.created).length
+  const completed = appliedRooms.value.length - created
+  return [created && `${created} ${created === 1 ? 'room' : 'rooms'} created`, completed && `${completed} ${completed === 1 ? 'room' : 'rooms'} completed`].filter(Boolean).join(', ')
+})
 const creating = ref(false)
 const createFailure = ref('')
 const progress = ref(0)
 const progressTotal = ref(0)
+
+/** Die Gruppen ohne Problem in der Datei; nur sie prüft und schickt der Reiter. */
+const valid = computed(() => csv.value?.groups.filter((group) => !problemOf(group)) ?? [])
+const additionsOf = (plan: PlannedRoom) => plan.newMembers.length + plan.newTasks.length
+/** Was „Apply“ schickt: neue Räume und vorhandene, denen etwas fehlt. */
+const changes = computed(() => valid.value.filter((group) => plans.value[group.name] && (!plans.value[group.name].roomId || additionsOf(plans.value[group.name]))))
+
+const count = (n: number, one: string, many: string) => `+${n} ${n === 1 ? one : many}`
+/** Die Prüfspalte: erst Fehler der Datei, dann was der Import mit der Gruppe täte. */
+const statusOf = (group: CsvGroup) => {
+  const problem = problemOf(group)
+  if (problem) return { text: problem, tone: 'text-error' }
+  if (!course.value?.trim()) return { text: 'enter the course', tone: 'text-medium-emphasis' }
+  const plan = plans.value[group.name]
+  if (!plan) return { text: planning.value ? 'checking…' : '—', tone: 'text-medium-emphasis' }
+  if (!plan.roomId) return { text: 'new room', tone: 'text-success' }
+  if (!additionsOf(plan)) return { text: 'exists · up to date', tone: 'text-medium-emphasis' }
+  const parts = [plan.newMembers.length && count(plan.newMembers.length, 'person', 'people'), plan.newTasks.length && count(plan.newTasks.length, 'model', 'models')].filter(Boolean)
+  return { text: `exists · ${parts.join(' · ')}`, tone: 'text-warning' }
+}
 
 /** Die Gruppe, wie das Backend sie annimmt: Anmeldenamen und je Fallstudie die gewählte Aufgabe. */
 const requestOf = (group: CsvGroup) => ({
@@ -189,25 +239,69 @@ const requestOf = (group: CsvGroup) => ({
   usernames: group.members.map((member) => member.username),
   tasks: group.caseStudies.map((caseStudy) => ({ taskId: choices[caseStudy].taskId, versionId: choices[caseStudy].versionId }))
 })
+const messageOf = (error: unknown) => (error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message
 
-/** Legt die bereiten Gruppen in Paketen an; bricht eines ab, bleiben die vorigen, und ein neuer Versuch schickt nur den Rest. */
+// Nur die Antwort auf die letzte Prüfung zählt; eine ältere kann später ankommen.
+let planRun = 0
+/** Fragt das Backend, was mit den Gruppen geschähe, in denselben Paketen wie beim Anwenden; geschrieben wird nichts. */
+const preview = async () => {
+  const run = ++planRun
+  const groups = valid.value
+  const name = course.value?.trim()
+  planFailure.value = ''
+  if (!name || !groups.length) {
+    plans.value = {}
+    return
+  }
+  planning.value = true
+  try {
+    const next: Record<string, PlannedRoom> = {}
+    for (let start = 0; start < groups.length; start += BATCH) {
+      const { data } = await httpClient.post<{ rooms: PlannedRoom[] }>('/v1/group-work/preview', { course: name, groups: groups.slice(start, start + BATCH).map(requestOf) })
+      for (const room of data.rooms) next[room.name] = room
+    }
+    if (run === planRun) plans.value = next
+  } catch (error) {
+    if (run === planRun) planFailure.value = messageOf(error)
+  } finally {
+    if (run === planRun) planning.value = false
+  }
+}
+
+// Kurs, Datei und Aufgaben ändern sich oft kurz nacheinander; geprüft wird erst, wenn es eine Weile ruhig ist.
+let planTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => JSON.stringify([course.value?.trim(), valid.value.map(requestOf)]),
+  () => {
+    clearTimeout(planTimer)
+    plans.value = {}
+    planTimer = setTimeout(() => void preview(), 400)
+  }
+)
+
+/** Wendet den Plan in Paketen an; bricht eines ab, bleibt das Vorige, und ein neuer Versuch schickt nur, was noch fehlt. */
 const create = async () => {
-  const groups = ready.value
+  const groups = changes.value
+  const name = course.value?.trim()
+  if (!name) return
   creating.value = true
   createFailure.value = ''
+  appliedRooms.value = []
   progress.value = 0
   progressTotal.value = groups.length
   try {
     for (let start = 0; start < groups.length; start += BATCH) {
-      const { data } = await httpClient.post<{ rooms: CreatedRoom[] }>('/v1/group-work', { groups: groups.slice(start, start + BATCH).map(requestOf) })
-      createdRooms.value = [...createdRooms.value, ...data.rooms]
+      const { data } = await httpClient.post<{ rooms: AppliedRoom[] }>('/v1/group-work', { course: name, groups: groups.slice(start, start + BATCH).map(requestOf) })
+      appliedRooms.value = [...appliedRooms.value, ...data.rooms]
       progress.value += data.rooms.length
     }
   } catch (error) {
-    createFailure.value = (error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message
+    createFailure.value = messageOf(error)
   } finally {
     creating.value = false
     if (progress.value) emit('created')
+    // Danach zeigt die Prüfung den neuen Stand, also „up to date“ für alles Angewendete.
+    void preview()
   }
 }
 

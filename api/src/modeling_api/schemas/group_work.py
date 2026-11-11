@@ -24,17 +24,36 @@ class GroupWorkGroup(ApiSchema):
 
 
 class CreateGroupWork(ApiSchema):
-    """Die Gruppen, die ein Tutor auf einmal anlegt; mehr gehen in weiteren Anfragen."""
+    """Die Gruppen eines Kurses, die ein Tutor auf einmal anlegt oder ergänzt; mehr gehen in weiteren Anfragen."""
 
+    course: Name = Field(
+        description="Course and semester, e.g. 'Datenbanken WS 26/27'; a group of the same name in the same course is the same room."
+    )
     groups: list[GroupWorkGroup] = Field(min_length=1, max_length=MAX_GROUPS)
 
 
+class PlannedGroupRoom(ApiSchema):
+    """Was ein Import mit einer Gruppe täte: neuer Raum, oder was dem vorhandenen fehlt."""
+
+    name: str
+    room_id: str | None = Field(description="The room of this group in the course, if there is one already.")
+    new_members: list[str] = Field(description="Login names that would join the group.")
+    new_tasks: list[TaskVersionReference] = Field(description="Tasks the room has no model for yet.")
+    missing: list[str] = Field(description="Login names without an account in the Feedbacksystem; they stay out.")
+
+
+class GroupWorkPlan(ApiSchema):
+    rooms: list[PlannedGroupRoom]
+
+
 class CreatedGroupRoom(ApiSchema):
-    """Ein angelegter Raum und wer im Feedbacksystem nicht gefunden wurde."""
+    """Ein angelegter oder ergänzter Raum und wer im Feedbacksystem nicht gefunden wurde."""
 
     name: str
     room_id: str
-    workpiece_ids: list[str] = Field(description="The model of each task, in the order of the request.")
+    created: bool = Field(description="Whether the room is new; otherwise it existed and got what it lacked.")
+    added_members: list[str] = Field(description="Login names that joined the group.")
+    workpiece_ids: list[str] = Field(description="The models created, one per new task.")
     missing: list[str] = Field(description="Login names without an account in the Feedbacksystem; they are not in the room.")
 
 

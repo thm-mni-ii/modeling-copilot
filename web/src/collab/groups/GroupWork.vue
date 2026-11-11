@@ -7,7 +7,7 @@
     </div>
     <!-- Der Import bleibt offen, solange er gebraucht wird; seine Räume erscheinen danach sofort darunter. -->
     <v-expand-transition>
-      <v-sheet v-show="importing" border rounded="lg" class="pa-4 mb-6"><GroupWorkImport @created="created" /></v-sheet>
+      <v-sheet v-show="importing" border rounded="lg" class="pa-4 mb-6"><GroupWorkImport :courses="overview?.courses ?? []" @created="created" /></v-sheet>
     </v-expand-transition>
     <GroupModels ref="overview" imported :search="search ?? ''" />
   </div>

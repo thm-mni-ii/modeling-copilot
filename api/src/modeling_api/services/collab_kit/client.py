@@ -50,6 +50,11 @@ async def get_room(room_id: str) -> dict:
     return await _request("GET", f"/rooms/{room_id}")
 
 
+async def list_rooms() -> list[dict]:
+    """Alle Räume, die der Dienst sieht; mit seinen Rechten überall sind das alle."""
+    return await _request("GET", "/me/rooms")
+
+
 async def room_presence(room_id: str) -> list[dict]:
     """Who is connected to which workpiece of the room right now: `workpieceId`, `actorId`, `connections`."""
     return await _request("GET", f"/rooms/{room_id}/presence")
@@ -98,6 +103,11 @@ async def set_grant(
 async def list_grants(room_id: str) -> list[dict]:
     """The grants that sit on exactly this room."""
     return await _request("GET", f"/grants?scopeKind=room&scopeId={room_id}")
+
+
+async def list_workpieces() -> list[dict]:
+    """Alle Werkstücke, die der Dienst sieht, mit ihrem Contract."""
+    return await _request("GET", "/workpieces")
 
 
 async def create_workpiece(workpiece: dict[str, Any]) -> dict:

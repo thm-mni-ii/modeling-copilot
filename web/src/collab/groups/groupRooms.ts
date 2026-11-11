@@ -19,6 +19,8 @@ export interface GroupRoom {
 
 /** Wie das Backend einen importierten Raum markiert (services/collab_kit/group_work.py). */
 export interface GroupWorkMark {
+  /** Kurs und Semester, wie der Tutor sie beim Import angab; Räume vor dieser Angabe haben keinen. */
+  course: string
   importedAt: string
   importedBy: string
 }
@@ -26,7 +28,7 @@ export interface GroupWorkMark {
 /** Der Import eines Raums; ein Raum ohne Markierung kommt nicht aus einer Teilnehmerliste. */
 export const groupWorkOf = (room: Room): GroupWorkMark | null => {
   const mark = room.settings.groupWork as Partial<GroupWorkMark> | undefined
-  return typeof mark?.importedAt === 'string' && typeof mark.importedBy === 'string' ? { importedAt: mark.importedAt, importedBy: mark.importedBy } : null
+  return typeof mark?.importedAt === 'string' && typeof mark.importedBy === 'string' ? { course: typeof mark.course === 'string' ? mark.course : '', importedAt: mark.importedAt, importedBy: mark.importedBy } : null
 }
 
 /** Die Namen der Mitglieder je importiertem Raum, aus der CK-Gruppe, die auf ihn verweist; ohne Recht an den Gruppen keine. */
