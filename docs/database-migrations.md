@@ -164,6 +164,10 @@ questionnaire service without importing migration implementations.
     for all previous required activities. The attached “Aufgabenabschluss
     Laborverwaltung” questionnaire copies the seminar completion questions into
     an independent release. The existing study questionnaire remains last.
+    Five separate task-bound models owned by the sample solution's owner exercise
+    spelling, typos and abbreviations, German synonyms, mixed languages, and
+    incorrect or ambiguous labels. They are not sample solutions. Each model
+    and its complete version are stored in a separate `synonym_*.json` resource.
     Preview is read-only; fixed task, survey and step IDs plus conflict checks
     allow retries without overwriting edits. Path updates check the revision;
     personal progress and completed migrations are preserved.

@@ -12,6 +12,13 @@ from modeling_api.services.learning_path_store import step_document
 
 MIGRATION_ID = "12_laboratory_management"
 PREREQUISITE = "11_hotel_chain"
+SYNONYM_MODEL_FILES = (
+    "synonym_spelling.json",
+    "synonym_typos_abbreviations.json",
+    "synonym_terms.json",
+    "synonym_languages.json",
+    "synonym_ambiguity.json",
+)
 
 
 async def migrate(*, apply=False):
@@ -28,6 +35,7 @@ async def migrate(*, apply=False):
 async def publish_task(*, apply):
     task = load_data(MIGRATION_ID, "laboratory_management.json")
     solution = load_data(MIGRATION_ID, "sample_solution.json")["model"]
+    checks = [load_data(MIGRATION_ID, filename)["model"] for filename in SYNONYM_MODEL_FILES]
     resource = load_data(MIGRATION_ID, "learning_path.json")
     version = task["version"]
     solution_version = solution["version"]
@@ -40,23 +48,38 @@ async def publish_task(*, apply):
         raise RuntimeError("The task release must reference its bundled sample solution.")
     task_fields = {key: value for key, value in task.items() if key not in {"id", "version"}}
     version_fields = {key: value for key, value in version.items() if key != "id"}
-    solution_fields = {
-        key: value
-        for key, value in solution.items()
-        if key not in {"id", "name", "ownerId", "version"}
-    }
-    solution_version_fields = {
-        key: value for key, value in solution_version.items() if key != "id"
-    }
     Task.model_validate({"id": task["id"], "createdAt": now, **task_fields})
     TaskVersion.model_validate({"id": version["id"], "createdAt": now, **version_fields})
-    Model.model_validate({
-        "id": solution["id"], "name": solution["name"], "ownerId": solution["ownerId"],
-        "createdAt": now, "updatedAt": now, **solution_fields,
-    })
-    ModelVersion.model_validate({
-        "id": solution_version["id"], "createdAt": now, **solution_version_fields,
-    })
+    model_documents = []
+    for model in [solution, *checks]:
+        model_version = model["version"]
+        model_fields = {
+            key: value for key, value in model.items()
+            if key not in {"id", "name", "ownerId", "version"}
+        }
+        model_version_fields = {
+            key: value for key, value in model_version.items() if key != "id"
+        }
+        if (
+            model_version["modelId"] != model["id"]
+            or model["latestVersionId"] != model_version["id"]
+            or model["taskVersion"] != {"taskId": task["id"], "versionId": version["id"]}
+            or model_version["taskVersion"] != model["taskVersion"]
+        ):
+            raise RuntimeError(f"Invalid model references for {model['name']}.")
+        Model.model_validate({
+            "id": model["id"], "name": model["name"], "ownerId": model["ownerId"],
+            "createdAt": now, "updatedAt": now, **model_fields,
+        })
+        ModelVersion.model_validate({
+            "id": model_version["id"], "createdAt": now, **model_version_fields,
+        })
+        model_documents.extend([
+            (db.model_versions, model_version["id"], model_version_fields, {}),
+            (db.models, model["id"], {
+                "name": model["name"], "ownerId": model["ownerId"], **model_fields,
+            }, {"updatedAt": now}),
+        ])
     step = LearningPathStep.model_validate(resource["step"])
     survey = resource["completionSurvey"]
     definition = Definition.model_validate(survey["definition"]).model_dump(exclude_none=True)
@@ -86,7 +109,7 @@ async def publish_task(*, apply):
             raise RuntimeError(f"Required language release {reference['versionId']} (2.0) is missing.")
 
     # Publish releases before their identities, then attach the station to the path.
-    documents = (
+    documents = [
         (db.survey_versions, survey["versionId"], {
             "surveyId": survey["id"], "version": survey["version"],
             "title": survey["title"], "definition": definition, "kind": "release",
@@ -99,22 +122,22 @@ async def publish_task(*, apply):
             "activeReleaseVersion": survey["version"], "revision": 1,
             "schemaVersion": 2, "deletedAt": None, "createdBy": "", "updatedBy": "",
         }, {"updatedAt": now}),
-        (db.model_versions, solution_version["id"], solution_version_fields, {}),
-        (db.models, solution["id"], {
-            "name": solution["name"], "ownerId": solution["ownerId"], **solution_fields,
-        }, {"updatedAt": now}),
+        *model_documents,
         (db.task_version, version["id"], version_fields, {}),
         (db.task, task["id"], task_fields, {}),
         (db.learning_path_template_steps, str(step.id), {
             **step_document(step, path_id), "archivedAt": None,
         }, {"updatedAt": now}),
-    )
+    ]
     for collection, identifier, fields, timestamps in documents:
         existing = await collection.find_one({"_id": identifier})
         if existing and any(existing.get(key) != value for key, value in fields.items()):
             raise RuntimeError(f"Existing document {identifier} differs; refusing to overwrite it.")
 
-    print(f"{'Add' if apply else 'Would add'}: {task['name']} with sample solution and completion questionnaire")
+    print(
+        f"{'Add' if apply else 'Would add'}: {task['name']} with sample solution, "
+        f"{len(checks)} synonym-check models and completion questionnaire"
+    )
     if not apply:
         return 1
     for collection, identifier, fields, timestamps in documents:
