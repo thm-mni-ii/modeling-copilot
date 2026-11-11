@@ -154,6 +154,20 @@ questionnaire service without importing migration implementations.
     retries without overwriting edits. Completed runs preserve later admin edits.
     Existing tasks and learning paths remain unchanged.
 
+13. `versions/v12_laboratory_management/migration.py` adds the private task
+    “Laborverwaltung” with an immutable 1.0 release and required SERM 2.0.
+    It includes the complete research and laboratory case study, publishes the
+    supplied SERM model as its sample solution, uses informative feedback and
+    enables `model-evaluation-graph-matching`. Its required station
+    is inserted after the existing activities in “Grafische Datenmodellierung”,
+    immediately before the final study questionnaire. Sequential unlocking waits
+    for all previous required activities. The attached “Aufgabenabschluss
+    Laborverwaltung” questionnaire copies the seminar completion questions into
+    an independent release. The existing study questionnaire remains last.
+    Preview is read-only; fixed task, survey and step IDs plus conflict checks
+    allow retries without overwriting edits. Path updates check the revision;
+    personal progress and completed migrations are preserved.
+
 `schema_migrations` records each step as `running`, `failed`, or `completed`.
 The API refuses startup until all registered steps have completed. Repeated starts skip
 completed steps. Concurrent claims fail instead of executing a step twice.

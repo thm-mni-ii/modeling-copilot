@@ -74,4 +74,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v11_hotel_chain.migration",
         ("10_language_syntax_defaults",),
     ),
+    Migration(
+        "12_laboratory_management",
+        "modeling_api.db.migrations.versions.v12_laboratory_management.migration",
+        ("11_hotel_chain",),
+    ),
 )

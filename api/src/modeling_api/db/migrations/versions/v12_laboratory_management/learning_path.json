@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "learningPathId": "b7affb3a-fcbb-509a-8ec1-b4c8a7381d0d",
+  "beforeStepId": "93e55adf-3856-52e0-a6e4-71ee381398f3",
+  "step": {
+    "id": "90633637-a890-597e-bfc6-682ed472b020",
+    "title": "Laborverwaltung",
+    "type": "task",
+    "taskVersion": {
+      "taskId": "06af8986-1fc8-50cc-bc1b-106851f9dcd9",
+      "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
+    },
+    "afterSurveyId": "9b4447ef-2132-575b-b5ff-d801a3debc9f",
+    "required": true,
+    "unlock": {
+      "mode": "sequence",
+      "conditions": []
+    }
+  },
+  "completionSurvey": {
+    "id": "9b4447ef-2132-575b-b5ff-d801a3debc9f",
+    "versionId": "99413548-66aa-5df5-b718-d2e9246bc567",
+    "version": 1,
+    "title": "Aufgabenabschluss Laborverwaltung",
+    "definition": {
+      "introduction": "Wie hast du die gerade bearbeitete Aufgabe erlebt? Bitte beantworte die Fragen möglichst spontan.",
+      "showQuestionNumbers": "off",
+      "pages": [
+        {
+          "name": "difficulty",
+          "title": "Wahrgenommene Schwierigkeit"
+        },
+        {
+          "name": "strategies",
+          "title": "Umgang mit Schwierigkeiten"
+        },
+        {
+          "name": "support",
+          "title": "Genutzte und fehlende Unterstützung"
+        },
+        {
+          "name": "completion",
+          "title": "Freiwilliger Aufgabenabschluss"
+        },
+        {
+          "name": "confidence",
+          "title": "Selbsteinschätzung"
+        }
+      ],
+      "elements": [
+        {
+          "type": "rating",
+          "name": "T1",
+          "page": "difficulty",
+          "isRequired": true,
+          "title": "Wie schwierig war die gerade bearbeitete Modellierungsaufgabe für dich?",
+          "rateMin": 1,
+          "rateMax": 5,
+          "minRateDescription": "überhaupt nicht schwierig",
+          "maxRateDescription": "sehr schwierig",
+          "description": "1 = Überhaupt nicht schwierig; 5 = Sehr schwierig"
+        },
+        {
+          "type": "checkbox",
+          "name": "T2",
+          "page": "difficulty",
+          "isRequired": true,
+          "title": "Wobei hast du Unterstützung benötigt?",
+          "description": "Mehrfachauswahl",
+          "choices": [
+            "Keine Unterstützung benötigt",
+            "Aufgabenstellung verstehen",
+            "Die Modellierungssprache korrekt anwenden (Syntax)",
+            "Entscheiden, wie ich beim Modellieren weiter vorgehe",
+            "Fehler erkennen",
+            "Lernplattform bedienen",
+            "Sonstiges"
+          ],
+          "exclusiveChoices": [
+            "Keine Unterstützung benötigt"
+          ]
+        },
+        {
+          "type": "comment",
+          "name": "T2_other",
+          "page": "difficulty",
+          "isRequired": true,
+          "title": "Sonstiges: Wobei hast du Unterstützung benötigt?",
+          "visibleIf": "{T2} contains 'Sonstiges'"
+        },
+        {
+          "type": "checkbox",
+          "name": "T3",
+          "page": "strategies",
+          "isRequired": true,
+          "title": "Wie bist du überwiegend vorgegangen, wenn du nicht weiterwusstest?",
+          "description": "Mehrfachauswahl",
+          "choices": [
+            "Ich habe eigenständig verschiedene Lösungen ausprobiert.",
+            "Ich habe Hinweise der Lernplattform genutzt.",
+            "Ich habe Vorlesungsmaterialien verwendet.",
+            "Ich habe eine Lehrkraft um Unterstützung gebeten.",
+            "Ich habe außerhalb der Lernplattform und Moodle Unterstützung gesucht.",
+            "Ich habe den schwierigen Teil zunächst übersprungen.",
+            "Ich habe die Bearbeitung beendet.",
+            "Weiß ich nicht"
+          ]
+        },
+        {
+          "type": "checkbox",
+          "name": "T5",
+          "page": "support",
+          "isRequired": true,
+          "title": "Welche Unterstützungsquellen hast du während dieser Aufgabe tatsächlich genutzt?",
+          "description": "Mehrfachauswahl",
+          "choices": [
+            "Keine zusätzliche Unterstützung",
+            "Automatische Modellprüfung (Fehlermeldungen am blinkenden Warnsymbol)",
+            "Fortschrittsanzeige der Plattform",
+            "Bereitgestellte Lehrmaterialien oder Vorlesungsinhalte",
+            "Kommilitoninnen oder Kommilitonen",
+            "Lehrende oder Tutorinnen und Tutoren",
+            "Internetrecherche, Tutorials oder Foren",
+            "Generative KI, z. B. ChatGPT",
+            "Sonstiges"
+          ],
+          "exclusiveChoices": [
+            "Keine zusätzliche Unterstützung"
+          ]
+        },
+        {
+          "type": "comment",
+          "name": "T5_other",
+          "page": "support",
+          "isRequired": true,
+          "title": "Sonstiges: Welche Unterstützungsquelle hast du genutzt?",
+          "visibleIf": "{T5} contains 'Sonstiges'"
+        },
+        {
+          "type": "radiogroup",
+          "name": "T6",
+          "page": "support",
+          "isRequired": true,
+          "title": "Gab es während der Aufgabe Situationen, in denen du Unterstützung gebraucht hättest, aber keine passende erhalten hast?",
+          "choices": [
+            "Nein",
+            "Selten",
+            "Manchmal",
+            "Häufig",
+            "Kann ich nicht beurteilen"
+          ]
+        },
+        {
+          "type": "radiogroup",
+          "name": "T7",
+          "page": "completion",
+          "isRequired": true,
+          "title": "Was war der wichtigste Grund dafür, dass du die Aufgabe jetzt beendet hast?",
+          "choices": [
+            "Ich bin mit meinem Modell zufrieden.",
+            "Ich habe das Gefühl, das Lernziel ausreichend erreicht zu haben.",
+            "Ich wusste nicht mehr, wie ich mein Modell verbessern könnte.",
+            "Ich wollte nicht noch mehr Zeit investieren.",
+            "Ich wollte mit der nächsten Aufgabe weitermachen.",
+            "Ich hatte keine Zeit mehr.",
+            "Technische oder andere Gründe"
+          ]
+        },
+        {
+          "type": "comment",
+          "name": "T7_other",
+          "page": "completion",
+          "isRequired": true,
+          "title": "Technische oder andere Gründe:",
+          "visibleIf": "{T7} = 'Technische oder andere Gründe'"
+        },
+        {
+          "type": "rating",
+          "name": "T9",
+          "page": "confidence",
+          "isRequired": true,
+          "title": "Hättest du die gerade bearbeitete Aufgabe auch ohne die von dir genutzte Unterstützung lösen können?",
+          "rateMin": 1,
+          "rateMax": 5,
+          "minRateDescription": "Ja, auf jeden Fall.",
+          "maxRateDescription": "Nein, auf keinen Fall.",
+          "description": "1 = Ja, auf jeden Fall.; 5 = Nein, auf keinen Fall."
+        },
+        {
+          "type": "radiogroup",
+          "name": "T10_mode",
+          "page": "confidence",
+          "isRequired": true,
+          "title": "Auf welche der genutzten Unterstützungsquellen könntest du am ehesten verzichten?",
+          "description": "Wenn du auf mindestens eine Quelle verzichten könntest, kannst du die genutzten Quellen anschließend sortieren. Bei nur einer Quelle ist keine Sortierung nötig.",
+          "visibleIf": "{T5} notcontains 'Keine zusätzliche Unterstützung'",
+          "choices": [
+            "rank",
+            "none",
+            "unknown"
+          ],
+          "choiceLabels": {
+            "rank": "Ich könnte auf mindestens eine der genutzten Unterstützungsquellen verzichten.",
+            "none": "Ich könnte auf keine der genutzten Unterstützungsquellen verzichten.",
+            "unknown": "Kann ich nicht einschätzen."
+          }
+        },
+        {
+          "type": "ranking",
+          "name": "T10",
+          "page": "confidence",
+          "isRequired": true,
+          "title": "Ordne die genutzten Unterstützungsquellen.",
+          "description": "Rang 1 = Darauf könnte ich am ehesten verzichten; letzter Rang = Darauf könnte ich am wenigsten verzichten. Ziehe die Einträge in die passende Reihenfolge.",
+          "visibleIf": "{T10_mode} = 'rank'",
+          "choicesFromQuestion": "T5",
+          "choicesFromQuestionMode": "selected"
+        }
+      ]
+    }
+  }
+}
