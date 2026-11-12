@@ -27,26 +27,33 @@
       <div class="help-flow-content">
         <div v-if="error" role="alert" class="help-flow-error">{{ error }}<v-btn size="small" variant="text" @click="refresh">Erneut versuchen</v-btn></div>
         <template v-if="request.stage === 'completed'">
-          <p class="help-flow-choice">{{ request.nextAction }}</p>
+          <p class="help-flow-choice">{{ request.nextActionId === automaticModelCheckChoice.value ? automaticModelCheckChoice.label : request.nextAction }}</p>
           <p class="help-flow-next-step">{{ nextStep }}</p>
         </template>
-        <SurveyRenderer v-else-if="phase" :key="`${request.id}:${phase}`" ref="renderer" compact :survey-id="request.surveyIds[phase]" :activity="{ runId: request.runId, stepId: request.stepId, helpRequestId: request.id, helpPhase: phase }" @completed="refresh" />
+        <SurveyRenderer v-else-if="phase" :key="`${request.id}:${phase}`" ref="renderer" compact :survey-id="request.surveyIds[phase]" :new-choice="automaticModelCheckChoice" :activity="{ runId: request.runId, stepId: request.stepId, helpRequestId: request.id, helpPhase: phase }" @completed="refresh" />
       </div>
       <div v-if="request.stage === 'topic' || request.stage === 'completed'" class="help-flow-actions">
         <v-btn v-if="request.stage === 'topic'" size="small" variant="text" :disabled="busy || renderer?.saving" @click="cancel">Abbrechen</v-btn>
-        <v-btn v-else color="primary" size="small" variant="flat" @click="emit('close')">Weiter modellieren</v-btn>
+        <template v-else>
+          <v-btn v-if="request.nextActionId === 'automatic_feedback'" color="info" size="small" variant="flat" :loading="feedbackBusy" @click="emit('automatic-feedback')">Überprüfung öffnen</v-btn>
+          <v-btn color="primary" size="small" variant="text" :disabled="feedbackBusy" @click="emit('close')">Weiter modellieren</v-btn>
+        </template>
       </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import paths, { type HelpRequest, type HelpSurveyPhase, type HelpTextRange } from '@/services/learningPaths'
 import { surveyError } from '@/services/surveys'
+import { automaticModelCheckChoice } from '@/utils/helpQuestionnaire'
 
-const props = defineProps<{ request: HelpRequest; cellIds: string[]; textRanges: HelpTextRange[]; snapshotLoading: boolean; snapshotError: string }>()
-const emit = defineEmits<{ 'update:request': [request: HelpRequest]; close: []; 'remove-text': [index: number]; 'retry-snapshot': [] }>()
+const props = defineProps<{ request: HelpRequest; cellIds: string[]; textRanges: HelpTextRange[]; snapshotLoading: boolean; snapshotError: string; feedbackBusy?: boolean }>()
+const emit = defineEmits<{ 'update:request': [request: HelpRequest]; close: []; 'remove-text': [index: number]; 'retry-snapshot': []; 'automatic-feedback': [] }>()
+watch(() => [props.request.stage, props.request.nextActionId], ([stage, action]) => {
+  if (stage === 'completed' && action === 'automatic_feedback') emit('automatic-feedback')
+}, { immediate: true })
 const renderer = ref<InstanceType<typeof SurveyRenderer> | null>(null)
 const busy = ref(false)
 const error = ref('')
@@ -55,6 +62,7 @@ const title = computed(() => ({ topic: 'Dein Problem', marking: 'Problemstellen 
 const nextStep = computed(() => {
   const action = props.request.nextAction ?? ''
   const id = props.request.nextActionId
+  if (id === 'automatic_feedback') return 'Dein Modell wird überprüft. Die Auswertung öffnet sich im Auswertungs-Tab.'
   if (id) return 'Nutze die gewählte Hilfequelle. Danach kannst du hier weiterarbeiten.'
   if (action.includes('Vorlesungsfolien')) return 'Öffne deine Vorlesungsfolien und suche nach dem Thema oder einem passenden Beispiel zu deiner Problemstelle.'
   if (action.includes('Lehrkraft')) return 'Wende dich an eine Lehrkraft und zeige ihr die Stelle, an der du nicht weiterkommst.'

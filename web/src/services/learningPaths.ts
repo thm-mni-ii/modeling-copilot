@@ -2,6 +2,9 @@ import type { SurveyVersion, SurveyResponse } from '@/services/surveys'
 import http from '@/services/api/httpClient'
 import type { TaskVersionReference, ApiPage } from '@/services/api/types/common'
 import type { ChallengeConfig, ChallengeAttempt } from '@/services/challenges'
+// Temporary until the laboratory task's automatic assessment is available.
+export const laboratoryCompletionBlockedStepId = '90633637-a890-597e-bfc6-682ed472b020'
+export const laboratoryCompletionUnavailableMessage = 'Tut uns leid, die automatische Bewertung ist vorübergehend nicht verfügbar. Du kannst dein Modell weiter bearbeiten, die Aufgabe aber noch nicht abschließen. Die Funktion wird in den nächsten Tagen ergänzt.'
 export interface Condition {
   type: 'completed' | 'score' | 'at' | 'after'
   stepId: string | null
@@ -21,6 +24,7 @@ export interface PathStep {
   required?: boolean
   unlock: { mode: 'sequence' | 'all' | 'any'; conditions: Condition[] }
   challenge?: ChallengeConfig | null
+  minimumScorePercent?: number | null
 }
 export interface PulseSurveyConfig {
   enabled: boolean
@@ -114,6 +118,46 @@ export interface PathModelContext {
   afterSurvey: { surveyId: string; completed: boolean } | null
   challenge: ChallengeAttempt | null
   helpRequests: HelpRequestConfig
+  minimumScorePercent?: number | null
+}
+export interface PathProgressSummary {
+  id: string
+  templateId: string
+  learnerId: string
+  learnerName: string
+  name: string
+  status: 'not_started' | 'in_progress' | 'completed'
+  completed: number
+  skipped: number
+  total: number
+  completedTasks: number
+  totalTasks: number
+  progress: number
+  createdAt: string
+  lastActivityAt: string
+  firstFinishedAt: string | null
+  stepProgress?: PathProgressStage[]
+}
+export interface PathProgressStage {
+  id: string
+  title: string
+  status: StepRun['status']
+}
+export interface PathProgressStep {
+  id: string
+  title: string
+  type: 'task' | 'survey'
+  status: StepRun['status']
+  archived: boolean
+  openedAt: string | null
+  completedAt: string | null
+  availableAt: string | null
+  reasons: string[]
+}
+export interface PathProgressDetail extends PathProgressSummary {
+  description: string
+  templateRevision: number
+  steps: PathProgressStep[]
 }
 export interface HelpRequest {
   id: string
@@ -136,6 +180,10 @@ export interface HelpMarkings { cellIds: string[]; taskTextRanges: HelpTextRange
 export interface SurveySession { version: SurveyVersion; answers: Record<string, unknown>; revision: number; sessionId: string; releaseChanged: boolean; status: string }
 const helpUrl = (runId: string, stepId: string, requestId: string) => `/v1/learning-path-runs/${runId}/steps/${stepId}/help-requests/${requestId}`
 export default {
+  exportProgressCsv: (runIds: string[]) => http.post<Blob>('/v1/learning-path-progress.csv', { runIds }, { responseType: 'blob' }),
+  progressAccess: () => http.get<{ canView: boolean }>('/v1/learning-path-progress-access'),
+  progress: (skip = 0) => http.get<ApiPage<PathProgressSummary>>('/v1/learning-path-progress', { params: { skip, limit: 100 } }),
+  progressDetail: (id: string) => http.get<PathProgressDetail>(`/v1/learning-path-progress/${id}`),
   helpBlueprint: () => http.get<HelpBlueprint>('/v1/learning-path-help-blueprint'),
   helpDefaults: () => http.get<Record<HelpSurveyPhase, string>>('/v1/learning-path-help-defaults'),
   activeHelp: (runId: string, stepId: string) => http.get<HelpRequest | null>(`/v1/learning-path-runs/${runId}/steps/${stepId}/help-requests/active`),
@@ -168,5 +216,5 @@ export default {
   runs: (skip = 0) => http.get<ApiPage<PathRun>>('/v1/learning-path-runs', { params: { skip, limit: 100 } }),
   run: (id: string) => http.get<PathRun>(`/v1/learning-path-runs/${id}`),
   startStep: (runId: string, stepId: string, acknowledgedChallenge: ChallengeConfig | null = null) => http.post<{ modelId: string }>(`/v1/learning-path-runs/${runId}/steps/${stepId}/start`, { acknowledgedChallenge }),
-  complete: (runId: string, stepId: string) => http.post<PathRun>(`/v1/learning-path-runs/${runId}/steps/${stepId}/complete`)
+  complete: (runId: string, stepId: string, evaluationId?: string) => http.post<PathRun>(`/v1/learning-path-runs/${runId}/steps/${stepId}/complete`, { evaluationId })
 }

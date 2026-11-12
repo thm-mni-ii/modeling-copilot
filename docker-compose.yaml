@@ -141,55 +141,55 @@ services:
     restart: unless-stopped
 
   workflow-synonym-matching:
-    image: modeling-copilot/synonym-matching:0.3.0
+    image: modeling-copilot/synonym-matching:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: synonym-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-synonym-matching-louis:
-    image: modeling-copilot/synonym-matching-louis:0.1.1
+    image: modeling-copilot/synonym-matching-louis:latest
     build:
       context: ./dagu/workflow-services/synonym-matching-louis
     profiles: [workflow-services]
 
   workflow-graph-parser:
-    image: modeling-copilot/graph-parser:0.4.1
+    image: modeling-copilot/graph-parser:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: graph-parser/Dockerfile
     profiles: [workflow-services]
 
   workflow-model-label-extraction:
-    image: modeling-copilot/model-label-extraction:0.1.0
+    image: modeling-copilot/model-label-extraction:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: model-label-extraction/Dockerfile
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:
-    image: modeling-copilot/one-to-one-graph-matching:0.3.0
+    image: modeling-copilot/one-to-one-graph-matching:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: one-to-one-graph-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-minimal-matching-unit:
-    image: modeling-copilot/minimal-matching-unit:0.3.0
+    image: modeling-copilot/minimal-matching-unit:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: minimal-matching-unit/Dockerfile
     profiles: [workflow-services]
 
   workflow-feedback-generation:
-    image: modeling-copilot/feedback-generation:0.3.0
+    image: modeling-copilot/feedback-generation:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: feedback-generation/Dockerfile
     profiles: [workflow-services]
 
   workflow-data:
-    image: modeling-copilot/workflow-data:0.2.0
+    image: modeling-copilot/workflow-data:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: workflow-data/Dockerfile

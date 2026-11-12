@@ -20,7 +20,7 @@
           <v-btn v-if="!windowOpen && !shared" size="x-small" variant="text" density="compact" title="Open as a free-floating window" class="task-topbar__action-btn" @click="emit('pop-out')">
             <v-icon size="15">mdi-open-in-new</v-icon>
           </v-btn>
-          <v-btn v-if="evaluationWorkflows.length" size="x-small" color="primary" variant="tonal" prepend-icon="mdi-play-circle-outline" @click="emit('start-evaluation')">Auswertung starten</v-btn>
+          <v-btn v-if="evaluationAvailable && userStore.globalRole === 'ADMIN'" size="x-small" color="info" variant="tonal" prepend-icon="mdi-play-circle-outline" @click="emit('start-evaluation')">Auswertung starten (nur Administratoren)</v-btn>
         </div>
       </div>
 
@@ -53,6 +53,9 @@ import type { JsonObject } from '@/services/api/types/common'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { DiagramTask } from '@/model/Task'
 import type { HelpTextRange } from '@/services/learningPaths'
+import { useUserStore } from '@/stores/userStore'
+
+const userStore = useUserStore()
 
 const props = withDefaults(
   defineProps<{
@@ -63,7 +66,7 @@ const props = withDefaults(
     taskEdit: TaskEditDocument | null
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
-    evaluationWorkflows?: string[]
+    evaluationAvailable?: boolean
     helpSelectionMode?: boolean
     helpTaskDocument?: JsonObject | null
     helpTextRanges?: HelpTextRange[]
@@ -78,7 +81,7 @@ const props = withDefaults(
     shared: false,
     elementOptions: () => [],
     connectionOptions: () => [],
-    evaluationWorkflows: () => [],
+    evaluationAvailable: false,
     helpTextRanges: () => []
   }
 )

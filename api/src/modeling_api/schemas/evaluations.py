@@ -43,6 +43,8 @@ class EvaluationDetail(Evaluation):
     submission_snapshot: JsonObject
     steps: list[WorkflowStep] = Field(default_factory=list)
     final_result: JsonObject | None = None
+    score_percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False,
+                                      description="Final model score. Null until the scoring integration supplies it.")
 
 
 class StartEvaluation(ApiSchema):

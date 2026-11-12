@@ -11,10 +11,11 @@ Frontend sichtbar werden.
 
 ```bash
 docker compose --profile workflow-services build
-docker run --rm -e TEMPLATE_INPUT='{"step":"graph_parser"}' modeling-copilot/graph-parser:0.1.1
+docker run --rm -e TEMPLATE_INPUT='{"step":"graph_parser"}' modeling-copilot/graph-parser:latest
 ```
 
 Docker-Desktop-Kubernetes kann lokal gebaute Images mit
-`image_pull_policy: IfNotPresent` verwenden. Für K3s müssen die Images vor dem
-Start in eine für den Cluster erreichbare Registry gepusht und die Image-Namen
-im Workflow auf diese versionierten Registry-Tags geändert werden.
+`image_pull_policy: IfNotPresent` verwenden. Nach jedem Build müssen Images mit
+dem Tag `latest` erneut in den Kubernetes-Knoten importiert werden. Für K3s
+müssen die Images vor dem Start in eine für den Cluster erreichbare Registry
+gepusht werden.

@@ -36,7 +36,7 @@ async def create(run_id, step_id, body: CreateHelpRequest, user):
     ):
         raise conflict("Help requests are not available for this task.")
     model_id = state["modelId"]
-    await models.get_model(UUID(model_id), user)
+    model = await models.get_model(UUID(model_id), user)
     await models.ensure_task_questionnaire_completed(model_id)
     version = await db.model_versions.find_one(
         {"_id": str(body.model_version_id), "modelId": model_id}
@@ -44,6 +44,9 @@ async def create(run_id, step_id, body: CreateHelpRequest, user):
     if not version:
         raise not_found()
     config = HelpRequestConfig.model_validate(template.get("helpRequests", {}))
+    task = await db.task_version.find_one({
+        "_id": model["taskVersion"]["versionId"], "taskId": model["taskVersion"]["taskId"], "kind": "release",
+    })
     questionnaire = await help_questionnaire.publish(
         template["_id"], template["title"], template["revision"], config, user.id
     )
@@ -58,6 +61,7 @@ async def create(run_id, step_id, body: CreateHelpRequest, user):
         "modelVersionId": str(body.model_version_id),
         "createdAt": utcnow(),
         "stage": "topic",
+        "evaluationAvailable": bool(task and task.get("data", {}).get("sampleSolutions")),
         "surveyIds": {phase: questionnaire["surveyId"] for phase in HELP_SURVEY_IDS},
         "surveyReleaseId": questionnaire["_id"],
         "surveySessionId": str(uuid5(UUID(request_id), "survey-session")),
@@ -274,7 +278,7 @@ async def open_combined(request, phase):
         "answers": {k: v for k, v in session["answers"].items() if k in help_questionnaire.PHASE_QUESTIONS[phase]},
         "status": "submitted" if done else "draft", "releaseChanged": False,
         "version": {"id": version["_id"], **{k: v for k, v in version.items() if k != "_id"},
-                    "definition": help_questionnaire.phase_definition(version, phase)},
+                    "definition": help_questionnaire.phase_definition(version, phase, evaluation_available=request.get("evaluationAvailable", False))},
     }
 
 
@@ -289,7 +293,7 @@ async def save_combined(request, phase, body, action):
         return survey_sessions.response_view({**session, "completedAt": done[phase]}, version)
     if request["stage"] != phase or session["status"] != "draft" or phase in done:
         raise conflict("Complete the current help step first.")
-    content = help_questionnaire.phase_definition(version, phase)
+    content = help_questionnaire.phase_definition(version, phase, evaluation_available=request.get("evaluationAvailable", False))
     surveys.validate_answers(content if action == "submit" else {
         "elements": [{**q, "isRequired": False} for q in content["elements"]]
     }, body.answers)

@@ -1,4 +1,6 @@
 """JSON files in an evaluation workspace; no service or pipeline execution logic."""
+from copy import deepcopy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -8,6 +10,25 @@ import tempfile
 
 VERSION = 1
 INPUT_SCHEMA = "evaluation-input/v1"
+
+
+def input_hash(bundle: dict) -> str:
+    """Hash frozen input; sort identity sets while preserving ordered content."""
+    content = deepcopy(bundle)
+    content.pop("inputHash", None)
+    content["models"].sort(key=lambda model: model["source"]["key"])
+    content["languages"].sort(key=lambda language: (language["languageId"], language["versionId"]))
+    language_owners = [content["task"], *[model["snapshot"] for model in content["models"]]]
+    for owner in language_owners:
+        if "workspaceLanguages" in owner:
+            owner["workspaceLanguages"].sort(key=lambda reference: (reference["languageId"], reference["versionId"]))
+    for language in content["languages"]:
+        language["includedLanguageVersions"].sort(key=lambda reference: (reference["languageId"], reference["versionId"]))
+    solutions = content["task"]["data"].get("sampleSolutions")
+    if isinstance(solutions, list):
+        solutions.sort(key=lambda reference: (reference["modelId"], reference["versionId"]))
+    encoded = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def identifier(value: object) -> str:
@@ -61,6 +82,10 @@ class Workspace:
             raise ValueError("unsupported evaluation input schema")
         if value.get("evaluationId") != self.evaluation_id:
             raise ValueError("input evaluation ID does not match the workspace")
+        if not isinstance(value.get("comparisonConfig"), dict):
+            raise ValueError("comparisonConfig must be a JSON object")
+        if value.get("inputHash") != input_hash(value):
+            raise ValueError("input hash does not match the frozen snapshot")
         return value
 
 

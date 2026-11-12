@@ -1,6 +1,13 @@
 import type { HelpBlueprint, HelpEditableQuestion, HelpQuestionEdit, HelpRequestConfig, HelpSurveyPhase } from '@/services/learningPaths'
 import type { SurveyDefinition } from '@/services/surveys'
 
+export const automaticModelCheckChoice = {
+  question: 'next_action',
+  value: 'automatic_feedback',
+  label: 'Automatische Überprüfung des Modells',
+  hint: 'Neu: Hier kannst du dein aktuelles Modell automatisch überprüfen lassen.'
+}
+
 export const editableHelpQuestions: { name: HelpEditableQuestion; title: string }[] = [
   { name: 'stuck_duration', title: 'Dauer des Stillstands' },
   { name: 'support_need', title: 'Gewünschte Unterstützung' },
@@ -14,7 +21,8 @@ export const helpPhaseDefinition = (blueprint: HelpBlueprint, config: HelpReques
   const names: HelpEditableQuestion[] = phase === 'reflection' ? ['stuck_duration', 'support_need'] : ['next_action']
   return { elements: names.map(name => {
     const question = helpQuestion(blueprint, config, name)
-    return { type: 'radiogroup', name, title: question.title, isRequired: true, choices: question.choices.map(c => c.id), choiceLabels: Object.fromEntries(question.choices.map(c => [c.id, c.text])) }
+    const choices = name === 'next_action' ? [...question.choices.filter(choice => choice.id !== automaticModelCheckChoice.value), { id: automaticModelCheckChoice.value, text: automaticModelCheckChoice.label }] : question.choices
+    return { type: 'radiogroup', name, title: question.title, isRequired: true, choices: choices.map(c => c.id), choiceLabels: Object.fromEntries(choices.map(c => [c.id, c.text])) }
   }) }
 }
 

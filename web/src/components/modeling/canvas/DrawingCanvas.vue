@@ -124,7 +124,7 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" ref="rightSidebar" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :selected-task-edit-ids="props.selectedTaskEditIds" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
+        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" ref="rightSidebar" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :selected-task-edit-ids="props.selectedTaskEditIds" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" :evaluation-perspective="props.evaluationPerspective" @evaluation-updated="emit('evaluation-updated', $event)" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
           <template v-if="$slots['sidebar-top']" #top><slot name="sidebar-top" /></template>
         </SidebarRightContainer>
         <CollabConnector v-if="props.modelManagement" />
@@ -140,6 +140,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } fr
 import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorHandler, SelectionCellsHandler, SelectionHandler, CellState, EdgeStyle, GraphDataModel, PanningHandler, ImageBox, Client, KeyHandler, TooltipHandler, FitPlugin, Clipboard, ConnectionConstraint, Point } from '@maxgraph/core'
 import { CellHighlight, eventUtils, type EdgeStyleFunction, type MouseListenerSet, type GraphPluginConstructor } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
+import type { EvaluationDetail } from '@/services/api/types/evaluation'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
 import { provideGraphContext } from '@/composables/useGraphContext'
@@ -484,6 +485,7 @@ const props = withDefaults(
     selectedTaskEditIds?: string[]
     modelId?: string | null
     openEvaluationId?: string | null
+    evaluationPerspective?: 'service' | 'student'
     previewConnection?: DiagramConnection
     previewMode?: 'simple' | 'scenario' | 'routing'
     overlays?: FeedbackCanvasOverlayEntry[]
@@ -524,6 +526,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
+  'evaluation-updated': [evaluation: EvaluationDetail]
   'update:model': [GraphDataModel]
   'update:autonomyMode': [AutonomyMode]
   'update:connectionPreferences': [preferences: JsonObject]
@@ -539,6 +542,9 @@ const connectionPreview = useConnectionPreviewPreference()
 const connectionPreviewEnabled = computed(() => props.connectionPreviewAllowed && connectionPreview.value)
 const activeLayerView = ref<CanvasLayerView>('both')
 const rightSidebarCollapsed = ref(false)
+watch(() => props.openEvaluationId, (id) => {
+  if (id) rightSidebarCollapsed.value = false
+})
 const rightSidebar = ref<InstanceType<typeof SidebarRightContainer> | null>(null)
 const openModelLanguages = async () => {
   rightSidebarCollapsed.value = false

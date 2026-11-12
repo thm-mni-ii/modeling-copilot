@@ -3,26 +3,60 @@
 from uuid import UUID
 from typing import Literal
 from fastapi import APIRouter
-from modeling_api.routes.deps import CurrentUser, Skip, Limit
+from fastapi.responses import Response
+from modeling_api.routes.deps import CurrentBearer, CurrentUser, Skip, Limit
 from modeling_api.schemas.learning_paths import (
     SaveTemplate,
     PathTemplate,
     PathRun,
     StartedStep,
+    CompleteStep,
     PathModelContext,
     PulsePoll,
     PulsePollResult,
     CreateHelpRequest,
     HelpRequest,
     HelpMarkings,
+    PathProgressSummary,
+    PathProgressDetail,
+    ExportPathProgress,
 )
 from modeling_api.schemas.common import Page
 from modeling_api.schemas.survey_sessions import SurveySessionInput, SurveySessionView
 from modeling_api.schemas.challenges import StartStep
 from modeling_api.services import learning_paths as service, pulse_surveys, help_requests
 from modeling_api.db.help_questionnaires import HELP_SURVEY_IDS
+from modeling_api.services import learning_path_progress
 
 router = APIRouter(tags=["Learning paths"])
+
+
+@router.get("/learning-path-progress-access")
+async def progress_access(user: CurrentUser):
+    return {"canView": learning_path_progress.can_view_progress(user)}
+
+
+@router.get("/learning-path-progress", response_model=Page[PathProgressSummary])
+async def progress(user: CurrentUser, token: CurrentBearer, skip: Skip = 0, limit: Limit = 100):
+    return await learning_path_progress.list_progress(user, skip, limit, token=token)
+
+
+@router.get("/learning-path-progress/{run_id}", response_model=PathProgressDetail)
+async def progress_detail(run_id: UUID, user: CurrentUser, token: CurrentBearer):
+    return await learning_path_progress.get_progress(run_id, user, token=token)
+
+
+@router.post("/learning-path-progress.csv", response_class=Response)
+async def export_progress(body: ExportPathProgress, user: CurrentUser, token: CurrentBearer):
+    content = await learning_path_progress.export_progress_csv(user, body.run_ids, token=token)
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="learning-path-progress.csv"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.get("/learning-path-help-blueprint")
@@ -157,8 +191,8 @@ async def resume_step(run_id: UUID, step_id: UUID, user: CurrentUser):
 @router.post(
     "/learning-path-runs/{run_id}/steps/{step_id}/complete", response_model=PathRun
 )
-async def complete_step(run_id: UUID, step_id: UUID, user: CurrentUser):
-    return await service.complete_step(run_id, step_id, user)
+async def complete_step(run_id: UUID, step_id: UUID, user: CurrentUser, body: CompleteStep | None = None):
+    return await service.complete_step(run_id, step_id, user, body)
 
 
 @router.post(

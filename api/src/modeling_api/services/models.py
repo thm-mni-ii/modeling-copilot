@@ -225,6 +225,7 @@ async def task_for_room(reference: Document) -> Document:
             "autonomyMode": data.get("autonomyMode", "free"),
             "connectionPreviewAllowed": data.get("connectionPreviewAllowed"),
             "evaluationWorkflows": data.get("evaluationWorkflows", []),
+            "evaluationAvailable": bool(data.get("sampleSolutions")),
         },
         "workspaceLanguages": version.get("workspaceLanguages", []),
     }

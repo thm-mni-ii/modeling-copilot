@@ -154,6 +154,40 @@ questionnaire service without importing migration implementations.
     retries without overwriting edits. Completed runs preserve later admin edits.
     Existing tasks and learning paths remain unchanged.
 
+13. `versions/v12_laboratory_management/migration.py` adds the private task
+    “Laborverwaltung” with an immutable 1.0 release and required SERM 2.0.
+    It includes the complete research and laboratory case study, publishes the
+    supplied SERM model as its sample solution, uses informative feedback and
+    enables `model-evaluation-graph-matching`. Its required station
+    is inserted after the existing activities in “Grafische Datenmodellierung”,
+    immediately before the final study questionnaire. Sequential unlocking waits
+    for all previous required activities. The attached “Aufgabenabschluss
+    Laborverwaltung” questionnaire copies the seminar completion questions into
+    an independent release. The existing study questionnaire remains last.
+    Five separate task-bound models owned by the sample solution's owner exercise
+    spelling, typos and abbreviations, German synonyms, mixed languages, and
+    incorrect or ambiguous labels. They are not sample solutions. Each model
+    and its complete version are stored in a separate `synonym_*.json` resource.
+    Preview is read-only; fixed task, survey and step IDs plus conflict checks
+    allow retries without overwriting edits. Path updates check the revision;
+    personal progress and completed migrations are preserved.
+
+14. `versions/v13_language_comparison_groups/migration.py` adds evaluation
+    settings to every stored language version that does not already have them,
+    including historical releases, checkpoints and archived languages. Known
+    element types are grouped when at least two members are present: SERM
+    entity variants, attribute variants and generalization variants; ERM
+    entity, relationship and attribute variants; and UML concrete and abstract
+    classes. Connection groups cover SERM cardinality variants and UML
+    association, directed association, aggregation and composition. Element
+    and connection memberships are evaluated separately. UML interfaces and
+    ERM connection types remain separate. Unknown types are not inferred,
+    so other languages receive an empty group list unless they contain these
+    known type identifiers. Existing evaluation settings are never overwritten.
+    Preview is read-only; retries preserve completed updates, concurrent changes
+    are rejected, and completed migrations are skipped. Version identities and
+    references remain unchanged.
+
 `schema_migrations` records each step as `running`, `failed`, or `completed`.
 The API refuses startup until all registered steps have completed. Repeated starts skip
 completed steps. Concurrent claims fail instead of executing a step twice.

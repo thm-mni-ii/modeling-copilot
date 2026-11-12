@@ -19,7 +19,7 @@
           <v-list nav aria-label="Functions" class="navigation-menu">
             <v-list-subheader>Workspace</v-list-subheader>
             <v-list-item v-for="item in navigation.workspaceItems" :key="item.route" :to="{ name: item.route }" :prepend-icon="item.icon" :title="item.title" color="primary-dark" />
-            <template v-if="navigation.isAdmin">
+            <template v-if="navigation.adminItems.length">
               <v-divider class="my-2" />
               <v-list-subheader>Administration</v-list-subheader>
               <v-list-item v-for="item in navigation.adminItems" :key="item.route" :to="{ name: item.route }" :prepend-icon="item.icon" :title="item.title" color="primary-dark" />
