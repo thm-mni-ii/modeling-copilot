@@ -1,0 +1,144 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "semantic-candidates/v1 in workflow-result/v1",
+  "type": "object",
+  "required": ["schema", "schemaVersion", "status", "capability", "mode", "summary", "result"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "workflow-result/v1"},
+    "schemaVersion": {"const": 1, "type": "integer"},
+    "status": {"const": "ok"},
+    "capability": {"const": "synonym-matching"},
+    "mode": {"const": "match"},
+    "summary": {"type": "string"},
+    "result": {
+      "type": "object",
+      "required": ["schema", "evaluationId", "inputHash", "pair", "graphHashes", "inventoryHashes", "inventoryPaths", "semanticConfig", "semanticConfigHash", "producer", "methods", "candidatePairCount", "scoredPairCount", "unavailablePairCount", "processedTexts", "synonymMatrix", "connectionTextMatrix", "unscoredElements", "completeness", "diagnostics", "candidateHash"],
+      "additionalProperties": false,
+      "properties": {
+        "schema": {"const": "semantic-candidates/v1"},
+        "evaluationId": {"type": "string"},
+        "inputHash": {"$ref": "#/definitions/hash"},
+        "candidateHash": {"$ref": "#/definitions/hash"},
+        "semanticConfigHash": {"$ref": "#/definitions/hash"},
+        "pair": {
+          "type": "object", "required": ["studentKey", "referenceKey"],
+          "additionalProperties": false,
+          "properties": {"studentKey": {"const": "submission"}, "referenceKey": {"type": "string", "minLength": 1}}
+        },
+        "graphHashes": {"$ref": "#/definitions/pairHashes"},
+        "inventoryHashes": {"$ref": "#/definitions/pairHashes"},
+        "inventoryPaths": {
+          "type": "object", "required": ["student", "reference"], "additionalProperties": false,
+          "properties": {
+            "student": {"type": "string", "pattern": "^labels/[A-Za-z0-9_-]{1,100}\\.json$"},
+            "reference": {"type": "string", "pattern": "^labels/[A-Za-z0-9_-]{1,100}\\.json$"}
+          }
+        },
+        "semanticConfig": {
+          "type": "object", "required": ["methods", "preprocessing"], "additionalProperties": false,
+          "properties": {
+            "methods": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+            "preprocessing": {
+              "type": "object",
+              "additionalProperties": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
+        "producer": {"type": "object", "required": ["service", "version", "resourceHash", "runtime", "packages"]},
+        "methods": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/method"}},
+        "candidatePairCount": {"type": "integer", "minimum": 0},
+        "scoredPairCount": {"type": "integer", "minimum": 0},
+        "unavailablePairCount": {"type": "integer", "minimum": 0},
+        "processedTexts": {
+          "type": "object", "required": ["student", "reference"], "additionalProperties": false,
+          "properties": {
+            "student": {"$ref": "#/definitions/processedTextList"},
+            "reference": {"$ref": "#/definitions/processedTextList"}
+          }
+        },
+        "synonymMatrix": {"type": "array", "items": {
+          "type": "object", "required": ["referenceElementId", "referenceLabel", "matches"], "additionalProperties": false,
+          "properties": {
+            "referenceElementId": {"type": "string", "minLength": 1},
+            "referenceLabel": {"type": "string"},
+            "matches": {"type": "array", "items": {"$ref": "#/definitions/elementCandidate"}}
+          }
+        }},
+        "connectionTextMatrix": {"type": "array", "items": {"$ref": "#/definitions/connectionTextPair"}},
+        "unscoredElements": {"type": "array", "items": {
+          "type": "object", "required": ["side", "id", "reason"], "additionalProperties": false,
+          "properties": {
+            "side": {"enum": ["student", "reference"]},
+            "id": {"type": "string", "minLength": 1},
+            "reason": {"enum": ["missing_text", "unsupported_text"]}
+          }
+        }},
+        "completeness": {
+          "type": "object", "required": ["technical", "interpretation"], "additionalProperties": false,
+          "properties": {"technical": {"const": "complete"}, "interpretation": {"enum": ["complete", "partial"]}}
+        },
+        "diagnostics": {"type": "array", "items": {"type": "object"}}
+      }
+    }
+  },
+  "definitions": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "pairHashes": {
+      "type": "object", "required": ["student", "reference"], "additionalProperties": false,
+      "properties": {"student": {"$ref": "#/definitions/hash"}, "reference": {"$ref": "#/definitions/hash"}}
+    },
+    "processedTextList": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["id", "text"], "additionalProperties": false,
+        "properties": {"id": {"type": "string", "minLength": 1}, "text": {"type": "string", "minLength": 1}}
+      }
+    },
+    "scoreMap": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "number"}},
+    "method": {
+      "type": "object", "required": ["name", "scoreRange", "preprocessing", "parameters"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "scoreRange": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+        "preprocessing": {"type": "array", "items": {"type": "string"}},
+        "parameters": {"type": "object"},
+        "resources": {"type": "object"}
+      }
+    },
+    "elementCandidate": {
+      "type": "object",
+      "required": ["submissionElementId", "submissionLabel", "comparisonBasis", "scoreStatus", "scores"],
+      "additionalProperties": false,
+      "properties": {
+        "submissionElementId": {"type": "string", "minLength": 1},
+        "submissionLabel": {"type": "string"},
+        "comparisonBasis": {"enum": ["group", "type"]},
+        "scoreStatus": {"enum": ["scored", "unavailable"]},
+        "unavailableReason": {"enum": ["missing_text", "unsupported_text"]},
+        "scores": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/scoreMap"}]}
+      },
+      "allOf": [
+        {"if": {"properties": {"scoreStatus": {"const": "scored"}}},
+         "then": {"required": ["scores"], "properties": {"scores": {"$ref": "#/definitions/scoreMap"}}},
+         "else": {"required": ["unavailableReason"], "properties": {"scores": {"type": "null"}}}}
+      ]
+    },
+    "connectionTextPair": {
+      "type": "object",
+      "required": ["referenceConnectionTextId", "submissionConnectionTextId", "referenceOwnerConnectionId", "submissionOwnerConnectionId", "referenceLabel", "submissionLabel", "kind", "connectionLabelId", "scores"],
+      "additionalProperties": false,
+      "properties": {
+        "referenceConnectionTextId": {"type": "string", "minLength": 1},
+        "submissionConnectionTextId": {"type": "string", "minLength": 1},
+        "referenceOwnerConnectionId": {"type": ["string", "null"]},
+        "submissionOwnerConnectionId": {"type": ["string", "null"]},
+        "referenceLabel": {"type": "string"},
+        "submissionLabel": {"type": "string"},
+        "kind": {"enum": ["self", "additionalLabel"]},
+        "connectionLabelId": {"type": ["string", "null"]},
+        "scores": {"$ref": "#/definitions/scoreMap"}
+      }
+    }
+  }
+}

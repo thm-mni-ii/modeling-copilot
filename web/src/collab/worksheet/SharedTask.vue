@@ -8,7 +8,7 @@
       :element-options="elementOptions"
       :connection-options="connectionOptions"
       :history="history"
-      :evaluation-workflows="evaluationWorkflows"
+      :evaluation-available="evaluationAvailable"
       shared
       :notes="NOTES_ENABLED ? notes ?? null : null"
       @select-connection="emit('select-connection', $event)"
@@ -86,7 +86,7 @@ const notes = useEditor({ extensions: notesExtensions('Notes for everyone in the
 const taskEdit = computed<TaskEditDocument | null>(() => (document.value ? { schemaVersion: 1, revision: 0, updatedAt: '', document: document.value } : null))
 
 // Only the host evaluates, so only the host gets the button.
-const evaluationWorkflows = computed(() => (currentShare.value?.privateModelId ? sharedTaskSettings.value?.evaluationWorkflows ?? [] : []))
+const evaluationAvailable = computed(() => Boolean(currentShare.value?.privateModelId && sharedTaskSettings.value?.evaluationAvailable))
 
 // The sidebar lists the edits of the room as it does the private ones.
 watch(taskEdit, (value) => (sharedTaskEdit.value = value), { immediate: true })
@@ -175,7 +175,11 @@ onMounted(async () => {
     if (unmounted) return
     base = baseOf(html)
     contentHtml.value = html
-    sharedTaskSettings.value = (shared.detail?.settings as SharedTaskSettings | undefined) ?? null
+    const settings = shared.detail?.settings as SharedTaskSettings | undefined
+    sharedTaskSettings.value = settings ? {
+      ...settings,
+      evaluationAvailable: settings.evaluationAvailable ?? Boolean(settings.evaluationWorkflows?.length)
+    } : null
     sharedTaskReference.value = (shared.detail?.taskVersion as TaskVersionReference | undefined) ?? null
     task.value = { id: shared._id, title: shared.title, content: html, createdAt: shared.createdAt, updatedAt: shared.createdAt }
 

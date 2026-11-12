@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { useUserStore } from '@/stores/userStore'
 import { useBearerToken } from '@/composables/useBearerToken'
 import { mayManageAll } from '@/collab/rooms/access'
+import learningPaths from '@/services/learningPaths'
 
 interface NavigationItem {
   title: string
@@ -25,12 +26,28 @@ const administrationItems: NavigationItem[] = [
   { title: 'Collaboration', description: 'Manage collaboration rooms, groups, and shared models.', icon: 'mdi-account-group-outline', route: 'Collab' }
 ]
 
+const pathProgressItem: NavigationItem = { title: 'Learning path progress', description: 'Review participation and completed tasks across learning paths.', icon: 'mdi-table-account', route: 'LearningPathProgress' }
+
 // Both the home tiles and the navigation menu use the same visibility rules.
 export const useNavigationStore = defineStore('navigation', () => {
   const userStore = useUserStore()
   const { bearerToken } = useBearerToken()
   const isAdmin = computed(() => userStore.globalRole === 'ADMIN')
   const canManageCollaboration = ref(false)
+  const canViewPathProgress = ref(false)
+
+  watch(bearerToken, async (token, _previous, onCleanup) => {
+    let cancelled = false
+    onCleanup(() => { cancelled = true })
+    canViewPathProgress.value = false
+    if (!token) return
+    try {
+      const access = (await learningPaths.progressAccess()).data
+      if (!cancelled) canViewPathProgress.value = access.canView
+    } catch {
+      // Navigation remains restricted when permissions cannot be verified.
+    }
+  }, { immediate: true })
 
   watch(
     [bearerToken, isAdmin],
@@ -47,7 +64,10 @@ export const useNavigationStore = defineStore('navigation', () => {
     { immediate: true }
   )
 
-  const adminItems = computed(() => (isAdmin.value ? administrationItems.filter((item) => item.route !== 'Collab' || canManageCollaboration.value) : []))
+  const adminItems = computed(() => [
+    ...(isAdmin.value ? administrationItems.filter((item) => item.route !== 'Collab' || canManageCollaboration.value) : []),
+    ...(canViewPathProgress.value ? [pathProgressItem] : [])
+  ])
 
-  return { workspaceItems, adminItems, isAdmin }
+  return { workspaceItems, adminItems, isAdmin, canViewPathProgress }
 })

@@ -39,6 +39,7 @@ export const validatePathSteps = (steps: PathStep[]): Record<string, string[]> =
     if (!step.title.trim() || step.title.length > 256) add(step.id, 'Enter a step title of up to 256 characters.')
     if (step.type !== 'survey' && (!step.taskVersion?.taskId || !step.taskVersion?.versionId)) add(step.id, 'Select a published task release.')
     if (step.type === 'survey' && !step.surveyId) add(step.id, 'Select a published questionnaire release.')
+    if (step.minimumScorePercent != null && (step.type === 'survey' || !Number.isFinite(step.minimumScorePercent) || step.minimumScorePercent < 0 || step.minimumScorePercent > 100)) add(step.id, 'Enter a minimum evaluation score between 0 and 100 for a task.')
     for (const condition of step.unlock.conditions) {
       const source = steps.find((item) => item.id === condition.stepId)
       if (source?.type === 'survey' && source.required === false) add(step.id, 'Optional questionnaires cannot be prerequisites.')

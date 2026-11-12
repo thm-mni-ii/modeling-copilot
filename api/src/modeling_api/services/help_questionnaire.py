@@ -17,6 +17,8 @@ PHASE_QUESTIONS = {
     "reflection": ("stuck_duration", "support_need"),
     "action": ("next_action",),
 }
+AUTOMATIC_FEEDBACK = "automatic_feedback"
+AUTOMATIC_FEEDBACK_LABEL = "Automatisch erzeugtes Feedback"
 
 
 def blueprint():
@@ -43,12 +45,21 @@ def definition(config):
             "choices": [c["id"] for c in content["choices"]],
             "choiceLabels": {c["id"]: c["text"] for c in content["choices"]},
         })
+    action = next(question for question in elements if question["name"] == "next_action")
+    if AUTOMATIC_FEEDBACK not in action["choices"]:
+        action["choices"].append(AUTOMATIC_FEEDBACK)
+    action["choiceLabels"][AUTOMATIC_FEEDBACK] = AUTOMATIC_FEEDBACK_LABEL
     return Definition.model_validate({"elements": elements}).model_dump(exclude_none=True)
 
 
-def phase_definition(version, phase):
-    return {"elements": [q for q in version["definition"]["elements"]
-                         if q["name"] in PHASE_QUESTIONS[phase]]}
+def phase_definition(version, phase, *, evaluation_available=True):
+    elements = deepcopy([q for q in version["definition"]["elements"]
+                         if q["name"] in PHASE_QUESTIONS[phase]])
+    if phase == "action" and not evaluation_available:
+        for question in elements:
+            question["choices"] = [choice for choice in question["choices"] if choice != AUTOMATIC_FEEDBACK]
+            question.get("choiceLabels", {}).pop(AUTOMATIC_FEEDBACK, None)
+    return {"elements": elements}
 
 
 async def publish(template_id, title, revision, config, user_id=""):
