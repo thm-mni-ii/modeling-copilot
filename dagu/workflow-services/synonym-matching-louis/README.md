@@ -225,6 +225,40 @@ Similarity-Funktionen zunächst in die Forschung und später in `methods.py`.
 
 ### Gezielte Preprocessing-Vergleiche und OdeNet
 
+Für die fünf vorhandenen Laborverwaltungsmodelle gibt es einen getrennten Datensatz:
+
+```bash
+python -m research.build_laboratory_cases
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --output results/laborverwaltung.json.gz
+```
+
+Der erste Befehl ist nur zum erneuten Erzeugen nach Änderungen der Quelldateien
+nötig. Der Datensatz enthält Musterlösung gegen Schreibweise, Tippfehler/Abkürzungen,
+Fachbegriffe, Sprachmix und Mehrdeutigkeit mit jeweils allen 48×48 Kandidaten.
+Original-IDs, doppelte Labels und Zeilenumbrüche bleiben erhalten.
+`annotation_policy` dokumentiert vorläufige Erwartungen anhand der Fallstudie;
+gleiche IDs bedeuten nicht automatisch gleiche Bedeutung. Wiederholte gleichwertige
+Labels sind mehrere positive Kandidaten, keine erzwungene 1:1-Sollzuordnung.
+`changed_student_ids` und `changed_reference_ids` markieren veränderte Modellstellen.
+Die Zusatzrangliste `rankings.<strategy>.changed_labels` bewertet ausschließlich
+Paare mit veränderten Schülerlabels gegen alle Referenzkandidaten. Unveränderte
+Schülerlabels zählen dort nicht als einfache Treffer mit. Top-1 wechselt dafür
+die Blickrichtung: Für jedes veränderte Schülerlabel wird der beste Kandidat
+der Musterlösung geprüft. Scores und Zuordnungsentscheidungen werden nicht neu
+berechnet; auch Hungarian und Mutual Best stammen vom vollständigen Modell.
+Die angezeigten Rechenzeiten gelten weiter für das vollständige Modell.
+Der normale Vergleich und `research.rank_results` ergänzen diese Auswertung
+automatisch, sobald Änderungsmarkierungen im Datensatz vorhanden sind.
+Ältere Labor-Ergebnisse nutzen ersatzweise `changed_reference_ids`, da die fünf
+Varianten dieselben IDs behalten. Die Modelle sind konstruierte
+Entwicklungsfälle, keine unabhängigen studentischen Testdaten. Servicepipeline
+und bisheriger synthetischer Datensatz werden dadurch nicht geändert.
+Für große Modelle spart `.json.gz` Platz; es enthält dieselben vollständigen
+JSON-Ergebnisse komprimiert. `research.rank_results --input` liest beide Formate.
+Mit `.json` als Dateiendung wird weiterhin normales, nun kompaktes JSON geschrieben.
+
 Die String-Verfahren vergleichen rohe und normalisierte Texte, Lowercase,
 Lemmatisierung, Stemming, Identifiertrennung und Kompositazerlegung. Vergleiche
 jeweils passende Paare: `normalize` gegen `lowercase`, `lowercase` gegen `lemma`

@@ -7,6 +7,7 @@ Die Versuche selbst werden in experiments.py aus der Konfiguration gebaut.
 
 import argparse
 import contextlib
+import gzip
 import hashlib
 import importlib.metadata
 import json
@@ -318,7 +319,15 @@ def run_experiments(data, output, config):
     rankings = build_rankings(payload, strategy)
     payload['rankings'] = {strategy: rankings}
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
+    # Ganze Modelle ergeben große Matrizen. Kompakt und direkt in den Stream
+    # schreiben; optional .json.gz spart zusätzlich Platz ohne Scores wegzulassen.
+    if output.suffix == '.gz':
+        stream = gzip.open(output, 'wt', encoding='utf-8', compresslevel=6)
+    else:
+        stream = output.open('w', encoding='utf-8')
+    with stream:
+        json.dump(payload, stream, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+        stream.write('\n')
     print_rankings(rankings)
     if excluded:
         print('Nicht ausgewertet (Sprache nicht in "languages" von experiments.json): ' +

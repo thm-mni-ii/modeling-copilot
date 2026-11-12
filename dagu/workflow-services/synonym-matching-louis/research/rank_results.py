@@ -1,11 +1,14 @@
 """Top-3-Übersichten aus gespeicherten Experimenten, ohne Modelle neu auszuführen."""
 
 import argparse
+import gzip
 import json
 from collections import defaultdict
 from pathlib import Path
 
-from .evaluation import summarize
+import numpy as np
+
+from .evaluation import evaluate_case, summarize
 from synonym_matching.combinations import STRINGS, TOKENS
 
 METHOD_NAMES = {
@@ -197,6 +200,56 @@ def language_group(case):
     return '-'.join(sorted(languages)) or 'ohne Sprache'
 
 
+def changed_label_rankings(payload, strategy):
+    """Bewerte geänderte Schülerlabels gegen sämtliche Referenzkandidaten.
+
+    Nur die Auswertung wird eingeschränkt. Scores, Kandidaten und die gespeicherte
+    Auswahl (auch Hungarian/Mutual Best) stammen weiter vom vollständigen Modell.
+    Top-1 betrachtet hier die Richtung Schülerlabel → Referenzlabel.
+    """
+    cases, columns = [], {}
+    for case in payload['dataset']['cases']:
+        # Ältere Labor-Ergebnisse enthalten nur changed_reference_ids. Die fünf
+        # Varianten haben dieselben IDs; dies dient nur der Teilmengenauswahl.
+        changed = set(case.get('changed_student_ids', case.get('changed_reference_ids', [])))
+        indices = [i for i, element in enumerate(case['student']) if element['id'] in changed]
+        if not indices:
+            continue
+        columns[case['id']] = indices
+        cases.append({
+            'id': case['id'], 'case_number': case['case_number'], 'title': case['title'],
+            'reference': [case['student'][i] for i in indices], 'student': case['reference'],
+            'annotations': [[row[i] for row in case['annotations']] for i in indices],
+        })
+    if not cases:
+        return None
+    cases_by_id = {case['id']: case for case in cases}
+    features = {(tuple(f['chain']), f['case']): f for f in payload['features']}
+    records = []
+    for record in payload['records']:
+        if (record['status'] != 'ok' or record['case'] not in columns
+                or strategy not in record['decisions']):
+            continue
+        indices = columns[record['case']]
+        spec = payload['definitions'][record['experiment']]
+        shape = tuple(record['shape'])
+        eligible = np.logical_or.reduce([
+            np.asarray(features[tuple(chain), record['case']]['eligible'], dtype=bool).reshape(shape)
+            for chain in spec['chains'].values()])
+        decision = record['decisions'][strategy]
+        metrics = evaluate_case(
+            cases_by_id[record['case']], np.asarray(record['combinedScores']).T[indices],
+            payload['threshold'], eligible=eligible.T[indices],
+            selected=np.asarray(decision['selected'], dtype=bool).T[indices])
+        records.append({**record, 'decisions': {strategy: {**decision, 'metrics': metrics}}})
+    # Die Teilfälle tragen keine Änderungsmarkierungen: kein weiteres Teilranking.
+    result = build_rankings({**payload, 'dataset': {'cases': cases}, 'records': records}, strategy)
+    result['policy']['scope'] = 'Nur geänderte Schülerlabels; alle Referenzkandidaten bleiben erhalten.'
+    result['policy']['top1_direction'] = 'student_to_reference'
+    result['policy']['timings'] = 'Rechenzeiten des vollständigen Modells, kein separat gemessener Lauf.'
+    return result
+
+
 def build_rankings(payload, strategy='threshold'):
     """Erzeuge JSON-Daten für Kategorien und Gesamtrankings."""
     if strategy not in {'threshold', 'mutual_best', 'hungarian'}:
@@ -228,7 +281,7 @@ def build_rankings(payload, strategy='threshold'):
     common = all_cases.intersection(*(available[name] for name in active)) if active else set()
     shared = top_three(rank(payload, common, active, strategy), common, len(names))
     shared['excluded_cases'] = sorted(all_cases - common)
-    return {'strategy': strategy, 'threshold': payload['threshold'],
+    result = {'strategy': strategy, 'threshold': payload['threshold'],
             'policy': {'positive_cases': 'micro F1, precision, recall descending',
                        'negative_only': 'correct rejection rate',
                        'ties': 'same rank; alphabetical representatives; no runtime tiebreak',
@@ -236,6 +289,9 @@ def build_rankings(payload, strategy='threshold'):
                        'scope': 'exploratory synthetic data; no automatic service changes'},
             'categories': categories, 'language_groups': language_groups,
             'overall_complete': complete, 'overall_common': shared}
+    if any('changed_student_ids' in c or 'changed_reference_ids' in c for c in cases):
+        result['changed_labels'] = changed_label_rankings(payload, strategy)
+    return result
 
 
 def print_rankings(rankings):
@@ -269,6 +325,10 @@ def print_rankings(rankings):
     print('Gemeinsame Fallmenge: ' + ', '.join(rankings['overall_common']['cases']))
     print('Dort ausgeschlossen: ' + ', '.join(rankings['overall_common']['excluded_cases']))
     print('Vorläufige Ergebnisse auf synthetischen Daten; der Service bleibt unverändert.')
+    if rankings.get('changed_labels'):
+        print('\nZUSATZAUSWERTUNG: nur veränderte Schülerlabels, alle Referenzkandidaten.')
+        print('Top1-Richtung: Schüler → Referenz. Zeiten stammen vom vollständigen Lauf.')
+        print_rankings(rankings['changed_labels'])
 
 
 def main():
@@ -281,14 +341,19 @@ def main():
     output = args.output or args.input
     if output.resolve() != args.input.resolve() and output.exists():
         parser.error('choose a new output filename')
-    payload = json.loads(args.input.read_text())
+    opener = gzip.open if args.input.suffix == '.gz' else open
+    with opener(args.input, 'rt', encoding='utf-8') as stream:
+        payload = json.load(stream)
     if not any(r['status'] == 'ok' and args.strategy in r['decisions']
                for r in payload['records']):
         parser.error('no successful records for this strategy')
     rankings = build_rankings(payload, args.strategy)
     payload.setdefault('rankings', {})[args.strategy] = rankings
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + '\n')
+    opener = gzip.open if output.suffix == '.gz' else open
+    with opener(output, 'wt', encoding='utf-8') as stream:
+        json.dump(payload, stream, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+        stream.write('\n')
     print_rankings(rankings)
     print(f"\nGespeichert: {output}")
 
