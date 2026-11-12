@@ -23,7 +23,7 @@ from . import word_matching
 from .evaluation import evaluate_case, select_matches, global_ranking
 from .experiments import (DEFAULT_CONFIG, ROOT, configurations, is_wordvec, load_config,
                           unsupported)
-from synonym_matching.lexicons import DATA_DIR, OpenThesaurus, WordNet
+from synonym_matching.lexicons import DATA_DIR, OdeNet, OpenThesaurus, WordNet
 from synonym_matching.combinations import combine
 from synonym_matching.methods import EmbeddingMethod
 from synonym_matching.cache import Cache
@@ -57,7 +57,7 @@ LOAD_SECONDS = [0.0]
 def track_loading():
     """Messe Modellladezeiten getrennt von der Rechenzeit, ohne den Service zu ändern."""
     targets = [(EmbeddingMethod, '_load'), (Translator, '_load'), (WordNet, '_load'),
-               (OpenThesaurus, '_load'), (word_matching, 'load_vectors')]
+               (OpenThesaurus, '_load'), (OdeNet, '_load'), (word_matching, 'load_vectors')]
     originals = [(owner, name, getattr(owner, name)) for owner, name in targets]
 
     def timed(function):
@@ -83,7 +83,7 @@ def provenance(engines, translator=None):
     packages = {}
     for name in ('numpy', 'scipy', 'nltk', 'spacy', 'rapidfuzz', 'torch',
                  'transformers', 'sentence-transformers', 'de_core_news_sm',
-                 'en_core_web_sm', 'gensim', 'fasttext'):
+                 'en_core_web_sm', 'gensim', 'fasttext', 'wn'):
         try:
             packages[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
@@ -99,13 +99,14 @@ def provenance(engines, translator=None):
         models['translation'] = translator.revision
     from synonym_matching.methods import EMBEDDING_MODELS
     resources = {}
-    for name in ('openthesaurus.txt', 'nltk_data/corpora/wordnet.zip'):
+    for name in ('openthesaurus.txt', 'nltk_data/corpora/wordnet.zip', 'wn/wn.db'):
         path = DATA_DIR / name
         if path.exists():
             resources[name] = sha256(path)
     return {'python': platform.python_version(), 'platform': platform.platform(),
             'packages': packages, 'models': models, 'model_names': EMBEDDING_MODELS,
             'translation_model': 'Helsinki-NLP/opus-mt-de-en',
+            'odenet_version': OdeNet.version,
             'resources': resources,
             'source_hashes': {
                 str(p.relative_to(ROOT)): sha256(p)

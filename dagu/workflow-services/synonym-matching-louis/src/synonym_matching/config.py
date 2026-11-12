@@ -48,8 +48,8 @@ def validate_config(value=None):
     embedding = config.setdefault("embedding", {})
     _validate_embeddings(embedding)
     lexicons = config.setdefault("lexicons", {})
-    if not isinstance(lexicons, dict) or set(lexicons) - {"wordnet", "openthesaurus"}:
-        raise ValueError("lexicons supports wordnet data directory and openthesaurus text path")
+    if not isinstance(lexicons, dict) or set(lexicons) - {"wordnet", "openthesaurus", "odenet"}:
+        raise ValueError("lexicons supports wordnet/odenet data directories and openthesaurus text path")
     if any(not isinstance(path, str) or not path for path in lexicons.values()):
         raise ValueError("lexicon paths must be nonempty strings")
     combiner = config.setdefault("combiner", {"kind": "mean"})

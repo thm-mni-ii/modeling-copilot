@@ -160,6 +160,35 @@ def test_compounds_uses_lexicon_and_keeps_other_languages(monkeypatch):
     assert split_compounds('Kundendaten', 'en') == 'Kundendaten'
 
 
+def test_preprocessing_limits_apply_to_varying_parts_of_mixes():
+    config = load_config()
+    config['preprocessing'] = {'plain': ['normalize'], 'lower': ['normalize', 'lowercase'],
+                               'stem': ['normalize', 'stem']}
+    config['methods']['levenshtein']['preprocessing_steps'] = ['normalize', 'lowercase']
+    config['chains'] = {'lev': ['$pre', 'levenshtein'], 'multi': ['normalize', 'multilingual']}
+    config['mixes'] = [{'name': 'hybrid', 'weights': {'lev': 1, 'multi': 1}}]
+    specs, _ = configurations(config)
+    assert {'plain/hybrid', 'lower/hybrid'} <= specs.keys()
+    assert 'stem/hybrid' not in specs
+    assert not any('stem' in chain for spec in specs.values() for chain in spec['chains'].values())
+    assert specs['lower/hybrid']['chains']['normalize → multilingual'] == ['normalize', 'multilingual']
+
+
+def test_default_experiments_keep_preprocessing_method_specific():
+    config = load_config()
+    specs, _ = configurations(config)
+    for spec in specs.values():
+        for chain in spec['chains'].values():
+            if chain[-1] in {'multilingual', 'translated_embedding'} or 'files' in config['methods'][chain[-1]]:
+                assert not {'stem', 'remove_stopwords'} & set(chain)
+    assert all(not method['lowercase'] for method in config['methods'].values() if 'files' in method)
+    assert 'normalize+lemmatize → odenet' in specs
+    assert 'normalize+translate+lemmatize → wordnet' in specs
+    assert 'odenet_multi_25_75' in specs and 'odenet_multi_75_25' in specs
+    assert config['chains']['ft_en_lemma'] == ['normalize', 'translate', 'lemmatize', 'fasttext_en_matching']
+    assert config['chains']['ft_en_identifiers'] == ['normalize', 'split_identifiers', 'translate', 'fasttext_en_matching']
+
+
 def test_run_stores_raw_features_once_and_api_unchanged(tmp_path):
     data = {'cases': [{'id': 'test', 'case_number': 23, 'title': 'candidates',
             'reference': [{'id': 'r', 'label': 'Kunde', 'language': 'de'}],

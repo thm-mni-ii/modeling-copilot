@@ -72,6 +72,44 @@ class WordNet:
         return synonym_matrix(left, right, self.lookup)
 
 
+class OdeNet:
+    """Suche gemeinsame deutsche Synsets in der lokalen OdeNet-Version 1.4.
+
+    Ein Treffer bedeutet nur, dass eine gemeinsame Lesart existiert. Die passende
+    Bedeutung im Modell wird damit nicht bestimmt. Keine Downloads beim Matching.
+    """
+
+    version = 'odenet:1.4'
+
+    def __init__(self, path=None):
+        self.path = Path(path) if path else DATA_DIR / 'wn'
+        self.reader = None
+        self.cache = {}
+
+    def _load(self):
+        import wn
+
+        if not (self.path / 'wn.db').is_file():
+            raise FileNotFoundError('OdeNet missing: run python scripts/download_lexicons.py --odenet')
+        wn.config.data_directory = self.path.resolve()
+        self.reader = wn.Wordnet(self.version, normalizer=key)
+
+    def lookup(self, text):
+        """Speichere alle Lesarten pro Label; unbekannte Wörter bleiben unbekannt."""
+        text = key(text)
+        if not text:
+            return frozenset()
+        if text not in self.cache:
+            if self.reader is None:
+                self._load()
+            self.cache[text] = frozenset(synset.id for synset in self.reader.synsets(text))
+        return self.cache[text]
+
+    def matrix(self, left, right):
+        """Liefere binäre Synset-Evidenz, keinen kalibrierten Ähnlichkeitswert."""
+        return synonym_matrix(left, right, self.lookup)
+
+
 class OpenThesaurus:
     """Suche deutsche Labels in den Synonymgruppen des Text-Exports."""
 

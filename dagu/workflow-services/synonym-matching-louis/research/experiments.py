@@ -29,6 +29,10 @@ def load_config(path=DEFAULT_CONFIG):
         if 'based_on' in method:
             base = config['methods'][method['based_on']]
             config['methods'][name] = {**base, **{k: v for k, v in method.items() if k != 'based_on'}}
+        steps = config['methods'][name].get('preprocessing_steps')
+        if steps is not None and (not isinstance(steps, list)
+                                  or any(step not in PREPROCESSING_STEPS for step in steps)):
+            raise ValueError(f'{name}: unknown preprocessing_steps')
     if not 0 <= config['threshold'] <= 1:
         raise ValueError('threshold must be in [0,1]')
     if not config['preprocessing'] or not config['methods'] or not config['chains']:
@@ -94,9 +98,16 @@ def configurations(config):
             result[identifier] = spec
 
     def pipelines(chains):
-        """Ohne '$pre' läuft ein Versuch einmal, mit '$pre' einmal je Pipeline."""
+        """Variiere nur erlaubte Schritte der Verfahren mit '$pre'.
+
+        Feste Ketten, etwa Embeddings mit normalize, bleiben dabei unverändert.
+        Bei Mischungen muss das Profil für alle variierenden Teile passen.
+        """
         if any('$pre' in chain for chain in chains):
-            return config['preprocessing']
+            allowed = [set(methods[chain[-1]].get('preprocessing_steps', PREPROCESSING_STEPS))
+                       for chain in chains if '$pre' in chain]
+            return {name: steps for name, steps in config['preprocessing'].items()
+                    if all(set(steps) <= permitted for permitted in allowed)}
         return {None: []}
 
     blocks = config['chains']

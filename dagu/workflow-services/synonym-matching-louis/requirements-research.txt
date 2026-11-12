@@ -1,3 +1,4 @@
 -r requirements.txt
 gensim==4.4.0
 fasttext==0.9.3
+wn==0.14.0

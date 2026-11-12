@@ -22,6 +22,7 @@ METHOD_NAMES = {
     'translated_embedding': 'DE→EN-Übersetzung → monolinguales Embedding',
     'wordnet': 'DE→EN-Übersetzung → WordNet',
     'openthesaurus': 'OpenThesaurus',
+    'odenet': 'OdeNet (DE, gemeinsame Synsets)',
     'word2vec_de_matching': 'Word2Vec (DE) → Greedy-1:1-Wort-Matching',
     'fasttext_de_matching': 'FastText (DE) → Greedy-1:1-Wort-Matching',
     'fasttext_en_matching': 'FastText (EN) → Greedy-1:1-Wort-Matching',

@@ -122,6 +122,11 @@ def openthesaurus(left, right, *, backend):
     return backend.matrix(left, right)
 
 
+def odenet(left, right, *, backend):
+    """Prüfe gemeinsame deutsche OdeNet-Synsets ohne Übersetzung."""
+    return backend.matrix(left, right)
+
+
 # Diese Namen werden auch in der JSON-Konfiguration verwendet.
 METHODS = {
     'levenshtein': levenshtein,
@@ -136,6 +141,7 @@ METHODS = {
     'translated_string': translated_string,
     'wordnet': wordnet,
     'openthesaurus': openthesaurus,
+    'odenet': odenet,
     'multilingual': multilingual_embedding,
     'translated_embedding': translated_embedding,
 }
@@ -146,6 +152,7 @@ METHOD_TRAITS = {
     'translated_string': {'translate'},
     'wordnet': {'translate'},
     'openthesaurus': {'german_only'},
+    'odenet': {'german_only'},
     'exact_match': {'original_text'},
 }
 # Die bisherige String-Baseline bleibt ausdrücklich auswählbar.

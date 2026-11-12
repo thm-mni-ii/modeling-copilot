@@ -191,7 +191,9 @@ Die Datei besteht aus vier Bausteinarten, die zusammengesteckt werden:
   das **letzte Glied ist das Verfahren**: `"jw": ["$pre", "jaro_winkler"]`.
   Erlaubt sind Preprocessing-Schritte, `translate` (DE→EN, höchstens einmal) und der
   Platzhalter `$pre`. `$pre` steht für *jede* Pipeline aus `preprocessing`; eine
-  Kette mit `$pre` läuft also einmal je Pipeline (so entsteht die Ablation).
+  Kette mit `$pre` läuft einmal je zulässigem Profil (so entsteht die Ablation).
+  Optional begrenzt `methods.<name>.preprocessing_steps` die erlaubten Schritte
+  für diesen Platzhalter. In Mischungen gilt die Schnittmenge der variierenden Teile.
   `["normalize", "translate", "levenshtein"]` übersetzt nach `normalize` und rechnet
   Levenshtein auf dem englischen Text; Schritte hinter `translate` gelten für den
   englischen Text. Jede Kette läuft auch allein; ihr Name entsteht automatisch
@@ -220,6 +222,58 @@ Die Datei besteht aus vier Bausteinarten, die zusammengesteckt werden:
 Neue Rechenregeln gehören in `src/synonym_matching/combinations.py`, neue
 Similarity-Funktionen zunächst in die Forschung und später in `methods.py`.
 `DEFAULT_CONFIG` bleibt unabhängig von `experiments.json`.
+
+### Gezielte Preprocessing-Vergleiche und OdeNet
+
+Die String-Verfahren vergleichen rohe und normalisierte Texte, Lowercase,
+Lemmatisierung, Stemming, Identifiertrennung und Kompositazerlegung. Vergleiche
+jeweils passende Paare: `normalize` gegen `lowercase`, `lowercase` gegen `lemma`
+oder `stem`, `normalize` gegen `identifiers_cased` und `compounds_cased`.
+Das Entfernen von Stopwörtern bleibt eine bewusst riskante String-Ablation:
+Es kann Negationen und damit fachliche Unterschiede entfernen.
+
+Wortvektoren erlauben nur Normalisierung, Lowercase, Identifiertrennung,
+Kompositazerlegung und Lemmatisierung. FastText wandelt nicht mehr zusätzlich
+intern in Kleinbuchstaben um: Die Kette zeigt jetzt die tatsächliche Vorbereitung.
+Englisches FastText nutzt feste Ketten mit Normalisierung als Basis, Lowercase
+oder Lemmatisierung nach der Übersetzung und Identifiertrennung davor. Das gilt
+gleichermaßen für Greedy, optimales und bidirektionales Wort-Matching.
+Alte FastText-Ergebnisse mit internem Lowercase sind daher keine cased-Baseline.
+Die als `compounds_cased` bezeichnete Heuristik schreibt zerlegte Bestandteile
+weiterhin klein; sie bewahrt Großschreibung nur bei unveränderten Wörtern.
+
+Sentence-Embeddings bekommen feste Ketten statt des allgemeinen `$pre`-Rasters:
+`normalize` als Basis und separat Lowercase, Lemma, Identifier- oder Kompositatrennung.
+Stemming und Stopwortentfernung werden dort nicht automatisch ausgeführt.
+Beim übersetzten Embedding erfolgen Lowercase und Lemma erst nach der Übersetzung;
+Identifier-/Kompositatrennung dagegen davor. So bleiben die Übersetzungseingaben
+bei den ersten beiden Vergleichen identisch.
+
+OdeNet 1.4 wird direkt auf deutschen Labels getestet: gemeinsame Synsets mit/ohne
+Lemma sowie Mischungen mit multilingualem Embedding (25:75, 50:50, 75:25),
+OpenThesaurus, übersetztem WordNet und Strings. WordNet und OpenThesaurus erhalten
+ebenfalls eine eigene Lemma-Kette. Lexikonsuchen vereinheitlichen Großschreibung
+intern; dafür wird keine scheinbare Lowercase-Ablation angelegt.
+
+Einmalig mit den Forschungsabhängigkeiten installieren und Daten laden:
+
+```bash
+python -m pip install -r requirements-research.txt
+python scripts/download_lexicons.py --odenet
+```
+
+Die Daten liegen unter `.cache/lexicons/wn`; der normale Vergleichsbefehl oben
+führt auch die neuen Ketten aus. Das Matching selbst lädt nichts herunter.
+OdeNet-Daten: [CC BY-SA 4.0](https://github.com/hdaSprachtechnologie/odenet).
+Die Ergebnisdatei speichert Konfiguration, wn-Version, OdeNet-Version und Datenhash.
+
+Gemeinsame Synsets sind binäre Evidenz für eine mögliche gemeinsame Lesart,
+keine Bedeutungsdisambiguierung. Ein Nullscore kann auch einen fehlenden Eintrag
+bedeuten. Gewichtete Mittel mit Cosinus-Scores sind unkalibrierte Experimente;
+fehlende Abdeckung kann den Gesamtscore senken. OdeNet basiert teilweise auf
+OpenThesaurus, daher sind diese Evidenzen nicht unabhängig. Vergleiche Verfahren
+nur auf denselben verfügbaren Fällen (OdeNet hier nur Deutsch). Es gibt weiterhin
+keine automatische Übernahme eines Forschungssiegers in die Servicepipeline.
 
 Die Konfiguration vergleicht mit allen Ressourcen 38 Szenarien:
 28 ursprüngliche Kategorien und sechs zusätzliche schwierige Kontrastkategorien.

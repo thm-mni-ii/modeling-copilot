@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pytest
 from synonym_matching import MatchingEngine
-from synonym_matching.lexicons import WordNet, OpenThesaurus
+from synonym_matching.lexicons import OdeNet, WordNet, OpenThesaurus
 
 
 def test_openthesaurus_groups_not_transitive_and_unknowns_zero(tmp_path):
@@ -60,6 +60,42 @@ def test_missing_resources_raise_not_zero(tmp_path):
         OpenThesaurus(tmp_path / 'missing').matrix(['Kunde'], ['Abnehmer'])
     with pytest.raises(FileNotFoundError, match='WordNet missing'):
         WordNet(tmp_path).matrix(['customer'], ['client'])
+    with pytest.raises(FileNotFoundError, match='OdeNet missing'):
+        OdeNet(tmp_path).matrix(['Kunde'], ['Abnehmer'])
+
+
+def test_odenet_caches_synsets_and_does_not_invent_unknown_matches():
+    class Reader:
+        calls = []
+
+        def synsets(self, text):
+            self.calls.append(text)
+            from types import SimpleNamespace
+            return [SimpleNamespace(id='customer')] if text in {'kunde', 'abnehmer'} else []
+
+    lexicon = OdeNet()
+    lexicon.reader = Reader()
+    assert lexicon.matrix(['Kunde', 'Kunde', '', 'unbekannt'],
+                          ['Abnehmer', 'unbekannt']).tolist() == [[1, 0], [1, 0], [0, 0], [0, 0]]
+    assert lexicon.reader.calls == ['kunde', 'unbekannt', 'abnehmer']
+    assert lexicon.matrix([], ['Kunde']).shape == (0, 1)
+
+
+def test_odenet_engine_uses_original_german_and_rejects_english(monkeypatch):
+    engine = MatchingEngine({'methods': ['odenet']})
+
+    def no_translation(*args):
+        raise AssertionError('OdeNet must not translate')
+
+    monkeypatch.setattr(engine.translator, 'translate', no_translation)
+    monkeypatch.setattr(engine.backends['odenet'], 'matrix', lambda a, b: np.ones((len(a), len(b))))
+    ref = [{'id': 'r', 'label': 'Kunde', 'language': 'de'}]
+    student = [{'id': 's', 'label': 'Abnehmer', 'language': 'de'}]
+    result = engine.match(ref, student)
+    assert result['processedLabels']['odenet'] == {'reference': ['Kunde'], 'student': ['Abnehmer']}
+    assert result['scores']['odenet'] == [[1]]
+    with pytest.raises(ValueError, match='explicit de'):
+        engine.match(ref, [{'id': 's', 'label': 'Customer', 'language': 'en'}])
 
 
 @pytest.mark.integration

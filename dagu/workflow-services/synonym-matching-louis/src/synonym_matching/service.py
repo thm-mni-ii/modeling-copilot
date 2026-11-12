@@ -11,7 +11,7 @@ import numpy as np
 from .cache import Cache
 from .combinations import combine
 from .config import validate_config
-from .lexicons import OpenThesaurus, WordNet
+from .lexicons import OdeNet, OpenThesaurus, WordNet
 from .methods import EMBEDDING_MODELS, METHODS, METHOD_TRAITS, EmbeddingMethod
 from .preprocessing import Preprocessor, normalize
 from .translation import Translator
@@ -146,6 +146,8 @@ class MatchingEngine:
                 self.backends[name] = EmbeddingMethod(name, options, self.cache)
             elif name == 'wordnet':
                 self.backends[name] = WordNet(self.config['lexicons'].get(name))
+            elif name == 'odenet':
+                self.backends[name] = OdeNet(self.config['lexicons'].get(name))
             elif name == 'openthesaurus':
                 path = self.config['lexicons'].get(name)
                 self.backends[name] = OpenThesaurus(path)
@@ -169,7 +171,7 @@ class MatchingEngine:
         if 'german_only' in traits and has_pairs:
             for text, language in zip(texts, languages):
                 if text.strip() and language != 'de':
-                    raise ValueError('OpenThesaurus requires explicit de language')
+                    raise ValueError(f'{name} requires explicit de language')
         if 'original_text' in traits:
             # Stemming oder Lowercasing dürfen keinen exakten Treffer erzeugen.
             texts = [normalize(element['label']) for element in labels]
