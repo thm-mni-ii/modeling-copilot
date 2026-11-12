@@ -43,7 +43,7 @@ const IDLE_MS = 90_000
 const hostId = () => currentShare.value?.hostId ?? ''
 
 /** The host's color, else what the host handed out; without the host a hash, so a person still has the same color on every screen. */
-const colorOf = (id: string) => (id !== '' && id === hostId() ? HOST_COLOR : personColors.value[id] ?? PALETTE[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length])
+export const colorOf = (id: string) => (id !== '' && id === hostId() ? HOST_COLOR : personColors.value[id] ?? PALETTE[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length])
 
 /** The color worn by the fewest of those present; the first on a tie, so the choice is always the same. */
 const leastUsed = (assigned: Record<string, string>, present: Set<string>) => {
@@ -53,7 +53,7 @@ const leastUsed = (assigned: Record<string, string>, present: Set<string>) => {
 }
 
 /** The name collab-kit has from the token; a pseudonym shows as it is, a token without a name shows the ID. */
-const nameOf = (person: { id: string; name?: string }) => person.name ?? (isPseudonym(person.id) ? person.id : `Person ${person.id}`)
+export const nameOf = (person: { id: string; name?: string }) => person.name ?? (isPseudonym(person.id) ? person.id : `Person ${person.id}`)
 
 /** Whether the host presents. */
 const presenterActive = (session: Session) => session.presence.people().some((person) => person.id === hostId() && person.clients.some(({ state }) => (state as PresenceState).presenting === true))

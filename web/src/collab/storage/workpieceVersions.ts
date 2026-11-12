@@ -6,7 +6,8 @@ import { createModelPatch } from '@/utils/modelPatches'
 import { loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabEvent, CollabKitApi, Session, Workpiece } from '@/collab/kit/collabKitV1'
 import { liveSession } from '@/collab/kit/liveSession'
-import { languagesIn, sameUnits, xmlOf, type ModelUnit } from '@/collab/converters/model/modelUnits'
+import { cellsOf, languagesIn, sameUnits, xmlOf, type ModelUnit } from '@/collab/converters/model/modelUnits'
+import { cellElement, type SharedCell } from '@/collab/converters/model/modelCells'
 import { sharedTaskHistory } from '@/collab/worksheet/sharedTask'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { CELLS_MAP, languagesOf, linkOf } from './workpiece'
@@ -45,6 +46,43 @@ interface History {
   steps: Step[]
   /** The model XML after the last step, the base of the next patch. */
   xml: string
+  /** Der Inhalt jeder Zelle nach dem letzten Schritt, ohne Geometrie; so zählt Verschieben nicht als Bearbeiten. */
+  contents: Map<string, string>
+  /** Wer jede Zelle angelegt und wer ihren Inhalt zuletzt geändert hat. */
+  authors: Map<string, CellAuthors>
+  /** Die Namen zu den Personen der Änderungen, soweit collab-kit sie nennt. */
+  names: Record<string, string>
+}
+
+/** Ersteller und letzter Bearbeiter einer Zelle, als Schlüssel der Personen wie in collab-kit. */
+export interface CellAuthors {
+  createdBy: string
+  changedBy: string
+}
+
+/** Die Zelle ohne ihre Geometrie: Name, Style und Enden bleiben, Lage, Größe und Wegpunkte nicht. */
+const contentOf = (cell: SharedCell) => {
+  const element = cellElement(cell)
+  element.querySelectorAll(':scope > Geometry').forEach((geometry) => geometry.remove())
+  return new XMLSerializer().serializeToString(element)
+}
+
+/** Schreibt fort, wer welche Zelle angelegt und zuletzt bearbeitet hat; eine gelöschte und wieder angelegte Zelle beginnt neu. */
+const trackAuthors = (history: History, units: ReadonlyMap<string, ModelUnit>, by: string) => {
+  const cells = cellsOf(units)
+  for (const key of [...history.contents.keys()]) {
+    if (cells.has(key)) continue
+    history.contents.delete(key)
+    history.authors.delete(key)
+  }
+  for (const [key, cell] of cells) {
+    const content = contentOf(cell)
+    const before = history.contents.get(key)
+    if (before === content) continue
+    history.contents.set(key, content)
+    const known = history.authors.get(key)
+    history.authors.set(key, before === undefined || !known ? { createdBy: by, changedBy: by } : { ...known, changedBy: by })
+  }
 }
 
 /** A version and the change it stands at; none for the initial release. */
@@ -61,7 +99,7 @@ const historyOf = (ck: CollabKitApi, workpieceId: string) => {
   const read = (reads.get(workpieceId) ?? Promise.resolve())
     .catch(() => undefined)
     .then(async () => {
-      const history = histories.get(workpieceId) ?? { workpiece: await ck.workpieces.get(workpieceId), steps: [], xml: EMPTY_MODEL_XML }
+      const history: History = histories.get(workpieceId) ?? { workpiece: await ck.workpieces.get(workpieceId), steps: [], xml: EMPTY_MODEL_XML, contents: new Map(), authors: new Map(), names: {} }
       histories.set(workpieceId, history)
       const since = history.steps[history.steps.length - 1]?.id
       const updates = await ck.workpieces.updates(workpieceId, since ? { since } : {})
@@ -73,12 +111,20 @@ const historyOf = (ck: CollabKitApi, workpieceId: string) => {
           const xml = xmlOf(units) ?? EMPTY_MODEL_XML
           history.steps.push({ id: update._id, createdAt: update.createdAt, patch: createModelPatch(history.xml, xml), languages: languagesIn(units, history.workpiece) })
           history.xml = xml
+          Object.assign(history.names, update.names)
+          trackAuthors(history, units, update.createdBy)
         })
       }
       return history
     })
   reads.set(workpieceId, read)
   return read
+}
+
+/** Wer jede Zelle des Werkstücks angelegt und zuletzt bearbeitet hat, mit den Namen dazu; liest nur die Änderungen seit dem letzten Mal. */
+export const cellAuthors = async (workpieceId: string) => {
+  const history = await historyOf(await loadCollabKit(), workpieceId)
+  return { authors: history.authors, names: history.names }
 }
 
 /** The number after the one before, as the API counts: a checkpoint counts on, a release begins the next. */
@@ -197,7 +243,7 @@ export const versionsOf = (model: Model): ModelVersions | null => {
   const read = async (withPatches: boolean) => {
     const ck = await loadCollabKit()
     const checkpoints = (await ck.events.list({ anchorKind: 'workpiece', anchorId: workpieceId, kind: 'checkpoint' })).reverse()
-    const history = withPatches ? await historyOf(ck, workpieceId) : { workpiece: histories.get(workpieceId)?.workpiece ?? (await ck.workpieces.get(workpieceId)), steps: [], xml: EMPTY_MODEL_XML }
+    const history = withPatches ? await historyOf(ck, workpieceId) : { workpiece: histories.get(workpieceId)?.workpiece ?? (await ck.workpieces.get(workpieceId)), steps: [], xml: EMPTY_MODEL_XML, contents: new Map(), authors: new Map(), names: {} }
     const { entries, done } = entriesOf(model, history, checkpoints, host ? { base: await privateNewest(), since: host.checkpoint } : undefined)
     return { workpiece: history.workpiece, entries, rest: history.steps.slice(done) }
   }

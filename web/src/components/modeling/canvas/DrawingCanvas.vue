@@ -229,6 +229,15 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
   }
 }
 
+// Über einem Overlay mit hoverTooltip = false kein Tooltip; maxGraph nähme sonst den der Zelle (TooltipHandler.js:289-308).
+class OverlayAwareTooltipHandler extends TooltipHandler {
+  override getTooltip(state: CellState, node: HTMLElement | SVGElement, x: number, y: number) {
+    const shape = [...(state.overlays?.values() ?? [])].find((item) => node === item.node || node.parentNode === item.node)
+    if ((shape?.overlay as { hoverTooltip?: boolean } | undefined)?.hoverTooltip === false) return null
+    return super.getTooltip(state, node, x, y)
+  }
+}
+
 // Containment rules of the syntax, read by MyCustomGraph.isValidDropTarget
 let containment: ContainmentMap = new Map()
 let containmentTemplates = new Map<string, string>()
@@ -616,7 +625,7 @@ watch([() => props.helpSelectionMode, () => props.allowEdit], () => {
 })
 watch(() => props.helpCellIds, refreshHelpHighlights, { deep: true })
 let pendingPersistedModel: Record<string, unknown> | null = null
-const plugins = ref<GraphPluginConstructor[]>([MyCustomCellEditorHandler, TooltipHandler, CustomConnectionHandler as unknown as GraphPluginConstructor, StablePanningHandler, SelectionCellsHandler, SelectionHandler, RubberBandHandler, FitPlugin])
+const plugins = ref<GraphPluginConstructor[]>([MyCustomCellEditorHandler, OverlayAwareTooltipHandler, CustomConnectionHandler as unknown as GraphPluginConstructor, StablePanningHandler, SelectionCellsHandler, SelectionHandler, RubberBandHandler, FitPlugin])
 const toolbarShapes = ref(
   createDefaultShapes({
     rectangle: img_rectangle,

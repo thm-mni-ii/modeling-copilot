@@ -27,11 +27,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { roomRole } from '@/collab/rooms/roomRole'
+import { showAuthors } from '@/collab/graph/authorMarks'
+import { liveSession } from '@/collab/kit/liveSession'
 import { COMMENTS_ENABLED, announcedRights, currentShare, hostAway, hostPresenting, hostToggles, isSharedModel, loadShareSettings, presenting, shareDialog, shareSettingsBusy, visitorRights } from './shareModel'
 
 const BLUE = '#3f8ad6'
@@ -60,6 +62,23 @@ const locked = computed(() => shareSettingsBusy() || shareDialog.value === 'quit
 
 watch([visible, isHost], ([shown, host]) => shown && host && void loadShareSettings(), { immediate: true })
 
+// Wer welches Element angelegt und zuletzt bearbeitet hat: eine eigene Ansicht, nur auf diesem Bildschirm, im Browser gemerkt.
+const AUTHORS_KEY = 'collab:showAuthors'
+const authorsShown = ref(localStorage.getItem(AUTHORS_KEY) === 'true')
+watch(authorsShown, (shown) => localStorage.setItem(AUTHORS_KEY, String(shown)))
+let hideAuthors: (() => void) | null = null
+watch(
+  [() => group.value && visible.value && authorsShown.value, graph, linkedWorkpieceId],
+  ([shown, current, workpieceId]) => {
+    hideAuthors?.()
+    hideAuthors = null
+    const session = shown && current && workpieceId ? liveSession(workpieceId) : null
+    if (current && session) hideAuthors = showAuthors(current, session)
+  },
+  { immediate: true }
+)
+onBeforeUnmount(() => hideAuthors?.())
+
 const chip = computed(() => {
   // Ohne den Namen der Gruppe, der kann lang sein; er steht in der Sidebar „Collab“.
   if (group.value) return { icon: 'mdi-account-group-outline', text: 'Group model' }
@@ -81,7 +100,11 @@ interface ModeButton {
 /** The host switches each setting; a visitor sees only what they may do, and nothing of what they may not. */
 const buttons = computed<ModeButton[]>(() => {
   // Im Gruppenraum dürfen alle dasselbe: sehen, kommentieren, bearbeiten.
-  if (group.value) return [{ key: 'edit', kind: 'info', on: true, icon: 'mdi-pencil', title: 'Everyone in the group can edit', toggle: () => undefined }]
+  if (group.value)
+    return [
+      { key: 'edit', kind: 'info', on: true, icon: 'mdi-pencil', title: 'Everyone in the group can edit', toggle: () => undefined },
+      { key: 'authors', kind: 'toggle', on: authorsShown.value, icon: 'mdi-account-circle-outline', title: authorsShown.value ? 'Hide who added and last edited each element' : 'Show who added and last edited each element', toggle: () => (authorsShown.value = !authorsShown.value) }
+    ]
   if (isHost.value) return hostToggles.value.filter((item) => !item.sidebarOnly).map((item) => ({ ...item, kind: 'toggle' as const }))
   // The host's announcement comes at once; CK tells editing only after a reconnect and commenting not at all.
   const announced = announcedRights.value
