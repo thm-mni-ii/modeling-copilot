@@ -307,6 +307,53 @@ class StartedStep(ApiSchema):
     model_id: UUID
 
 
+class PathProgressStage(ApiSchema):
+    id: UUID
+    title: str
+    status: Literal["locked", "available", "in_progress", "completed", "skipped"]
+
+
+class PathProgressSummary(ApiSchema):
+    id: UUID
+    template_id: UUID
+    learner_id: str
+    learner_name: str
+    name: str
+    status: Literal["not_started", "in_progress", "completed"]
+    completed: int
+    skipped: int
+    total: int
+    completed_tasks: int
+    total_tasks: int
+    progress: int
+    created_at: datetime
+    last_activity_at: datetime
+    first_finished_at: datetime | None = None
+    step_progress: list[PathProgressStage] = Field(default_factory=list)
+
+
+class ExportPathProgress(ApiSchema):
+    run_ids: list[UUID]
+
+
+class PathProgressStep(ApiSchema):
+    id: UUID
+    title: str
+    type: Literal["task", "survey"]
+    status: Literal["locked", "available", "in_progress", "completed", "skipped"]
+    archived: bool
+    opened_at: datetime | None = None
+    completed_at: datetime | None = None
+    available_at: datetime | None = None
+    reasons: list[str]
+
+
+class PathProgressDetail(PathProgressSummary):
+    description: str
+    template_revision: int
+    steps: list[PathProgressStep]
+
+
 class PathModelContext(ApiSchema):
     """Read view of the current template, personal state and model binding."""
 

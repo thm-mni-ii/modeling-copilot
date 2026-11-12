@@ -1,65 +1,65 @@
 <template>
-  <v-btn size="x-small" variant="text" prepend-icon="mdi-table-search" title="Vergleichsergebnisse als Übersicht anzeigen" @click="dialog = true">Übersicht</v-btn>
-  <v-dialog v-model="dialog" max-width="1400" aria-label="Semantische Vergleichsergebnisse">
+  <v-btn size="x-small" variant="text" prepend-icon="mdi-table-search" title="Show comparison results overview" @click="dialog = true">Overview</v-btn>
+  <v-dialog v-model="dialog" max-width="1400" aria-label="Semantic comparison results">
     <v-card v-if="dialog" class="semantic-viewer">
       <v-card-title class="d-flex align-center ga-2">
-        <span class="text-body-1">Vergleichsergebnisse</span>
+        <span class="text-body-1">Comparison results</span>
         <v-spacer />
-        <v-btn icon="mdi-close" size="small" variant="text" aria-label="Übersicht schließen" @click="dialog = false" />
+        <v-btn icon="mdi-close" size="small" variant="text" aria-label="Close overview" @click="dialog = false" />
       </v-card-title>
       <v-card-text class="semantic-toolbar pt-0 pb-2">
         <div class="d-flex flex-wrap ga-3 text-caption text-medium-emphasis mb-2">
           <span v-for="counter in counters" :key="counter.key">{{ counter.label }}: {{ counter.value }}</span>
         </div>
-        <v-tabs v-model="matrix" density="compact" color="primary" aria-label="Vergleichsart">
-          <v-tab value="elements">Elemente</v-tab>
-          <v-tab value="connections">Verbindungsbeschriftungen</v-tab>
+        <v-tabs v-model="matrix" density="compact" color="primary" aria-label="Comparison category">
+          <v-tab value="elements">Elements</v-tab>
+          <v-tab value="connections">Connection labels</v-tab>
         </v-tabs>
-        <p class="text-caption text-medium-emphasis mt-2 mb-0">Sortierung zeigt Ähnlichkeiten, keine bestätigte Zuordnung. Alle Kandidaten bleiben erhalten.</p>
+        <p class="text-caption text-medium-emphasis mt-2 mb-0">Sorting shows similarities, not confirmed matches. All candidates remain available.</p>
       </v-card-text>
       <v-divider />
       <div class="semantic-layout">
-        <aside class="semantic-references" aria-label="Referenzelemente">
-          <v-text-field v-model="search" label="Referenz suchen" aria-label="Referenz suchen (ID oder Beschriftung)" placeholder="ID oder Beschriftung" prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" hide-details clearable class="semantic-search ma-2" />
-          <div class="text-caption text-medium-emphasis px-3 pb-1">{{ filteredReferences.length }} / {{ references.length }} Referenzen</div>
-          <v-list density="compact" class="semantic-reference-list" aria-label="Referenz auswählen">
+        <aside class="semantic-references" aria-label="Reference elements">
+          <v-text-field v-model="search" label="Search references" aria-label="Search references by ID or label" placeholder="ID or label" prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" hide-details clearable class="semantic-search ma-2" />
+          <div class="text-caption text-medium-emphasis px-3 pb-1">{{ filteredReferences.length }} / {{ references.length }} references</div>
+          <v-list density="compact" class="semantic-reference-list" aria-label="Select a reference">
             <v-list-item v-for="reference in filteredReferences" :key="reference.id" :active="selected?.id === reference.id" color="primary" @click="selectedIds[matrix] = reference.id">
-              <v-list-item-title>{{ reference.label || '(ohne Beschriftung)' }}</v-list-item-title>
-              <v-list-item-subtitle>{{ reference.id }} · {{ reference.candidates.length }} Kandidaten</v-list-item-subtitle>
+              <v-list-item-title>{{ reference.label || '(no label)' }}</v-list-item-title>
+              <v-list-item-subtitle>{{ reference.id }} · {{ reference.candidates.length }} candidates</v-list-item-subtitle>
             </v-list-item>
           </v-list>
-          <p v-if="!filteredReferences.length" class="text-caption text-medium-emphasis pa-3">{{ references.length ? 'Keine Referenz zur Suche gefunden.' : matrix === 'connections' ? 'Keine Verbindungstextpaare vorhanden.' : 'Keine Elementpaare vorhanden.' }}</p>
+          <p v-if="!filteredReferences.length" class="text-caption text-medium-emphasis pa-3">{{ references.length ? 'No references match your search.' : matrix === 'connections' ? 'No connection label pairs available.' : 'No element pairs available.' }}</p>
         </aside>
-        <section class="semantic-candidates" aria-label="Kandidaten der ausgewählten Referenz">
+        <section class="semantic-candidates" aria-label="Candidates for the selected reference">
           <template v-if="selected">
             <div class="pa-3">
-              <div class="text-body-2 font-weight-medium selected-reference">Referenz: {{ selected.label || '(ohne Beschriftung)' }} ({{ selected.id }})</div>
-              <div class="text-caption text-medium-emphasis mt-1">{{ selected.candidates.length }} Kandidaten</div>
+              <div class="text-body-2 font-weight-medium selected-reference">Reference: {{ selected.label || '(no label)' }} ({{ selected.id }})</div>
+              <div class="text-caption text-medium-emphasis mt-1">{{ selected.candidates.length }} candidates</div>
             </div>
-            <div class="semantic-table-scroll" tabindex="0" aria-label="Kandidatentabelle, horizontal scrollbar">
-              <v-data-table v-model:sort-by="sortBy" :headers="headers" :items="selected.candidates" :items-per-page="-1" must-sort density="compact" class="semantic-table" no-data-text="Keine Kandidaten für diese Referenz vorhanden.">
+            <div class="semantic-table-scroll" tabindex="0" aria-label="Candidate table, scroll horizontally">
+              <v-data-table v-model:sort-by="sortBy" :headers="headers" :items="selected.candidates" :items-per-page="-1" must-sort density="compact" class="semantic-table" no-data-text="No candidates available for this reference.">
                 <template #[`item.scoreStatus`]="{ item }">{{ statusLabel(item) }}</template>
                 <template v-for="key in ['referenceOwnerId', 'submissionOwnerId', 'kind', 'connectionLabelId', 'comparisonBasis']" :key="key" #[`item.${key}`]="{ value }">{{ value || '—' }}</template>
-                <template #[`item.label`]="{ item }">{{ item.label || '(ohne Beschriftung)' }}</template>
+                <template #[`item.label`]="{ item }">{{ item.label || '(no label)' }}</template>
                 <template v-for="method in prepared.methods" :key="method.name" #[`header.score:${method.name}`]="{ column, getSortIcon }">
                   <div class="v-data-table-header__content">
                     <div>
                       <div>{{ method.label }}</div>
                       <div v-if="method.scoreRange" class="text-caption text-medium-emphasis">{{ method.scoreRange[0] }} … {{ method.scoreRange[1] }}</div>
-                      <div v-if="method.missingMetadata" class="text-caption text-medium-emphasis">Ohne Metadaten</div>
+                      <div v-if="method.missingMetadata" class="text-caption text-medium-emphasis">No metadata</div>
                     </div>
                     <v-icon class="v-data-table-header__sort-icon" :icon="getSortIcon(column)" />
                   </div>
                 </template>
                 <template v-for="method in prepared.methods" :key="method.name" #[`item.score:${method.name}`]="{ item }">
-                  <span :title="semanticScore(item, method.name) === undefined ? 'Score nicht verfügbar' : undefined">{{ semanticScore(item, method.name)?.toFixed(3) ?? '—' }}</span>
+                  <span :title="semanticScore(item, method.name) === undefined ? 'Score unavailable' : undefined">{{ semanticScore(item, method.name)?.toFixed(3) ?? '—' }}</span>
                 </template>
                 <template #bottom />
               </v-data-table>
             </div>
-            <p class="text-caption text-medium-emphasis px-3 py-2 mb-0">— Score nicht verfügbar. Werte werden mit drei Dezimalstellen angezeigt.</p>
+            <p class="text-caption text-medium-emphasis px-3 py-2 mb-0">— Score unavailable. Values are displayed to three decimal places.</p>
           </template>
-          <p v-else class="text-body-2 text-medium-emphasis pa-4">{{ references.length ? 'Wähle eine Referenz aus.' : matrix === 'connections' ? 'Keine Verbindungstextpaare vorhanden.' : 'Keine Elementpaare vorhanden.' }}</p>
+          <p v-else class="text-body-2 text-medium-emphasis pa-4">{{ references.length ? 'Select a reference.' : matrix === 'connections' ? 'No connection label pairs available.' : 'No element pairs available.' }}</p>
         </section>
       </div>
     </v-card>
@@ -80,8 +80,8 @@ const sortBy = ref<{ key: string; order: 'asc' | 'desc' }[]>([{ key: 'id', order
 const prepared = computed(() => dialog.value ? prepareSemanticComparison(props.result) : { methods: [], elements: [], connections: [] })
 const references = computed(() => prepared.value[matrix.value])
 const filteredReferences = computed(() => {
-  const query = (search.value ?? '').trim().toLocaleLowerCase('de')
-  return references.value.filter((reference) => `${reference.id} ${reference.label}`.toLocaleLowerCase('de').includes(query))
+  const query = (search.value ?? '').trim().toLocaleLowerCase('en')
+  return references.value.filter((reference) => `${reference.id} ${reference.label}`.toLocaleLowerCase('en').includes(query))
 })
 const selected = computed(() => references.value.find((reference) => reference.id === selectedIds.value[matrix.value]) ?? references.value[0])
 const headerProps = (key: string, className?: string) => ({
@@ -95,14 +95,14 @@ const headerProps = (key: string, className?: string) => ({
   }
 })
 const headers = computed(() => [
-  { key: 'id', title: 'Abgabe-ID', headerProps: headerProps('id', 'candidate-id'), cellProps: { class: 'candidate-id' }, sort: (a: string, b: string) => a.localeCompare(b, 'de', { numeric: true }) },
-  { key: 'label', title: 'Abgabebeschriftung', headerProps: headerProps('label', 'candidate-label'), cellProps: { class: 'candidate-label' } },
+  { key: 'id', title: 'Submission ID', headerProps: headerProps('id', 'candidate-id'), cellProps: { class: 'candidate-id' }, sort: (a: string, b: string) => a.localeCompare(b, 'en', { numeric: true }) },
+  { key: 'label', title: 'Submission label', headerProps: headerProps('label', 'candidate-label'), cellProps: { class: 'candidate-label' } },
   ...(matrix.value === 'connections' ? [
-    { key: 'referenceOwnerId', title: 'Referenzverbindung-ID' },
-    { key: 'submissionOwnerId', title: 'Abgabeverbindung-ID' },
-    { key: 'kind', title: 'Beschriftungsart' },
-    { key: 'connectionLabelId', title: 'Beschriftungs-ID' }
-  ] : [{ key: 'comparisonBasis', title: 'Vergleichsbasis' }]).map((header) => ({ ...header, headerProps: headerProps(header.key) })),
+    { key: 'referenceOwnerId', title: 'Reference connection ID' },
+    { key: 'submissionOwnerId', title: 'Submission connection ID' },
+    { key: 'kind', title: 'Label kind' },
+    { key: 'connectionLabelId', title: 'Label ID' }
+  ] : [{ key: 'comparisonBasis', title: 'Comparison basis' }]).map((header) => ({ ...header, headerProps: headerProps(header.key) })),
   { key: 'scoreStatus', title: 'Status', headerProps: headerProps('scoreStatus') },
   ...prepared.value.methods.map((method) => ({
     key: `score:${method.name}`,
@@ -122,16 +122,16 @@ const headers = computed(() => [
   }))
 ])
 const counters = computed(() => [
-  { key: 'candidatePairCount', label: 'Elementpaare' },
-  { key: 'scoredPairCount', label: 'Mit Scores' },
-  { key: 'unavailablePairCount', label: 'Ohne Scores' }
+  { key: 'candidatePairCount', label: 'Element pairs' },
+  { key: 'scoredPairCount', label: 'Scored' },
+  { key: 'unavailablePairCount', label: 'Scores unavailable' }
 ].filter(({ key }) => typeof props.result[key] === 'number').map((counter) => ({ ...counter, value: props.result[counter.key] })))
 const statusLabel = (candidate: SemanticCandidate) => {
   if (candidate.scoreStatus === 'unavailable') {
-    const reason = ({ missing_text: 'Text fehlt', unsupported_text: 'Text nicht unterstützt' } as Record<string, string>)[candidate.unavailableReason] ?? candidate.unavailableReason
-    return `Nicht verfügbar${reason ? `: ${reason}` : ''}`
+    const reason = ({ missing_text: 'Missing text', unsupported_text: 'Unsupported text' } as Record<string, string>)[candidate.unavailableReason] ?? candidate.unavailableReason
+    return `Unavailable${reason ? `: ${reason}` : ''}`
   }
-  return candidate.scoreStatus === 'scored' ? 'Bewertet' : candidate.scoreStatus || '—'
+  return candidate.scoreStatus === 'scored' ? 'Scored' : candidate.scoreStatus || '—'
 }
 </script>
 

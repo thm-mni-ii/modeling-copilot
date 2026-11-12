@@ -3,6 +3,7 @@ import { useBearerToken } from '@/composables/useBearerToken'
 import authService from '@/services/auth/auth.service'
 import { isEmbedded, requestFbsToken, startFbsBridge, fbsAuthenticated, fbsConnectionError, fbsTargetPath, fbsConnecting } from '@/services/auth/fbsBridge'
 import { useUserStore } from '@/stores/userStore'
+import learningPaths from '@/services/learningPaths'
 import { isFeedbacksystemCallback, completeFeedbacksystemSignIn, renewFeedbacksystemToken } from '@/services/auth/fbsOidc'
 
 const router = createRouter({
@@ -65,6 +66,11 @@ const router = createRouter({
       component: () => import('../views/ViewLearningPaths.vue')
     },
     {
+      path: '/learning-path-progress',
+      name: 'LearningPathProgress',
+      component: () => import('../views/ViewLearningPathProgress.vue')
+    },
+    {
       path: '/learning-path-runs/:id?',
       name: 'LearningPathRuns',
       component: () => import('../views/ViewLearningPaths.vue')
@@ -107,7 +113,7 @@ const router = createRouter({
 })
 
 // Everything outside this list requires ADMIN, including direct URL navigation.
-const nonAdminPages = ['Submissions', 'SubmissionRun', 'SubmissionReview', 'LearningPathRuns', 'Login', 'Home', 'Models', 'Modeling', 'Join', 'View404Page']
+const nonAdminPages = ['Submissions', 'SubmissionRun', 'SubmissionReview', 'LearningPathRuns', 'LearningPathProgress', 'Login', 'Home', 'Models', 'Modeling', 'Join', 'View404Page']
 
 router.beforeEach(async (to) => {
   if (!isEmbedded && isFeedbacksystemCallback()) {
@@ -159,6 +165,13 @@ router.beforeEach(async (to) => {
     if (authRequired) return { path: '/login', query: { returnTo: to.fullPath } }
   }
   if (isEmbedded && to.path === '/login') return '/'
+  if (to.name === 'LearningPathProgress') {
+    try {
+      if (!(await learningPaths.progressAccess()).data.canView) return '/404'
+    } catch {
+      return '/404'
+    }
+  }
   if (adminRequired && (await userStore.ensureGlobalRole()) !== 'ADMIN') return '/404'
   return true
 })

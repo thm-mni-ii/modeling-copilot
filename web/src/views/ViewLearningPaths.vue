@@ -6,6 +6,7 @@
         <h1 class="text-h4">{{ admin ? 'Learning path templates' : run ? run.name : 'My learning paths' }}</h1>
         <p v-if="!admin && !run" class="text-body-1 text-medium-emphasis mt-2">Pick up where you left off or explore a new learning path.</p>
       </div>
+      <v-btn v-if="canViewProgress" variant="tonal" prepend-icon="mdi-table-account" to="/learning-path-progress">Learning path progress</v-btn>
       <v-btn v-if="admin" color="primary" to="/learning-path-templates/edit">New template</v-btn><v-btn variant="text" prepend-icon="mdi-refresh" :loading="loading" @click="load">Refresh</v-btn>
     </div>
     <v-alert v-if="error" type="error" class="mb-4">{{ error }}</v-alert>
@@ -87,7 +88,7 @@
   </v-container>
 </template>
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import TreasurePathBoard from '@/components/learningPaths/TreasurePathBoard.vue'
@@ -97,6 +98,10 @@ import paths, { pathVisibilityLabel, type PathRun, type PathTemplate, type StepR
 const route = useRoute(),
   router = useRouter()
 const admin = computed(() => route.name === 'LearningPathTemplates')
+const canViewProgress = ref(false)
+onMounted(async () => {
+  try { canViewProgress.value = (await paths.progressAccess()).data.canView } catch { canViewProgress.value = false }
+})
 const templates = ref<PathTemplate[]>([]),
   runs = ref<PathRun[]>([]),
   run = ref<PathRun | null>(null)
