@@ -14,8 +14,8 @@ Account `workflow-runner`.
   Namespace, Service Account und Ressourcenlimits.
 - `infra/dev/`: Namespace-/Service-Account-Setup für Docker Desktop sowie die
   Anpassung der lokalen Kubeconfig für den Dagu-Container.
-- `infra/prod/k3s-dagu.yaml`: K3s-Deployment mit RBAC, PVC, Service und
-  Traefik-Ingress.
+- `../k3s-portainer.yaml`: zentrales Produktivdeployment inklusive Dagu,
+  Workflow-Runtime, RBAC, PVCs und Traefik-Ingress.
 
 ## Lokaler Betrieb
 
@@ -128,29 +128,53 @@ Elementinventar als vermeintliches Gesamtergebnis verwendet.
 
 ## Produktion (K3s/Portainer)
 
-Das Manifest `infra/prod/k3s-dagu.yaml` stellt folgende Ressourcen bereit:
+Das zentrale Manifest stellt die Anwendung und ihre Workflow-Infrastruktur
+gemeinsam bereit. Siehe [`k3s-portainer.yaml`](../k3s-portainer.yaml).
 
-- Namespaces `dagu` und `workflow-runtime`
+- Namespace `modeling-copilot` für Anwendung und Dagu
+- Namespace `workflow-runtime` für die dynamischen Workflow-Jobs
 - Service Accounts und namespaced RBAC für Kubernetes Jobs und Pod-Logs
 - Dagu Deployment, 5-GiB-PVC und ClusterIP-Service
 - Traefik-Ingress unter `https://ikarus.mni.thm.de/dagu`
 
-Der Init-Container klont den Branch `feat-add-dagu-as-workflow-manager` von
-`https://github.com/thm-mni-ii/modeling-copilot.git`. Bei einem Wechsel des
-Standard-Branches ist der Wert von `--branch` im Deployment anzupassen. Ein
+Der Init-Container klont den Branch `main` von
+`https://github.com/thm-mni-ii/modeling-copilot.git`. Ein
 Checkout auf dem Node oder ConfigMaps für Workflows und `base.yaml` sind nicht
 erforderlich.
 
-Zusätzlich wird im Namespace `dagu` folgendes Objekt erwartet:
+Zusätzlich wird im Namespace `modeling-copilot` folgendes Objekt erwartet:
 
 - Secret `dagu-auth` mit den Keys `token-secret`, `admin-username` und
   `admin-password`
+- Nach dem ersten Start zusätzlich `api-key` im selben Secret für die API
 
-Deployment:
+In Portainer **Use namespace(s) specified from manifest** aktivieren und das
+zentrale Manifest deployen. Über die Kommandozeile erfolgt das Deployment mit
+folgendem Befehl.
 
 ```bash
-kubectl apply -f dagu/infra/prod/k3s-dagu.yaml
+kubectl apply -f k3s-portainer.yaml
 ```
 
 Produktive Zugangsdaten werden ausschließlich über das Secret `dagu-auth`
-bereitgestellt.
+bereitgestellt. Nach dem ersten Start als Administrator unter
+`https://ikarus.mni.thm.de/dagu` anmelden, unter **API Keys** einen Schlüssel
+mit Rolle `operator` erzeugen und als `api-key` im Secret hinterlegen.
+Anschließend die API neu starten. Bis dahin startet die Anwendung bereits,
+Auswertungen benötigen jedoch den Schlüssel.
+
+Die API verwendet intern `http://dagu:8080/dagu`. Dagu darf Jobs und deren
+Logs ausschließlich in `workflow-runtime` verwalten. Der ServiceAccount der
+Workflow-Jobs erhält kein automatisch eingebundenes Kubernetes-Token.
+
+Die Release-Pipeline veröffentlicht die sechs im Auswertungsworkflow
+verwendeten Service-Images unter `ghcr.io/thm-mni-ii/modeling-copilot-*`.
+Diese GHCR-Pakete müssen für das vorliegende Deployment öffentlich lesbar
+sein. Der produktive Init-Container ersetzt die lokalen Image-Namen in seiner
+geklonten Workflow-Kopie durch die GHCR-Namen und setzt dort die Pull-Policy
+auf `Always`, damit neue Jobs das veröffentlichte `latest`-Image beziehen.
+
+Falls das frühere separate Dagu-Deployment bereits verwendet wurde, müssen
+Secret und persistente Dagu-Daten vor dem Wechsel in den Namespace
+`modeling-copilot` übernommen werden. Das zentrale Manifest überträgt
+vorhandene PVC-Daten aus dem Namespace `dagu` nicht automatisch.
