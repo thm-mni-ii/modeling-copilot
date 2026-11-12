@@ -1,14 +1,29 @@
 <template>
   <div class="group-work-import">
     <!-- Derselbe Kurs und derselbe Gruppenname sind derselbe Raum; ein anderer Kurs, etwa ein anderes Semester, gibt neue Räume. -->
-    <v-text-field v-model="course" label="Course" placeholder="Datenbanken WS 26/27" prepend-icon="mdi-school-outline" density="compact" hint="Same course and group name is the same room; another course, such as another semester, gets rooms of its own." persistent-hint class="mb-2" />
+    <v-text-field v-model="course" label="Course" :placeholder="`Course name ${currentSemester()}`" prepend-icon="mdi-school-outline" density="compact" hint="Same course and group name is the same room; another course, such as another semester, gets rooms of its own." persistent-hint class="mb-2" />
     <!-- Die Kurse früherer Importe zum Anklicken statt Tippen, damit derselbe Kurs gleich geschrieben wird. -->
     <div v-if="courses.length" class="d-flex align-center flex-wrap ga-2 mb-4 ml-10">
       <span class="text-caption text-medium-emphasis">Already used:</span>
       <v-chip v-for="known in courses" :key="known" size="small" :color="known === course?.trim() ? 'primary' : undefined" :variant="known === course?.trim() ? 'flat' : 'tonal'" @click="course = known">{{ known }}</v-chip>
     </div>
-    <v-file-input label="Participant list from Moodle (CSV)" accept=".csv,.txt,text/csv" prepend-icon="mdi-file-delimited-outline" density="compact" show-size :loading="reading" @update:model-value="load" />
+    <!-- Ohne Datei eine Fläche zum Ablegen oder Anklicken; mit Datei das Feld mit Name, Größe und Entfernen. -->
+    <label v-if="!file.length" class="drop-zone mb-4" :class="{ 'drop-zone--over': dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="drop">
+      <v-icon icon="mdi-file-upload-outline" size="28" class="mb-1" />
+      <span>{{ dragging ? 'Release to load the CSV' : 'Drop the participant list from Moodle (CSV) here or' }} <u v-if="!dragging">choose a file</u></span>
+      <input type="file" accept=".csv,.txt,text/csv" hidden @change="file = [...(($event.target as HTMLInputElement).files ?? [])]" />
+    </label>
+    <v-file-input v-else v-model="file" label="Participant list from Moodle (CSV)" accept=".csv,.txt,text/csv" prepend-icon="mdi-file-delimited-outline" density="compact" show-size :loading="reading" />
     <v-alert v-if="failure" type="error" variant="tonal" density="compact" class="mb-4">{{ failure }}</v-alert>
+    <!-- Außerhalb der CSV: Nach dem Anwenden ist die Datei weg, das Ergebnis bleibt bis zur nächsten Datei. -->
+    <v-alert v-if="appliedRooms.length" type="success" variant="tonal" density="compact" class="mb-4" :title="appliedTitle">
+      <template v-if="missingPeople.length">
+        Not in the Feedbacksystem, so not in their room:
+        <ul class="ml-4">
+          <li v-for="room in missingPeople" :key="room.roomId">{{ room.name }}: {{ room.missing.join(', ') }}</li>
+        </ul>
+      </template>
+    </v-alert>
 
     <template v-if="csv">
       <p class="text-medium-emphasis mb-4">{{ csv.people }} people · {{ csv.groups.length }} groups · {{ csv.caseStudies.length }} case studies</p>
@@ -36,9 +51,23 @@
             <td>{{ group.name }}</td>
             <td>{{ group.caseStudies.map(taskLabel).join(', ') || '—' }}</td>
             <td>
-              <v-chip v-for="member in group.members" :key="member.username" size="small" class="mr-1 my-1" :title="member.username">{{ member.name }}</v-chip>
+              <!-- Wer noch kein FBS-Konto hat, kommt nicht in den Raum: blass und gestrichelt, mit Erklärung. -->
+              <v-chip
+                v-for="member in group.members"
+                :key="member.username"
+                size="small"
+                class="mr-1 my-1"
+                :class="{ 'member--missing': isMissing(group, member.username) }"
+                :variant="isMissing(group, member.username) ? 'outlined' : 'tonal'"
+                :prepend-icon="isMissing(group, member.username) ? 'mdi-account-off-outline' : undefined"
+                :title="isMissing(group, member.username) ? `${member.username}: not in the Feedbacksystem yet – they need to sign in once` : member.username"
+                >{{ member.name }}</v-chip
+              >
             </td>
-            <td :class="statusOf(group).tone">{{ statusOf(group).text }}</td>
+            <td>
+              <div :class="statusOf(group).tone">{{ statusOf(group).text }}</div>
+              <div v-if="missingOf(group).length" class="text-caption text-warning"><v-icon icon="mdi-alert-outline" size="14" /> {{ missingOf(group).length }} not in FBS</div>
+            </td>
           </tr>
         </tbody>
       </v-table>
@@ -67,16 +96,9 @@
       </v-alert>
 
       <v-alert v-if="planFailure" type="error" variant="tonal" density="compact" class="mt-4">The check against the existing rooms failed: {{ planFailure }}</v-alert>
-      <v-alert v-if="appliedRooms.length" type="success" variant="tonal" density="compact" class="mt-4" :title="appliedTitle">
-        <template v-if="missingPeople.length">
-          Not in the Feedbacksystem, so not in their room:
-          <ul class="ml-4">
-            <li v-for="room in missingPeople" :key="room.roomId">{{ room.name }}: {{ room.missing.join(', ') }}</li>
-          </ul>
-        </template>
-      </v-alert>
       <v-alert v-if="createFailure" type="error" variant="tonal" density="compact" class="mt-4">{{ createFailure }} What was applied before stays; applying again sends only what is still missing.</v-alert>
 
+      <v-alert v-if="missingTotal" type="warning" variant="tonal" density="compact" class="mt-4"> {{ missingTotal }} {{ missingTotal === 1 ? 'person is' : 'people are' }} not in the Feedbacksystem yet. They get no access until they've signed in once and the CSV is applied again. </v-alert>
       <div class="d-flex align-center justify-end ga-3 mt-4">
         <span v-if="creating" class="text-caption text-medium-emphasis">{{ progress }} of {{ progressTotal }} groups done</span>
         <span v-else-if="!course?.trim()" class="text-caption text-medium-emphasis">Enter the course first.</span>
@@ -134,9 +156,9 @@ const load = async (files: File | File[] | null | undefined) => {
   const file = Array.isArray(files) ? files[0] : files
   csv.value = null
   failure.value = ''
-  appliedRooms.value = []
   createFailure.value = ''
   if (!file) return
+  appliedRooms.value = []
   reading.value = true
   try {
     const parsed = parseGroupWorkCsv(decodeCsv(await file.arrayBuffer()))
@@ -149,6 +171,28 @@ const load = async (files: File | File[] | null | undefined) => {
   } finally {
     reading.value = false
   }
+}
+
+/** Das laufende Semester als Beispiel für den Kurs: Oktober bis März „WS 26/27“, April bis September „SS 27“. */
+const currentSemester = (date = new Date()) => {
+  const year = date.getFullYear() % 100
+  const month = date.getMonth() + 1
+  const pad = (n: number) => String(n % 100).padStart(2, '0')
+  if (month >= 10) return `WS ${pad(year)}/${pad(year + 1)}`
+  if (month <= 3) return `WS ${pad(year - 1 + 100)}/${pad(year)}`
+  return `SS ${pad(year)}`
+}
+
+// Die gewählte Datei, ob abgelegt oder ausgewählt; ihr Wechsel lädt sie, Leeren setzt den Import zurück.
+const file = shallowRef<File[]>([])
+const dragging = ref(false)
+watch(file, (files) => void load(files))
+
+/** Nimmt die erste abgelegte Datei; mehrere Dateien gibt es beim Import nicht. */
+const drop = (event: DragEvent) => {
+  dragging.value = false
+  const dropped = event.dataTransfer?.files[0]
+  if (dropped) file.value = [dropped]
 }
 
 const chooseTask = async (caseStudy: string, taskId: string | null) => {
@@ -217,6 +261,10 @@ const progressTotal = ref(0)
 const valid = computed(() => csv.value?.groups.filter((group) => !problemOf(group)) ?? [])
 const additionsOf = (plan: PlannedRoom) => plan.newMembers.length + plan.newTasks.length
 /** Was „Apply“ schickt: neue Räume und vorhandene, denen etwas fehlt. */
+/** Wer laut Prüfung kein FBS-Konto hat; ohne Prüfung niemand. */
+const missingOf = (group: CsvGroup) => plans.value[group.name]?.missing ?? []
+const isMissing = (group: CsvGroup, username: string) => missingOf(group).includes(username)
+const missingTotal = computed(() => valid.value.reduce((total, group) => total + missingOf(group).length, 0))
 const changes = computed(() => valid.value.filter((group) => plans.value[group.name] && (!plans.value[group.name].roomId || additionsOf(plans.value[group.name]))))
 
 const count = (n: number, one: string, many: string) => `+${n} ${n === 1 ? one : many}`
@@ -295,13 +343,15 @@ const create = async () => {
       appliedRooms.value = [...appliedRooms.value, ...data.rooms]
       progress.value += data.rooms.length
     }
+    // Alles angewendet: Die Datei geht raus, der Import steht wieder auf der Ablagefläche.
+    file.value = []
   } catch (error) {
     createFailure.value = messageOf(error)
+    // Die Datei bleibt; die Prüfung zeigt den neuen Stand, also „up to date“ für alles schon Angewendete.
+    void preview()
   } finally {
     creating.value = false
     if (progress.value) emit('created')
-    // Danach zeigt die Prüfung den neuen Stand, also „up to date“ für alles Angewendete.
-    void preview()
   }
 }
 
@@ -324,6 +374,29 @@ onMounted(async () => {
   padding: 4px 0;
 }
 
+.drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 22px 16px;
+  border: 1.5px dashed rgba(var(--v-theme-on-surface), 0.38);
+  border-radius: 8px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  text-align: center;
+  cursor: pointer;
+}
+
+/* Kinder fangen keine Drag-Ereignisse, sonst flackert die Hervorhebung beim Überfahren. */
+.drop-zone > * {
+  pointer-events: none;
+}
+
+.drop-zone--over {
+  border-color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.08);
+  color: rgb(var(--v-theme-primary));
+}
+
 .case-study {
   min-width: 96px;
   font-weight: 600;
@@ -337,6 +410,11 @@ onMounted(async () => {
 .skipped {
   background: transparent;
   color: inherit;
+}
+
+.member--missing {
+  border-style: dashed;
+  opacity: 0.6;
 }
 
 .login {
