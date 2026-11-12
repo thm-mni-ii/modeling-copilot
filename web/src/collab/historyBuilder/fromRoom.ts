@@ -1,7 +1,7 @@
 import type { AxiosError } from 'axios'
 import { createEmptyModelSnapshot, EMPTY_MODEL_XML, type ModelSnapshot } from '@/model/ModelSnapshot'
 import httpClient from '@/services/api/httpClient'
-import type { JsonObject, TaskVersionReference } from '@/services/api/types/common'
+import type { JsonObject, LanguageVersionReference, TaskVersionReference } from '@/services/api/types/common'
 import type { CreateModelVersion, Model, ModelPatch, ModelVersion, ModelVersionInfo, TaskEditDocument, WorkspaceLanguageReference } from '@/services/api/types/model'
 import modelService from '@/services/model/model.service'
 import taskService from '@/services/task/task.service'
@@ -282,5 +282,43 @@ export const keepRoomAsOwnModel = async (name: string, state: RoomState) => {
   } catch (error) {
     await httpClient.delete(`/v1/models/${model.id}`).catch(() => undefined)
     throw error
+  }
+}
+
+/** What a branch from the timeline of a room model takes of the task; the notice tells why it took none. */
+export interface RoomBranchTask {
+  reference: TaskVersionReference | null
+  languages: WorkspaceLanguageReference[]
+  taskEdit: TaskEditDocument | null
+  notice: string | null
+}
+
+/**
+ * Die Task eines Raums für einen Branch: die Freigabe, sofern die API sie dieser Person gibt und die
+ * Pflichtsprachen im Stand stehen, dazu die Markierungen über ihrem Text. Null außerhalb eines Raums.
+ * Ohne Freigabe oder mit abweichenden Sprachen wird der Branch ein Modell ohne Task, der Stand bleibt.
+ */
+export const roomBranchTask = async (languages: WorkspaceLanguageReference[], atPosition: TaskEditDocument | null): Promise<RoomBranchTask | null> => {
+  const reference = sharedTaskReference.value
+  if (!reference || useModelWorkspaceStore().taskVersion) return null
+  const without: RoomBranchTask = { reference: null, languages, taskEdit: null, notice: 'The task could not be taken along; the copy is a model without task.' }
+  let version
+  try {
+    version = (await taskService.getVersion(reference.taskId, reference.versionId)).data
+  } catch (error) {
+    if ((error as AxiosError).response?.status !== 404) throw error
+    return without
+  }
+  const required = version.workspaceLanguages.filter((language) => language.source === 'required')
+  const isRequired = (language: LanguageVersionReference) => required.some((item) => item.languageId === language.languageId && item.versionId === language.versionId)
+  if (!required.every((item) => languages.some((language) => language.languageId === item.languageId && language.versionId === item.versionId))) return without
+  // Die Markierungen der Gruppe über dem Text der Freigabe, wie beim Behalten (publishTaskSteps).
+  const edit = atPosition ?? sharedTaskEdit.value
+  const base = version.data.contentDocument
+  return {
+    reference,
+    languages: languages.map((language) => ({ ...language, source: isRequired(language) ? 'required' : 'additional' })),
+    taskEdit: edit && base ? { ...edit, document: withMarks(stripTaskEdits(base), marksOf(edit.document)) } : null,
+    notice: null
   }
 }

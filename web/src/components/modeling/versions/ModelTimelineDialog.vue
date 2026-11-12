@@ -43,7 +43,8 @@
       <v-card-text>
         <v-text-field v-model="branchName" label="New model name" maxlength="256" counter autofocus @keyup.enter="createBranch" />
         <p class="text-caption text-medium-emphasis mb-0">The selected state becomes the initial release of a new model.</p>
-        <v-checkbox v-if="timelineTaskEditSnapshot && workspace.taskVersion" v-model="branchEdits" label="Use task edits from the selected position" hide-details />
+        <v-checkbox v-if="timelineTaskEditSnapshot && task.active" v-model="branchEdits" label="Use task edits from the selected position" hide-details />
+        <p v-if="sharedTaskContent?.notes" class="text-caption text-medium-emphasis mt-2 mb-0">Notes of the group stay in the room.</p>
       </v-card-text>
       <v-card-actions><v-spacer /><v-btn :disabled="branching" @click="branchDialog = false">Cancel</v-btn><v-btn color="primary" :loading="branching" :disabled="!branchName.trim()" @click="createBranch">Create branch</v-btn></v-card-actions>
     </v-card>
@@ -76,7 +77,9 @@ import ModelSnapshotPreview from './ModelSnapshotPreview.vue'
 import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
 import { buildTaskEditTimeline } from '@/utils/taskEditTimeline'
 import { useTaskHistory } from '@/collab/historyBuilder/useTaskHistory'
-import { notifyError } from '@/composables/useNotifications'
+import { roomBranchTask } from '@/collab/historyBuilder/fromRoom'
+import { sharedTaskContent } from '@/collab/worksheet/sharedTask'
+import { notifyError, notifyWarning } from '@/composables/useNotifications'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
@@ -307,7 +310,11 @@ const createBranch = async () => {
   if (!step || !previewReady.value || !timelineData.value || !branchName.value.trim()) return
   branching.value = true
   try {
-    await workspace.branchSnapshot(timelineData.value, step.workspaceLanguages, branchName.value.trim(), timelineVersion.value?.taskVersion ?? workspace.taskReference, branchEdits.value ? timelineTaskEditSnapshot.value : workspace.taskEdit)
+    const edits = branchEdits.value ? timelineTaskEditSnapshot.value : null
+    // Modell eines Raums: die Task des Raums, sofern sie mitkommen kann.
+    const room = await roomBranchTask(step.workspaceLanguages, edits)
+    if (room?.notice) notifyWarning(room.notice)
+    await workspace.branchSnapshot(timelineData.value, room?.languages ?? step.workspaceLanguages, branchName.value.trim(), room ? room.reference : timelineVersion.value?.taskVersion ?? workspace.taskReference, room ? room.taskEdit : edits ?? workspace.taskEdit)
     await workspace.save()
     branchDialog.value = false
     emit('update:modelValue', false)
