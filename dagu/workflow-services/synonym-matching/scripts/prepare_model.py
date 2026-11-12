@@ -2,8 +2,12 @@
 
 from sentence_transformers import SentenceTransformer
 
-from synonym_matching.config import MODEL_NAME, MODEL_REVISION
+from synonym_matching.methods.registry import MULTILINGUAL_PARAMETERS
 
 
 if __name__ == "__main__":
-    SentenceTransformer(MODEL_NAME, revision=MODEL_REVISION, device="cpu")
+    SentenceTransformer(
+        MULTILINGUAL_PARAMETERS["model"],
+        revision=MULTILINGUAL_PARAMETERS["revision"],
+        device=MULTILINGUAL_PARAMETERS["device"],
+    )

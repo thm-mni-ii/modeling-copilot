@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "semantic-candidates/v2 in workflow-result/v1",
+  "title": "semantic-candidates/v1 in workflow-result/v1",
   "type": "object",
   "required": ["schema", "schemaVersion", "status", "capability", "mode", "summary", "result"],
   "additionalProperties": false,
@@ -13,71 +13,68 @@
     "summary": {"type": "string"},
     "result": {
       "type": "object",
-      "required": ["schema", "evaluationId", "inputHash", "pair", "graphHashes", "inventoryHashes", "inventoryPaths", "semanticConfig", "semanticConfigHash", "producer", "methods", "combiner", "threshold", "filtered", "candidatePairCount", "scoredPairCount", "unavailablePairCount", "connectionTextPairCount", "processedTexts", "synonymMatrix", "connectionTextMatrix", "unscoredElements", "completeness", "diagnostics", "candidateHash"],
+      "required": ["schema", "evaluationId", "inputHash", "pair", "graphHashes", "inventoryHashes", "inventoryPaths", "semanticConfig", "semanticConfigHash", "producer", "methods", "candidatePairCount", "scoredPairCount", "unavailablePairCount", "processedTexts", "synonymMatrix", "connectionTextMatrix", "unscoredElements", "completeness", "diagnostics", "candidateHash"],
       "additionalProperties": false,
       "properties": {
-        "schema": {"const": "semantic-candidates/v2"},
+        "schema": {"const": "semantic-candidates/v1"},
         "evaluationId": {"type": "string"},
         "inputHash": {"$ref": "#/definitions/hash"},
         "candidateHash": {"$ref": "#/definitions/hash"},
         "semanticConfigHash": {"$ref": "#/definitions/hash"},
         "pair": {
           "type": "object", "required": ["studentKey", "referenceKey"],
-          "properties": {"studentKey": {"const": "submission"}, "referenceKey": {"type": "string"}}
+          "additionalProperties": false,
+          "properties": {"studentKey": {"const": "submission"}, "referenceKey": {"type": "string", "minLength": 1}}
         },
         "graphHashes": {"$ref": "#/definitions/pairHashes"},
         "inventoryHashes": {"$ref": "#/definitions/pairHashes"},
         "inventoryPaths": {
-          "type": "object", "required": ["student", "reference"],
+          "type": "object", "required": ["student", "reference"], "additionalProperties": false,
           "properties": {
             "student": {"type": "string", "pattern": "^labels/[A-Za-z0-9_-]{1,100}\\.json$"},
             "reference": {"type": "string", "pattern": "^labels/[A-Za-z0-9_-]{1,100}\\.json$"}
           }
         },
-        "semanticConfig": {"type": "object", "required": ["engine", "resources", "methods", "combiner", "threshold", "filtered", "producer"]},
+        "semanticConfig": {
+          "type": "object", "required": ["methods", "preprocessing"], "additionalProperties": false,
+          "properties": {
+            "methods": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+            "preprocessing": {
+              "type": "object",
+              "additionalProperties": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
         "producer": {"type": "object", "required": ["service", "version", "resourceHash", "runtime", "packages"]},
-        "methods": {"type": "array", "items": {"type": "object", "required": ["name", "rawScoreRange", "combinationContributionRange", "contributesToCombination"]}},
-        "combiner": {"type": "object", "required": ["kind", "name", "options", "methods", "contributingMethods", "contributionTransform", "formula", "scoreRange", "scoreMeaning"]},
-        "threshold": {"type": "null"},
-        "filtered": {"const": false},
+        "methods": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/method"}},
         "candidatePairCount": {"type": "integer", "minimum": 0},
         "scoredPairCount": {"type": "integer", "minimum": 0},
         "unavailablePairCount": {"type": "integer", "minimum": 0},
-        "connectionTextPairCount": {"type": "integer", "minimum": 0},
         "processedTexts": {
-          "type": "object", "required": ["student", "reference"],
-          "additionalProperties": false,
+          "type": "object", "required": ["student", "reference"], "additionalProperties": false,
           "properties": {
             "student": {"$ref": "#/definitions/processedTextList"},
             "reference": {"$ref": "#/definitions/processedTextList"}
           }
         },
         "synonymMatrix": {"type": "array", "items": {
-          "type": "object", "required": ["referenceElementId", "matches"],
-          "additionalProperties": false,
+          "type": "object", "required": ["referenceElementId", "matches"], "additionalProperties": false,
           "properties": {
             "referenceElementId": {"type": "string", "minLength": 1},
             "matches": {"type": "array", "items": {"$ref": "#/definitions/elementCandidate"}}
           }
         }},
-        "connectionTextMatrix": {"type": "array", "items": {
-          "type": "object", "required": ["referenceConnectionTextId", "matches"],
-          "additionalProperties": false,
-          "properties": {
-            "referenceConnectionTextId": {"type": "string", "minLength": 1},
-            "matches": {"type": "array", "items": {"$ref": "#/definitions/connectionTextCandidate"}}
-          }
-        }},
+        "connectionTextMatrix": {"type": "array", "items": {"$ref": "#/definitions/connectionTextPair"}},
         "unscoredElements": {"type": "array", "items": {
-          "type": "object", "required": ["side", "id", "reason"],
+          "type": "object", "required": ["side", "id", "reason"], "additionalProperties": false,
           "properties": {
             "side": {"enum": ["student", "reference"]},
-            "id": {"type": "string"},
+            "id": {"type": "string", "minLength": 1},
             "reason": {"enum": ["missing_text", "unsupported_text"]}
           }
         }},
         "completeness": {
-          "type": "object", "required": ["technical", "interpretation"],
+          "type": "object", "required": ["technical", "interpretation"], "additionalProperties": false,
           "properties": {"technical": {"const": "complete"}, "interpretation": {"enum": ["complete", "partial"]}}
         },
         "diagnostics": {"type": "array", "items": {"type": "object"}}
@@ -86,13 +83,9 @@
   },
   "definitions": {
     "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "unitScore": {"type": "number", "minimum": 0, "maximum": 1},
     "pairHashes": {
-      "type": "object", "required": ["student", "reference"],
-      "properties": {
-        "student": {"$ref": "#/definitions/hash"},
-        "reference": {"$ref": "#/definitions/hash"}
-      }
+      "type": "object", "required": ["student", "reference"], "additionalProperties": false,
+      "properties": {"student": {"$ref": "#/definitions/hash"}, "reference": {"$ref": "#/definitions/hash"}}
     },
     "processedTextList": {
       "type": "array",
@@ -101,54 +94,46 @@
         "properties": {"id": {"type": "string", "minLength": 1}, "text": {"type": "string", "minLength": 1}}
       }
     },
-    "scores": {
-      "oneOf": [
-        {"type": "null"},
-        {"$ref": "#/definitions/scoresScored"}
-      ]
+    "scoreMap": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "number"}},
+    "method": {
+      "type": "object", "required": ["name", "scoreRange", "preprocessing", "parameters"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "scoreRange": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+        "preprocessing": {"type": "array", "items": {"type": "string"}},
+        "parameters": {"type": "object"},
+        "resources": {"type": "object"}
+      }
     },
     "elementCandidate": {
       "type": "object",
-      "required": ["submissionElementId", "comparisonBasis", "scoreStatus", "scores", "combinedScore", "aliasEvidence"],
+      "required": ["submissionElementId", "comparisonBasis", "scoreStatus", "scores"],
       "additionalProperties": false,
       "properties": {
         "submissionElementId": {"type": "string", "minLength": 1},
         "comparisonBasis": {"enum": ["group", "type"]},
         "scoreStatus": {"enum": ["scored", "unavailable"]},
-        "scores": {"$ref": "#/definitions/scores"},
-        "combinedScore": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/unitScore"}]},
-        "aliasEvidence": {"type": "array", "maxItems": 0}
+        "unavailableReason": {"enum": ["missing_text", "unsupported_text"]},
+        "scores": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/scoreMap"}]}
       },
       "allOf": [
         {"if": {"properties": {"scoreStatus": {"const": "scored"}}},
-         "then": {"properties": {"scores": {"$ref": "#/definitions/scoresScored"}, "combinedScore": {"$ref": "#/definitions/unitScore"}}},
-         "else": {"properties": {"scores": {"type": "null"}, "combinedScore": {"type": "null"}}}}
+         "then": {"required": ["scores"], "properties": {"scores": {"$ref": "#/definitions/scoreMap"}}},
+         "else": {"required": ["unavailableReason"], "properties": {"scores": {"type": "null"}}}}
       ]
     },
-    "scoresScored": {
-      "type": "object", "required": ["levenshtein", "jaro_winkler", "char_trigram", "multilingual"],
-      "additionalProperties": false,
-      "properties": {
-        "levenshtein": {"$ref": "#/definitions/unitScore"},
-        "jaro_winkler": {"$ref": "#/definitions/unitScore"},
-        "char_trigram": {"$ref": "#/definitions/unitScore"},
-        "multilingual": {"type": "number", "minimum": -1, "maximum": 1}
-      }
-    },
-    "connectionTextCandidate": {
+    "connectionTextPair": {
       "type": "object",
-      "required": ["submissionConnectionTextId", "referenceOwnerConnectionId", "submissionOwnerConnectionId", "kind", "connectionLabelId", "scoreStatus", "scores", "combinedScore", "unavailableReason"],
+      "required": ["referenceConnectionTextId", "submissionConnectionTextId", "referenceOwnerConnectionId", "submissionOwnerConnectionId", "kind", "connectionLabelId", "scores"],
       "additionalProperties": false,
       "properties": {
+        "referenceConnectionTextId": {"type": "string", "minLength": 1},
         "submissionConnectionTextId": {"type": "string", "minLength": 1},
         "referenceOwnerConnectionId": {"type": ["string", "null"]},
         "submissionOwnerConnectionId": {"type": ["string", "null"]},
         "kind": {"enum": ["self", "additionalLabel"]},
         "connectionLabelId": {"type": ["string", "null"]},
-        "scoreStatus": {"const": "unavailable"},
-        "scores": {"type": "null"},
-        "combinedScore": {"type": "null"},
-        "unavailableReason": {"enum": ["missing_text", "unsupported_text", "connection_owner_compatibility_not_in_inventory"]}
+        "scores": {"$ref": "#/definitions/scoreMap"}
       }
     }
   }

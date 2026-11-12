@@ -32,9 +32,10 @@ Bewertung oder Rückmeldung zur fachlichen Richtigkeit.
 
 Es werden keine neuen Konfigurationsparameter eingeführt. `comparisonConfig` bleibt
 unverändert im Eingabesnapshot. Vergleichsgruppen werden je Sprachversion aus
-`language.data.evaluation.comparisonGroups` gelesen, wie sie Migration 13 definiert.
-Nicht gruppierte Modellinstanzen behalten ihren konkreten Typ als Vergleichsgrundlage;
-der Parser bildet keine Kandidatenpaare. Sprachprofile, manuelle Typzuordnungen,
+`language.data.evaluation.comparisonGroups` gelesen. Gruppen können getrennte
+`elementTypes` und/oder `connectionTypes` deklarieren; die beiden Kategorien
+werden unabhängig aufgelöst. Nicht gruppierte Modellinstanzen und Verbindungen
+behalten ihren konkreten Typ als Vergleichsgrundlage; der Parser bildet keine Kandidatenpaare. Sprachprofile, manuelle Typzuordnungen,
 bestimmte Ressourcenhashes und sprachspezifische Textgrammatiken werden nicht
 vorausgesetzt.
 
@@ -110,7 +111,7 @@ Das eigene Hashfeld, Zeitstempel und Laufzeitmessungen sind nicht enthalten.
 
 | Inhalt | Verhalten |
 | --- | --- |
-| Knoten | `kind` trägt die Knotenkategorie; `type` den konkreten Zelltyp und `label` den gespeicherten Text einschließlich Leertext. `comparisonGroup` ist für Modellinstanzen mit Gruppe gesetzt, andernfalls `null`. `properties` und `definitionCandidates` erscheinen nur bei nicht leeren Werten. |
+| Knoten | `kind` trägt die Knotenkategorie; `type` den konkreten Zelltyp und `label` den gespeicherten Text einschließlich Leertext. `comparisonGroup` ist für eindeutig gruppierte Modellinstanzen oder Verbindungen gesetzt, andernfalls `null`. `properties` und `definitionCandidates` erscheinen nur bei nicht leeren Werten. |
 | Modellierte Beziehungen | Genau ein `connection`-Knoten mit Original-ID, konkretem Verbindungstyp und eigener `directed`-Information. Keine zusätzliche, unabhängig gepflegte Verbindungsstruktur und keine abgeleitete fachliche Richtungsregel. |
 | Anschlüsse | Zwei technische `endpoint`-Kanten mit `role: source/target` bewahren Rollen und Reihenfolge der Endpunkte. Fehlende Enden bleiben `null` und erzeugen `OPEN_ENDPOINT`. |
 | Verbindungsbeschriftungen | Zellen mit `connectionLabelId` erhalten `kind: connectionLabel`, behalten Kennung und Text und bleiben über ihre gespeicherte `contains`-Beziehung der ursprünglichen Verbindung zugeordnet. |
@@ -118,10 +119,17 @@ Das eigene Hashfeld, Zeitstempel und Laufzeitmessungen sind nicht enthalten.
 | Identität | Originalknoten behalten ihre IDs; `endpoint`-IDs kodieren Transformationsrolle und Quellidentität kollisionssicher unter `@graph:`. Eine Kante wird durch `kind`, `source`, `target` und `role` identifiziert. Die Reihenfolge der direkten Wurzelkinder bestimmt den Vergleichsbereich. |
 | Eigenschaften | `contains` besteht aus `kind`, `source`, `target` und `role`; `endpoint` ergänzt die eigene `id`. Technische Kanten tragen keine redundanten Labels, Sprachen, Richtungs- oder Eigenschaftenfelder. Die fachliche Verbindungsrichtung liegt nur am Verbindungsknoten. |
 
+Wenn ein gültiges maxGraph-`fontStyle`-Bitfeld gespeichert ist, enthält
+`properties.textFormatting` dessen ursprünglichen Zahlenwert sowie die Flags
+`bold`, `italic` und `underline` (maxGraph-Bits 1, 2 und 4). Andere visuelle
+Style-Informationen werden nicht übernommen; die gespeicherte Beschriftung bleibt
+unverändert. Der Parser leitet daraus keine fachliche Bedeutung ab.
+
 Technische Kanten werden stabil nach Art, Quelle, Ziel und Rolle sortiert. Die Zusammenfassung zählt Elementknoten,
 modellierte Verbindungen, Zugehörigkeiten und technische Anschlüsse separat.
 `comparisonGroup` ist die Gruppen-ID aus der jeweiligen Sprachversion; ohne eindeutige
-Gruppenzuordnung bleibt sie `null`. Strukturelle Elemente und Verbindungen werden
+Gruppenzuordnung bleibt sie `null`. Für mehrfach konfigurierte Element- oder
+Verbindungstypen wird `AMBIGUOUS_COMPARISON_GROUP` diagnostiziert. Strukturelle Elemente und Verbindungen werden
 nicht allein über eine Vergleichsgruppe als semantische Modellinstanzen behandelt.
 `graph-result/v3` verwendet `kind` für Knotenkategorien und `role` für Kantenrollen.
 Die bisherige Reduktion bleibt bestehen; `graph.excluded` wird nicht ausgegeben.

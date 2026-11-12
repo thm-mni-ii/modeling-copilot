@@ -26,9 +26,9 @@ das gemeinsame `workflow_io.py` aus `dagu/workflow-services`.
 | `methods/char_trigram.py` | Jaccard über Zeichen-Trigrammmengen; Texte mit weniger als drei Zeichen bilden wie in der Referenz ein einzelnes Gramm |
 | `methods/multilingual.py` | Referenzmodell, normierte Embeddings und Cosinus; Textmerkmale einmal pro verschiedenem Text, eigene Offline-Ressourcenprüfung |
 | `methods/pairwise.py` | Gemeinsame Paariteration der Stringverfahren |
+| `methods/registry.py` | Kleine explizite Registry mit Scorebereich, Berechnung, Vorverarbeitung, Parametern und optionaler Ressourceninitialisierung |
 | `preprocessing.py` | Aus der Referenz übernommenes NFC und Zusammenfassen von Whitespace |
-| `combinations.py` | Übernommene 50:50-Fusion von Stringmittel und multilingualem Embedding |
-| `config.py` | Explizite Ausgangskonfiguration ohne neue fachliche Eingabeparameter |
+| `config.py` | Validierung der aktivierten Methoden und Vorverarbeitung |
 | `service.py` | Genau ein Paar, Einzelmatrizen, Kandidaten, unveränderte Instanzdaten |
 | `inventories.py` | V2-Schema, Identitäten, Inventarhashes und Snapshot-Bindung prüfen |
 | `provenance.py` | Kanonische Hashes, eigene Codekennung und verwendete Paketversionen |
@@ -46,7 +46,6 @@ Referenzstands nachvollziehbar; der laufende Service liest diese Dateien nicht:
 |---|---|
 | `methods.py` | `b61a46423065dfed8436e0f25e51a9c0f5a0600f` |
 | `preprocessing.py` | `f3f9f00d3dd78c4d71477c7210827faf93fb96f3` |
-| `combinations.py` | `6f6f6febbfc7075fb56e2345f7300ce2efe6c6e6` |
 | `config.py` | `51b0d734bec8dfe159b2ac611aa2ddc4c650afee` |
 
 ## Workspace-Eingabe
@@ -96,28 +95,30 @@ Die frühere Demo-/Graph-Eingabe ist durch den Inventarvertrag ersetzt.
 
 ## Konfiguration, Texte und Skalen
 
-Paket 04 führt keine neuen fachlichen Parameter ein. `comparisonConfig: {}` bleibt
-ausreichend. `comparisonConfig.semantics` darf fehlen oder `{}` sein. Ein anderer
-Typ oder nicht unterstützte Einträge darin führen zu einem Konfigurationsfehler;
-sie werden nicht still ignoriert. Andere Konfigurationsbereiche bleiben für ihre
-zuständigen Folgeschritte erhalten und werden hier nicht ausgewertet.
+`comparisonConfig: {}` bleibt ausreichend. Optional kann
+`comparisonConfig.semantics.methods` eine nicht leere Liste eindeutiger,
+registrierter Namen enthalten; ohne diese Liste werden alle vier Standardmethoden
+aktiviert. `semantics.preprocessing` kann die Standardvorverarbeitung `normalize`
+mit einer Liste registrierter Schritte überschreiben. Unbekannte oder doppelte
+Methoden/Schritte werden als Konfigurationsfehler zurückgewiesen.
 
-Der Standard aus der Referenz bleibt erhalten:
+Jede Methode liefert ausschließlich ihren eigenen Score:
 
 - Levenshtein, Jaro-Winkler und Zeichen-Trigramme: Rohscores in `[0,1]`.
 - Multilinguales Embedding: Cosinus-Rohscores in `[-1,1]`.
-- Für die Kombination wird jeder Beitrag auf `[0,1]` begrenzt. Der Rohscore bleibt
-  unverändert gespeichert. `combinedScore` ist
-  `0.5 * mean(clip(levenshtein), clip(jaro_winkler), clip(char_trigram)) + 0.5 * clip(multilingual)`.
-- Scores sind Ähnlichkeitswerte und keine Wahrscheinlichkeiten. Es erfolgt keine
-  Rundung für die Übergabe an Paket 05.
+- Es gibt weder Gewichtung noch kombinierten Score oder finale Zuordnung.
+- Scores werden nicht gerundet und nicht als Wahrscheinlichkeiten interpretiert.
 
-Alle Berechnungen verwenden ausschließlich `matchText`, gefolgt von NFC und
-Zusammenfassen von Whitespace. Originallabel, ursprünglicher Vergleichstext,
+Alle Berechnungen verwenden ausschließlich `matchText`, gefolgt von der
+konfigurierten Vorverarbeitung (standardmäßig NFC und Zusammenfassen von Whitespace).
+Originallabel, ursprünglicher Vergleichstext,
 natürliche `textLanguage` und Modellsprachreferenzen bleiben getrennt erhalten.
 Es gibt kein Lowercasing, keine Übersetzung, keine Sprachschätzung und keine
 sprachspezifische Sonderbehandlung. Das multilinguale Verfahren benötigt keine
 explizite natürliche Sprache; aus `language` wird keine solche abgeleitet.
+Normalisierte gleiche Texte werden je Methodengruppe einmal berechnet; Element-
+und Verbindungstextinstanzen bleiben getrennt. Das Embedding-Modell und seine
+Textvektoren werden pro Serviceaufruf wiederverwendet.
 
 `labelStatus: missing` beziehungsweise `unsupported` kennzeichnet nicht auswertbare
 Texte. Diese Instanzen bleiben im vollständigen Inventar und unter
@@ -129,14 +130,16 @@ zugelassen. Bei zwei gesetzten Vergleichsgruppen müssen diese übereinstimmen;
 sind beide Gruppen nicht gesetzt, müssen die konkreten Typen übereinstimmen.
 Gemischte Gruppierung, inkompatible Sprachen und unterschiedliche Gruppen sind
 keine Kandidaten. Es gibt weder Top-k noch Threshold-Filterung oder endgültige
-Zuordnung. `aliasEvidence` bleibt leer; Aliasregeln werden nicht eingeführt.
-Ein zulässiges Paar bleibt auch ohne Beschriftung erhalten und wird mit
-`scoreStatus: unavailable` und `scores: null` ausgewiesen.
+Zuordnung. Ein zulässiges Paar bleibt auch ohne Beschriftung erhalten und wird
+mit `scoreStatus: unavailable`, einem Grund und `scores: null` ausgewiesen.
+Verbindungstexte werden nur bei auswertbarem Text und übereinstimmender Art
+verglichen; zusätzliche Labels benötigen zusätzlich dieselbe nicht leere
+`connectionLabelId`. Unbeschriftete Verbindungen erzeugen keine Textpaare.
 
 ## Ausgabe und Herkunft
 
 Die Ausgabe ist eine `workflow-result/v1`-Hülle mit `schemaVersion: 1`, `status: ok`,
-`capability: synonym-matching`, `mode: match` und `result.schema: semantic-candidates/v2`.
+`capability: synonym-matching`, `mode: match` und `result.schema: semantic-candidates/v1`.
 `schemas/output.schema.json` beschreibt die Ausgabe; `input.schema.json` definiert
 `element-inventory/v2` mit Typ-, Vergleichsgruppen- und Sprachfeldern sowie
 gesonderten Verbindungstexten. Für die fachlichen Elemente nutzt das Matching
@@ -149,15 +152,13 @@ Eigenständige Aufrufer bewahren die Inventare unter
 | `evaluationId`, `inputHash`, `pair` | Lauf, Snapshot und genau ein Paar von Modellschlüsseln |
 | `graphHashes`, `inventoryHashes` | Unveränderte Bindungen jeweils unter `student` und `reference` |
 | `inventoryPaths` | Relative Eingabepfade `labels/<modelKey>.json` unter `student` und `reference`; Inventare und Originalgraphen bleiben separate Artefakte desselben Laufs |
-| `semanticConfig`, `semanticConfigHash` | Explizite Methoden, Vorbereitung, Kombinationsregel, Modellkonfiguration, tatsächliche Ressourcennutzung und Erzeugerkennung samt Hash |
+| `semanticConfig`, `semanticConfigHash` | Aktivierte Methoden und Vorverarbeitung samt Hash |
 | `producer` | Serviceversion, eigener Code-/Schemahash, Python-/Unicode- und verwendete Paketversionen |
-| `methods`, `combiner` | Alle vier Verfahren, Roh-/Beitragsskalen, Beteiligung und genaue Rechenregel |
-| `threshold`, `filtered` | Immer `null`, `false` |
+| `methods` | Nur aktivierte Verfahren mit Scorebereich, Vorverarbeitung, Parametern und optionalen Ressourcenmetadaten |
 | `candidatePairCount`, `scoredPairCount`, `unavailablePairCount` | Zahl zulässiger Paare und deren Scoring-Verfügbarkeit |
-| `connectionTextPairCount` | Strukturell passende Verbindungstext-Paare; deren Owner-Kompatibilität ist im Inventar nicht enthalten und bleibt daher unbewertet |
-| `processedTexts` | Ein normalisierter Text pro ursprünglicher Element-ID unter `student`/`reference`, unabhängig von der Anzahl der Scoring-Verfahren |
-| `synonymMatrix` | `referenceElementId` pro Zeile und nur fachlich zulässige `submissionElementId`-Kandidaten mit `comparisonBasis`, `scoreStatus`, vier ungerundeten `scores` oder `null`, `combinedScore` und `aliasEvidence: []`; keine vollständigen Elementkopien |
-| `connectionTextMatrix` | Separate Matrix für gleiche Verbindungstext-Art und Beschriftungs-ID; Kandidaten bleiben erhalten, aber werden mangels Owner-Typ- und Sprachversionsdaten mit `scoreStatus: unavailable` ausgewiesen |
+| `processedTexts` | Tatsächlich verwendeter Text einmal pro vorhandener fachlicher oder Verbindungsbeschriftungs-ID |
+| `synonymMatrix` | Nur zulässige Kandidaten mit `comparisonBasis` und `scoreStatus`; `scores` enthält ausschließlich aktivierte Methoden oder ist bei fehlendem Text `null` |
+| `connectionTextMatrix` | Flache Liste ausschließlich tatsächlich bewerteter Textpaare mit Owner-IDs, Beschriftungsart/-slot und unabhängigen Methodenscores; ohne kompatible Texte `[]` |
 | `unscoredElements` | Seite, ID und Grund für jede Instanz ohne verwendbaren Text; Modellbezug ergibt sich aus `pair` |
 | `completeness`, `diagnostics` | Technisch vollständig bei Erfolg; Interpretation berücksichtigt Inventare und nicht bewertbare Verbindungstext-Paare, Diagnosen weisen die Einschränkung explizit aus |
 | `candidateHash` | Hash des vollständigen `result` ohne dieses eigene Hashfeld |
@@ -165,8 +166,7 @@ Eigenständige Aufrufer bewahren die Inventare unter
 Eigene Hashes verwenden SHA-256 als 64-stelligen Hexstring ohne Präfix über
 kanonisches UTF-8-JSON, sortierte Objektschlüssel, keine zusätzlichen Leerzeichen,
 keine ASCII-Escapes und keine Zeitstempel. Inventare bleiben separat gespeichert;
-eigene Instanzlisten werden nach ID geordnet. Kandidaten stehen absteigend nach
-Score, bei Gleichstand nach ID. Vorhandene fachlich geordnete Listen behalten ihre
+eigene Instanzlisten und Kandidaten werden stabil nach IDs geordnet. Vorhandene fachlich geordnete Listen behalten ihre
 Reihenfolge. `producer.resourceHash` umfasst eigenen Python-Code, beide Schemata
 und das tatsächlich importierte gemeinsame `workflow_io.py`.
 
@@ -176,7 +176,7 @@ Verwendet wird ausschließlich das bereits gewählte Modell
 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` an Revision
 `e8f8c211226b894fcb81acc59f3b34ba3efd5f42`, CPU, Batchgröße 32 und normierte Embeddings.
 Der Ressourcenbericht hält angeforderte und aufgelöste Revision sowie das
-Modell-Tokenlimit fest. Ohne verwendbares Paar wird kein Modell geladen;
+Modell-Tokenlimit fest. Ohne verwendbares Textpaar wird kein Modell geladen;
 `resolvedRevision` und Tokenlimit bleiben `null`, Status ist
 `not_needed_no_usable_pairs`. Das ist eine gültige leere Evidenz, kein Ersatzscore.
 

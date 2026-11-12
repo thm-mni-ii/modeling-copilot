@@ -11,6 +11,7 @@ class MultilingualMethod:
         self.config = config
         self.model = None
         self.revision = None
+        self.embeddings = {}
 
     def _load(self):
         from sentence_transformers import SentenceTransformer
@@ -33,18 +34,19 @@ class MultilingualMethod:
     def compute(self, left, right):
         if not left or not right:
             return np.zeros((len(left), len(right)))
-        if self.model is None:
-            self._load()
-        # Reuse text features while keeping every element instance in the matrices.
         texts = list(dict.fromkeys(left + right))
-        for text in texts:
+        missing = [text for text in texts if text not in self.embeddings]
+        if missing and self.model is None:
+            self._load()
+        for text in missing:
             if len(self.model.tokenizer.encode(text)) > self.model.max_seq_length:
                 raise ValueError("label exceeds embedding model token limit")
-        vectors = self.model.encode(texts, batch_size=self.config["batch_size"],
-                                    normalize_embeddings=True, show_progress_bar=False).tolist()
-        mapping = dict(zip(texts, vectors, strict=True))
-        reference_vectors = np.array([mapping[text] for text in left])
-        student_vectors = np.array([mapping[text] for text in right])
+        if missing:
+            vectors = self.model.encode(missing, batch_size=self.config["batch_size"],
+                                        normalize_embeddings=True, show_progress_bar=False).tolist()
+            self.embeddings.update(zip(missing, vectors, strict=True))
+        reference_vectors = np.array([self.embeddings[text] for text in left])
+        student_vectors = np.array([self.embeddings[text] for text in right])
         return np.clip(reference_vectors @ student_vectors.T, -1, 1)
 
     def resource_metadata(self):

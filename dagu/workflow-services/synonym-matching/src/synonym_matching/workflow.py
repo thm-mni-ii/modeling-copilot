@@ -1,6 +1,5 @@
 """Read one workflow pair and wrap its complete evidence for immutable publication."""
 
-from copy import deepcopy
 import os
 
 from workflow_io import identifier, read_input
@@ -36,43 +35,32 @@ def run(payload, bundle=None, reference_key=None):
     config = resolve_config(payload.get("comparisonConfig", {}))
     evidence = compare_pair(inventories, config)
     producer = producer_metadata()
-    semantic_config = {"engine": config, "resources": evidence.pop("resources"),
-                       "methods": deepcopy(evidence["methods"]), "combiner": deepcopy(evidence["combiner"]),
-                       "threshold": None, "filtered": False, "producer": producer}
+    semantic_config = evidence.pop("semanticConfig")
     diagnostics = []
     for element in evidence["unscoredElements"]:
         diagnostics.append({"code": "UNSCORABLE_LABEL_TEXT", "severity": "info", "scope": "element",
                             "message": "Element retained without semantic scores: " + element["reason"],
                             "modelKey": inventories[element["side"]]["source"]["key"], "elementIds": [element["id"]]})
-    if evidence["connectionTextPairCount"]:
-        diagnostics.append({
-            "code": "CONNECTION_TEXT_OWNER_COMPATIBILITY_UNAVAILABLE",
-            "severity": "warning",
-            "scope": "connectionText",
-            "message": "Connection text candidates are retained, but their owners' types and language versions are not present in the inventory.",
-            "elementIds": [],
-        })
     diagnostics.sort(key=lambda item: (item.get("code", ""), item.get("elementIds", []), content_hash(item)))
     student, reference = inventories["student"], inventories["reference"]
     result = {
-        "schema": "semantic-candidates/v2", "evaluationId": student["evaluationId"], "inputHash": student["inputHash"],
+        "schema": "semantic-candidates/v1", "evaluationId": student["evaluationId"], "inputHash": student["inputHash"],
         "pair": {"studentKey": student["source"]["key"], "referenceKey": reference["source"]["key"]},
         "graphHashes": {side: data["graphHash"] for side, data in inventories.items()},
         "inventoryHashes": {side: data["inventoryHash"] for side, data in inventories.items()},
         "inventoryPaths": {side: f"labels/{data['source']['key']}.json" for side, data in inventories.items()},
         "semanticConfig": semantic_config,
         "semanticConfigHash": content_hash(semantic_config), "producer": producer,
-        "threshold": None, "filtered": False, **evidence,
+        **evidence,
         "completeness": {"technical": "complete", "interpretation": "partial" if (
-            evidence["connectionTextPairCount"] > 0
-            or any(data["completeness"]["interpretation"] == "partial" for data in inventories.values())
+            any(data["completeness"]["interpretation"] == "partial" for data in inventories.values())
         ) else "complete"},
         "diagnostics": diagnostics,
     }
     result["candidateHash"] = content_hash(result)
     return {"schema": "workflow-result/v1", "schemaVersion": 1, "status": "ok", "capability": SERVICE,
             "mode": "match", "summary": (
-                f"{evidence['candidatePairCount']} zulässige Elementpaare; "
-                f"{evidence['scoredPairCount']} mit Text bewertet"
+                f"{result['candidatePairCount']} zulässige Elementpaare; "
+                f"{result['scoredPairCount']} mit Textevidenz"
             ),
             "result": result}

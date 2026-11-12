@@ -32,13 +32,20 @@ class DefinitionBinding(TypedDict):
     definitionCandidates: NotRequired[list[DefinitionReference]]
 
 
+class TextFormatting(TypedDict):
+    fontStyle: int
+    bold: bool
+    italic: bool
+    underline: bool
+
+
 class GraphNode(DefinitionBinding):
     id: str
     kind: Literal["modelElement", "structuralElement", "connection", "connectionLabel"] | None
     type: str | None
     comparisonGroup: str | None
     label: str
-    properties: NotRequired[dict[str, Scalar]]
+    properties: NotRequired[dict[str, Scalar | TextFormatting]]
     comparisonRole: Literal["semantic", "structural", "unsupported"]
     connectionLabelId: NotRequired[str]
     directed: NotRequired[bool | None]
@@ -105,6 +112,22 @@ def scalar_properties(cell: ET.Element) -> dict:
             if key not in ("as", "id", "type", "label")}
 
 
+def text_formatting(style: dict) -> TextFormatting | None:
+    value = style.get("fontStyle")
+    try:
+        font_style = int(value)
+    except (TypeError, ValueError):
+        return None
+    if font_style < 0:
+        return None
+    return {
+        "fontStyle": font_style,
+        "bold": bool(font_style & 1),
+        "italic": bool(font_style & 2),
+        "underline": bool(font_style & 4),
+    }
+
+
 def label_of(cell: ET.Element) -> str:
     return cell.get("value", object_field(cell, "diagramAttributes").get("label", ""))
 
@@ -163,13 +186,19 @@ def language_catalog(languages: object) -> tuple[dict, dict, set, set, list, dic
         if not isinstance(configured_groups, list):
             raise ValueError("language evaluation comparisonGroups must be an array")
         for group in configured_groups:
-            if (not isinstance(group, dict) or not isinstance(group.get("id"), str) or not group["id"]
-                    or not isinstance(group.get("elementTypes"), list)
-                    or any(not isinstance(element_type, str) or not element_type for element_type in group["elementTypes"])):
-                raise ValueError("each comparison group needs an id and elementTypes array")
-            for element_type in group["elementTypes"]:
-                key = (reference["languageId"], reference["versionId"], element_type)
-                comparison_groups.setdefault(key, set()).add(group["id"])
+            if not isinstance(group, dict) or not isinstance(group.get("id"), str) or not group["id"]:
+                raise ValueError("each comparison group needs a non-empty id")
+            type_fields = (("elementTypes", "element"), ("connectionTypes", "connection"))
+            if not any(field in group for field, _category in type_fields):
+                raise ValueError("each comparison group needs elementTypes or connectionTypes")
+            for field, category in type_fields:
+                configured_types = group.get(field, [])
+                if (not isinstance(configured_types, list)
+                        or any(not isinstance(value, str) or not value for value in configured_types)):
+                    raise ValueError(f"comparison group {field} must be an array of non-empty type names")
+                for configured_type in configured_types:
+                    key = (category, reference["languageId"], reference["versionId"], configured_type)
+                    comparison_groups.setdefault(key, set()).add(group["id"])
         feedback = data.get("feedback", {})
         if not isinstance(feedback, dict) or not isinstance(feedback.get("canvas", {}), dict):
             raise ValueError("language feedback/canvas must be objects")
@@ -406,19 +435,27 @@ def parse_model(value: object) -> dict:
         elif entry and explicit_role in ("semantic", "structural"):
             comparison_role = explicit_role
         language = bindings[identity]["language"]
+        group_category = "element" if node_kind == "modelElement" else (
+            "connection" if node_kind == "connection" else None
+        )
         group_ids = comparison_groups.get(
-            (language["languageId"], language["versionId"], native_type), set()
-        ) if node_kind == "modelElement" and language else set()
+            (group_category, language["languageId"], language["versionId"], native_type), set()
+        ) if group_category and language else set()
         comparison_group = next(iter(group_ids)) if len(group_ids) == 1 else None
         if len(group_ids) > 1:
-            diagnose("AMBIGUOUS_COMPARISON_GROUP", [identity], "Element type belongs to multiple comparison groups.",
-                     language=language, elementType=native_type, comparisonGroupIds=sorted(group_ids))
+            type_name = "elementType" if group_category == "element" else "connectionType"
+            diagnose("AMBIGUOUS_COMPARISON_GROUP", [identity],
+                     f"{type_name.capitalize()} belongs to multiple comparison groups.",
+                     language=language, **{type_name: native_type}, comparisonGroupIds=sorted(group_ids))
         nodes[identity] = {"id": identity, "kind": node_kind, "type": native_type or None,
                            "comparisonGroup": comparison_group,
                            "label": label_of(cell), "comparisonRole": comparison_role,
                            **bindings[identity]}
         if properties:
             nodes[identity]["properties"] = properties
+        formatting = text_formatting(style_of(cell))
+        if formatting is not None:
+            nodes[identity].setdefault("properties", {})["textFormatting"] = formatting
         if node_kind == "connectionLabel":
             nodes[identity]["connectionLabelId"] = cell.get("connectionLabelId", "")
 

@@ -87,6 +87,59 @@ class GraphParserTests(unittest.TestCase):
         self.assertEqual(contains, {("attributes", "entity"), ("attribute", "attributes")})
         self.assertEqual({edge["role"] for edge in result["graph"]["edges"]}, {"component", "content"})
 
+    def test_font_style_bitfield_is_preserved_without_interpreting_labels(self):
+        result = parse(
+            [
+                '<Cell id="italic" value="Italic" diagramElementType="item" vertex="1" parent="modeling" style="fontStyle=2"/>',
+                '<Cell id="underline" value="Underline" diagramElementType="item" vertex="1" parent="modeling" style="fontStyle=4"/>',
+                '<Cell id="combined" value="&lt;b&gt;Part&lt;/b&gt;" diagramElementType="item" vertex="1" parent="modeling">'
+                '<Object as="style" fontStyle="6"/></Cell>',
+            ],
+            [{"type": "item"}],
+        )
+
+        self.assertEqual(node_by_id(result, "italic")["properties"]["textFormatting"], {
+            "fontStyle": 2, "bold": False, "italic": True, "underline": False,
+        })
+        self.assertEqual(node_by_id(result, "underline")["properties"]["textFormatting"], {
+            "fontStyle": 4, "bold": False, "italic": False, "underline": True,
+        })
+        combined = node_by_id(result, "combined")
+        self.assertEqual(combined["properties"]["textFormatting"], {
+            "fontStyle": 6, "bold": False, "italic": True, "underline": True,
+        })
+        self.assertEqual(combined["label"], "<b>Part</b>")
+
+    def test_connection_comparison_groups_are_separate_and_ambiguity_is_diagnosed(self):
+        result = parse(
+            [
+                '<Cell id="entity-a" diagramElementType="entity" vertex="1" parent="modeling"/>',
+                '<Cell id="entity-b" diagramElementType="entity" vertex="1" parent="modeling"/>',
+                '<Cell id="grouped-a" connectionId="link-a" edge="1" parent="modeling" source="entity-a" target="entity-b"/>',
+                '<Cell id="grouped-b" connectionId="link-b" edge="1" parent="modeling" source="entity-a" target="entity-b"/>',
+                '<Cell id="unconfigured" connectionId="link-c" edge="1" parent="modeling" source="entity-a" target="entity-b"/>',
+                '<Cell id="ambiguous" connectionId="link-ambiguous" edge="1" parent="modeling" source="entity-a" target="entity-b"/>',
+            ],
+            [{"type": "entity"}],
+            connections=[{"type": link_type, "undirected": True} for link_type in (
+                "link-a", "link-b", "link-c", "link-ambiguous",
+            )],
+            groups=[
+                {"id": "shared", "elementTypes": ["entity"]},
+                {"id": "shared", "connectionTypes": ["link-a", "link-b"]},
+                {"id": "ambiguous-one", "connectionTypes": ["link-ambiguous"]},
+                {"id": "ambiguous-two", "connectionTypes": ["link-ambiguous"]},
+            ],
+        )
+
+        self.assertEqual(node_by_id(result, "grouped-a")["comparisonGroup"], "shared")
+        self.assertEqual(node_by_id(result, "grouped-b")["comparisonGroup"], "shared")
+        self.assertIsNone(node_by_id(result, "unconfigured")["comparisonGroup"])
+        self.assertIsNone(node_by_id(result, "ambiguous")["comparisonGroup"])
+        ambiguous = next(item for item in result["diagnostics"]
+                         if item["code"] == "AMBIGUOUS_COMPARISON_GROUP")
+        self.assertEqual(ambiguous["connectionType"], "link-ambiguous")
+
     def test_multiple_declared_containers_keep_distinct_definition_references(self):
         result = parse(
             [

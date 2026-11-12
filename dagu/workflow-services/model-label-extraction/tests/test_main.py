@@ -34,7 +34,8 @@ def payload(nodes=None, edges=None):
         "languages": [],
         "nodes": nodes if nodes is not None else [
             node("entity", "modelElement", "semantic", "<b>Stockwerk</b>", type="serm-entity",
-                 comparisonGroup="serm-main", language={"languageId": "serm", "versionId": "1.0"}),
+                 comparisonGroup="serm-main", language={"languageId": "serm", "versionId": "1.0"},
+                 properties={"textFormatting": {"fontStyle": 1, "bold": True, "italic": False, "underline": False}}),
             node("entity-copy", "modelElement", "semantic", "<b>Stockwerk</b>", type="serm-entity",
                  comparisonGroup="serm-main", language={"languageId": "serm", "versionId": "1.0"}),
             node("container", "structuralElement", "structural", "Attributes"),
@@ -86,6 +87,7 @@ class ModelLabelExtractionTests(unittest.TestCase):
             "labelStatus": "present",
             "textLanguage": None,
         })
+        self.assertNotIn("properties", result["elements"][0])
         self.assertEqual(result["connectionTexts"], [
             {"id": "orphan-label", "ownerConnectionId": None, "kind": "additionalLabel",
              "connectionLabelId": "role", "matchText": "", "labelStatus": "unsupported",

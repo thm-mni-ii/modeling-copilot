@@ -32,6 +32,16 @@ def validate_inventory(envelope, side):
         language = element["textLanguage"]
         if language is not None and not language.strip():
             raise ValueError(f"{side} element {identity}: textLanguage must be non-empty or null")
+    for text in data["connectionTexts"]:
+        identity = text["id"]
+        if not identity.strip() or identity in seen:
+            raise ValueError(f"{side} inventory needs unique non-empty graph-cell IDs")
+        seen.add(identity)
+        status, value = text["labelStatus"], text["matchText"]
+        if (status == "present") != bool(value.strip()):
+            raise ValueError(f"{side} connection text {identity}: labelStatus conflicts with matchText")
+        if text["kind"] == "additionalLabel" and not text["connectionLabelId"]:
+            raise ValueError(f"{side} connection text {identity}: additional labels need connectionLabelId")
     return data
 
 
