@@ -99,16 +99,22 @@ class LanguageVersion(LanguageVersionInfo):
 
 
 class ComparisonGroup(ApiSchema):
-    """Direct pairwise candidate permissions between element types."""
+    """Direct pairwise candidate permissions within each type category."""
 
     id: Name
     name: Name
-    element_types: list[str] = Field(min_length=2)
+    element_types: list[str] = Field(default_factory=list)
+    connection_types: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def unique_element_types(self) -> "ComparisonGroup":
-        if len(set(self.element_types)) != len(self.element_types):
-            raise ValueError("Comparison group element types must be distinct.")
+    def valid_types(self) -> "ComparisonGroup":
+        if not self.element_types and not self.connection_types:
+            raise ValueError("Comparison groups need at least two element or connection types.")
+        for category, members in (("element", self.element_types), ("connection", self.connection_types)):
+            if members and len(members) < 2:
+                raise ValueError(f"Comparison groups need at least two {category} types per category.")
+            if len(set(members)) != len(members):
+                raise ValueError(f"Comparison group {category} types must be distinct.")
         return self
 
 
@@ -168,7 +174,16 @@ class CreateLanguageVersion(ApiSchema):
                 collect(element.get("children", []))
 
         collect(self.data.get("elements", []))
+        connections = self.data.get("connections", [])
+        if not isinstance(connections, list) or any(
+            not isinstance(connection, dict) or not isinstance(connection.get("type"), str)
+            for connection in connections
+        ):
+            raise ValueError("Connection declarations must be a list with type identifiers.")
+        connection_types = {connection["type"] for connection in connections}
         for group in config.comparison_groups:
             if not set(group.element_types) <= element_types:
                 raise ValueError("Comparison groups must reference declared element types, including child types.")
+            if not set(group.connection_types) <= connection_types:
+                raise ValueError("Comparison groups must reference declared connection types.")
         return self

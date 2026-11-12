@@ -16,6 +16,11 @@ GROUPS = (
     ("uml-class", "Class", ("uml-class", "uml-abstract-class")),
 )
 
+CONNECTION_GROUPS = (
+    ("serm-connection", "Relationship", ("serm-0-1", "serm-0-n", "serm-1-1", "serm-1-n")),
+    ("uml-association", "Association", ("uml-association", "uml-directed-association", "uml-aggregation", "uml-composition")),
+)
+
 
 def evaluation_config(data):
     element_types = set()
@@ -30,11 +35,22 @@ def evaluation_config(data):
             collect(element.get("children", []))
 
     collect(data.get("elements", []))
+    connections = data.get("connections", [])
+    if not isinstance(connections, list) or any(
+        not isinstance(connection, dict) or not isinstance(connection.get("type"), str)
+        for connection in connections
+    ):
+        raise ValueError("Language connection declarations must be a list with type identifiers.")
+    connection_types = {connection["type"] for connection in connections}
     groups = []
     for group_id, name, candidates in GROUPS:
         members = [element_type for element_type in candidates if element_type in element_types]
         if len(members) >= 2:
             groups.append({"id": group_id, "name": name, "elementTypes": members})
+    for group_id, name, candidates in CONNECTION_GROUPS:
+        members = [connection_type for connection_type in candidates if connection_type in connection_types]
+        if len(members) >= 2:
+            groups.append({"id": group_id, "name": name, "connectionTypes": members})
     return {"comparisonGroups": groups}
 
 

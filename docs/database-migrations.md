@@ -178,7 +178,10 @@ questionnaire service without importing migration implementations.
     element types are grouped when at least two members are present: SERM
     entity variants, attribute variants and generalization variants; ERM
     entity, relationship and attribute variants; and UML concrete and abstract
-    classes. UML interfaces remain separate. Unknown types are not inferred,
+    classes. Connection groups cover SERM cardinality variants and UML
+    association, directed association, aggregation and composition. Element
+    and connection memberships are evaluated separately. UML interfaces and
+    ERM connection types remain separate. Unknown types are not inferred,
     so other languages receive an empty group list unless they contain these
     known type identifiers. Existing evaluation settings are never overwritten.
     Preview is read-only; retries preserve completed updates, concurrent changes

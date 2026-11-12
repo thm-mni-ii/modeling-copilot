@@ -12,11 +12,12 @@ export type { DiagramSyntax } from './Syntax'
 export type { GlobalSettings } from './GlobalSettings'
 export type { DiagramFeedbackConfig } from './Feedback'
 
-/** Members are pairwise candidates; overlapping groups do not imply transitivity. */
+/** Members within each category are pairwise candidates; overlapping groups do not imply transitivity. */
 export interface ComparisonGroup {
   id: string
   name: string
-  elementTypes: string[]
+  elementTypes?: string[]
+  connectionTypes?: string[]
 }
 
 export interface DiagramEvaluationConfig {

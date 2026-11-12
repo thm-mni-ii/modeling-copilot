@@ -7,12 +7,11 @@ const isObject = (value: unknown): value is Record<string, unknown> => !!value &
 const isName = (value: unknown): value is string => typeof value === 'string' && !!value.trim() && value.length <= 256
 
 /** Validate at save/import boundaries without changing immutable definitions. */
-export const evaluationConfigErrors = (value: unknown, elementTypes: string[]): string[] => {
+export const evaluationConfigErrors = (value: unknown, elementTypes: string[], connectionTypes: string[] = []): string[] => {
   if (value === undefined) return []
   if (!isObject(value) || !Array.isArray(value.comparisonGroups)) return ['Evaluation must contain a list of comparison groups.']
   const errors: string[] = []
   const ids = new Set<string>()
-  const knownTypes = new Set(elementTypes)
   for (const [index, group] of value.comparisonGroups.entries()) {
     const label = isObject(group) && isName(group.name) ? group.name : `Group ${index + 1}`
     if (!isObject(group)) {
@@ -22,12 +21,25 @@ export const evaluationConfigErrors = (value: unknown, elementTypes: string[]): 
     if (!isName(group.id) || ids.has(group.id)) errors.push(`${label}: Group identifiers must be valid and unique.`)
     else ids.add(group.id)
     if (!isName(group.name)) errors.push(`${label}: Enter a name with at most 256 characters.`)
-    if (!Array.isArray(group.elementTypes) || group.elementTypes.length < 2) {
-      errors.push(`${label}: Select at least two distinct element types.`)
-      continue
+    const categories = [
+      { field: 'elementTypes', label: 'element', knownTypes: new Set(elementTypes) },
+      { field: 'connectionTypes', label: 'connection', knownTypes: new Set(connectionTypes) }
+    ]
+    if (!categories.some(({ field }) => {
+      const members = group[field]
+      return Array.isArray(members) && members.length > 0
+    })) errors.push(`${label}: Select at least two element or connection types.`)
+    for (const category of categories) {
+      const members = group[category.field]
+      if (members === undefined) continue
+      if (!Array.isArray(members)) {
+        errors.push(`${label}: ${category.field} must be a list.`)
+        continue
+      }
+      if (members.length > 0 && members.length < 2) errors.push(`${label}: Select at least two distinct ${category.label} types.`)
+      if (new Set(members).size !== members.length) errors.push(`${label}: Each ${category.label} type may occur only once per group.`)
+      if (members.some((type) => typeof type !== 'string' || !category.knownTypes.has(type))) errors.push(`${label}: Remove or replace unknown ${category.label} types.`)
     }
-    if (new Set(group.elementTypes).size !== group.elementTypes.length) errors.push(`${label}: Each element type may occur only once per group.`)
-    if (group.elementTypes.some((type) => typeof type !== 'string' || !knownTypes.has(type))) errors.push(`${label}: Remove or replace unknown element types.`)
   }
   return errors
 }

@@ -5,14 +5,18 @@
         <v-icon color="primary" size="24">mdi-compare</v-icon>
         <h2 class="text-h6">Comparison groups</h2>
         <v-spacer />
-        <v-btn color="primary" variant="tonal" size="small" prepend-icon="mdi-plus" :disabled="disabled || elementTypes.length < 2" @click="addGroup">New group</v-btn>
+        <v-btn color="primary" variant="tonal" size="small" prepend-icon="mdi-plus" :disabled="disabled || types.length < 2" @click="addGroup">New group</v-btn>
       </v-card-title>
       <v-divider />
       <v-card-text class="pa-3">
+        <v-btn-toggle v-model="typeField" mandatory density="compact" color="primary" variant="outlined" divided class="mb-3" aria-label="Comparison type category">
+          <v-btn value="elementTypes">Elements</v-btn>
+          <v-btn value="connectionTypes">Connections</v-btn>
+        </v-btn-toggle>
         <p class="text-body-2 text-medium-emphasis mb-3">Check the types that may match within each group. Identical types can always match.</p>
         <v-alert v-if="!store.definition" type="info" variant="tonal" density="compact">Load a language version to configure evaluation.</v-alert>
         <template v-else>
-          <v-alert v-if="elementTypes.length < 2" type="info" variant="tonal" density="compact" class="mb-3">Add at least two element types to create a comparison group. Declared child types are included.</v-alert>
+          <v-alert v-if="types.length < 2" type="info" variant="tonal" density="compact" class="mb-3">Add at least two {{ typeCategory }} types to create a comparison group.<span v-if="typeField === 'elementTypes'"> Declared child types are included.</span></v-alert>
           <v-alert v-if="errors.length" type="warning" variant="tonal" density="compact" class="mb-3" title="Resolve before saving">
             <div v-for="(message, index) in errors" :key="index">{{ message }}</div>
           </v-alert>
@@ -22,8 +26,12 @@
               <thead>
                 <tr>
                   <th scope="col" class="group-column">Comparison group</th>
-                  <th v-for="type in elementTypes" :key="type" scope="col" class="type-column">
-                    <ElementPreviewLabel :element="previewElements.get(type)" :label="type" />
+                  <th v-for="type in types" :key="type" scope="col" class="type-column">
+                    <ElementPreviewLabel v-if="typeField === 'elementTypes'" :element="previewElements.get(type)" :label="type" />
+                    <template v-else>
+                      <ConnectionPreviewItem :connection="previewConnections.get(type)" :width="140" :height="36" />
+                      <span>{{ type }}</span>
+                    </template>
                   </th>
                   <th scope="col">Actions</th>
                 </tr>
@@ -33,15 +41,15 @@
                   <th scope="row" class="group-column">
                     <div class="d-flex align-center ga-2 py-2">
                       <v-text-field v-model="group.name" :aria-label="`Group ${index + 1} name`" placeholder="Group name" variant="outlined" density="compact" maxlength="256" :disabled="disabled" hide-details class="group-name" />
-                      <v-chip size="x-small" variant="tonal" :color="group.elementTypes.length < 2 ? 'warning' : undefined" :aria-label="`${group.elementTypes.length} selected types`">{{ group.elementTypes.length }}</v-chip>
+                      <v-chip size="x-small" variant="tonal" :color="groupTypes(group).length < 2 ? 'warning' : undefined" :aria-label="`${groupTypes(group).length} selected types`">{{ groupTypes(group).length }}</v-chip>
                     </div>
                     <div v-if="missingTypes(group).length" class="d-flex flex-wrap ga-1 pb-2">
                       <v-chip v-for="type in missingTypes(group)" :key="type" size="small" color="error" closable :disabled="disabled" :aria-label="`Remove missing type ${type} from ${group.name || `Group ${index + 1}`}`" @click:close="toggleType(group, type)">{{ type }} (missing)</v-chip>
                     </div>
                   </th>
-                  <td v-for="type in elementTypes" :key="type" class="text-center">
-                    <v-btn :color="group.elementTypes.includes(type) ? 'primary' : undefined" :variant="group.elementTypes.includes(type) ? 'flat' : 'tonal'" class="matrix-button rounded-lg" size="small" :disabled="disabled" :aria-label="`${type} in ${group.name || `Group ${index + 1}`}`" :aria-pressed="group.elementTypes.includes(type)" @click="toggleType(group, type)">
-                      <v-icon size="18">{{ group.elementTypes.includes(type) ? 'mdi-check' : 'mdi-minus' }}</v-icon>
+                  <td v-for="type in types" :key="type" class="text-center">
+                    <v-btn :color="groupTypes(group).includes(type) ? 'primary' : undefined" :variant="groupTypes(group).includes(type) ? 'flat' : 'tonal'" class="matrix-button rounded-lg" size="small" :disabled="disabled" :aria-label="`${type} in ${group.name || `Group ${index + 1}`}`" :aria-pressed="groupTypes(group).includes(type)" @click="toggleType(group, type)">
+                      <v-icon size="18">{{ groupTypes(group).includes(type) ? 'mdi-check' : 'mdi-minus' }}</v-icon>
                     </v-btn>
                   </td>
                   <td class="text-center">
@@ -63,17 +71,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useDiagramLanguages } from '@/composables/useDiagramLanguages'
 import type { ComparisonGroup } from '@/model/DiagramLanguage'
 import type { ChildElement, DiagramElement } from '@/model/Element'
 import { evaluationConfigErrors, evaluationElementTypes } from '@/utils/languageEvaluation'
 import ElementPreviewLabel from '@/components/modeling/form/ElementPreviewLabel.vue'
+import ConnectionPreviewItem from '@/components/modeling/canvas/ConnectionPreviewItem.vue'
 
 const store = useDiagramLanguages()
-const groups = computed(() => store.definition?.evaluation?.comparisonGroups ?? [])
+const typeField = ref<'elementTypes' | 'connectionTypes'>('elementTypes')
+const typeCategory = computed(() => typeField.value === 'elementTypes' ? 'element' : 'connection')
+const allGroups = computed(() => store.definition?.evaluation?.comparisonGroups ?? [])
+const groups = computed(() => allGroups.value.filter((group) => group[typeField.value] !== undefined))
 const elementTypes = computed(() => evaluationElementTypes(store.definition?.elements ?? []))
-const errors = computed(() => evaluationConfigErrors(store.definition?.evaluation, elementTypes.value))
+const connectionTypes = computed(() => [...new Set(store.definition?.connections.map((connection) => connection.type) ?? [])])
+const types = computed(() => typeField.value === 'elementTypes' ? elementTypes.value : connectionTypes.value)
+const previewConnections = computed(() => new Map(store.definition?.connections.map((connection) => [connection.type, connection])))
+const errors = computed(() => evaluationConfigErrors(store.definition?.evaluation, elementTypes.value, connectionTypes.value))
 const disabled = computed(() => !store.definition || store.loading || store.saving)
 const previewElements = computed(() => {
   const result = new Map<string, DiagramElement>()
@@ -88,18 +103,20 @@ const previewElements = computed(() => {
   store.definition?.elements.forEach(collect)
   return result
 })
-const missingTypes = (group: ComparisonGroup) => group.elementTypes.filter((type) => !elementTypes.value.includes(type))
+const groupTypes = (group: ComparisonGroup) => group[typeField.value] ?? []
+const missingTypes = (group: ComparisonGroup) => groupTypes(group).filter((type) => !types.value.includes(type))
 const toggleType = (group: ComparisonGroup, type: string) => {
-  group.elementTypes = group.elementTypes.includes(type) ? group.elementTypes.filter((entry) => entry !== type) : [...group.elementTypes, type]
+  const members = groupTypes(group)
+  group[typeField.value] = members.includes(type) ? members.filter((entry) => entry !== type) : [...members, type]
 }
 const addGroup = () => {
-  if (!store.definition) return
+  if (!store.definition || types.value.length < 2) return
   store.definition.evaluation ??= { comparisonGroups: [] }
-  store.definition.evaluation.comparisonGroups.push({ id: crypto.randomUUID(), name: `Group ${groups.value.length + 1}`, elementTypes: [] })
+  store.definition.evaluation.comparisonGroups.push({ id: crypto.randomUUID(), name: `Group ${allGroups.value.length + 1}`, [typeField.value]: [] })
 }
 const removeGroup = (id: string) => {
   if (!store.definition?.evaluation) return
-  store.definition.evaluation.comparisonGroups = groups.value.filter((group) => group.id !== id)
+  store.definition.evaluation.comparisonGroups = allGroups.value.filter((group) => group.id !== id)
 }
 </script>
 

@@ -58,7 +58,7 @@ export const useDiagramLanguageStore = defineStore('diagramLanguage', () => {
     saving.value = true
     error.value = null
     try {
-      const evaluationErrors = evaluationConfigErrors(currentVersion.value.data.evaluation, evaluationElementTypes(currentVersion.value.data.elements))
+      const evaluationErrors = evaluationConfigErrors(currentVersion.value.data.evaluation, evaluationElementTypes(currentVersion.value.data.elements), currentVersion.value.data.connections.map((connection) => connection.type))
       if (evaluationErrors.length) throw new Error(evaluationErrors.join('\n'))
       const savedVersion = (
         await languageService.createVersion<DiagramLanguage>(language.value.id, {

@@ -78,7 +78,7 @@ export const parseModelPackage = (text: string): ModelPackage => {
       throw new Error('The package contains an invalid modeling language.')
     }
     ;[...language.data.elements, ...language.data.connections].forEach(checkDefinition)
-    const errors = evaluationConfigErrors(language.data.evaluation, evaluationElementTypes(language.data.elements as DiagramElement[]))
+    const errors = evaluationConfigErrors(language.data.evaluation, evaluationElementTypes(language.data.elements as DiagramElement[]), (language.data.connections as { type: string }[]).map((connection) => connection.type))
     if (errors.length) throw new Error(errors.join('\n'))
   }
   const result = value as unknown as ModelPackage
