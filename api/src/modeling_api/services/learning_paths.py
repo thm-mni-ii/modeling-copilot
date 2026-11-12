@@ -338,6 +338,11 @@ async def run_coin_balance(run, template):
 async def get_run(run_id, user):
     run = await owned_run(run_id, user)
     template = await template_document(run["templateId"])
+    return await run_view(run, template)
+
+
+async def run_view(run, template, *, readonly=False):
+    """Share progress semantics without recording changes during staff inspection."""
     sessions = await run_sessions(run)
     states = {s["stepId"]: s for s in run["stepStates"]}
     now = utcnow()
@@ -388,7 +393,7 @@ async def get_run(run_id, user):
     skipped = counted.count("skipped")
     finished = bool(counted) and completed + skipped == len(counted)
     first_finished_at = run.get("firstFinishedAt")
-    if finished and not first_finished_at:
+    if finished and not first_finished_at and not readonly:
         first_finished_at = now
         await db.learning_path_runs.update_one(
             {"_id": run["_id"], "firstFinishedAt": None},
@@ -405,7 +410,7 @@ async def get_run(run_id, user):
         "description": template["description"],
         "steps": steps,
         "completed": completed,
-        "coins": await run_coin_balance(run, template),
+        "coins": 0 if readonly else await run_coin_balance(run, template),
         "total": len(counted),
         "skipped": skipped,
         "progress": (

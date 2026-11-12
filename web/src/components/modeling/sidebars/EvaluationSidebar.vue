@@ -68,6 +68,10 @@
 
         <v-divider class="my-2" />
 
+        <v-alert v-if="detail.workflow.labels.phase === '4'" type="info" density="compact" variant="tonal" class="mb-2">
+          Zwischenergebnisse bis Phase 4: Graphen, Elementinventare und semantische Kandidaten je Musterlösung.
+        </v-alert>
+
         <div class="evaluation-progress">
           <div class="d-flex align-center justify-space-between text-caption text-medium-emphasis mb-1">
             <span>Fortschritt</span>
@@ -86,7 +90,11 @@
             <div class="text-body-2 font-weight-medium">{{ entry.title }}</div>
             <div v-if="entry.resultSummary" class="result-summary mt-1">{{ entry.resultSummary }}</div>
             <div v-else-if="entry.description" class="text-caption text-medium-emphasis mt-1">{{ entry.description }}</div>
-            <JsonResultViewer v-if="entry.result" :data="entry.result" class="mt-1" />
+            <JsonResultViewer :data="entry.result ?? { title: entry.title, description: entry.description ?? null, resultSummary: entry.resultSummary ?? null }" class="mt-1">
+              <template #actions>
+                <SemanticComparisonViewer v-if="semanticComparisonResult(entry.result)" :result="semanticComparisonResult(entry.result)!" />
+              </template>
+            </JsonResultViewer>
           </v-timeline-item>
         </v-timeline>
       </template>
@@ -101,6 +109,8 @@ import type { Evaluation, EvaluationDetail } from '@/services/api/types/evaluati
 import evaluationService from '@/services/evaluation/evaluation.service'
 import { notifySuccess } from '@/composables/useNotifications'
 import JsonResultViewer from './JsonResultViewer.vue'
+import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
+import { semanticComparisonResult } from '@/utils/semanticComparison'
 
 const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null }>()
 const view = ref<'list' | 'detail'>('list')
@@ -154,7 +164,7 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
     result: step.result
   }))
   if (detail.value.finalResult) {
-    entries.push({ id: '__final__', icon: 'mdi-flag-checkered', color: 'success', title: 'Endergebnis', result: detail.value.finalResult })
+    entries.push({ id: '__final__', icon: 'mdi-flag-checkered', color: 'success', title: detail.value.workflow.labels.phase === '4' ? 'Ergebnisübersicht bis Phase 4' : 'Endergebnis', result: detail.value.finalResult })
   } else if (detail.value.state === 'failed' || detail.value.state === 'cancelled') {
     entries.push({ id: '__outcome__', icon: 'mdi-alert', color: 'error', title: detail.value.state === 'failed' ? 'Fehlgeschlagen' : 'Abgebrochen', description: 'Workflow wurde nicht erfolgreich abgeschlossen.' })
   }
@@ -320,7 +330,13 @@ onBeforeUnmount(() => {
   font-size: 0.7rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
+.evaluation-timeline.v-timeline {
+  grid-template-columns: 0 min-content minmax(0, 1fr);
+}
 .evaluation-timeline :deep(.v-timeline-item__body) {
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding-block-end: 8px;
 }
 .result-summary {

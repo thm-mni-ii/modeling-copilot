@@ -1,0 +1,40 @@
+{
+  "id": "06af8986-1fc8-50cc-bc1b-106851f9dcd9",
+  "name": "Laborverwaltung",
+  "parent": null,
+  "ownerId": "",
+  "latestVersionId": "a710c28b-d603-5936-b00e-0648a62e0e11",
+  "latestReleaseId": "a710c28b-d603-5936-b00e-0648a62e0e11",
+  "visibility": "private",
+  "archivedAt": null,
+  "version": {
+    "id": "a710c28b-d603-5936-b00e-0648a62e0e11",
+    "taskId": "06af8986-1fc8-50cc-bc1b-106851f9dcd9",
+    "versionNumber": "1.0",
+    "createdBy": "",
+    "kind": "release",
+    "releaseName": "Release 1.0",
+    "description": null,
+    "workspaceLanguages": [
+      {
+        "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+        "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+        "source": "required"
+      }
+    ],
+    "data": {
+      "contentHtml": "<h2>Forschungs- und Laborverwaltung als SERM</h2><p>Modelliere die Forschungs- und Laborverwaltung eines Instituts als SERM. Leite die benötigten Objekttypen, ihre Beziehungen und Kardinalitäten selbstständig aus der Fallstudie ab. Ergänze geeignete Attribute, unterstreiche die Primärschlüssel und kennzeichne die Fremdschlüssel kursiv.</p><h3>Fallstudie</h3><p>Ein Forschungsinstitut führt verschiedene Forschungsprojekte durch. Innerhalb eines Projekts werden einzelne Versuche geplant und dokumentiert. Die Versuche sind innerhalb ihres Projekts fortlaufend nummeriert. Ein Projekt kann bereits bestehen, bevor der erste Versuch geplant wird.</p><p>Das Institut verfügt über mehrere Gebäude mit nummerierten Etagen und Laborräumen. Für jeden Laborraum wird die Größe in Quadratmetern erfasst. Außerdem verwaltet das Institut die Geräte, die in einem Labor vorhanden sind, beispielsweise Mikroskope und Zentrifugen. Für jeden Raum wird festgehalten, welche Gerätearten dort vorhanden sind und in welcher Anzahl.</p><p>Am Institut arbeiten Wissenschaftler, die an unterschiedlichen Forschungsprojekten beteiligt sein können. Das Institut dokumentiert, welche Personen an welchen Projekten mitwirken und von wann bis wann ihre Beteiligung besteht.</p><p>Bei der Durchführung von Versuchen arbeiten Wissenschaftler in den Laborräumen des Instituts. Für die Auswertung soll nachvollziehbar sein, welche Person an welchem Versuch in welchem Raum wie lange gearbeitet hat. Arbeitet dieselbe Person mehrfach am selben Versuch im selben Raum, werden diese Einsätze getrennt dokumentiert.</p>",
+      "autonomyMode": "informative",
+      "connectionPreviewAllowed": false,
+      "sampleSolutions": [
+        {
+          "modelId": "f5cb3b9b-6595-5cbd-8262-08c5f0213b04",
+          "versionId": "84b86ccf-e48e-54af-acfb-74d319797c4b"
+        }
+      ],
+      "evaluationWorkflows": [
+        "model-evaluation-graph-matching"
+      ]
+    }
+  }
+}

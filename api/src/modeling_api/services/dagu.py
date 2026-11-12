@@ -28,9 +28,14 @@ async def _request(method: str, path: str, **kwargs: Any) -> Any:
         raise ApiError(503, "DAGU_UNAVAILABLE", "The evaluation service is currently unavailable.") from error
     if response.status_code in (401, 403):
         raise ApiError(503, "DAGU_UNAUTHORIZED", "The evaluation service rejected its credentials.")
+    if method == "POST" and path.endswith("/start") and 400 <= response.status_code < 500 and response.status_code not in (408, 409):
+        raise ApiError(503, "DAGU_START_REJECTED", "The evaluation service rejected the workflow start.")
     if response.status_code >= 400:
         raise ApiError(503, "DAGU_REQUEST_FAILED", "The evaluation workflow could not be queried.")
-    return response.json() if response.content else {}
+    try:
+        return response.json() if response.content else {}
+    except ValueError as error:
+        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The evaluation service did not return valid JSON.") from error
 
 
 def _items(payload: Any) -> list[dict[str, Any]]:
@@ -77,7 +82,7 @@ async def list_workflows() -> list[dict[str, Any]]:
             if workflow["name"] and workflow["labels"].get("visibility") != "internal"]
 
 
-async def start_workflow(name: str, params: dict[str, Any]) -> str:
+async def start_workflow(name: str, params: dict[str, Any], *, run_id: str) -> str:
     # Dagu exposes runtime params as scalar environment values. Preserve the
     # application's objects and arrays as JSON strings instead of relying on
     # Dagu's implicit string conversion.
@@ -90,17 +95,33 @@ async def start_workflow(name: str, params: dict[str, Any]) -> str:
     payload = await _request(
         "POST",
         f"/dags/{name}/start",
-        json={"params": json.dumps(dagu_params, ensure_ascii=False, separators=(",", ":"))},
+        json={"params": json.dumps(dagu_params, ensure_ascii=False, separators=(",", ":")), "dagRunId": run_id},
     )
-    run_id = payload.get("dagRunId") or payload.get("dag_run_id") or payload.get("runId")
-    if not run_id:
-        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The evaluation service did not return a run ID.")
-    return str(run_id)
+    if not isinstance(payload, dict) or payload.get("dagRunId") != run_id:
+        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The evaluation service did not confirm the requested run ID.")
+    return run_id
 
 
 async def get_run(name: str, run_id: str) -> dict[str, Any]:
     # Dagu's DAG-run resource contains the current status and per-step state.
     return await _request("GET", f"/dag-runs/{name}/{run_id}")
+
+
+async def get_run_outputs(name: str, run_id: str) -> dict[str, Any]:
+    """Read explicitly published outputs; Dagu transports scalar values as strings."""
+    payload = await _request("GET", f"/dag-runs/{name}/{run_id}/outputs")
+    outputs = payload.get("outputs") if isinstance(payload, dict) else None
+    if not isinstance(outputs, dict):
+        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The evaluation service did not return workflow outputs.")
+    result = {}
+    for key, value in outputs.items():
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                pass
+        result[key] = value
+    return result
 
 
 async def get_sub_run(name: str, run_id: str, sub_run_id: str) -> dict[str, Any]:

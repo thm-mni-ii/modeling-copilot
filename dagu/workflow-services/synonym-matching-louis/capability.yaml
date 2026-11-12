@@ -1,7 +1,7 @@
 id: synonym-matching-louis
-version: 0.1.1
+version: 0.1.0
 type: workflow
-image: modeling-copilot/synonym-matching-louis:0.1.1
+image: modeling-copilot/synonym-matching-louis:latest
 inputSchema: schemas/input.schema.json
 outputSchema: schemas/output.schema.json
 description: Paarweise Label-Similarity mit Einzelmatrizen, kombinierbaren Scores und optionalen ML-Verfahren. Anbindung separat.

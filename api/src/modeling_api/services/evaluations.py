@@ -5,6 +5,7 @@ import gzip
 import json
 import shlex
 from asyncio import gather
+from copy import deepcopy
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -47,6 +48,8 @@ def _state(value: object) -> str:
 
 def _dag_run(payload: Document) -> Document:
     """Dagu wraps the run returned by GET /dag-runs in `dagRunDetails`."""
+    if not isinstance(payload, dict):
+        raise ApiError(503, "DAGU_INVALID_RESPONSE", "The evaluation service did not return a run object.")
     details = payload.get("dagRunDetails")
     return details if isinstance(details, dict) else payload
 
@@ -114,8 +117,15 @@ async def list_workflows() -> list[Document]:
     return await dagu.list_workflows()
 
 
-async def _evaluation_input(evaluation_id: str, task: Document, submission: Document, references: list[Document]) -> tuple[Document, list[Document]]:
+async def _evaluation_input(
+    evaluation_id: str, task: Document, submission: Document, references: list[Document],
+    *, comparison_config: Document | None = None,
+) -> tuple[Document, list[Document]]:
     """Freeze complete platform-independent inputs, including language dependencies."""
+    if not references:
+        raise ApiError(422, "EVALUATION_REFERENCES_REQUIRED", "At least one released reference model is required.")
+    if comparison_config is not None and not isinstance(comparison_config, dict):
+        raise ApiError(422, "INVALID_COMPARISON_CONFIG", "comparisonConfig must be a JSON object.")
     cache: dict[tuple[str, str], Document] = {}
     models, descriptors = [], []
 
@@ -150,7 +160,8 @@ async def _evaluation_input(evaluation_id: str, task: Document, submission: Docu
                     "includedLanguageVersions": version.get("includedLanguageVersions", [])}
                    for key, version in sorted(cache.items())]
     return {"schemaVersion": 1, "schema": "evaluation-input/v1", "evaluationId": evaluation_id,
-            "task": task, "models": models, "languages": definitions}, descriptors
+            "task": task, "models": models, "languages": definitions,
+            "comparisonConfig": deepcopy(comparison_config) if comparison_config is not None else {}}, descriptors
 
 
 async def start(model_id: UUID, user: User) -> Document:
@@ -167,6 +178,13 @@ async def start(model_id: UUID, user: User) -> Document:
     version_id = model.get("latestVersionId")
     if not version_id:
         raise ApiError(409, "SUBMISSION_NOT_SAVED", "Save the submission before starting an evaluation.")
+    unresolved = await db.evaluations.find_one({
+        "ownerId": user.id, "modelId": str(model_id), "modelVersionId": str(version_id),
+        "dagName": workflow_name, "startStatus": {"$in": ["starting", "unknown"]},
+    })
+    if unresolved is not None:
+        # A repeated browser request must not launch again after an ambiguous start.
+        return _public_evaluation(unresolved)
     submission = await get_version(model_id, UUID(version_id), user)
     workflow = next((item for item in await dagu.list_workflows() if item["name"] == workflow_name), None)
     if workflow is None:
@@ -192,16 +210,26 @@ async def start(model_id: UUID, user: User) -> Document:
     # One complete input object; subsequent jobs only receive workspace/model keys.
     params = {"evaluation_id": evaluation_id, "evaluation_input": encoded,
               "parser_models": [{"key": source["key"]} for source in parser_models],
+              "reference_models": [{"key": source["key"]} for source in parser_models if source["role"] == "reference"],
               "model_count": len(parser_models), "reference_count": len(reference_snapshots)}
-    dag_run_id = await dagu.start_workflow(workflow_name, params)
     evaluation = await insert(db.evaluations, {
         "_id": evaluation_id,
         "ownerId": user.id, "taskId": task_ref["taskId"], "taskVersionId": task_ref["versionId"],
         "modelId": str(model_id), "modelVersionId": str(version_id),
         "task": task_ref, "submission": {"modelId": str(model_id), "versionId": str(version_id)},
-        "submissionSnapshot": snapshot, "parserModels": parser_models, "dagName": workflow_name, "dagRunId": dag_run_id,
-        "startedAt": utcnow(), "state": "queued", "workflow": workflow,
+        "submissionSnapshot": snapshot, "parserModels": parser_models, "dagName": workflow_name, "dagRunId": evaluation_id,
+        "startedAt": utcnow(), "state": "unknown", "startStatus": "starting", "workflow": workflow,
     })
+    try:
+        dag_run_id = await dagu.start_workflow(workflow_name, params, run_id=evaluation_id)
+    except ApiError as error:
+        rejected = error.code in {"DAGU_START_REJECTED", "DAGU_UNAUTHORIZED"}
+        changes = {"state": "failed" if rejected else "unknown", "startStatus": "failed" if rejected else "unknown",
+                   "startError": {"code": error.code, "message": error.message}}
+    else:
+        changes = {"dagRunId": dag_run_id, "state": "queued", "startStatus": "started"}
+    await db.evaluations.update_one({"_id": evaluation_id}, {"$set": changes})
+    evaluation.update(changes)
     return _public_evaluation(evaluation)
 
 
@@ -217,9 +245,10 @@ async def list_for_model(model_id: UUID, user: User, skip: int, limit: int) -> D
 
 
 async def _model_run_steps(evaluation: Document, parent: Document, children: list[Document]) -> list[Document]:
-    step_name, artifact_path, capability, label = {
-        "parse_models": ("parse_model", "parser-result.json", "graph-parser", "Graph"),
-        "extract_labels": ("extract_labels", "labels-result.json", "model-label-extraction", "Bezeichnungen"),
+    step_name, artifact_path, capability, label, source_param = {
+        "parse_models": ("parse_model", "parser-result.json", "graph-parser", "Graph", "MODEL_KEY"),
+        "extract_labels": ("extract_labels", "labels-result.json", "model-label-extraction", "Elementinventar", "MODEL_KEY"),
+        "match_synonyms": ("match_synonyms", "candidates-result.json", "synonym-matching", "Semantische Kandidaten", "REFERENCE_KEY"),
     }[parent["id"]]
     by_key = {}
     for child in children:
@@ -232,8 +261,8 @@ async def _model_run_steps(evaluation: Document, parent: Document, children: lis
                 params = dict(item.split("=", 1) for item in shlex.split(child.get("params") or "") if "=" in item)
             except (ValueError, TypeError):
                 continue
-        if isinstance(params, dict) and params.get("MODEL_KEY"):
-            by_key[params["MODEL_KEY"]] = child
+        if isinstance(params, dict) and params.get(source_param):
+            by_key[params[source_param]] = child
 
     async def read(source: Document) -> Document:
         step = {"id": f"{step_name}_{source['key']}", "label": f"{label}: {source['label']}",
@@ -272,22 +301,45 @@ async def _model_run_steps(evaluation: Document, parent: Document, children: lis
             step.update(status="unknown", resultSummary="Modellschritt konnte nicht geladen werden.")
         return step
 
-    return list(await gather(*(read(source) for source in evaluation["parserModels"])))
+    sources = [source for source in evaluation["parserModels"]
+               if source_param == "MODEL_KEY" or source["role"] == "reference"]
+    return list(await gather(*(read(source) for source in sources)))
 
 
 async def detail(evaluation_id: UUID, user: User) -> Document:
     evaluation = await db.evaluations.find_one({"_id": str(evaluation_id), "ownerId": user.id})
     if evaluation is None:
         raise not_found()
-    run = _dag_run(await dagu.get_run(evaluation["dagName"], evaluation["dagRunId"]))
+    if evaluation.get("startStatus") == "failed":
+        run = None
+    else:
+        try:
+            run = _dag_run(await dagu.get_run(evaluation["dagName"], evaluation["dagRunId"]))
+            if evaluation.get("startStatus") in {"starting", "unknown"} and run.get("dagRunId") != evaluation["dagRunId"]:
+                raise ApiError(503, "DAGU_INVALID_RESPONSE", "The evaluation service did not identify the requested run.")
+        except ApiError:
+            if evaluation.get("startStatus") not in {"starting", "unknown"}:
+                raise
+            run = None
+    if run is None:
+        result = _public_evaluation(evaluation, detail=True)
+        failed = evaluation.get("startStatus") == "failed"
+        result["steps"] = [{
+            "id": "workflow_start", "label": "Workflow-Start", "status": "failed" if failed else "unknown",
+            "resultSummary": "Der Auswertungsstart wurde abgelehnt." if failed else
+                "Der Startausgang ist unklar. Die Laufkennung bleibt zur Klärung erhalten; es wird kein weiterer Lauf gestartet.",
+            "result": {"evaluationId": evaluation["_id"], "dagRunId": evaluation["dagRunId"],
+                       "error": evaluation.get("startError")},
+        }]
+        result["finalResult"] = None
+        return result
     state = _state(run.get("statusLabel") or run.get("status") or run.get("state"))
     raw_steps = _run_steps(run, evaluation["workflow"])
-    # Expand the fan-out into one visible intermediate result per model. The
-    # existing sidebar already renders each step's structured JSON result.
+    # Expand model and reference-pair fan-outs into their persisted artifacts.
     expanded = []
     for step in raw_steps:
         children = step.pop("_subRuns", [])
-        if step["id"] in {"parse_models", "extract_labels"} and evaluation.get("parserModels"):
+        if step["id"] in {"parse_models", "extract_labels", "match_synonyms"} and evaluation.get("parserModels"):
             expanded.extend(await _model_run_steps(evaluation, step, children))
         else:
             expanded.append(step)
@@ -303,13 +355,18 @@ async def detail(evaluation_id: UUID, user: User) -> Document:
     steps = _enrich_step_output(raw_steps)
     for step in steps:
         step.pop("_modelRun", None)
-    await db.evaluations.update_one({"_id": evaluation["_id"]}, {"$set": {"state": state, "lastObservedAt": utcnow()}})
+    await db.evaluations.update_one({"_id": evaluation["_id"]}, {
+        "$set": {"state": state, "startStatus": "started", "lastObservedAt": utcnow()}, "$unset": {"startError": ""},
+    })
     result = _public_evaluation(evaluation, detail=True)
     result["state"] = state
     result["steps"] = steps
     final_result = (run.get("result") or run.get("output")) if state == "succeeded" else None
-    if state == "succeeded" and not isinstance(final_result, dict) and steps:
-        # The final workflow step is the generic producer of the overall result.
-        final_result = next((step["result"] for step in reversed(steps) if isinstance(step.get("result"), dict)), None)
+    if state == "succeeded" and not isinstance(final_result, dict):
+        try:
+            final_result = await dagu.get_run_outputs(evaluation["dagName"], evaluation["dagRunId"])
+        except ApiError:
+            # Intermediate artifacts remain available even if outputs cannot be loaded.
+            final_result = None
     result["finalResult"] = final_result if isinstance(final_result, dict) else None
     return result

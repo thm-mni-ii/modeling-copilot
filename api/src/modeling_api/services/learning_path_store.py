@@ -198,6 +198,8 @@ async def run_sessions(run):
         for field in fields
         if state.get(field)
     }
+    if not ids:
+        return {}
     sessions = {
         s["_id"]: s async for s in db.survey_sessions.find({"_id": {"$in": list(ids)}})
     }

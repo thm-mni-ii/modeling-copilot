@@ -18,7 +18,7 @@
       </div>
     </section>
 
-    <section v-if="navigation.isAdmin" aria-labelledby="admin-title" class="admin-section mt-10 pt-8">
+    <section v-if="navigation.adminItems.length" aria-labelledby="admin-title" class="admin-section mt-10 pt-8">
       <div class="d-flex align-center flex-wrap ga-3 mb-2">
         <h2 id="admin-title" class="text-h6">Administration</h2>
         <v-chip size="small" prepend-icon="mdi-shield-account-outline" variant="tonal">Admin</v-chip>
