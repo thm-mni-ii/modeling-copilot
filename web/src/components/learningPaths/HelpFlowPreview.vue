@@ -7,10 +7,10 @@
       <v-btn size="small" color="primary" @click="stage = 'reflection'">Weiter</v-btn>
     </section>
     <template v-else-if="stage === 'completed'">
-      <p class="text-body-2">Die gewählte Hilfequelle wird angezeigt. Anschließend geht es zurück zum Modell.</p>
+      <p class="text-body-2">Die gewählte Hilfequelle wird angezeigt. Die automatische Überprüfung des Modells öffnet die Auswertung in der Studierendenansicht.</p>
       <v-btn class="mt-3" variant="text" @click="stage = 'topic'">Vorschau neu starten</v-btn>
     </template>
-    <SurveyRenderer v-else :key="stage" survey-id="help-preview" mode="preview" compact :local-definition="content" :question-per-page="stage === 'reflection'" :complete-text="stage === 'action' ? 'Hilfe auswählen' : 'Weiter'" @completed="advance" />
+    <SurveyRenderer v-else :key="stage" survey-id="help-preview" mode="preview" compact :local-definition="content" :new-choice="automaticModelCheckChoice" :question-per-page="stage === 'reflection'" :complete-text="stage === 'action' ? 'Hilfe auswählen' : 'Weiter'" @completed="advance" />
   </div>
 </template>
 
@@ -19,7 +19,7 @@ import { computed, ref } from 'vue'
 import type { HelpBlueprint, HelpRequestConfig } from '@/services/learningPaths'
 import type { SurveyResponse } from '@/services/surveys'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
-import { helpPhaseDefinition } from '@/utils/helpQuestionnaire'
+import { automaticModelCheckChoice, helpPhaseDefinition } from '@/utils/helpQuestionnaire'
 
 const props = defineProps<{ blueprint: HelpBlueprint; config: HelpRequestConfig }>()
 const stage = ref<'topic' | 'marking' | 'reflection' | 'action' | 'completed'>('topic')

@@ -208,7 +208,8 @@ def compare_pair(inventories, config):
 
     matrix = []
     candidate_count = scored_count = unavailable_count = 0
-    student_status = {item["id"]: item["labelStatus"] for item in elements["student"]}
+    student_elements = {item["id"]: item for item in elements["student"]}
+    student_status = {identity: item["labelStatus"] for identity, item in student_elements.items()}
     for reference in elements["reference"]:
         matches = []
         for submission_id, basis in eligible.get(reference["id"], {}).items():
@@ -221,17 +222,25 @@ def compare_pair(inventories, config):
                     or student_status[submission_id] == "missing"
                 ) else "unsupported_text"
                 matches.append({
-                    "submissionElementId": submission_id, "comparisonBasis": basis,
+                    "submissionElementId": submission_id,
+                    "submissionLabel": student_elements[submission_id]["matchText"],
+                    "comparisonBasis": basis,
                     "scoreStatus": "unavailable", "unavailableReason": reason, "scores": None,
                 })
             else:
                 scored_count += 1
                 matches.append({
-                    "submissionElementId": submission_id, "comparisonBasis": basis,
+                    "submissionElementId": submission_id,
+                    "submissionLabel": student_elements[submission_id]["matchText"],
+                    "comparisonBasis": basis,
                     "scoreStatus": "scored", "scores": scores,
                 })
         matches.sort(key=lambda item: item["submissionElementId"])
-        matrix.append({"referenceElementId": reference["id"], "matches": matches})
+        matrix.append({
+            "referenceElementId": reference["id"],
+            "referenceLabel": reference["matchText"],
+            "matches": matches,
+        })
 
     connection_buckets = {side: {} for side in connection_texts}
     for side, items in connection_texts.items():
@@ -260,6 +269,8 @@ def compare_pair(inventories, config):
             "submissionConnectionTextId": submission_id,
             "referenceOwnerConnectionId": connection_by_id["reference"][reference_id]["ownerConnectionId"],
             "submissionOwnerConnectionId": connection_by_id["student"][submission_id]["ownerConnectionId"],
+            "referenceLabel": connection_by_id["reference"][reference_id]["matchText"],
+            "submissionLabel": connection_by_id["student"][submission_id]["matchText"],
             "kind": connection_by_id["reference"][reference_id]["kind"],
             "connectionLabelId": connection_by_id["reference"][reference_id]["connectionLabelId"],
             "scores": scores,

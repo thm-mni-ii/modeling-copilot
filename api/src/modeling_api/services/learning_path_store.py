@@ -34,6 +34,7 @@ def step_document(step, template_id):
         common["task"] = {
             "taskId": str(step.task_version.task_id),
             "releaseId": str(step.task_version.version_id),
+            "minimumScorePercent": step.minimum_score_percent,
             "beforeSurveyId": (
                 str(step.before_survey_id) if step.before_survey_id else None
             ),
@@ -83,6 +84,7 @@ def step_view(step):
             {"taskId": task["taskId"], "versionId": task["releaseId"]} if task else None
         ),
         "challenge": task.get("challenge") if task else None,
+        "minimumScorePercent": task.get("minimumScorePercent") if task else None,
         "surveyId": survey["surveyId"] if survey else None,
         "required": survey["required"] if survey else True,
         "beforeSurveyId": task.get("beforeSurveyId") if task else None,

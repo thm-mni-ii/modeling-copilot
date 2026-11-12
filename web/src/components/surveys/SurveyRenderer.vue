@@ -10,6 +10,15 @@
     <p v-if="activity && draftStatus && (!compact || draftFailed)" class="text-caption mb-2" role="status">{{ draftStatus }}</p>
     <p v-if="model && !completed && introduction" class="survey-introduction mb-5"><em>{{ introduction }}</em></p>
     <SurveyComponent v-if="model && !completed" :model="model" />
+    <Teleport v-if="newChoiceTarget && newChoice && model && !completed" :to="newChoiceTarget">
+      <v-tooltip :text="newChoice.hint" location="top" max-width="260" open-on-click>
+        <template #activator="{ props: tooltipProps }">
+          <button v-bind="tooltipProps" type="button" class="survey-choice-hint" :aria-label="`Neu: ${newChoice.label}`" @click.stop>
+            <v-badge tag="span" dot inline color="info" aria-hidden="true" />
+          </button>
+        </template>
+      </v-tooltip>
+    </Teleport>
     <v-btn v-if="error && pendingAnswers && !completed" :loading="saving" @click="submit">Speichern erneut versuchen</v-btn>
     <template v-if="completed && !compact">
       <v-alert :type="skipped ? 'info' : 'success'">{{ skipped ? 'Fragebogen übersprungen. Es wurden keine Antworten abgegeben.' : mode === 'preview' ? 'Vorschau abgeschlossen. Diese Daten würden gespeichert:' : 'Vielen Dank! Die Antworten wurden gespeichert.' }}</v-alert>
@@ -27,9 +36,10 @@ import 'survey-core/i18n/german'
 import paths, { type SurveyPhase, type HelpSurveyPhase } from '@/services/learningPaths'
 import surveys, { surveyError, type SurveyDefinition, type SurveyMode, type SurveyResponse } from '@/services/surveys'
 
-const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; compact?: boolean; localDefinition?: SurveyDefinition; questionPerPage?: boolean; completeText?: string; activity?: { runId: string; stepId: string; phase?: SurveyPhase; helpRequestId?: string; helpPhase?: HelpSurveyPhase } }>(), { mode: 'use', compact: false })
+const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; compact?: boolean; localDefinition?: SurveyDefinition; questionPerPage?: boolean; completeText?: string; newChoice?: { question: string; value: string; label: string; hint: string }; activity?: { runId: string; stepId: string; phase?: SurveyPhase; helpRequestId?: string; helpPhase?: HelpSurveyPhase } }>(), { mode: 'use', compact: false })
 const emit = defineEmits<{ completed: [response?: SurveyResponse] }>()
 const model = shallowRef<Model | null>(null)
+const newChoiceTarget = shallowRef<HTMLElement | null>(null)
 const loading = ref(false),
   saving = ref(false),
   error = ref('')
@@ -138,6 +148,7 @@ async function submit() {
 }
 async function load() {
   const current = ++generation
+  newChoiceTarget.value = null
   model.value?.dispose()
   model.value = null
   introduction.value = ''
@@ -169,7 +180,7 @@ async function load() {
         const multipleChoices = `{${q.choicesFromQuestion}.length} >= 2`
         question.visibleIf = question.visibleIf ? `(${question.visibleIf}) and (${multipleChoices})` : multipleChoices
       }
-      return { ...question, ...(q.type === 'rating' ? { displayMode: 'buttons', rateDescriptionLocation: 'bottom' } : {}), ...(q.choices ? { choices: q.choices.map(value => ({ value, text: q.choiceLabels?.[value] ?? value, isExclusive: q.exclusiveChoices?.includes(value) ?? false })) } : {}) }
+      return { ...question, ...(q.type === 'rating' ? { displayMode: 'buttons', rateDescriptionLocation: 'bottom' } : {}), ...(q.choices ? { choices: q.choices.map(value => ({ value, text: props.newChoice?.question === q.name && props.newChoice.value === value ? props.newChoice.label : q.choiceLabels?.[value] ?? value, isExclusive: q.exclusiveChoices?.includes(value) ?? false })) } : {}) }
     }
     const { elements, pages, ...settings } = survey.definition
     delete settings.introduction
@@ -177,6 +188,15 @@ async function load() {
       ? { ...settings, pages: pages.filter(page => elements.some(q => q.page === page.name)).map(page => ({ ...page, elements: elements.filter(q => q.page === page.name).map(displayQuestion) })), showProgressBar: 'top', progressBarType: 'pages' }
       : { ...settings, elements: elements.map(displayQuestion) }
     const instance = new Model({ ...displayedDefinition, widthMode: 'responsive', title: pulse || activity?.helpRequestId ? '' : survey.title, ...(pulse || activity?.helpRequestId ? { completeText: activity?.helpPhase === 'action' ? 'Hilfe auswählen' : 'Weiter' } : {}), ...(props.completeText ? { completeText: props.completeText } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
+    instance.onAfterRenderQuestion.add((_sender, { question, htmlElement }) => {
+      if (!props.newChoice || question.name !== props.newChoice.question) return
+      const input = htmlElement.querySelector<HTMLInputElement>(`input[value="${CSS.escape(props.newChoice.value)}"]`)
+      const item = input?.closest<HTMLElement>('.sd-item')
+      if (item) {
+        item.classList.add('survey-choice-with-hint')
+        newChoiceTarget.value = item
+      }
+    })
     for (const question of instance.getAllQuestions()) {
       if (question instanceof QuestionRankingModel) {
         // Show positions before an answer exists without pre-filling a ranking.
@@ -263,6 +283,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .survey-renderer { width: 100%; min-width: 0; }
+:deep(.survey-choice-with-hint) { display: flex; align-items: center; }
+:deep(.survey-choice-with-hint .sd-selectbase__label) { flex: 1; min-width: 0; }
+.survey-choice-hint { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; cursor: help; }
+.survey-choice-hint:focus-visible { outline: 2px solid rgb(var(--v-theme-info)); outline-offset: 2px; }
 :deep(.sd-rating fieldset) { flex-wrap: wrap; }
 :deep(.survey-rating-five .sd-rating.sd-rating--labels-bottom fieldset) {
   display: grid;

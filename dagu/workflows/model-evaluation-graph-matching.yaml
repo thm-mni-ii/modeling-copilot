@@ -1,4 +1,4 @@
-description: Auswertung bis Phase 4 mit eingefrorenen Eingaben, Graphen, Elementinventaren und semantischen Kandidaten je Musterlösung. Noch keine fachliche Bewertung.
+description: Vorläufiger Graphvergleich und Feedback je Musterlösung. Noch keine vollständige fachliche Bewertung.
 artifacts:
   enabled: true
 kubernetes:
@@ -14,7 +14,7 @@ labels:
   domain: generic
   visibility: frontend
   version: v1
-  phase: '4'
+  phase: '6'
 params:
   schema:
     type: object
@@ -103,21 +103,51 @@ steps:
       items: ${reference_models}
       max_concurrent: 1
 
-  - name: publish_results
-    description: Veröffentlicht die Zwischenergebnisse bis Phase 4; es gibt noch keine strukturelle Zuordnung oder Bewertung.
+  - name: match_graphs
+    description: Berechnet vorläufige Zuordnungsvorschläge und Zugehörigkeitsevidenz je Musterlösung.
     depends: [match_synonyms]
+    action: dag.run
+    with:
+      dag: one-to-one-graph-matching-pair
+      params:
+        EVALUATION_ID: ${evaluation_id}
+        REFERENCE_KEY: ${ITEM.key}
+        OUTPUT_PREFIX: comparisons
+    parallel:
+      items: ${reference_models}
+      max_concurrent: 1
+
+  - name: generate_feedback
+    description: Aggregiert den validierten Vergleich jeder Musterlösung zu einem vorläufigen Feedbackbericht.
+    depends: [match_graphs]
+    action: dag.run
+    with:
+      dag: feedback-generation-pair
+      params:
+        EVALUATION_ID: ${evaluation_id}
+        REFERENCE_KEY: ${ITEM.key}
+        OUTPUT_PREFIX: feedback
+    parallel:
+      items: ${reference_models}
+      max_concurrent: 1
+
+  - name: publish_results
+    description: Veröffentlicht die Übersicht des vorläufigen Vergleichs; eine vollständige Bewertung liegt noch nicht vor.
+    depends: [generate_feedback]
     action: outputs.write
     with:
       values:
         schema: evaluation-preview/v1
         evaluationId: ${evaluation_id}
-        completedPhase: 4
+        completedPhase: 6
         modelCount: ${model_count}
         referenceCount: ${reference_count}
         inputSnapshot: inputs/evaluation-input.json
         parsedModels: graphs/
         modelLabels: labels/
         synonymCandidates: candidates/
+        referenceComparisons: comparisons/
+        feedbackReports: feedback/
         assessmentAvailable: false
 
 ---
@@ -304,3 +334,119 @@ steps:
         referenceKey: ${REFERENCE_KEY}
         candidatesPath: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
         artifactPath: candidates-result.json
+
+---
+name: one-to-one-graph-matching-pair
+description: Vergleicht die Abgabe vorläufig mit genau einer Musterlösung.
+tags:
+  - visibility=internal
+artifacts:
+  enabled: true
+kubernetes:
+  volumes:
+    - name: workflow-data
+      persistent_volume_claim:
+        claim_name: workflow-data
+  volume_mounts:
+    - name: workflow-data
+      mount_path: /work/evaluations
+params:
+  schema:
+    type: object
+    required: [REFERENCE_KEY, EVALUATION_ID]
+    properties:
+      REFERENCE_KEY:
+        type: string
+      EVALUATION_ID:
+        type: string
+      OUTPUT_PREFIX:
+        type: string
+  values:
+    REFERENCE_KEY: ''
+    EVALUATION_ID: ''
+    OUTPUT_PREFIX: comparisons
+steps:
+  - name: match_graph
+    description: Speichert den vorläufigen Vergleich und seine Herkunftsdaten.
+    stdout:
+      artifact: comparison-result.json
+    action: k8s.run
+    with:
+      image: modeling-copilot/one-to-one-graph-matching:latest
+      image_pull_policy: IfNotPresent
+      env:
+        - name: WORKFLOW_EVALUATION_ID
+          value: ${EVALUATION_ID}
+        - name: REFERENCE_KEY
+          value: ${REFERENCE_KEY}
+        - name: WORKFLOW_OUTPUT_PATH
+          value: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
+
+  - name: publish_comparison
+    description: Veröffentlicht Referenzschlüssel und Vergleichsartefakt.
+    depends: [match_graph]
+    action: outputs.write
+    with:
+      values:
+        evaluationId: ${EVALUATION_ID}
+        referenceKey: ${REFERENCE_KEY}
+        comparisonPath: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
+        artifactPath: comparison-result.json
+
+---
+name: feedback-generation-pair
+description: Aggregiert den vorläufigen Vergleich genau einer Musterlösung.
+tags:
+  - visibility=internal
+artifacts:
+  enabled: true
+kubernetes:
+  volumes:
+    - name: workflow-data
+      persistent_volume_claim:
+        claim_name: workflow-data
+  volume_mounts:
+    - name: workflow-data
+      mount_path: /work/evaluations
+params:
+  schema:
+    type: object
+    required: [REFERENCE_KEY, EVALUATION_ID]
+    properties:
+      REFERENCE_KEY:
+        type: string
+      EVALUATION_ID:
+        type: string
+      OUTPUT_PREFIX:
+        type: string
+  values:
+    REFERENCE_KEY: ''
+    EVALUATION_ID: ''
+    OUTPUT_PREFIX: feedback
+steps:
+  - name: generate_feedback
+    description: Validiert und aggregiert das gespeicherte Vergleichsartefakt.
+    stdout:
+      artifact: feedback-result.json
+    action: k8s.run
+    with:
+      image: modeling-copilot/feedback-generation:latest
+      image_pull_policy: IfNotPresent
+      env:
+        - name: WORKFLOW_EVALUATION_ID
+          value: ${EVALUATION_ID}
+        - name: REFERENCE_KEY
+          value: ${REFERENCE_KEY}
+        - name: WORKFLOW_OUTPUT_PATH
+          value: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
+
+  - name: publish_feedback
+    description: Veröffentlicht Referenzschlüssel und Feedbackartefakt.
+    depends: [generate_feedback]
+    action: outputs.write
+    with:
+      values:
+        evaluationId: ${EVALUATION_ID}
+        referenceKey: ${REFERENCE_KEY}
+        feedbackPath: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
+        artifactPath: feedback-result.json

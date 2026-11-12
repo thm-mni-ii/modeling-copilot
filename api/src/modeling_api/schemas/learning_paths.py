@@ -65,6 +65,7 @@ class LearningPathStep(ApiSchema):
     required: bool = True
     unlock: UnlockRule = Field(default_factory=UnlockRule)
     challenge: ChallengeConfig | None = None
+    minimum_score_percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def valid_activity(self):
@@ -77,6 +78,7 @@ class LearningPathStep(ApiSchema):
             or self.challenge
             or self.before_survey_id
             or self.after_survey_id
+            or self.minimum_score_percent is not None
         ):
             raise ValueError(
                 "Questionnaires require a survey and cannot have task settings."
@@ -307,6 +309,10 @@ class StartedStep(ApiSchema):
     model_id: UUID
 
 
+class CompleteStep(ApiSchema):
+    evaluation_id: UUID | None = None
+
+
 class PathProgressStage(ApiSchema):
     id: UUID
     title: str
@@ -373,3 +379,4 @@ class PathModelContext(ApiSchema):
     before_survey: TaskSurveyProgress | None = None
     after_survey: TaskSurveyProgress | None = None
     help_requests: HelpRequestConfig = Field(default_factory=HelpRequestConfig)
+    minimum_score_percent: float | None = Field(default=None, ge=0, le=100)

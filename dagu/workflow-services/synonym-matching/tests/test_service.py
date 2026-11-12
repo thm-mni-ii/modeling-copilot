@@ -141,6 +141,8 @@ class ComparePairTests(unittest.TestCase):
         ), resolve_config({}))
 
         candidate = result["synonymMatrix"][0]["matches"][0]
+        self.assertEqual(candidate["submissionLabel"], "Name")
+        self.assertEqual(result["synonymMatrix"][0]["referenceLabel"], "")
         self.assertEqual(candidate["scoreStatus"], "unavailable")
         self.assertEqual(candidate["unavailableReason"], "missing_text")
         self.assertIsNone(candidate["scores"])
@@ -192,13 +194,13 @@ class ComparePairTests(unittest.TestCase):
         ref = [
             connection_text("r-self", text="connects", owner="r-link"),
             connection_text("r-missing"),
-            connection_text("r-role", "additionalLabel", "owner", "role", "r-link"),
+            connection_text("r-role", "additionalLabel", "  owner\n  role ", "role", "r-link"),
             connection_text("r-card", "additionalLabel", "1..n", "cardinality", "r-link"),
         ]
         sub = [
             connection_text("s-self", text="connects", owner="s-link"),
             connection_text("s-missing", owner="s-link"),
-            connection_text("s-role", "additionalLabel", "owns", "role", "s-link"),
+            connection_text("s-role", "additionalLabel", " owns\trole ", "role", "s-link"),
             connection_text("s-card", "additionalLabel", "1..n", "cardinality", "s-link"),
             connection_text("s-other", "additionalLabel", "owner", "other-slot", "s-link"),
         ]
@@ -212,6 +214,25 @@ class ComparePairTests(unittest.TestCase):
         )
         self.assertTrue(all(pair["scores"] == {name: 1.0 for name in METHOD_REGISTRY}
                             for pair in result["connectionTextMatrix"]))
+        reference_by_id = {item["id"]: item for item in ref}
+        student_by_id = {item["id"]: item for item in sub}
+        for pair in result["connectionTextMatrix"]:
+            self.assertEqual(
+                pair["referenceLabel"],
+                reference_by_id[pair["referenceConnectionTextId"]]["matchText"],
+            )
+            self.assertEqual(
+                pair["submissionLabel"],
+                student_by_id[pair["submissionConnectionTextId"]]["matchText"],
+            )
+        self.assertEqual(
+            next(item["text"] for item in result["processedTexts"]["reference"] if item["id"] == "r-role"),
+            "owner role",
+        )
+        self.assertEqual(
+            next(item["text"] for item in result["processedTexts"]["student"] if item["id"] == "s-role"),
+            "owns role",
+        )
 
     def test_unlabeled_connections_produce_an_empty_matrix(self):
         result = service.compare_pair(inventories(
@@ -228,9 +249,11 @@ class ComparePairTests(unittest.TestCase):
         self.assertEqual(result["connectionTextMatrix"], [])
 
     def test_normalization_and_raw_inventory_text_are_preserved(self):
+        reference_text = "  Cafe\u0301\n  Forschungs\tprojekt "
+        submission_text = "Café Forschungs projekt"
         original = inventories(
-            [element("reference", "entity", None, "  Cafe\u0301\n  Forschungs\tprojekt ")],
-            [element("submission", "entity", None, "Café Forschungs projekt")],
+            [element("reference", "entity", None, reference_text)],
+            [element("submission", "entity", None, submission_text)],
         )
         untouched = copy.deepcopy(original)
         result = service.compare_pair(original, resolve_config({}))
@@ -238,7 +261,11 @@ class ComparePairTests(unittest.TestCase):
         self.assertEqual(original, untouched)
         self.assertEqual(result["processedTexts"]["reference"][0]["text"], "Café Forschungs projekt")
         self.assertEqual(result["processedTexts"]["student"][0]["text"], "Café Forschungs projekt")
-        self.assertEqual(result["synonymMatrix"][0]["matches"][0]["submissionElementId"], "submission")
+        row = result["synonymMatrix"][0]
+        candidate = row["matches"][0]
+        self.assertEqual(row["referenceLabel"], reference_text)
+        self.assertEqual(candidate["submissionLabel"], submission_text)
+        self.assertEqual(candidate["submissionElementId"], "submission")
 
     def test_empty_preprocessing_can_be_selected(self):
         config = resolve_config({"semantics": {"methods": ["levenshtein"], "preprocessing": []}})
@@ -299,6 +326,20 @@ class ComparePairTests(unittest.TestCase):
         self.assertEqual(first["result"]["candidateHash"], content_hash({
             key: value for key, value in first["result"].items() if key != "candidateHash"
         }))
+        self.assertEqual(first["result"]["synonymMatrix"][0]["referenceLabel"], "Alpha")
+        self.assertEqual(first["result"]["synonymMatrix"][0]["matches"][0]["submissionLabel"], "Alpha")
+        self.assertEqual(first["result"]["connectionTextMatrix"][0]["referenceLabel"], "connects")
+        self.assertEqual(first["result"]["connectionTextMatrix"][0]["submissionLabel"], "connects")
+        without_labels = copy.deepcopy(first["result"])
+        without_labels.pop("candidateHash")
+        for row in without_labels["synonymMatrix"]:
+            row.pop("referenceLabel")
+            for candidate in row["matches"]:
+                candidate.pop("submissionLabel")
+        for pair in without_labels["connectionTextMatrix"]:
+            pair.pop("referenceLabel")
+            pair.pop("submissionLabel")
+        self.assertNotEqual(first["result"]["candidateHash"], content_hash(without_labels))
         self.assertNotIn("semantic-candidates/v2", json.dumps(first))
 
     def _workflow_result(self, config):

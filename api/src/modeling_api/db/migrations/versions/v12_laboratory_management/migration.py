@@ -1,14 +1,17 @@
-"""Add the private laboratory task and its completion survey before study completion."""
+"""Publish the laboratory task, its evaluation requirement and path help choices."""
+
+from uuid import UUID, uuid5
 
 from modeling_api.db.client import db
 from modeling_api.db.migrations import require_completed, run_migration
 from modeling_api.db.migrations.resources import load_data
 from modeling_api.db.store import utcnow
-from modeling_api.schemas.learning_paths import LearningPathStep
+from modeling_api.schemas.learning_paths import LearningPathStep, HelpRequestConfig
 from modeling_api.schemas.models import Model, ModelVersion
 from modeling_api.schemas.surveys import Definition
 from modeling_api.schemas.tasks import Task, TaskVersion
 from modeling_api.services.learning_path_store import step_document
+from modeling_api.services import help_questionnaire
 
 MIGRATION_ID = "12_laboratory_management"
 PREREQUISITE = "11_hotel_chain"
@@ -28,8 +31,46 @@ async def migrate(*, apply=False):
         print(f"{MIGRATION_ID} already completed; skipping.")
         return 0
     if not apply:
-        return await publish_task(apply=False)
-    return await run_migration(MIGRATION_ID, lambda: publish_task(apply=True))
+        return await migrate_content(apply=False)
+    return await run_migration(MIGRATION_ID, lambda: migrate_content(apply=True))
+
+
+async def migrate_content(*, apply):
+    changed = await publish_task(apply=apply)
+    changed += await initialize_minimum_scores(apply=apply)
+    async for template in db.learning_path_templates.find({"helpRequests.enabled": True}):
+        survey_id = str(uuid5(UUID(template["_id"]), "help-questionnaire"))
+        survey = await db.surveys.find_one({"_id": survey_id})
+        questions = survey.get("definition", {}).get("elements", []) if survey else []
+        if any(help_questionnaire.AUTOMATIC_FEEDBACK in question.get("choices", []) for question in questions):
+            continue
+        print(f"{'Update' if apply else 'Would update'} help choices for learning path {template['_id']}.")
+        if apply:
+            revision = template["revision"] + 1
+            result = await db.learning_path_templates.update_one(
+                {"_id": template["_id"], "revision": template["revision"]},
+                {"$inc": {"revision": 1}, "$set": {"updatedAt": utcnow()}},
+            )
+            if not result.matched_count:
+                raise RuntimeError("The learning path changed during migration. Retry with path writes stopped.")
+            await help_questionnaire.publish(
+                template["_id"], template["title"], revision,
+                HelpRequestConfig.model_validate(template["helpRequests"]), template.get("createdBy", ""),
+            )
+        changed += 1
+    return changed
+
+
+async def initialize_minimum_scores(*, apply):
+    query = {"kind": "task", "task.minimumScorePercent": {"$exists": False}}
+    count = await db.learning_path_template_steps.count_documents(query)
+    print(f"{'Initialize' if apply else 'Would initialize'} optional minimum scores for {count} task steps.")
+    if apply:
+        result = await db.learning_path_template_steps.update_many(
+            query, {"$set": {"task.minimumScorePercent": None}}
+        )
+        return result.modified_count
+    return count
 
 
 async def publish_task(*, apply):
@@ -81,22 +122,28 @@ async def publish_task(*, apply):
             }, {"updatedAt": now}),
         ])
     step = LearningPathStep.model_validate(resource["step"])
+    study_step = LearningPathStep.model_validate(resource["studyStep"])
     survey = resource["completionSurvey"]
     definition = Definition.model_validate(survey["definition"]).model_dump(exclude_none=True)
 
     path_id = resource["learningPathId"]
     path = await db.learning_path_templates.find_one({"_id": path_id})
     study = await db.learning_path_template_steps.find_one({
-        "_id": resource["beforeStepId"], "templateId": path_id, "kind": "survey",
+        "_id": resource["afterStepId"], "templateId": path_id, "kind": "survey",
         "archivedAt": None,
     })
     if not path or not study:
         raise RuntimeError("The graphical modeling path and final study questionnaire must exist.")
-    # Remove our own ID so retries cannot duplicate the laboratory station.
-    step_ids = [identifier for identifier in path["stepIds"] if identifier != str(step.id)]
+    if study["survey"]["surveyId"] != str(study_step.survey_id):
+        raise RuntimeError("The weekly completion stations must reference the same questionnaire.")
+    # Remove our own IDs so retries cannot duplicate either new station.
+    step_ids = [
+        identifier for identifier in path["stepIds"]
+        if identifier not in {str(step.id), str(study_step.id)}
+    ]
     if not step_ids or step_ids[-1] != study["_id"]:
         raise RuntimeError("The study questionnaire must be the last learning path station.")
-    step_ids.insert(len(step_ids) - 1, str(step.id))
+    step_ids.extend([str(step.id), str(study_step.id)])
 
     for reference in version["workspaceLanguages"]:
         release = await db.language_versions.find_one({
@@ -128,6 +175,9 @@ async def publish_task(*, apply):
         (db.learning_path_template_steps, str(step.id), {
             **step_document(step, path_id), "archivedAt": None,
         }, {"updatedAt": now}),
+        (db.learning_path_template_steps, str(study_step.id), {
+            **step_document(study_step, path_id), "archivedAt": None,
+        }, {"updatedAt": now}),
     ]
     for collection, identifier, fields, timestamps in documents:
         existing = await collection.find_one({"_id": identifier})
@@ -136,7 +186,7 @@ async def publish_task(*, apply):
 
     print(
         f"{'Add' if apply else 'Would add'}: {task['name']} with sample solution, "
-        f"{len(checks)} synonym-check models and completion questionnaire"
+        f"{len(checks)} synonym-check models, completion questionnaire and weekly completion station"
     )
     if not apply:
         return 1

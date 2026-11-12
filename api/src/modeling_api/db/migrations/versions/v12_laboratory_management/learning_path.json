@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "learningPathId": "b7affb3a-fcbb-509a-8ec1-b4c8a7381d0d",
-  "beforeStepId": "93e55adf-3856-52e0-a6e4-71ee381398f3",
+  "afterStepId": "93e55adf-3856-52e0-a6e4-71ee381398f3",
   "step": {
     "id": "90633637-a890-597e-bfc6-682ed472b020",
     "title": "Laborverwaltung",
@@ -11,6 +11,18 @@
       "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
     },
     "afterSurveyId": "9b4447ef-2132-575b-b5ff-d801a3debc9f",
+    "minimumScorePercent": 50,
+    "required": true,
+    "unlock": {
+      "mode": "sequence",
+      "conditions": []
+    }
+  },
+  "studyStep": {
+    "id": "f72db10d-56af-53df-a897-b21ed4e0f04c",
+    "title": "Abschluss: Studienteilnahme",
+    "type": "survey",
+    "surveyId": "5e1209c4-f518-55b4-8780-db07a28b41c8",
     "required": true,
     "unlock": {
       "mode": "sequence",
