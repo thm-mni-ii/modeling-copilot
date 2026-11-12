@@ -90,7 +90,11 @@
             <div class="text-body-2 font-weight-medium">{{ entry.title }}</div>
             <div v-if="entry.resultSummary" class="result-summary mt-1">{{ entry.resultSummary }}</div>
             <div v-else-if="entry.description" class="text-caption text-medium-emphasis mt-1">{{ entry.description }}</div>
-            <JsonResultViewer :data="entry.result ?? { title: entry.title, description: entry.description ?? null, resultSummary: entry.resultSummary ?? null }" class="mt-1" />
+            <JsonResultViewer :data="entry.result ?? { title: entry.title, description: entry.description ?? null, resultSummary: entry.resultSummary ?? null }" class="mt-1">
+              <template #actions>
+                <SemanticComparisonViewer v-if="semanticComparisonResult(entry.result)" :result="semanticComparisonResult(entry.result)!" />
+              </template>
+            </JsonResultViewer>
           </v-timeline-item>
         </v-timeline>
       </template>
@@ -105,6 +109,8 @@ import type { Evaluation, EvaluationDetail } from '@/services/api/types/evaluati
 import evaluationService from '@/services/evaluation/evaluation.service'
 import { notifySuccess } from '@/composables/useNotifications'
 import JsonResultViewer from './JsonResultViewer.vue'
+import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
+import { semanticComparisonResult } from '@/utils/semanticComparison'
 
 const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null }>()
 const view = ref<'list' | 'detail'>('list')

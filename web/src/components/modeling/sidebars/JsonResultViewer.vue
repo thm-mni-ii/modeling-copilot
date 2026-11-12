@@ -5,6 +5,7 @@
         <v-icon size="14">{{ expanded ? 'mdi-chevron-down' : 'mdi-chevron-right' }}</v-icon>
         {{ expanded ? 'Einklappen' : 'Ausklappen' }}
       </button>
+      <slot name="actions" />
       <v-spacer />
       <v-btn icon size="x-small" variant="text" :title="copied ? 'Kopiert!' : 'Als JSON kopieren'" @click="copy">
         <v-icon size="14">{{ copied ? 'mdi-check' : 'mdi-content-copy' }}</v-icon>
