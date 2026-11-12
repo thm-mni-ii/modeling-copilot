@@ -4,6 +4,10 @@ from modeling_api.core.errors import not_found
 from modeling_api.db.client import db
 
 
+def can_open_locked_steps(user):
+    return user.is_admin or user.global_role == "MODERATOR" or "MODERATOR" in user.roles
+
+
 def template_visibility(template):
     # Preserve the former archive behavior for existing databases.
     return {"draft": "hidden", "archived": "unlisted"}.get(

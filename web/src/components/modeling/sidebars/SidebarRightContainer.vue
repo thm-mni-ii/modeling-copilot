@@ -11,7 +11,7 @@
         <SidebarPersistence v-else-if="activeTab === 'persistence'" :show-header="false" />
         <SidebarSync v-else-if="activeTab === 'sync'" :show-header="false" />
         <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" :selected-edit-ids="selectedTaskEditIds" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" />
-        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="evaluationModelId" :open-evaluation-id="openEvaluationId ?? null" />
+        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="evaluationModelId" :open-evaluation-id="openEvaluationId ?? null" :evaluation-perspective="evaluationPerspective" @evaluation-updated="emit('evaluation-updated', $event)" />
         <SidebarLibrary v-else ref="languageLibrary" />
       </div>
     </template>
@@ -28,6 +28,7 @@ const activeTab = ref<'feedback' | 'persistence' | 'sync' | 'languages' | 'task'
 <script setup lang="ts">
 import { computed, nextTick, watch } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
+import type { EvaluationDetail } from '@/services/api/types/evaluation'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
 import SidebarLibrary from './SidebarLibrary.vue'
@@ -55,6 +56,7 @@ const props = defineProps<{
   selectedTaskEditIds?: string[]
   modelId?: string | null
   openEvaluationId?: string | null
+  evaluationPerspective?: 'service' | 'student'
   feedbackShapes?: Array<{
     name: string
     label: string
@@ -63,6 +65,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  'evaluation-updated': [evaluation: EvaluationDetail]
   'remove-task-edit': [id: string]
   'update-task-edit-document': [document: JsonObject]
   'focus-task-edit': [target: TaskEditFocus]
@@ -73,10 +76,12 @@ const baseTabs: SidebarTabItem[] = [
   { value: 'sync', icon: 'mdi-sync', label: 'Collab' },
   { value: 'languages', icon: 'mdi-bookshelf', label: 'Languages' }
 ]
+// In learning paths (hasJourney, only set with stepRun) everyone works on the task alone, so there is no sharing.
+const visibleBaseTabs = computed(() => (props.hasJourney ? baseTabs.filter((tab) => tab.value !== 'sync') : baseTabs))
 // In a room only the host evaluates, on the private model, and only if the task has a workflow.
-const evaluationsActive = computed(() => !currentShare.value || Boolean(currentShare.value.privateModelId && sharedTaskSettings.value?.evaluationWorkflows.length))
+const evaluationsActive = computed(() => !currentShare.value || Boolean(currentShare.value.privateModelId && sharedTaskSettings.value?.evaluationAvailable))
 const evaluationModelId = computed(() => currentShare.value?.privateModelId ?? props.modelId ?? null)
-const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, ...(evaluationsActive.value ? [{ value: 'evaluations', icon: 'mdi-chart-timeline-variant', label: 'Auswertungen' }] : []), ...baseTabs] : baseTabs))
+const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'task', icon: 'mdi-clipboard-edit-outline', label: 'Task' }, ...(evaluationsActive.value ? [{ value: 'evaluations', icon: 'mdi-chart-timeline-variant', label: 'Auswertungen' }] : []), ...visibleBaseTabs.value] : visibleBaseTabs.value))
 
 const DEFAULT_WIDTH = 210
 const sidebarWidth = ref(DEFAULT_WIDTH)
@@ -90,6 +95,14 @@ defineExpose({ openLanguages })
 watch(() => props.hasJourney, (hasJourney) => {
   sidebarWidth.value = hasJourney ? Math.max(280, sidebarWidth.value) : DEFAULT_WIDTH
 }, { immediate: true })
+// A previously opened collab tab would otherwise stay visible in a learning path without its tab.
+watch(
+  () => props.hasJourney,
+  (hasJourney) => {
+    if (hasJourney && activeTab.value === 'sync') activeTab.value = 'languages'
+  },
+  { immediate: true }
+)
 const activeTabLabel = computed(() => tabs.value.find((tab) => tab.value === activeTab.value)?.label ?? '')
 const selectTab = (value: string) => {
   activeTab.value = value as SidebarTab
@@ -102,7 +115,8 @@ watch(
 )
 watch(
   () => props.openEvaluationId,
-  (id) => { if (id) activeTab.value = 'evaluations' }
+  (id) => { if (id) activeTab.value = 'evaluations' },
+  { immediate: true }
 )
 </script>
 

@@ -1,0 +1,7 @@
+numpy==2.2.6
+rapidfuzz==3.14.3
+jsonschema==4.25.1
+torch==2.6.0
+sentence-transformers==3.4.1
+transformers==4.48.3
+sentencepiece==0.2.0

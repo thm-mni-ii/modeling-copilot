@@ -57,17 +57,74 @@ PVC `dagu-data`.
 Das Backend übergibt Modelle und Sprachversionen als vollständigen Snapshot.
 `workflow-data` speichert ihn auf dem gemeinsamen PVC unter
 `/work/evaluations/<evaluationId>/inputs/evaluation-input.json`.
-`model-evaluation-graph-matching` ist der Hauptworkflow: Initialisierung,
-Graph-Parsing und Label-Extraktion als getrennte Phasen, jeweils mit Ergebnissen
-pro Modell. Graphen liegen unter `graphs/<modelKey>.json`, Bezeichnungen unter
-`labels/<modelKey>.json`. Die internen Modellschritte sind in derselben
-Workflow-Datei eingebettet. `hello` bleibt der einfache Testworkflow.
+`model-evaluation-graph-matching` führt die Phasen 1 bis 6 aus: Initialisierung,
+Graph-Parsing und Elementinventar je Modell, anschließend semantisches Matching
+einen vorläufigen Graphvergleich und aggregiertes Feedback je Musterlösung. Graphen liegen unter `graphs/<modelKey>.json`,
+Inventare unter `labels/<modelKey>.json` und semantische Kandidaten unter
+`candidates/<referenceKey>.json`; Vergleiche liegen unter
+`comparisons/<referenceKey>.json` und Feedbackberichte unter
+`feedback/<referenceKey>.json`. Die Abgabe wird nur einmal vorbereitet.
+Die internen Modell- und Paarworkflows sind in derselben Datei eingebettet.
+`hello` bleibt der einfache Testworkflow.
 
 `WORKFLOW_EVALUATION_ID` wählt den Laufordner, `MODEL_KEY` das Parsermodell.
 `WORKFLOW_INPUT_PATH` und `WORKFLOW_OUTPUT_PATH` wählen relative JSON-Dateipfade;
 `WORKFLOW_DATA_ROOT` überschreibt das Basisverzeichnis. Dienste benötigen keinen
 Datenbankzugriff. Details: [Graph Parser](workflow-services/graph-parser/README.md)
 und [Init](workflow-services/workflow-data/README.md).
+
+### Im Browser ausprobieren
+
+Die Aufgabe muss den Workflow `model-evaluation-graph-matching` und mindestens
+eine freigegebene Musterlösung enthalten. Nach dem Speichern der Abgabe startet
+der Auswertungsbutton im Aufgabenbereich einen neuen Lauf. Die Auswertungs-Sidebar
+zeigt Graph und Elementinventar für Abgabe und Musterlösungen sowie einen Schritt
+„Semantische Kandidaten“ und „Vorläufiger Graphvergleich“ je Musterlösung.
+Die Serviceansicht zeigt außerdem das vorläufige Feedback je Musterlösung.
+Der Vergleich zeigt Ankerabdeckung, maximale Zuordnungskapazität und ein
+Intervall der vorläufigen Zugehörigkeitskonsistenz. Diese Zahlen sind keine
+bestätigte Modellübereinstimmung. „Ausklappen“, „Groß anzeigen“ und
+„Als JSON kopieren“ öffnen beziehungsweise exportieren die vollständigen
+Zwischenergebnisse. Auch bei einem späteren Schrittfehler bleiben die bereits
+erzeugten Ergebnisse sichtbar. Die Ergebnisübersicht benennt die erreichte Phase;
+endgültige Zuordnungen, vollständige strukturelle Bewertung und Punkte
+sind noch nicht Teil dieses Workflows.
+
+Lokal nur die tatsächlich benötigten Images bauen:
+
+```powershell
+docker compose --profile workflow-services build workflow-data workflow-graph-parser workflow-model-label-extraction workflow-synonym-matching workflow-one-to-one-matching workflow-feedback-generation
+docker compose up -d --no-deps --build api
+```
+
+Die benötigten Image-Tags stehen in `docker-compose.yaml` und stimmen mit dem
+Workflow überein. Der Synonym-Service verwendet den eigenen Ordner
+`workflow-services/synonym-matching`; der Methodenreferenzordner bleibt unverändert.
+Das Embedding-Modell wird beim Image-Build vorbereitet und während der Auswertung
+offline geladen. Modellpaare laufen zunächst nacheinander mit eigenem
+Speicherlimit von 2 GiB, Modellvorbereitung mit höchstens vier parallelen Läufen.
+
+**Docker Desktop mit separatem Kubernetes-Image-Speicher:** Lokal gebaute Images
+müssen zusätzlich im Kubernetes-Knoten verfügbar sein. Im vorhandenen
+`docker-desktop`-Kontext mit dem Knoten `desktop-control-plane` kann die Übernahme
+mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam mit
+Compose und Workflow aktualisieren):
+
+```cmd
+docker image save modeling-copilot/workflow-data:latest modeling-copilot/graph-parser:latest modeling-copilot/model-label-extraction:latest modeling-copilot/synonym-matching:latest modeling-copilot/one-to-one-graph-matching:latest modeling-copilot/feedback-generation:latest | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+```
+
+Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre
+Image-Daten beim Weiterreichen als Text beschädigen. Nach jedem lokalen Build
+müssen die `latest`-Images erneut in den Kubernetes-Knoten importiert werden.
+Bei einer anderen lokalen Kubernetes-Installation stattdessen deren Image-Import
+oder eine erreichbare Registry verwenden. Keine produktiven Cluster hierfür
+verändern. Die Images werden mit `IfNotPresent` gestartet; ein bereits
+gecachtes Image wird nicht automatisch durch einen neuen Docker-Build ersetzt.
+
+Die API liest große Zwischenresultate über Dagu-Artefakte und die kleine
+Abschlussübersicht über den `/outputs`-Endpunkt. So wird nicht das letzte
+Elementinventar als vermeintliches Gesamtergebnis verwendet.
 
 ## Produktion (K3s/Portainer)
 

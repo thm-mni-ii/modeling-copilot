@@ -4,10 +4,11 @@ import argparse
 import os
 from pathlib import Path
 import sys
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, TypedDict
 
-from parser import Graph, LanguageVersion, parse_model, resolve_languages
-from workflow_io import Workspace, identifier, read_input, workspace, write_output
+from parser import Graph, content_hash, parse_model, resolve_languages
+import workflow_io
+from workflow_io import INPUT_SCHEMA, VERSION, Workspace, identifier, input_hash, read_input, workspace, write_output
 
 SERVICE = "graph-parser"
 
@@ -20,27 +21,24 @@ class ModelSource(TypedDict):
     versionId: str
 
 
-class MaxGraphModel(TypedDict):
-    xml: str
-    format: NotRequired[Literal["maxgraph-xml", "maxgraph-model"]]
-    version: NotRequired[Literal[1]]
-    name: NotRequired[str]
-
-
-class ParserInput(TypedDict):
-    model: MaxGraphModel
-    languages: list[LanguageVersion]
-
-
 class ParserRequest(TypedDict, total=False):
-    input: ParserInput
-    source: NotRequired[ModelSource]
-    mode: NotRequired[Literal["parse", "demo"]]
+    # The same complete evaluation-input/v1 snapshot used by workspace readers.
+    input: dict
+    modelKey: str
+    mode: Literal["parse", "demo"]
 
 
 class ParserData(TypedDict):
+    schema: Literal["graph-result/v3"]
+    evaluationId: str
+    source: ModelSource
+    inputHash: str
+    languageResources: list[dict]
+    producer: dict
+    graphHash: str
     graph: Graph
-    source: NotRequired[ModelSource]
+    completeness: dict
+    diagnostics: list[dict]
 
 
 class ParserResult(TypedDict):
@@ -57,34 +55,66 @@ def run(payload: ParserRequest, store: Workspace | None = None) -> ParserResult:
     mode = payload.get("mode", "parse")
     if mode not in ("parse", "demo"):
         raise ValueError("mode must be parse/demo")
-    if mode == "demo":
-        graph = {"schemaVersion": 2, "languages": [],
-                 "nodes": [{"id": "n1", "type": "Entity", "label": "Kunde", "kind": "element", "language": None,
-                            "definition": None, "definitionCandidates": [], "parentId": None, "properties": {}}],
-                 "edges": []}
-        summary = "Expliziter Demo-Modus: Dummy-Graph, kein Modell geparst"
+    if store is not None:
+        if "input" in payload or "modelKey" in payload or mode == "demo":
+            raise ValueError("workspace parsing uses only its frozen snapshot and MODEL_KEY")
+        bundle = store.snapshot()
+        key = identifier(os.environ.get("MODEL_KEY", "submission"))
+    elif mode == "demo":
+        source = {"key": "submission", "role": "submission", "label": "Demo", "modelId": "demo-model", "versionId": "demo-version"}
+        bundle = {"schema": INPUT_SCHEMA, "schemaVersion": VERSION, "evaluationId": "demo",
+                  "task": {"data": {}}, "models": [{"source": source, "snapshot": {"modelId": source["modelId"],
+                  "versionId": source["versionId"], "workspaceLanguages": [], "data": {
+                  "xml": '<GraphDataModel><root><Cell id="canvas"/><Cell id="modeling" parent="canvas"/>'
+                         '<Cell id="n1" value="Demo" vertex="1" parent="modeling"/>'
+                         '<Cell id="feedback" parent="canvas"/></root></GraphDataModel>'}}}],
+                  "languages": [], "comparisonConfig": {}}
+        bundle["inputHash"] = input_hash(bundle)
+        key = "submission"
     else:
-        if "input" not in payload and store is not None:
-            bundle = store.snapshot()
-            key = identifier(os.environ.get("MODEL_KEY", "submission"))
-            model = next((item for item in bundle["models"] if item["source"]["key"] == key), None)
-            if model is None:
-                raise ValueError(f"model key does not belong to this evaluation: {key}")
-            payload = {**payload, "source": model["source"], "input": {
-                "model": model["snapshot"]["data"],
-                "languages": resolve_languages(bundle, model["snapshot"]["workspaceLanguages"]),
-            }}
-        graph = parse_model(payload.get("input"))
-        summary = f"Modell normalisiert: {len(graph['nodes'])} Knoten, {len(graph['edges'])} Kanten"
-    result: ParserData = {"graph": graph}
-    if "source" in payload:
-        source = payload["source"]
-        if not isinstance(source, dict) or not all(isinstance(source.get(key), str) and source[key] for key in ("key", "role", "label", "modelId", "versionId")):
-            raise ValueError("source needs complete model source metadata")
-        identifier(source["key"])
-        if source["role"] not in ("submission", "reference"):
-            raise ValueError("source.role must be submission/reference")
-        result["source"] = source
+        bundle = payload.get("input")
+        key = identifier(payload.get("modelKey", "submission"))
+    if (not isinstance(bundle, dict) or bundle.get("schema") != INPUT_SCHEMA
+            or type(bundle.get("schemaVersion")) is not int or bundle["schemaVersion"] != VERSION):
+        raise ValueError("input must be the complete frozen evaluation-input/v1 snapshot")
+    evaluation_id = identifier(bundle.get("evaluationId"))
+    if bundle.get("inputHash") != input_hash(bundle):
+        raise ValueError("input hash does not match the frozen snapshot")
+    selected = [item for item in bundle["models"] if item["source"]["key"] == key]
+    if len(selected) != 1:
+        raise ValueError(f"model key must name exactly one model in this evaluation: {key}")
+    model = selected[0]
+    source = model["source"]
+    if not isinstance(source, dict) or not all(isinstance(source.get(field), str) and source[field] for field in ("key", "role", "label", "modelId", "versionId")):
+        raise ValueError("source needs complete model source metadata")
+    if source["role"] != ("submission" if key == "submission" else "reference"):
+        raise ValueError("source.role does not match its model key")
+    if any(model["snapshot"].get(field) != source[field] for field in ("modelId", "versionId")):
+        raise ValueError("model source does not match its snapshot version")
+    if not isinstance(bundle.get("comparisonConfig"), dict):
+        raise ValueError("comparisonConfig must be a JSON object")
+    languages = resolve_languages(bundle, model["snapshot"]["workspaceLanguages"])
+    parsed = parse_model({"model": model["snapshot"]["data"], "source": source,
+                          "languages": languages})
+    resources = {"parser.py": Path(__file__).with_name("parser.py"), "main.py": Path(__file__),
+                 "workflow_io.py": Path(workflow_io.__file__)}
+    producer = {"service": SERVICE, "version": "0.1.0",
+                "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()})}
+    result: ParserData = {"schema": "graph-result/v3", "evaluationId": evaluation_id, "source": source,
+                          "inputHash": bundle["inputHash"], "producer": producer,
+                          "languageResources": [{"languageId": language["languageId"], "versionId": language["versionId"],
+                                                 "hash": content_hash(language["data"])} for language in languages], **parsed}
+    result["graphHash"] = content_hash({field: result[field] for field in ("source", "languageResources", "producer", "graph", "completeness", "diagnostics")})
+    graph = result["graph"]
+    elements = sum(node["kind"] != "connection" for node in graph["nodes"])
+    connections = sum(node["kind"] == "connection" for node in graph["nodes"])
+    containments = sum(edge["kind"] == "contains" for edge in graph["edges"])
+    endpoints = sum(edge["kind"] == "endpoint" for edge in graph["edges"])
+    summary = (f"Modell normalisiert: {elements} Elementknoten (einschließlich verschachtelter Inhalte), "
+               f"{connections} modellierte Verbindungen; "
+               f"{containments} Zugehörigkeiten und {endpoints} technische Verbindungsanschlüsse")
+    if mode == "demo":
+        summary = "Expliziter Demo-Modus: Dummy-Graph, kein Nutzermodell geparst"
     return {"schemaVersion": 1, "schema": "workflow-result/v1", "status": "ok",
             "capability": SERVICE, "mode": mode, "summary": summary, "result": result}
 

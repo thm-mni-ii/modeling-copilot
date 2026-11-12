@@ -24,6 +24,7 @@ class TaskSettings(ApiSchema):
     before_survey_id: str | None = None
     after_survey_id: str | None = None
     challenge: ChallengeConfig | None = None
+    minimum_score_percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
 
 
 class TaskStepDefinition(ApiSchema):
@@ -65,6 +66,7 @@ class LearningPathStepState(ApiSchema):
     completed_at: datetime | None = None
     model_id: str | None = None
     work_submitted_at: datetime | None = None
+    completion_evaluation_id: str | None = None
     challenge_started_at: datetime | None = None
     challenge_stopped_at: datetime | None = None
     survey_session_id: str | None = None

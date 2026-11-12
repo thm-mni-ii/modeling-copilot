@@ -134,6 +134,15 @@
             <p class="text-body-2 mt-3">{{ availabilitySummary(selected, draft.steps) }}</p>
           </template>
           <div v-if="selected.type !== 'survey'" class="mt-5">
+            <h3 class="text-subtitle-1 mb-2">Automatic evaluation</h3>
+            <v-progress-linear v-if="loadingEvaluationRelease" indeterminate color="info" class="mb-2" />
+            <v-alert v-if="evaluationReleaseError" type="error" density="compact" variant="tonal" class="mb-2">{{ evaluationReleaseError }}<v-btn size="small" variant="text" @click="loadEvaluationRelease">Retry</v-btn></v-alert>
+            <p v-else-if="!loadingEvaluationRelease && !selectedEvaluationAvailable" class="text-caption mb-2">Add a released sample solution to this task release to enable automatic evaluation.</p>
+            <v-switch :model-value="selected.minimumScorePercent != null" :disabled="loadingEvaluationRelease || !selectedEvaluationAvailable && selected.minimumScorePercent == null" label="Require a minimum evaluation score to complete this task" color="primary" hide-details @update:model-value="selected.minimumScorePercent = $event ? 50 : null" />
+            <v-text-field v-if="selected.minimumScorePercent != null" :model-value="selected.minimumScorePercent" type="number" min="0" max="100" step="1" label="Minimum score" suffix="%" variant="outlined" class="mt-3" hide-details="auto" :rules="[(value) => (value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100) || 'Enter a percentage between 0 and 100.']" @update:model-value="selected.minimumScorePercent = $event === '' ? Number.NaN : Number($event)" />
+            <p v-if="selected.minimumScorePercent != null" class="text-caption mt-2">Completion starts an evaluation of the current model. A final model score is required to meet this minimum. The score integration is being prepared.</p>
+          </div>
+          <div v-if="selected.type !== 'survey'" class="mt-5">
             <h3 class="text-subtitle-1 mb-2">Task questionnaires</h3>
             <v-select v-model="selected.beforeSurveyId" :items="surveyOptions" label="Before task" clearable hide-details class="mb-3" />
             <v-select v-model="selected.afterSurveyId" :items="surveyOptions" label="After task" clearable hide-details />
@@ -222,7 +231,7 @@ import TreasurePathBoard from '@/components/learningPaths/TreasurePathBoard.vue'
 import paths, { pathVisibilityOptions, pathVisibilityLabel, type PathRun, type PathStep, type PathTemplate } from '@/services/learningPaths'
 import surveys, { type Survey } from '@/services/surveys'
 import taskService from '@/services/task/task.service'
-import type { Task, TaskVersionInfo } from '@/services/api/types/task'
+import type { Task, TaskVersion, TaskVersionInfo } from '@/services/api/types/task'
 import { availabilitySummary, conditionSummary, validatePathSteps, validatePulseConfig } from '@/utils/learningPathEditor'
 import { releaseVersionLabel } from '@/utils/versions'
 
@@ -235,6 +244,28 @@ const detailMode = ref<'activity' | 'pulse' | 'help'>('activity')
 const selectedId = ref<string | null>(null),
   selected = computed(() => detailMode.value === 'activity' ? draft.value.steps.find((step) => step.id === selectedId.value) ?? null : null)
 const selectedIndex = computed(() => draft.value.steps.findIndex((step) => step.id === selectedId.value))
+const evaluationRelease = ref<TaskVersion | null>(null)
+const loadingEvaluationRelease = ref(false)
+const evaluationReleaseError = ref('')
+const selectedEvaluationAvailable = computed(() => Boolean(evaluationRelease.value?.data.sampleSolutions.length))
+let evaluationReleaseGeneration = 0
+const loadEvaluationRelease = async () => {
+  const reference = selected.value?.taskVersion
+  const generation = ++evaluationReleaseGeneration
+  evaluationRelease.value = null
+  evaluationReleaseError.value = ''
+  loadingEvaluationRelease.value = Boolean(reference)
+  if (!reference) return
+  try {
+    const result = (await taskService.getVersion(reference.taskId, reference.versionId)).data
+    if (generation === evaluationReleaseGeneration) evaluationRelease.value = result
+  } catch (error) {
+    if (generation === evaluationReleaseGeneration) evaluationReleaseError.value = message(error)
+  } finally {
+    if (generation === evaluationReleaseGeneration) loadingEvaluationRelease.value = false
+  }
+}
+watch(() => [selected.value?.taskVersion?.taskId, selected.value?.taskVersion?.versionId], loadEvaluationRelease)
 const busy = ref(false),
   loading = ref(true),
   loadingTasks = ref(true),
@@ -284,10 +315,14 @@ const helpIssue = ref('')
 const issues = computed(() => {
   if (!attempted.value) return {}
   const result = validatePathSteps(draft.value.steps)
+  if (selected.value?.minimumScorePercent != null && !loadingEvaluationRelease.value && !evaluationReleaseError.value && !selectedEvaluationAvailable.value) {
+    ;(result[selected.value.id] ??= []).push('A minimum score requires a released sample solution in the selected task release.')
+  }
   if (draft.value.visibility === 'published' && !loadingTasks.value) {
     for (const step of draft.value.steps) {
-      if (step.type !== 'survey' && tasks.value.find((task) => task.id === step.taskVersion?.taskId)?.visibility !== 'published') {
-        ;(result[step.id] ??= []).push('Publish the source task and make sure it is not archived before publishing this path.')
+      const task = tasks.value.find((task) => task.id === step.taskVersion?.taskId)
+      if (step.type !== 'survey' && (!task || task.archivedAt)) {
+        ;(result[step.id] ??= []).push('Select an active source task before publishing this path.')
       }
     }
   }

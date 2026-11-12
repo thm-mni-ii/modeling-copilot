@@ -12,7 +12,6 @@
         </div>
         <ElementsSidebar v-show="workspace.languages.length > 0" :languages="languages" :sidebar-width="sidebarWidth" expand-new-languages />
       </template>
-      <SidebarSync v-else-if="activeTab === 'sync'" />
       <SidebarPersistence v-else-if="activeTab === 'persistence'" />
       <ElementsSidebar v-else :languages="languages" :sidebar-width="sidebarWidth" />
     </template>
@@ -25,10 +24,9 @@ import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import ElementsSidebar, { type SidebarLanguage } from './ElementsSidebar.vue'
 import SidebarFrame from './SidebarFrame.vue'
 import SidebarPersistence from './SidebarPersistence.vue'
-import SidebarSync from './SidebarSync.vue'
 import SidebarTabs, { type SidebarTabItem } from './SidebarTabs.vue'
 
-type SidebarTab = 'elements' | 'persistence' | 'sync'
+type SidebarTab = 'elements' | 'persistence'
 
 defineProps<{
   languages?: SidebarLanguage[]
@@ -39,8 +37,7 @@ const emit = defineEmits<{
 }>()
 const tabs: SidebarTabItem[] = [
   { value: 'elements', icon: 'mdi-shape-outline', label: 'Elements' },
-  { value: 'persistence', icon: 'mdi-import', label: 'Import/Export' },
-  { value: 'sync', icon: 'mdi-sync', label: 'Collab' }
+  { value: 'persistence', icon: 'mdi-import', label: 'Import/Export' }
 ]
 const DEFAULT_WIDTH = 210
 const workspace = useModelWorkspaceStore()

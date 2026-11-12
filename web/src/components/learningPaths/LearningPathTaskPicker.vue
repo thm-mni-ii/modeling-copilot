@@ -13,7 +13,7 @@
               :key="task.id"
               :disabled="!task.latestReleaseId"
               :title="task.name"
-              :subtitle="!task.latestReleaseId ? 'Publish a release before adding this task' : usedCount(task.id) ? `Already used ${usedCount(task.id)} time(s) · can be added again` : task.visibility !== 'published' ? 'Private task · publish it before publishing this path' : 'Latest release'"
+              :subtitle="!task.latestReleaseId ? 'Publish a release before adding this task' : usedCount(task.id) ? `Already used ${usedCount(task.id)} time(s) · can be added again` : task.visibility !== 'published' ? 'Private task · available through this learning path' : 'Latest release'"
               @click="toggle(task.id)"
             >
               <template #prepend><v-checkbox-btn :model-value="selected.includes(task.id)" :disabled="!task.latestReleaseId" :aria-label="`Select ${task.name}`" @click.stop="toggle(task.id)" /></template>

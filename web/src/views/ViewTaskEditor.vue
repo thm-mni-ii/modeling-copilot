@@ -81,6 +81,7 @@
               <v-select v-model="selectedEvaluationWorkflow" :items="evaluationWorkflowOptions" aria-labelledby="task-evaluation-workflows-label" density="compact" variant="outlined" clearable hide-details>
                 <template #item="{ props: itemProps, item }"><v-list-item v-bind="itemProps" :subtitle="item.raw.description"><template #append><v-chip v-for="(value, key) in item.raw.labels" :key="String(key)" size="x-small" class="ml-1">{{ key }}={{ value }}</v-chip></template></v-list-item></template>
               </v-select>
+              <p class="text-caption text-medium-emphasis mt-2">Tasks with a sample solution use the graph comparison by default. Select a workflow to override it.</p>
             </div>
           </div>
 

@@ -12,8 +12,8 @@ from modeling_api.schemas.learning_paths import SaveTemplate, PathModelContext
 from modeling_api.schemas.challenges import ChallengeConfig, StartStep
 from modeling_api.schemas.models import CreateModel, CreateModelVersion
 from modeling_api.schemas.learning_path_documents import LearningPathRunFields
-from modeling_api.services import models, tasks, surveys, survey_sessions
-from modeling_api.services.learning_path_access import require_template_access, require_run_access, template_visibility
+from modeling_api.services import models, tasks, surveys, survey_sessions, evaluations
+from modeling_api.services.learning_path_access import require_template_access, require_run_access, template_visibility, can_open_locked_steps
 from modeling_api.services.learning_path_store import (
     step_document,
     template_meta,
@@ -31,6 +31,9 @@ from modeling_api.services.learning_path_store import (
     linked_session,
     session_reference_field,
 )
+
+# Temporary until the laboratory task's automatic assessment is available.
+LABORATORY_COMPLETION_BLOCKED_STEP_ID = "90633637-a890-597e-bfc6-682ed472b020"
 
 
 def require_admin(user):
@@ -73,9 +76,11 @@ async def save_template(body: SaveTemplate, user, template_id=None):
                 await surveys.render(survey_id, user, survey_mode)
         if step.type == "survey":
             continue
-        await tasks.ensure_release_reference(
+        release = await tasks.ensure_release_reference(
             step.task_version.task_id, step.task_version.version_id, user
         )
+        if step.minimum_score_percent is not None and not release.get("data", {}).get("sampleSolutions"):
+            raise ApiError(422, "EVALUATION_REFERENCES_REQUIRED", "A minimum score requires a released sample solution.")
         if body.published and not body.archived:
             task = await db.task.find_one(
                 {
@@ -203,7 +208,7 @@ async def step_context(run_id, step_id, user, require_available=False):
     # Archived steps stay reachable only for learners who already opened them.
     if not step or (step.get("archivedAt") and not state.get("openedAt")):
         raise not_found()
-    if require_available and not state.get("openedAt"):
+    if require_available and not state.get("openedAt") and not can_open_locked_steps(user):
         states = {s["stepId"]: s for s in run["stepStates"]}
         if not unlock_status(step, template, states, run, utcnow())[0]:
             raise conflict("This station is locked.")
@@ -338,6 +343,11 @@ async def run_coin_balance(run, template):
 async def get_run(run_id, user):
     run = await owned_run(run_id, user)
     template = await template_document(run["templateId"])
+    return await run_view(run, template, bypass_unlocks=can_open_locked_steps(user))
+
+
+async def run_view(run, template, *, readonly=False, bypass_unlocks=False):
+    """Share progress semantics without recording changes during staff inspection."""
     sessions = await run_sessions(run)
     states = {s["stepId"]: s for s in run["stepStates"]}
     now = utcnow()
@@ -351,7 +361,7 @@ async def get_run(run_id, user):
         unlocked, reasons, available_at = unlock_status(
             step, template, states, run, now
         )
-        available = unlocked or bool(state.get("openedAt"))
+        available = bypass_unlocks or unlocked or bool(state.get("openedAt"))
         session = linked_session(state, survey_reference(step), sessions)
         skipped = (
             session
@@ -388,7 +398,7 @@ async def get_run(run_id, user):
     skipped = counted.count("skipped")
     finished = bool(counted) and completed + skipped == len(counted)
     first_finished_at = run.get("firstFinishedAt")
-    if finished and not first_finished_at:
+    if finished and not first_finished_at and not readonly:
         first_finished_at = now
         await db.learning_path_runs.update_one(
             {"_id": run["_id"], "firstFinishedAt": None},
@@ -405,7 +415,7 @@ async def get_run(run_id, user):
         "description": template["description"],
         "steps": steps,
         "completed": completed,
-        "coins": await run_coin_balance(run, template),
+        "coins": 0 if readonly else await run_coin_balance(run, template),
         "total": len(counted),
         "skipped": skipped,
         "progress": (
@@ -514,12 +524,17 @@ async def start_step(run_id, step_id, user, body: StartStep | None = None):
     return {"modelId": model_id}
 
 
-async def complete_step(run_id, step_id, user):
+async def complete_step(run_id, step_id, user, body=None):
     run, template, step, state = await step_context(
         run_id, step_id, user, require_available=True
     )
     if state.get("completedAt"):
         return await get_run(run_id, user)
+    if str(step_id) == LABORATORY_COMPLETION_BLOCKED_STEP_ID:
+        raise ApiError(
+            503, "EVALUATION_UNAVAILABLE",
+            "The automatic assessment is temporarily unavailable; this station cannot be completed yet.",
+        )
     sessions = await run_sessions(run)
     if step["kind"] == "task":
         if not state.get("modelId"):
@@ -531,8 +546,25 @@ async def complete_step(run_id, step_id, user):
             state, survey_reference(step, "before", state), sessions, "before"
         ):
             raise conflict("Complete the questionnaire before working on the task.")
+        submission = {"workSubmittedAt": state.get("workSubmittedAt") or utcnow()}
+        minimum = step["task"].get("minimumScorePercent")
+        if minimum is not None:
+            evaluation_id = (body.evaluation_id if body else None) or state.get("completionEvaluationId")
+            if not evaluation_id:
+                raise ApiError(409, "EVALUATION_REQUIRED", "Evaluate the current model before completing this task.")
+            evaluation = await evaluations.detail(UUID(str(evaluation_id)), user)
+            if evaluation["submission"] != {"modelId": model["id"], "versionId": model["latestVersionId"]} or evaluation["task"] != model["taskVersion"]:
+                raise ApiError(409, "EVALUATION_OUTDATED", "Evaluate the current saved model version before completing this task.")
+            if evaluation["state"] != "succeeded":
+                raise ApiError(409, "EVALUATION_INCOMPLETE", "The evaluation must finish before completing this task.")
+            score = evaluation.get("scorePercent")
+            if score is None:
+                raise ApiError(409, "EVALUATION_SCORE_PENDING", "The evaluation does not provide a model score yet.")
+            if isinstance(score, bool) or not isinstance(score, (int, float)) or not minimum <= score <= 100:
+                raise ApiError(409, "EVALUATION_MINIMUM_NOT_MET", "The model has not reached the required minimum score.")
+            submission["completionEvaluationId"] = str(evaluation_id)
         await update_step_state(
-            run_id, step_id, {"workSubmittedAt": utcnow()}, {"workSubmittedAt": None}
+            run_id, step_id, submission, {"completedAt": None}
         )
         if not survey_done(state, survey_reference(step, "after"), sessions, "after"):
             return await get_run(run_id, user)
@@ -573,6 +605,7 @@ async def get_model_context(model_id, user):
         "completionRequested": bool(state.get("workSubmittedAt")),
         "removed": step is None or bool(step.get("archivedAt")),
         "templateRevision": template["revision"],
+        "minimumScorePercent": step.get("task", {}).get("minimumScorePercent") if step else None,
     }
     for phase in ("before", "after"):
         assigned = survey_reference(step, phase, state) if step else None
@@ -604,7 +637,7 @@ async def resume_step(run_id, step_id, user):
             {"challengeStartedAt": utcnow()},
             {"challengeStartedAt": None},
         )
-        if state.get("workSubmittedAt"):
+        if state.get("workSubmittedAt") and str(step_id) != LABORATORY_COMPLETION_BLOCKED_STEP_ID:
             await complete_step(run_id, step_id, user)
     return await get_model_context(state["modelId"], user)
 
