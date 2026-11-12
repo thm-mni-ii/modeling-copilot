@@ -58,9 +58,10 @@
           }
         },
         "synonymMatrix": {"type": "array", "items": {
-          "type": "object", "required": ["referenceElementId", "matches"], "additionalProperties": false,
+          "type": "object", "required": ["referenceElementId", "referenceLabel", "matches"], "additionalProperties": false,
           "properties": {
             "referenceElementId": {"type": "string", "minLength": 1},
+            "referenceLabel": {"type": "string"},
             "matches": {"type": "array", "items": {"$ref": "#/definitions/elementCandidate"}}
           }
         }},
@@ -107,10 +108,11 @@
     },
     "elementCandidate": {
       "type": "object",
-      "required": ["submissionElementId", "comparisonBasis", "scoreStatus", "scores"],
+      "required": ["submissionElementId", "submissionLabel", "comparisonBasis", "scoreStatus", "scores"],
       "additionalProperties": false,
       "properties": {
         "submissionElementId": {"type": "string", "minLength": 1},
+        "submissionLabel": {"type": "string"},
         "comparisonBasis": {"enum": ["group", "type"]},
         "scoreStatus": {"enum": ["scored", "unavailable"]},
         "unavailableReason": {"enum": ["missing_text", "unsupported_text"]},
@@ -124,13 +126,15 @@
     },
     "connectionTextPair": {
       "type": "object",
-      "required": ["referenceConnectionTextId", "submissionConnectionTextId", "referenceOwnerConnectionId", "submissionOwnerConnectionId", "kind", "connectionLabelId", "scores"],
+      "required": ["referenceConnectionTextId", "submissionConnectionTextId", "referenceOwnerConnectionId", "submissionOwnerConnectionId", "referenceLabel", "submissionLabel", "kind", "connectionLabelId", "scores"],
       "additionalProperties": false,
       "properties": {
         "referenceConnectionTextId": {"type": "string", "minLength": 1},
         "submissionConnectionTextId": {"type": "string", "minLength": 1},
         "referenceOwnerConnectionId": {"type": ["string", "null"]},
         "submissionOwnerConnectionId": {"type": ["string", "null"]},
+        "referenceLabel": {"type": "string"},
+        "submissionLabel": {"type": "string"},
         "kind": {"enum": ["self", "additionalLabel"]},
         "connectionLabelId": {"type": ["string", "null"]},
         "scores": {"$ref": "#/definitions/scoreMap"}

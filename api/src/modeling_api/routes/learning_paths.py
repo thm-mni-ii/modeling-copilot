@@ -10,6 +10,7 @@ from modeling_api.schemas.learning_paths import (
     PathTemplate,
     PathRun,
     StartedStep,
+    CompleteStep,
     PathModelContext,
     PulsePoll,
     PulsePollResult,
@@ -190,8 +191,8 @@ async def resume_step(run_id: UUID, step_id: UUID, user: CurrentUser):
 @router.post(
     "/learning-path-runs/{run_id}/steps/{step_id}/complete", response_model=PathRun
 )
-async def complete_step(run_id: UUID, step_id: UUID, user: CurrentUser):
-    return await service.complete_step(run_id, step_id, user)
+async def complete_step(run_id: UUID, step_id: UUID, user: CurrentUser, body: CompleteStep | None = None):
+    return await service.complete_step(run_id, step_id, user, body)
 
 
 @router.post(

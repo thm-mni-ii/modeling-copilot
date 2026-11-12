@@ -5,7 +5,7 @@
       <slot name="pulse" />
       <div class="journey-actions">
         <v-btn class="journey-map" variant="text" size="small" prepend-icon="mdi-map-outline" :disabled="busy" @click="emit('leave')">Zur Karte</v-btn>
-        <v-btn class="journey-complete" variant="flat" size="small" :prepend-icon="completed ? 'mdi-check-circle-outline' : 'mdi-flag-checkered'" :loading="busy" :disabled="completeDisabled || busy || completed" @click="completionDialog = true">{{ completed ? 'Geschafft!' : 'Abschließen' }}</v-btn>
+        <v-btn class="journey-complete" variant="flat" size="small" :prepend-icon="completed ? 'mdi-check-circle-outline' : 'mdi-flag-checkered'" :loading="busy" :disabled="completeDisabled || busy || completed" @click="requestCompletion">{{ completed ? 'Geschafft!' : 'Abschließen' }}</v-btn>
         <div class="journey-coins" role="status" aria-live="polite" :aria-label="`${coins} Münzen gesammelt`">
           <TreasureMapArt kind="coin" /><strong>{{ coins }}</strong>
         </div>
@@ -32,11 +32,16 @@
 import { ref, watch } from 'vue'
 import JourneyIslandArt from './JourneyIslandArt.vue'
 import TreasureMapArt from './TreasureMapArt.vue'
-const props = defineProps<{ coins: number; completed: boolean; completeDisabled: boolean; busy: boolean }>()
+const props = defineProps<{ coins: number; completed: boolean; completeDisabled: boolean; busy: boolean; evaluationRequired?: boolean }>()
 const emit = defineEmits<{ leave: []; complete: [] }>()
 const completionDialog = defineModel<boolean>('completionDialog', { default: false })
 const completionAcknowledged = ref(false)
 watch(completionDialog, () => { completionAcknowledged.value = false }, { flush: 'sync' })
+const requestCompletion = () => {
+  if (props.completeDisabled || props.busy || props.completed) return
+  if (props.evaluationRequired) emit('complete')
+  else completionDialog.value = true
+}
 const confirmCompletion = () => {
   if (!completionAcknowledged.value || props.completeDisabled || props.busy || props.completed) return
   completionDialog.value = false

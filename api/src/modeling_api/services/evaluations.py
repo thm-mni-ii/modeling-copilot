@@ -21,7 +21,7 @@ from modeling_api.services.tasks import ensure_release_reference, get_sample_sol
 _EVALUATION_FIELDS = frozenset({
     "id", "ownerId", "task", "submission", "dagName", "dagRunId", "startedAt", "state", "workflow",
 })
-_EVALUATION_DETAIL_FIELDS = _EVALUATION_FIELDS | {"submissionSnapshot", "steps", "finalResult"}
+_EVALUATION_DETAIL_FIELDS = _EVALUATION_FIELDS | {"submissionSnapshot", "steps", "finalResult", "scorePercent"}
 
 
 def _public_evaluation(document: Document, *, detail: bool = False) -> Document:
@@ -108,6 +108,8 @@ def _enrich_step_output(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
             step["resultSummary"] = str(output["summary"])
         if isinstance(output.get("result"), dict):
             step["result"] = output["result"]
+        elif output:
+            step["result"] = output
         elif raw is not None and not isinstance(raw, str):
             step["resultSummary"] = json.dumps(raw, ensure_ascii=False)
     return steps
@@ -171,10 +173,10 @@ async def start(model_id: UUID, user: User) -> Document:
     await ensure_task_questionnaire_completed(model_id)
     task_ref = model["taskVersion"]
     task_version = await ensure_release_reference(UUID(task_ref["taskId"]), UUID(task_ref["versionId"]), user)
-    allowed = task_version.get("data", {}).get("evaluationWorkflows", [])
-    if not allowed:
-        raise ApiError(409, "WORKFLOW_NOT_ENABLED", "No evaluation workflow is enabled for the task.")
-    workflow_name = allowed[0]
+    data = task_version.get("data", {})
+    if not data.get("sampleSolutions"):
+        raise ApiError(409, "EVALUATION_REFERENCES_REQUIRED", "A released sample solution is required for evaluation.")
+    workflow_name = next(iter(data.get("evaluationWorkflows", [])), "model-evaluation-graph-matching")
     version_id = model.get("latestVersionId")
     if not version_id:
         raise ApiError(409, "SUBMISSION_NOT_SAVED", "Save the submission before starting an evaluation.")
@@ -249,6 +251,8 @@ async def _model_run_steps(evaluation: Document, parent: Document, children: lis
         "parse_models": ("parse_model", "parser-result.json", "graph-parser", "Graph", "MODEL_KEY"),
         "extract_labels": ("extract_labels", "labels-result.json", "model-label-extraction", "Elementinventar", "MODEL_KEY"),
         "match_synonyms": ("match_synonyms", "candidates-result.json", "synonym-matching", "Semantische Kandidaten", "REFERENCE_KEY"),
+        "match_graphs": ("match_graph", "comparison-result.json", "one-to-one-graph-matching", "Vorläufiger Graphvergleich", "REFERENCE_KEY"),
+        "generate_feedback": ("generate_feedback", "feedback-result.json", "feedback-generation", "Vorläufiges Feedback", "REFERENCE_KEY"),
     }[parent["id"]]
     by_key = {}
     for child in children:
@@ -339,7 +343,7 @@ async def detail(evaluation_id: UUID, user: User) -> Document:
     expanded = []
     for step in raw_steps:
         children = step.pop("_subRuns", [])
-        if step["id"] in {"parse_models", "extract_labels", "match_synonyms"} and evaluation.get("parserModels"):
+        if step["id"] in {"parse_models", "extract_labels", "match_synonyms", "match_graphs", "generate_feedback"} and evaluation.get("parserModels"):
             expanded.extend(await _model_run_steps(evaluation, step, children))
         else:
             expanded.append(step)

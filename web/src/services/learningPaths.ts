@@ -2,6 +2,9 @@ import type { SurveyVersion, SurveyResponse } from '@/services/surveys'
 import http from '@/services/api/httpClient'
 import type { TaskVersionReference, ApiPage } from '@/services/api/types/common'
 import type { ChallengeConfig, ChallengeAttempt } from '@/services/challenges'
+// Temporary until the laboratory task's automatic assessment is available.
+export const laboratoryCompletionBlockedStepId = '90633637-a890-597e-bfc6-682ed472b020'
+export const laboratoryCompletionUnavailableMessage = 'Tut uns leid, die automatische Bewertung ist vorübergehend nicht verfügbar. Du kannst dein Modell weiter bearbeiten, die Aufgabe aber noch nicht abschließen. Die Funktion wird in den nächsten Tagen ergänzt.'
 export interface Condition {
   type: 'completed' | 'score' | 'at' | 'after'
   stepId: string | null
@@ -21,6 +24,7 @@ export interface PathStep {
   required?: boolean
   unlock: { mode: 'sequence' | 'all' | 'any'; conditions: Condition[] }
   challenge?: ChallengeConfig | null
+  minimumScorePercent?: number | null
 }
 export interface PulseSurveyConfig {
   enabled: boolean
@@ -114,6 +118,7 @@ export interface PathModelContext {
   afterSurvey: { surveyId: string; completed: boolean } | null
   challenge: ChallengeAttempt | null
   helpRequests: HelpRequestConfig
+  minimumScorePercent?: number | null
 }
 export interface PathProgressSummary {
   id: string
@@ -211,5 +216,5 @@ export default {
   runs: (skip = 0) => http.get<ApiPage<PathRun>>('/v1/learning-path-runs', { params: { skip, limit: 100 } }),
   run: (id: string) => http.get<PathRun>(`/v1/learning-path-runs/${id}`),
   startStep: (runId: string, stepId: string, acknowledgedChallenge: ChallengeConfig | null = null) => http.post<{ modelId: string }>(`/v1/learning-path-runs/${runId}/steps/${stepId}/start`, { acknowledgedChallenge }),
-  complete: (runId: string, stepId: string) => http.post<PathRun>(`/v1/learning-path-runs/${runId}/steps/${stepId}/complete`)
+  complete: (runId: string, stepId: string, evaluationId?: string) => http.post<PathRun>(`/v1/learning-path-runs/${runId}/steps/${stepId}/complete`, { evaluationId })
 }

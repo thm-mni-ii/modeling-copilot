@@ -157,8 +157,8 @@ Eigenständige Aufrufer bewahren die Inventare unter
 | `methods` | Nur aktivierte Verfahren mit Scorebereich, Vorverarbeitung, Parametern und optionalen Ressourcenmetadaten |
 | `candidatePairCount`, `scoredPairCount`, `unavailablePairCount` | Zahl zulässiger Paare und deren Scoring-Verfügbarkeit |
 | `processedTexts` | Tatsächlich verwendeter Text einmal pro vorhandener fachlicher oder Verbindungsbeschriftungs-ID |
-| `synonymMatrix` | Nur zulässige Kandidaten mit `comparisonBasis` und `scoreStatus`; `scores` enthält ausschließlich aktivierte Methoden oder ist bei fehlendem Text `null` |
-| `connectionTextMatrix` | Flache Liste ausschließlich tatsächlich bewerteter Textpaare mit Owner-IDs, Beschriftungsart/-slot und unabhängigen Methodenscores; ohne kompatible Texte `[]` |
+| `synonymMatrix` | Nur zulässige Kandidaten; `referenceLabel` und `submissionLabel` geben den jeweiligen `matchText` unverändert wieder, während IDs die technischen Identifikatoren bleiben. `comparisonBasis` und `scoreStatus` erklären die Paarbildung; `scores` enthält aktivierte Methoden oder ist bei fehlendem Text `null` |
+| `connectionTextMatrix` | Flache Liste tatsächlich bewerteter Textpaare mit Owner-IDs, `referenceLabel` und `submissionLabel` aus den Inventaren, Beschriftungsart/-slot und unabhängigen Methodenscores; ohne kompatible Texte `[]` |
 | `unscoredElements` | Seite, ID und Grund für jede Instanz ohne verwendbaren Text; Modellbezug ergibt sich aus `pair` |
 | `completeness`, `diagnostics` | Technisch vollständig bei Erfolg; Interpretation berücksichtigt Inventare und nicht bewertbare Verbindungstext-Paare, Diagnosen weisen die Einschränkung explizit aus |
 | `candidateHash` | Hash des vollständigen `result` ohne dieses eigene Hashfeld |

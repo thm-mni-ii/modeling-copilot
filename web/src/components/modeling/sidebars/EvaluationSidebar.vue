@@ -16,14 +16,14 @@
       <template v-if="loading && !evaluations.length">
         <v-skeleton-loader v-for="n in 3" :key="n" type="list-item-two-line" class="evaluation-skeleton" />
       </template>
-      <v-alert v-else-if="listError" type="error" density="compact" variant="tonal" class="ma-3">
+      <v-alert v-else-if="listError" type="error" density="compact" variant="tonal" class="evaluation-load-error ma-3">
         {{ listError }}
         <template #append><v-btn size="x-small" variant="text" @click="loadList">Erneut versuchen</v-btn></template>
       </v-alert>
       <div v-else-if="!evaluations.length" class="evaluation-empty">
         <v-icon size="40" color="medium-emphasis">mdi-chart-timeline-variant-shimmer</v-icon>
         <p class="text-caption text-medium-emphasis mt-2 mb-0">Noch keine Auswertungen vorhanden.</p>
-        <p class="text-caption text-medium-emphasis mb-0">Starte eine Auswertung über den Task-Header.</p>
+        <p class="text-caption text-medium-emphasis mb-0">{{ userStore.globalRole === 'ADMIN' ? 'Starte eine Auswertung über den Task-Header.' : 'Hier erscheint dein automatisch erzeugtes Feedback.' }}</p>
       </div>
       <v-list v-else density="compact" nav class="pa-0">
         <template v-for="(evaluation, index) in evaluations" :key="evaluation.id">
@@ -51,13 +51,18 @@
         <v-skeleton-loader type="list-item-three-line" />
         <v-skeleton-loader type="list-item-three-line" class="mt-2" />
       </template>
-      <v-alert v-else-if="detailError" type="error" density="compact" variant="tonal">
+      <v-alert v-else-if="detailError" type="error" density="compact" variant="tonal" class="evaluation-load-error">
         {{ detailError }}
         <template #append><v-btn size="x-small" variant="text" @click="reload">Erneut versuchen</v-btn></template>
       </v-alert>
       <template v-else-if="detail">
+        <v-btn-toggle v-if="canViewService" v-model="selectedPerspective" mandatory divided density="compact" variant="outlined" color="primary" class="evaluation-perspective mb-3" aria-label="Auswertungsansicht">
+          <v-btn value="service" size="small">Service</v-btn>
+          <v-btn value="student" size="small">Studierende</v-btn>
+        </v-btn-toggle>
+
         <div class="d-flex align-center ga-2">
-          <v-chip :color="stateColor(detail.state)" size="small" variant="tonal" label
+          <v-chip :color="stateColor(detail.state)" size="small" variant="tonal" label aria-label="Status des Auswertungsdurchlaufs"
             ><v-icon start size="14">{{ stateIcon(detail.state) }}</v-icon
             >{{ stateLabel(detail.state) }}</v-chip
           >
@@ -68,21 +73,30 @@
 
         <v-divider class="my-2" />
 
-        <v-alert v-if="detail.workflow.labels.phase === '4'" type="info" density="compact" variant="tonal" class="mb-2">
+        <v-alert v-if="showServiceView && detail.workflow.labels.phase === '4'" type="info" density="compact" variant="tonal" class="mb-2">
           Zwischenergebnisse bis Phase 4: Graphen, Elementinventare und semantische Kandidaten je Musterlösung.
+        </v-alert>
+        <v-alert v-else-if="showServiceView && detail.workflow.labels.phase === '5'" type="info" density="compact" variant="tonal" class="mb-2">
+          Vorläufiger Vergleich je Musterlösung. Eine vollständige strukturelle Bewertung liegt noch nicht vor.
         </v-alert>
 
         <div class="evaluation-progress">
           <div class="d-flex align-center justify-space-between text-caption text-medium-emphasis mb-1">
-            <span>Fortschritt</span>
-            <span>{{ doneStepCount }} / {{ detail.steps.length }} Schritte</span>
+            <span>Durchlauffortschritt</span>
+            <span v-if="showServiceView">{{ doneStepCount }} / {{ detail.steps.length }} Schritte</span>
+            <span v-else>{{ Math.round(progressPercent) }} %</span>
           </div>
-          <v-progress-linear :model-value="progressPercent" height="6" rounded :color="stateColor(detail.state) ?? 'primary'" />
+          <v-progress-linear :model-value="progressPercent" height="6" rounded color="info" aria-label="Fortschritt des Auswertungsdurchlaufs" />
         </div>
 
         <v-divider class="my-2" />
 
-        <v-timeline density="compact" side="end" truncate-line="both" class="evaluation-timeline">
+        <section v-if="!showServiceView" aria-label="Ergebnis der Auswertung" aria-live="polite">
+          <h3 class="text-body-2 font-weight-medium mb-2">Dein Ergebnis</h3>
+          <p class="text-caption text-medium-emphasis mb-0">{{ studentResultMessage }}</p>
+        </section>
+
+        <v-timeline v-else density="compact" side="end" truncate-line="both" class="evaluation-timeline">
           <v-timeline-item v-for="entry in timelineEntries" :key="entry.id" :dot-color="entry.color" size="x-small">
             <template #icon
               ><v-icon size="12" color="white">{{ entry.icon }}</v-icon></template
@@ -90,6 +104,12 @@
             <div class="text-body-2 font-weight-medium">{{ entry.title }}</div>
             <div v-if="entry.resultSummary" class="result-summary mt-1">{{ entry.resultSummary }}</div>
             <div v-else-if="entry.description" class="text-caption text-medium-emphasis mt-1">{{ entry.description }}</div>
+            <div v-if="entry.comparison" class="text-caption mt-1">
+              <div>Vorläufige Anker: {{ entry.comparison.anchors }} / {{ entry.comparison.references }} ({{ entry.comparison.coverage }})</div>
+              <div>Maximal zuordenbar: {{ entry.comparison.capacity }} / {{ entry.comparison.references }} ({{ entry.comparison.capacityBound }})</div>
+              <div v-if="entry.comparison.owners">Zugehörigkeitskonsistenz: {{ entry.comparison.owners }}</div>
+              <div class="text-medium-emphasis">Keine bestätigte Modellübereinstimmung.</div>
+            </div>
             <JsonResultViewer :data="entry.result ?? { title: entry.title, description: entry.description ?? null, resultSummary: entry.resultSummary ?? null }" class="mt-1">
               <template #actions>
                 <SemanticComparisonViewer v-if="semanticComparisonResult(entry.result)" :result="semanticComparisonResult(entry.result)!" />
@@ -108,11 +128,17 @@ import type { ApiId, JsonObject } from '@/services/api/types/common'
 import type { Evaluation, EvaluationDetail } from '@/services/api/types/evaluation'
 import evaluationService from '@/services/evaluation/evaluation.service'
 import { notifySuccess } from '@/composables/useNotifications'
+import { useUserStore } from '@/stores/userStore'
 import JsonResultViewer from './JsonResultViewer.vue'
 import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
 import { semanticComparisonResult } from '@/utils/semanticComparison'
 
-const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null }>()
+const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null; evaluationPerspective?: 'service' | 'student' }>()
+const emit = defineEmits<{ 'evaluation-updated': [evaluation: EvaluationDetail] }>()
+const userStore = useUserStore()
+const selectedPerspective = ref<'service' | 'student'>('service')
+const canViewService = computed(() => userStore.globalRole === 'ADMIN' || userStore.globalRole === 'MODERATOR')
+const showServiceView = computed(() => canViewService.value && selectedPerspective.value === 'service')
 const view = ref<'list' | 'detail'>('list')
 const evaluations = ref<Evaluation[]>([])
 const detail = ref<EvaluationDetail | null>(null)
@@ -126,9 +152,9 @@ let pollTimer: ReturnType<typeof setTimeout> | null = null
 let pollingGeneration = 0
 
 const terminal = (state: string) => ['succeeded', 'failed', 'cancelled'].includes(state)
-const stateLabel = (state: string) => ({ queued: 'Wartet', running: 'Läuft', succeeded: 'Erfolgreich', failed: 'Fehlgeschlagen', cancelled: 'Abgebrochen', unknown: 'Status wird ermittelt' })[state] ?? state
+const stateLabel = (state: string) => ({ queued: 'Wartet', running: 'Läuft', succeeded: 'Abgeschlossen', failed: 'Fehlgeschlagen', cancelled: 'Abgebrochen', unknown: 'Status wird ermittelt' })[state] ?? state
 const stateIcon = (state: string) => (state === 'succeeded' ? 'mdi-check-circle' : state === 'running' ? 'mdi-progress-clock' : state === 'failed' ? 'mdi-close-circle' : state === 'cancelled' ? 'mdi-cancel' : state === 'queued' ? 'mdi-clock-outline' : 'mdi-help-circle-outline')
-const stateColor = (state: string) => (state === 'succeeded' ? 'success' : state === 'running' ? 'primary' : state === 'failed' ? 'error' : state === 'cancelled' ? 'warning' : undefined)
+const stateColor = (state: string) => (state === 'succeeded' || state === 'running' ? 'info' : state === 'failed' ? 'error' : state === 'cancelled' ? 'warning' : undefined)
 
 const rtf = new Intl.RelativeTimeFormat('de', { numeric: 'auto' })
 const relativeTime = (iso: string) => {
@@ -141,7 +167,27 @@ const relativeTime = (iso: string) => {
 const absoluteTime = (iso: string) => new Date(iso).toLocaleString()
 
 const doneStepCount = computed(() => (detail.value ? detail.value.steps.filter((step) => step.status === 'succeeded' || step.status === 'failed').length : 0))
-const progressPercent = computed(() => (detail.value && detail.value.steps.length ? (doneStepCount.value / detail.value.steps.length) * 100 : 0))
+const progressPercent = computed(() => {
+  if (!showServiceView.value && detail.value?.state === 'succeeded') return 100
+  return detail.value && detail.value.steps.length ? (doneStepCount.value / detail.value.steps.length) * 100 : 0
+})
+const studentResultMessage = computed(() => {
+  switch (detail.value?.state) {
+    case 'succeeded':
+      if (detail.value.scorePercent != null) return `Dein Modell erreicht ${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(detail.value.scorePercent)} %.`
+      return 'Die Auswertung ist abgeschlossen. Eine Ergebnisanzeige für Studierende ist für diese Auswertung noch nicht eingerichtet.'
+    case 'failed':
+      return 'Die Auswertung ist fehlgeschlagen. Fordere erneut automatisch erzeugtes Feedback an oder versuche den Aufgabenabschluss erneut.'
+    case 'cancelled':
+      return 'Die Auswertung wurde abgebrochen. Fordere erneut automatisch erzeugtes Feedback an oder versuche den Aufgabenabschluss erneut.'
+    case 'queued':
+      return 'Deine Auswertung wartet auf den Start.'
+    case 'running':
+      return 'Dein Modell wird ausgewertet.'
+    default:
+      return 'Der Status deiner Auswertung wird ermittelt.'
+  }
+})
 
 interface TimelineEntry {
   id: string
@@ -151,6 +197,32 @@ interface TimelineEntry {
   description?: string | null
   resultSummary?: string | null
   result?: JsonObject | null
+  comparison?: { anchors: number; references: number; coverage: string; capacity: number; capacityBound: string; owners?: string }
+}
+const jsonObject = (value: unknown): JsonObject | undefined =>
+  value && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : undefined
+const percent = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value)
+    ? new Intl.NumberFormat('de-DE', { style: 'percent', maximumFractionDigits: 1 }).format(value)
+    : 'nicht bestimmbar'
+const comparisonSummary = (result: JsonObject | null | undefined): TimelineEntry['comparison'] => {
+  if (result?.schema !== 'reference-comparison/v1') return undefined
+  const metrics = jsonObject(result.metrics)
+  const overall = jsonObject(metrics?.overall)
+  if (!overall || typeof overall.referenceCount !== 'number' || typeof overall.provisionalAnchorCount !== 'number' ||
+      typeof overall.maximumAssignableCount !== 'number') return undefined
+  const owner = jsonObject(metrics?.provisionalOwnerConsistency)
+  const agreement = jsonObject(owner?.agreement)
+  return {
+    anchors: overall.provisionalAnchorCount,
+    references: overall.referenceCount,
+    coverage: percent(overall.anchorCoverage),
+    capacity: overall.maximumAssignableCount,
+    capacityBound: percent(overall.capacityUpperBound),
+    owners: owner && agreement && typeof owner.satisfied === 'number' && typeof owner.expected === 'number'
+      ? `${percent(agreement.lower)} – ${percent(agreement.upper)} (${owner.satisfied} / ${owner.expected})`
+      : undefined
+  }
 }
 const timelineEntries = computed<TimelineEntry[]>(() => {
   if (!detail.value) return []
@@ -161,10 +233,11 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
     title: step.label,
     description: step.description,
     resultSummary: step.resultSummary,
-    result: step.result
+    result: step.result,
+    comparison: comparisonSummary(step.result)
   }))
   if (detail.value.finalResult) {
-    entries.push({ id: '__final__', icon: 'mdi-flag-checkered', color: 'success', title: detail.value.workflow.labels.phase === '4' ? 'Ergebnisübersicht bis Phase 4' : 'Endergebnis', result: detail.value.finalResult })
+    entries.push({ id: '__final__', icon: 'mdi-flag-checkered', color: 'info', title: detail.value.workflow.labels.phase === '4' ? 'Ergebnisübersicht bis Phase 4' : detail.value.workflow.labels.phase === '5' ? 'Vorläufige Ergebnisübersicht' : 'Endergebnis', result: detail.value.finalResult, comparison: comparisonSummary(detail.value.finalResult) })
   } else if (detail.value.state === 'failed' || detail.value.state === 'cancelled') {
     entries.push({ id: '__outcome__', icon: 'mdi-alert', color: 'error', title: detail.value.state === 'failed' ? 'Fehlgeschlagen' : 'Abgebrochen', description: 'Workflow wurde nicht erfolgreich abgeschlossen.' })
   }
@@ -174,7 +247,7 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
 // Non-structural outcome: surface once via toast instead of a permanent panel.
 const notifiedNoResultIds = new Set<ApiId>()
 watch(detail, (value) => {
-  if (value && value.state === 'succeeded' && !value.finalResult && !notifiedNoResultIds.has(value.id)) {
+  if (showServiceView.value && value && value.state === 'succeeded' && !value.finalResult && !notifiedNoResultIds.has(value.id)) {
     notifiedNoResultIds.add(value.id)
     notifySuccess('Workflow abgeschlossen; es wurde kein strukturiertes Endergebnis geliefert.')
   }
@@ -201,10 +274,14 @@ const loadList = async () => {
 }
 
 const refreshDetail = async () => {
-  if (!selectedId.value) return
-  detail.value = (await evaluationService.get(selectedId.value)).data
-  const index = evaluations.value.findIndex((item) => item.id === selectedId.value)
+  const id = selectedId.value
+  if (!id) return
+  const result = (await evaluationService.get(id)).data
+  if (selectedId.value !== id) return
+  detail.value = result
+  const index = evaluations.value.findIndex((item) => item.id === id)
   if (index >= 0) evaluations.value[index] = { ...evaluations.value[index], state: detail.value.state }
+  emit('evaluation-updated', detail.value)
 }
 
 const poll = async (generation: number) => {
@@ -225,6 +302,7 @@ const poll = async (generation: number) => {
 
 const open = async (id: ApiId) => {
   stopPolling()
+  if (selectedId.value !== id) detail.value = null
   selectedId.value = id
   detailLoading.value = true
   detailError.value = null
@@ -263,12 +341,19 @@ watch(
   { immediate: true }
 )
 watch(
-  () => props.openEvaluationId,
-  async (id) => {
-    if (id) await openDetail(id)
-  }
+  () => [props.openEvaluationId, props.evaluationPerspective] as const,
+  async ([id, perspective]) => {
+    if (id) {
+      selectedPerspective.value = perspective ?? 'service'
+      await openDetail(id)
+    }
+  },
+  { immediate: true }
 )
-onMounted(() => window.addEventListener('beforeunload', stopPolling))
+onMounted(() => {
+  void userStore.ensureGlobalRole()
+  window.addEventListener('beforeunload', stopPolling)
+})
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', stopPolling)
   stopPolling()
@@ -301,6 +386,20 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+.evaluation-perspective {
+  display: flex;
+  width: 100%;
+}
+.evaluation-perspective > .v-btn {
+  flex: 1;
+  min-width: 0;
+}
+.evaluation-load-error :deep(.v-alert__append) {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  margin-inline-start: 0;
+  margin-top: 8px;
 }
 .evaluation-skeleton {
   margin: 4px 8px;
@@ -347,7 +446,7 @@ onBeforeUnmount(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgb(var(--v-theme-primary));
+  background: rgb(var(--v-theme-info));
   flex-shrink: 0;
   animation: evaluation-live-pulse 1.4s ease-in-out infinite;
 }
@@ -355,11 +454,11 @@ onBeforeUnmount(() => {
   0%,
   100% {
     opacity: 1;
-    box-shadow: 0 0 0 0 rgba(var(--v-theme-primary), 0.5);
+    box-shadow: 0 0 0 0 rgba(var(--v-theme-info), 0.5);
   }
   50% {
     opacity: 0.6;
-    box-shadow: 0 0 0 4px rgba(var(--v-theme-primary), 0);
+    box-shadow: 0 0 0 4px rgba(var(--v-theme-info), 0);
   }
 }
 </style>

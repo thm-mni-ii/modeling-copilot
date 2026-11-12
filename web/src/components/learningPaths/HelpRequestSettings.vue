@@ -8,6 +8,7 @@
         <v-btn variant="outlined" size="small" prepend-icon="mdi-play-outline" :disabled="!blueprint || Boolean(issue)" @click="preview = true">Ablauf ausprobieren</v-btn>
       </div>
       <p class="text-caption text-medium-emphasis my-4">Änderungen gelten nur für diesen Lernpfad. Beim Speichern des Lernpfads werden sie direkt für neue Hilfe-Anfragen veröffentlicht. Begonnene Anfragen behalten ihre Version.</p>
+      <p class="text-caption text-medium-emphasis mb-4">Bei Aufgaben mit Musterlösung ergänzt die Hilfe-Auswahl „Automatische Überprüfung des Modells“ und öffnet damit die Auswertung.</p>
       <v-progress-linear v-if="pending" indeterminate aria-label="Hilfe-Fragen laden" />
       <v-alert v-if="loadError" type="error" variant="tonal" density="compact">{{ loadError }}<v-btn variant="text" size="small" @click="load">Erneut laden</v-btn></v-alert>
       <template v-if="blueprint">

@@ -57,11 +57,13 @@ PVC `dagu-data`.
 Das Backend übergibt Modelle und Sprachversionen als vollständigen Snapshot.
 `workflow-data` speichert ihn auf dem gemeinsamen PVC unter
 `/work/evaluations/<evaluationId>/inputs/evaluation-input.json`.
-`model-evaluation-graph-matching` führt die Phasen 1 bis 4 aus: Initialisierung,
+`model-evaluation-graph-matching` führt die Phasen 1 bis 6 aus: Initialisierung,
 Graph-Parsing und Elementinventar je Modell, anschließend semantisches Matching
-der Abgabe gegen jede Musterlösung. Graphen liegen unter `graphs/<modelKey>.json`,
+einen vorläufigen Graphvergleich und aggregiertes Feedback je Musterlösung. Graphen liegen unter `graphs/<modelKey>.json`,
 Inventare unter `labels/<modelKey>.json` und semantische Kandidaten unter
-`candidates/<referenceKey>.json`. Die Abgabe wird nur einmal vorbereitet.
+`candidates/<referenceKey>.json`; Vergleiche liegen unter
+`comparisons/<referenceKey>.json` und Feedbackberichte unter
+`feedback/<referenceKey>.json`. Die Abgabe wird nur einmal vorbereitet.
 Die internen Modell- und Paarworkflows sind in derselben Datei eingebettet.
 `hello` bleibt der einfache Testworkflow.
 
@@ -71,22 +73,27 @@ Die internen Modell- und Paarworkflows sind in derselben Datei eingebettet.
 Datenbankzugriff. Details: [Graph Parser](workflow-services/graph-parser/README.md)
 und [Init](workflow-services/workflow-data/README.md).
 
-### Im Browser bis Phase 4 ausprobieren
+### Im Browser ausprobieren
 
 Die Aufgabe muss den Workflow `model-evaluation-graph-matching` und mindestens
 eine freigegebene Musterlösung enthalten. Nach dem Speichern der Abgabe startet
 der Auswertungsbutton im Aufgabenbereich einen neuen Lauf. Die Auswertungs-Sidebar
 zeigt Graph und Elementinventar für Abgabe und Musterlösungen sowie einen Schritt
-„Semantische Kandidaten“ je Musterlösung. „Ausklappen“, „Groß anzeigen“ und
+„Semantische Kandidaten“ und „Vorläufiger Graphvergleich“ je Musterlösung.
+Die Serviceansicht zeigt außerdem das vorläufige Feedback je Musterlösung.
+Der Vergleich zeigt Ankerabdeckung, maximale Zuordnungskapazität und ein
+Intervall der vorläufigen Zugehörigkeitskonsistenz. Diese Zahlen sind keine
+bestätigte Modellübereinstimmung. „Ausklappen“, „Groß anzeigen“ und
 „Als JSON kopieren“ öffnen beziehungsweise exportieren die vollständigen
 Zwischenergebnisse. Auch bei einem späteren Schrittfehler bleiben die bereits
 erzeugten Ergebnisse sichtbar. Die Ergebnisübersicht benennt die erreichte Phase;
-strukturelle Zuordnung, Feedback und Punkte sind noch nicht Teil dieses Workflows.
+endgültige Zuordnungen, vollständige strukturelle Bewertung und Punkte
+sind noch nicht Teil dieses Workflows.
 
 Lokal nur die tatsächlich benötigten Images bauen:
 
 ```powershell
-docker compose --profile workflow-services build workflow-data workflow-graph-parser workflow-model-label-extraction workflow-synonym-matching
+docker compose --profile workflow-services build workflow-data workflow-graph-parser workflow-model-label-extraction workflow-synonym-matching workflow-one-to-one-matching workflow-feedback-generation
 docker compose up -d --no-deps --build api
 ```
 
@@ -104,7 +111,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:latest modeling-copilot/graph-parser:latest modeling-copilot/model-label-extraction:latest modeling-copilot/synonym-matching:latest | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:latest modeling-copilot/graph-parser:latest modeling-copilot/model-label-extraction:latest modeling-copilot/synonym-matching:latest modeling-copilot/one-to-one-graph-matching:latest modeling-copilot/feedback-generation:latest | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre

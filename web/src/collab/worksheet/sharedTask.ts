@@ -16,6 +16,7 @@ export interface SharedTaskSettings {
   autonomyMode: AutonomyMode
   connectionPreviewAllowed: boolean | null
   evaluationWorkflows: string[]
+  evaluationAvailable?: boolean
 }
 export const sharedTaskSettings = shallowRef<SharedTaskSettings | null>(null)
 

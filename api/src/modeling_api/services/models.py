@@ -212,6 +212,7 @@ async def get_shared_task(model_id: UUID, user: User) -> Document:
             "autonomyMode": data.get("autonomyMode", "free"),
             "connectionPreviewAllowed": data.get("connectionPreviewAllowed"),
             "evaluationWorkflows": data.get("evaluationWorkflows", []),
+            "evaluationAvailable": bool(data.get("sampleSolutions")),
         },
     }
 
