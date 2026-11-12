@@ -47,4 +47,20 @@ body.collab-live .sidebar-tabs .v-tab[aria-label='Collab'] {
 body.collab-linked .modeling-header [aria-label='Change model name'] {
   visibility: hidden;
 }
+/* Import ersetzt das ganze Modell; die Bindung stellt dann den Stand des Raums wieder her, der Import ginge verloren. */
+body.collab-linked .sidebar-persistence .mode-switch > .v-btn:last-child {
+  opacity: 0.38;
+  pointer-events: none;
+}
+body.collab-linked .sidebar-persistence .persistence-navigation::after {
+  content: 'Import is turned off in room models.';
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.6);
+}
+/* Per Tastatur doch gewählt: ohne Bedienelemente. */
+body.collab-linked .sidebar-persistence:has(.mode-switch > .v-btn:last-child[aria-pressed='true']) :is(.persistence-actions, .persistence-content) {
+  display: none;
+}
 </style>
