@@ -189,6 +189,53 @@ def test_default_experiments_keep_preprocessing_method_specific():
     assert config['chains']['ft_en_identifiers'] == ['normalize', 'split_identifiers', 'translate', 'fasttext_en_matching']
 
 
+def test_lexicon_coverage_distinguishes_whole_partial_unknown_and_empty():
+    from research.lexicon_coverage import inspect_labels
+
+    calls = []
+
+    def lookup(text):
+        calls.append(text)
+        return {'entry'} if text in {'Kunde', 'ice cream'} else set()
+
+    result = inspect_labels(['Kunde', 'Kunde ZusatzXYZ', 'ZusatzXYZ', '', 'ice cream', 'Kunde'], lookup)
+    assert [item['status'] for item in result] == ['known', 'partial', 'unknown', 'empty', 'known', 'known']
+    assert result[1]['token_coverage'] == .5
+    assert result[3]['token_coverage'] is None
+    # Eine bekannte Mehrwortbedeutung muss nicht aus einzeln bekannten Tokens bestehen.
+    assert result[4]['whole_label_known'] and result[4]['token_coverage'] == 0
+    assert calls.count('Kunde') == 1 and calls.count('ZusatzXYZ') == 1
+
+
+def test_coverage_diagnosis_preserves_scores_and_counts_unique_labels(tmp_path, monkeypatch):
+    monkeypatch.setattr('synonym_matching.lexicons.DATA_DIR', tmp_path)
+    (tmp_path / 'openthesaurus.txt').write_text('Kunde;Abnehmer\nLieferant;Zulieferer\n')
+    data = {'cases': [{'id': 'coverage', 'case_number': 1, 'title': 'Abdeckung',
+            'reference': [{'id': 'r1', 'label': 'Kunde', 'language': 'de'},
+                          {'id': 'r2', 'label': 'Kunde', 'language': 'de'}],
+            'student': [{'id': 's1', 'label': 'Abnehmer', 'language': 'de'},
+                        {'id': 's2', 'label': 'Kunde ZusatzXYZ', 'language': 'de'},
+                        {'id': 's3', 'label': 'ZusatzXYZ', 'language': 'de'},
+                        {'id': 's4', 'label': 'Lieferant', 'language': 'de'}],
+            'annotations': [['correct', 'incorrect', 'incorrect', 'incorrect']] * 2}]}
+    config = load_config()
+    config['chains'] = {'thesaurus': ['normalize', 'openthesaurus']}
+    config['mixes'] = []
+    output = tmp_path / 'coverage.json'
+    assert run_experiments(data, output, config) == []
+    payload = json.loads(output.read_text())
+    feature = payload['features'][0]
+    assert feature['scores'] == [[1, 0, 0, 0], [1, 0, 0, 0]]
+    assert all(all(row) for row in feature['eligible'])  # Unbekannt ist nicht ungültig.
+    coverage = feature['lexicon_coverage']['student']
+    assert coverage[2]['status'] == 'unknown' and coverage[3]['status'] == 'known'
+    summary = payload['lexicon_coverage'][0]
+    assert summary['unique_labels'] == 5  # Doppeltes Kunde nur einmal zählen.
+    assert (summary['known'], summary['partial'], summary['unknown']) == (3, 1, 1)
+    assert summary['whole_label_coverage'] == .6
+    assert payload['records'][0]['combinedScores'] == feature['scores']
+
+
 def test_run_stores_raw_features_once_and_api_unchanged(tmp_path):
     data = {'cases': [{'id': 'test', 'case_number': 23, 'title': 'candidates',
             'reference': [{'id': 'r', 'label': 'Kunde', 'language': 'de'}],

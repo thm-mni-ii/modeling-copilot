@@ -21,6 +21,7 @@ import numpy as np
 
 from synonym_matching.service import MatchingEngine
 from . import word_matching
+from .lexicon_coverage import inspect_labels, summarize_coverage
 from .evaluation import evaluate_case, select_matches, global_ranking
 from .experiments import (DEFAULT_CONFIG, ROOT, configurations, is_wordvec, load_config,
                           unsupported)
@@ -199,6 +200,16 @@ def calculate_features(cases, definitions, methods):
                         'processedLabels': result['processedLabels'][method],
                         'eligible': (result['validPairs'] & result['usablePairs'][method]).tolist(),
                     }
+                    backend = getattr(engine, 'backends', {}).get(method)
+                    if isinstance(backend, (WordNet, OdeNet, OpenThesaurus)):
+                        # Reine Diagnose nach der Scoreberechnung; kein zusätzlicher
+                        # Kombinationsscore, keine Änderung der Kandidatenmaske.
+                        diagnosis_started = time.perf_counter()
+                        features[key, case['id']]['lexicon_coverage'] = {
+                            side: inspect_labels(texts, backend.lookup)
+                            for side, texts in result['processedLabels'][method].items()}
+                        features[key, case['id']]['coverage_seconds'] = (
+                            time.perf_counter() - diagnosis_started)
                 except Exception as error:
                     reason = f'{type(error).__name__}: {error}'
                     features[key, case['id']] = {'status': 'error', 'reason': reason}
@@ -312,6 +323,7 @@ def run_experiments(data, output, config):
                'provenance': provenance(engines, translator),
                'additional_resources': {'word_vectors': word_vectors},
                'score_statistics': score_statistics(feature_records),
+               'lexicon_coverage': summarize_coverage(feature_records, data['cases']),
                'dataset_sha256': dataset_hash,
                'elapsed_seconds': time.perf_counter() - started}
     from .rank_results import build_rankings, print_rankings

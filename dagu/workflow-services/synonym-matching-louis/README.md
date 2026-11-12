@@ -225,6 +225,26 @@ Similarity-Funktionen zunächst in die Forschung und später in `methods.py`.
 
 ### Gezielte Preprocessing-Vergleiche und OdeNet
 
+Neue Vergleichsläufe speichern zusätzlich `lexicon_coverage`: eindeutige
+Original-/Suchtextpaare je Lexikonkette, Fall und Ausgangssprache. `known` bedeutet
+Eintrag für das ganze Label, `partial` nur bekannte Worttokens ohne ganzen Eintrag,
+`unknown` keinen Eintrag und `empty` leeren Suchtext. Ein Lexikoneintrag bestätigt
+noch keine fachlich passende Bedeutung. Die Tokensuche trennt an Satzzeichen und
+Leerraum; sie zerlegt keine Identifier oder Komposita zusätzlich.
+Die einzelnen Befunde stehen unter `features[].lexicon_coverage`, die unbekannten
+Original- und Suchtexte unter `lexicon_coverage[].uncovered_labels`.
+WordNet wird nach Übersetzung geprüft: Das misst die Abdeckung der englischen
+Suchtexte, keine direkte deutsche Abdeckung. Nicht unterstützte Sprachen und
+fehlende Ressourcen bleiben separat als nicht verfügbar ausgewiesen.
+Die Diagnose verändert weder Scores noch Auswahlmasken; `coverage_seconds`
+speichert ihre zusätzliche Laufzeit außerhalb der bisherigen Score-Rechenzeiten.
+Gemessen wird der aktuelle Zugriff des jeweiligen Backends. Ein unbekannter
+Suchtext beweist deshalb nicht, dass der Eintrag im Datenbestand fehlt.
+Die erste Prüfung zeigte einen OdeNet-Zugriffsfehler: Der eigene Normalizer
+passt bei Umlauten nicht zur Suchnormalisierung von wn. Beispielsweise findet
+der Standardzugriff Einträge für Gebäude, Größe und Fläche, unser bisheriger
+Zugriff nicht. Diese Korrektur und eine Neubewertung der OdeNet-Scores stehen aus.
+
 Für die fünf vorhandenen Laborverwaltungsmodelle gibt es einen getrennten Datensatz:
 
 ```bash
