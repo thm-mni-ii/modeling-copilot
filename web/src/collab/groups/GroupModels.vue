@@ -48,8 +48,8 @@
           <v-chip v-for="member in members" :key="member.name" size="small" prepend-icon="mdi-account-outline">{{ member.name }}</v-chip>
         </v-card-title>
         <v-data-table :headers="headers" :items="models" :items-per-page="-1" item-value="workpiece._id" no-data-text="No models in this room yet.">
-          <template #[`item.name`]="{ item }">{{ item.workpiece.name }}</template>
-          <template #[`item.task`]="{ item }">{{ item.task ?? '—' }}</template>
+          <!-- Das Modell heißt wie seine Aufgabe; ohne Aufgabe, etwa von Hand angelegt, steht sein Name da. -->
+          <template #[`item.task`]="{ item }">{{ item.task ?? item.workpiece.name }}</template>
           <template #[`item.people`]="{ item }"
             ><v-chip v-for="name in item.people" :key="name" size="small" class="mr-1">{{ name }}</v-chip
             ><span v-if="!item.people.length" class="text-medium-emphasis">—</span></template
@@ -74,10 +74,10 @@ import { loadGroupRooms, type GroupRoom, type GroupWorkMark } from '@/collab/gro
 const props = withDefaults(defineProps<{ imported?: boolean; search?: string }>(), { imported: false, search: '' })
 
 const headers = [
-  { title: 'Model', key: 'name', sortable: false },
   { title: 'Task', key: 'task', sortable: false },
   { title: 'Working now', key: 'people', sortable: false },
-  { title: 'Actions', key: 'actions', sortable: false }
+  // Rechtsbündig: Der Button ändert seine Breite nie.
+  { title: 'Actions', key: 'actions', sortable: false, align: 'end' as const }
 ]
 
 const { openFromRoom } = useCollabConnection()

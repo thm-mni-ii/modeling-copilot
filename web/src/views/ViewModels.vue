@@ -132,7 +132,7 @@ const loadModels = async (options?: ModelTableOptions) => {
   loading.value = true
   try {
     const sort = sortBy.value[0]
-    const result = await modelService.list((page.value - 1) * limit, limit, { q: query.value || undefined, archived: viewTab.value === 'archive', ...(viewTab.value === 'archive' ? {} : { taskBound: viewTab.value === 'tasks' }), sort: sort.key, order: sort.order })
+    const result = await modelService.list((page.value - 1) * limit, limit, { q: query.value || undefined, archived: viewTab.value === 'archive', linked: false, ...(viewTab.value === 'archive' ? {} : { taskBound: viewTab.value === 'tasks' }), sort: sort.key, order: sort.order })
     models.value = result.data.items
     total.value = result.data.total
     await Promise.all(

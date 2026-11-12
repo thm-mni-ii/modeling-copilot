@@ -72,11 +72,15 @@ async def list_models(
         alias="taskBound",
         description="Filter by whether a model is assigned to a task release.",
     ),
+    linked: bool | None = Query(
+        default=None,
+        description="Filter by whether a model is linked to a workpiece of a collab-kit room (shared or group work).",
+    ),
     sort: ModelSortField = Query(default="updatedAt", description="Field used to sort the result."),
     order: SortOrder = Query(default="desc", description="Sort direction."),
 ) -> Page[Model]:
     return Page[Model].model_validate(
-        await service.list_models(skip, limit, user, q, archived, task_bound, sort, order)
+        await service.list_models(skip, limit, user, q, archived, task_bound, sort, order, linked)
     )
 
 

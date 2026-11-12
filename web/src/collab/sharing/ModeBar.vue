@@ -1,6 +1,6 @@
 <template>
   <Teleport v-if="container && visible" :to="container">
-    <div class="mode-frame" :style="{ borderColor: color, '--mode-color': color }">
+    <div class="mode-frame" :class="{ 'mode-frame--group': group }" :style="{ borderColor: color, '--mode-color': color }">
       <div class="mode-bar">
         <div class="mode-chip" :style="{ background: color }">
           <v-icon :icon="chip.icon" size="16" />
@@ -9,8 +9,9 @@
         <button v-for="button in buttons" :key="button.key" type="button" class="mode-button" :class="{ 'mode-button--on': button.on, 'mode-button--present': button.key === 'present', 'mode-button--info': button.kind === 'info' }" :title="button.title" :aria-label="button.title" :disabled="isHost && locked" @click="button.toggle()">
           <v-icon :icon="button.icon" size="18" />
         </button>
-        <div class="mode-separator" />
-        <button type="button" class="mode-button mode-button--exit" :title="exit.title" :aria-label="exit.title" :disabled="isHost && locked" @click="exit.toggle()">
+        <!-- Eine Gruppe verlässt man nicht; zurück geht es über „Group models“. -->
+        <div v-if="!group" class="mode-separator" />
+        <button v-if="!group" type="button" class="mode-button mode-button--exit" :title="exit.title" :aria-label="exit.title" :disabled="isHost && locked" @click="exit.toggle()">
           <v-icon :icon="exit.icon" size="18" />
         </button>
       </div>
@@ -23,31 +24,38 @@ import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { useGraphContext } from '@/composables/useGraphContext'
+import { roomRole } from '@/collab/rooms/roomRole'
 import { COMMENTS_ENABLED, announcedRights, currentShare, hostAway, hostPresenting, hostToggles, isSharedModel, loadShareSettings, presenting, shareDialog, shareSettingsBusy, visitorRights } from './shareModel'
 
 const BLUE = '#3f8ad6'
 const CORAL = '#cf5c58'
 const AMBER = '#c77d0a'
+const GREEN = 'rgb(var(--v-theme-primary))'
 
 const { graph } = useGraphContext()
 const route = useRoute()
-const { isConnected, anonymous } = useCollabConnection()
+const { isConnected, anonymous, linkedWorkpieceId } = useCollabConnection()
+// Wie in der Sidebar „Collab“: Das Modell liegt in einem Gruppenraum, nicht in einer Share; dann grün und ohne Schalter.
+const group = computed(() => Boolean(linkedWorkpieceId.value) && roomRole.value?.kind === 'group')
 
 // The frame and the bar are no part of the model. They lie next to the container of the canvas, not in it:
 // while panning, maxGraph moves every child of the container with the canvas (panGraph in PanningMixin.js).
 const container = computed(() => graph.value?.container.parentElement)
 // Nur am geteilten Modell; ein zweiter Tab mit einem anderen Modell zeigt keinen Rahmen.
-const visible = computed(() => isSharedModel(route.params.modelId) && isConnected.value)
-const isHost = computed(() => Boolean(currentShare.value?.privateModelId))
+const shared = computed(() => !group.value && isSharedModel(route.params.modelId))
+const visible = computed(() => (group.value || shared.value) && isConnected.value)
+const isHost = computed(() => shared.value && Boolean(currentShare.value?.privateModelId))
 const presentingNow = computed(() => (isHost.value ? presenting.value : hostPresenting.value))
 // A visitor sees at once when the host is gone; the host does not need to be told about themselves.
 const away = computed(() => !isHost.value && hostAway.value)
-const color = computed(() => (away.value ? AMBER : presentingNow.value ? CORAL : BLUE))
+const color = computed(() => (group.value ? GREEN : away.value ? AMBER : presentingNow.value ? CORAL : BLUE))
 const locked = computed(() => shareSettingsBusy() || shareDialog.value === 'quit')
 
 watch([visible, isHost], ([shown, host]) => shown && host && void loadShareSettings(), { immediate: true })
 
 const chip = computed(() => {
+  // Ohne den Namen der Gruppe, der kann lang sein; er steht in der Sidebar „Collab“.
+  if (group.value) return { icon: 'mdi-account-group-outline', text: 'Group model' }
   if (away.value) return { icon: 'mdi-lan-disconnect', text: 'Host disconnected' }
   if (!presentingNow.value) return { icon: 'mdi-account-group-outline', text: 'Collaborating' }
   return { icon: 'mdi-cursor-default-outline', text: isHost.value ? 'Presenting' : 'Host is presenting' }
@@ -65,6 +73,8 @@ interface ModeButton {
 
 /** The host switches each setting; a visitor sees only what they may do, and nothing of what they may not. */
 const buttons = computed<ModeButton[]>(() => {
+  // Im Gruppenraum dürfen alle dasselbe: sehen, kommentieren, bearbeiten.
+  if (group.value) return [{ key: 'edit', kind: 'info', on: true, icon: 'mdi-pencil', title: 'Everyone in the group can edit', toggle: () => undefined }]
   if (isHost.value) return hostToggles.value.filter((item) => !item.sidebarOnly).map((item) => ({ ...item, kind: 'toggle' as const }))
   // The host's announcement comes at once; CK tells editing only after a reconnect and commenting not at all.
   const announced = announcedRights.value
@@ -139,6 +149,11 @@ const exit = computed(() => ({
 .mode-button--on {
   background: #dcebfa;
   color: #1d5fa5;
+}
+
+.mode-frame--group .mode-button--on {
+  background: rgba(var(--v-theme-primary), 0.15);
+  color: rgb(var(--v-theme-primary));
 }
 
 .mode-button--present.mode-button--on {

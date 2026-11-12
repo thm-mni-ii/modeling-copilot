@@ -10,7 +10,8 @@ const PAGE = 100
 /** The own model that shares this workpiece, searched through all own models. */
 const findLinkedModel = async (workpieceId: string): Promise<Model | null> => {
   for (let skip = 0; ; skip += PAGE) {
-    const page = (await modelService.list(skip, PAGE)).data
+    // Nur die Hüllen; „My Models“ zeigt sie nicht, sie sind nur über ihren Raum zu öffnen.
+    const page = (await modelService.list(skip, PAGE, { linked: true })).data
     const found = page.items.find((model) => linkOf(model.preferences)?.workpieceId === workpieceId)
     if (found) return found
     if (skip + PAGE >= page.total) return null

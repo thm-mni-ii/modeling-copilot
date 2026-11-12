@@ -9,6 +9,8 @@ export interface ModelListOptions {
   q?: string
   archived?: boolean
   taskBound?: boolean
+  /** Nur Hüllen eines Werkstücks in collab-kit (true) oder nur eigene Modelle (false); ohne Angabe beide. */
+  linked?: boolean
   sort?: ModelSortField
   order?: SortOrder
 }

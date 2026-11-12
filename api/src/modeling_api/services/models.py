@@ -40,11 +40,15 @@ async def list_models(
     task_bound: bool | None = None,
     sort: ModelSortField = "updatedAt",
     order: SortOrder = "desc",
+    linked: bool | None = None,
 ) -> Document:
     filters: Document = {"ownerId": user.id}
     filters["archivedAt"] = {"$ne": None} if archived else None
     if task_bound is not None:
         filters["taskVersion"] = {"$ne": None} if task_bound else None
+    # Verknüpft heißt: Hülle eines Werkstücks in collab-kit, beim Teilen oder in der Gruppenarbeit.
+    if linked is not None:
+        filters["preferences.collab"] = {"$ne": None} if linked else None
     if q and q.strip():
         filters["name"] = {"$regex": escape(q.strip()), "$options": "i"}
     cursor = await db.models.aggregate(
