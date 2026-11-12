@@ -20,6 +20,11 @@ class GroupWorkGroup(ApiSchema):
 
     name: Name = Field(description="Name of the room and of its group.")
     usernames: list[Username] = Field(max_length=MAX_MEMBERS, description="Members by their login name.")
+    names: dict[Username, Annotated[str, Field(max_length=256)]] = Field(
+        default_factory=dict,
+        max_length=MAX_MEMBERS,
+        description="Display name per login name from the list; shown until CK knows the person itself.",
+    )
     tasks: list[TaskVersionReference] = Field(min_length=1, max_length=MAX_TASKS, description="Released tasks, one model each.")
 
 

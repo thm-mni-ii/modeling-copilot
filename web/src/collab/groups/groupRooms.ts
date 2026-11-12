@@ -14,7 +14,13 @@ export interface GroupRoom {
   room: Room
   models: GroupModel[]
   imported?: GroupWorkMark
-  members?: string[]
+  members?: GroupMember[]
+}
+
+/** Ein Mitglied eines importierten Raums; `visited`: CK kennt die Person, sie war also schon einmal da. */
+export interface GroupMember {
+  name: string
+  visited: boolean
 }
 
 /** Wie das Backend einen importierten Raum markiert (services/collab_kit/group_work.py). */
@@ -31,16 +37,20 @@ export const groupWorkOf = (room: Room): GroupWorkMark | null => {
   return typeof mark?.importedAt === 'string' && typeof mark.importedBy === 'string' ? { course: typeof mark.course === 'string' ? mark.course : '', importedAt: mark.importedAt, importedBy: mark.importedBy } : null
 }
 
-/** Die Namen der Mitglieder je importiertem Raum, aus der CK-Gruppe, die auf ihn verweist; ohne Recht an den Gruppen keine. */
+/**
+ * Die Mitglieder je importiertem Raum, aus der CK-Gruppe, die auf ihn verweist; ohne Recht an den Gruppen keine.
+ * CK kennt einen Namen erst nach dem ersten Besuch; bis dahin gilt der Name aus der Liste, den der Import ablegt.
+ */
 const membersByRoom = async (ck: CollabKitApi) => {
-  const members = new Map<string, string[]>()
+  const members = new Map<string, GroupMember[]>()
   try {
     for (const group of await ck.groups.list()) {
-      const roomId = (group.settings.groupWork as { roomId?: unknown } | undefined)?.roomId
-      if (typeof roomId === 'string')
+      const mark = group.settings.groupWork as { roomId?: unknown; names?: Record<string, unknown> } | undefined
+      const listed = (id: string) => (typeof mark?.names?.[id] === 'string' ? (mark.names[id] as string) : `ID ${id}`)
+      if (typeof mark?.roomId === 'string')
         members.set(
-          roomId,
-          group.members.map((id) => group.names?.[id] ?? id)
+          mark.roomId,
+          group.members.map((id) => (group.names?.[id] ? { name: group.names[id], visited: true } : { name: listed(id), visited: false }))
         )
     }
   } catch {
@@ -79,13 +89,14 @@ const peopleByWorkpiece = async (ck: CollabKitApi, roomId: string) => {
  * Räume aus einer Teilnehmerliste, mit ihrem Import und ihren Mitgliedern.
  */
 export const loadGroupRooms = async (ck: CollabKitApi, { imported = false } = {}): Promise<GroupRoom[]> => {
-  const [rooms, visible, members] = await Promise.all([ck.me.rooms(), ck.workpieces.list(), imported ? membersByRoom(ck) : new Map<string, string[]>()])
+  const [rooms, visible, members] = await Promise.all([ck.me.rooms(), ck.workpieces.list(), imported ? membersByRoom(ck) : new Map<string, GroupMember[]>()])
   const workpieces = new Map(visible.map((workpiece) => [workpiece._id, workpiece]))
   return Promise.all(
     rooms
       .filter((room) => roleOf(room).kind === 'group' && (!imported || groupWorkOf(room)))
       .map(async (room) => {
-        const people = await peopleByWorkpiece(ck, room._id)
+        // Wer gerade woran arbeitet, zeigt nur „Group models“; die Übersicht im Management braucht es nicht.
+        const people = imported ? new Map<string, string[]>() : await peopleByWorkpiece(ck, room._id)
         const own = room.workpieces.flatMap((id) => {
           const workpiece = workpieces.get(id)
           return workpiece && workpiece.contract.format !== TASK_FORMAT ? [workpiece] : []

@@ -83,6 +83,9 @@ def ck(monkeypatch, tasks, presence, deleted):
             return httpx.Response(200, json=groups[path.split("/")[2]])
         if method == "GET" and path.startswith("/rooms/") and path.split("/")[2] in rooms:
             return httpx.Response(200, json=rooms[path.split("/")[2]])
+        if method == "PATCH" and path.startswith("/groups/"):
+            groups[path.split("/")[2]]["settings"] = body["settings"]
+            return httpx.Response(200, json=groups[path.split("/")[2]])
         if method == "PATCH" and path.startswith("/rooms/"):
             rooms[path.split("/")[2]]["settings"] = body["settings"]
             return httpx.Response(200, json=rooms[path.split("/")[2]])

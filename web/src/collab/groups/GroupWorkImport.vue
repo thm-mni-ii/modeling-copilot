@@ -285,6 +285,8 @@ const statusOf = (group: CsvGroup) => {
 const requestOf = (group: CsvGroup) => ({
   name: group.name,
   usernames: group.members.map((member) => member.username),
+  // Der Name aus der Liste; die Übersicht zeigt ihn, bis CK die Person selbst kennt.
+  names: Object.fromEntries(group.members.map((member) => [member.username, member.name])),
   tasks: group.caseStudies.map((caseStudy) => ({ taskId: choices[caseStudy].taskId, versionId: choices[caseStudy].versionId }))
 })
 const messageOf = (error: unknown) => (error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message

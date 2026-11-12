@@ -56,6 +56,8 @@ onMounted(async () => {
 
 <style scoped>
 .collab-view {
+  /* Bis zur Fußzeile: Fensterhöhe ohne Kopf- und Fußzeile und ohne das Padding des Containers (pa-3). */
+  --ck-height: calc(100dvh - var(--v-layout-top) - var(--v-layout-bottom) - 24px);
   --ck-accent: rgb(var(--v-theme-primary));
   --ck-on-accent: rgb(var(--v-theme-on-primary));
 }

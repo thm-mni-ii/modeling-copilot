@@ -87,7 +87,13 @@ async def existing_rooms(course: str) -> dict[str, dict[str, Any]]:
         # Gibt es denselben Namen doppelt, etwa aus der Zeit vor dieser Prüfung, gilt der erste.
         found.setdefault(
             same(room["name"]),
-            {"roomId": room["_id"], "groupId": group["_id"] if group else None, "members": set(group["members"]) if group else set(), "taskIds": task_ids},
+            {
+                "roomId": room["_id"],
+                "groupId": group["_id"] if group else None,
+                "members": set(group["members"]) if group else set(),
+                "taskIds": task_ids,
+                "settings": group["settings"] if group else {},
+            },
         )
     return found
 
@@ -111,6 +117,9 @@ async def plan(user: User, course: str, groups: list[dict[str, Any]], token: str
                 "newMemberIds": list(dict.fromkeys(ids[name] for name in group["usernames"] if name in ids and ids[name] not in members)),
                 "newTasks": [task for task in group["tasks"] if str(task["taskId"]) not in tasks],
                 "missing": [name for name in group["usernames"] if name not in ids],
+                # Je FBS-ID der Name aus der Liste; CK kennt Namen erst nach dem ersten Besuch, bis dahin zeigt der Reiter diesen.
+                "names": {ids[name]: label for name, label in group.get("names", {}).items() if name in ids and label},
+                "settings": room["settings"] if room else {},
             }
         )
     return planned
@@ -130,11 +139,16 @@ async def create(user: User, course: str, groups: list[dict[str, Any]], token: s
         room_id = entry["roomId"] or (await client.create_room(entry["name"], {KEY: marker}))["_id"]
         # Ein neuer Raum bekommt seine Gruppe; ebenso ein vorhandener, dessen Gruppe jemand von Hand gelöscht hat.
         if entry["groupId"] is None:
-            ck_group = await client.create_group(entry["name"], entry["newMemberIds"], {KEY: {"roomId": room_id}})
+            ck_group = await client.create_group(entry["name"], entry["newMemberIds"], {KEY: {"roomId": room_id, "names": entry["names"]}})
             await client.set_grant(ck_group["_id"], MEMBER_RIGHTS, room_id)
         else:
             for member in entry["newMemberIds"]:
                 await client.add_member(entry["groupId"], member)
+            # Neue Namen kommen zu den alten; CK ersetzt die Einstellungen als Ganzes, also gehen fremde Schlüssel mit.
+            mark = entry["settings"].get(KEY, {})
+            names = {**mark.get("names", {}), **entry["names"]}
+            if names != mark.get("names", {}):
+                await client.update_group_settings(entry["groupId"], {**entry["settings"], KEY: {**mark, "names": names}})
         workpiece_ids = []
         for reference in entry["newTasks"]:
             # Die Sprachen gehen in den Contract des Modells, der Rest wie beim Teilen in die CK-Aufgabe.

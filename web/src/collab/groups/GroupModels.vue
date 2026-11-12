@@ -2,6 +2,39 @@
   <div v-if="loading" class="d-flex justify-center py-8"><v-progress-circular indeterminate color="primary" /></div>
   <p v-else-if="!groupRooms.length" class="text-medium-emphasis text-center py-8 mb-0">{{ imported ? 'No group work imported yet. Import a CSV to create the rooms.' : 'No group models yet.' }}</p>
   <p v-else-if="!shown.length" class="text-medium-emphasis text-center py-8 mb-0">No room matches the search.</p>
+  <!-- Im Management nur der Überblick: je Kurs eine Tabelle, je Raum eine Zeile mit Aufgaben und Mitgliedern. -->
+  <template v-else-if="imported">
+    <template v-for="{ key, mark, rooms } in byCourse" :key="key ?? ''">
+      <p class="text-subtitle-2 mt-4 mb-2">
+        {{ mark.course || 'Without course' }} <span class="text-medium-emphasis font-weight-regular">· {{ rooms.length }} {{ rooms.length === 1 ? 'room' : 'rooms' }} · last import {{ formattedDate(lastImport.get(key) ?? mark.importedAt) }}</span>
+      </p>
+      <v-table density="compact" class="border rounded-lg mb-4">
+        <thead>
+          <tr>
+            <th>Group</th>
+            <th>Tasks</th>
+            <th>Members</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="{ room, models, members } in rooms" :key="room._id">
+            <td>{{ room.name }}</td>
+            <td>
+              <v-chip v-for="model in models" :key="model.workpiece._id" size="small" variant="outlined" prepend-icon="mdi-clipboard-text-outline" class="mr-1 my-1">{{ model.task ?? model.workpiece.name }}</v-chip>
+              <span v-if="!models.length" class="text-medium-emphasis">—</span>
+            </td>
+            <td>
+              <!-- Wer noch nie da war, steht mit dem Namen aus der Liste da, blass und gestrichelt. -->
+              <v-chip v-for="member in members" :key="member.name" size="small" class="mr-1 my-1" :class="{ 'member--new': !member.visited }" :variant="member.visited ? 'tonal' : 'outlined'" :prepend-icon="member.visited ? undefined : 'mdi-account-clock-outline'" :title="member.visited ? undefined : 'Hasn\'t opened the Modeling Copilot yet – the name is the one from the participant list'">{{
+                member.name
+              }}</v-chip>
+              <span v-if="!members?.length" class="text-medium-emphasis">—</span>
+            </td>
+          </tr>
+        </tbody>
+      </v-table>
+    </template>
+  </template>
   <template v-else>
     <template v-for="({ room, models, imported: mark, members }, index) in shown" :key="room._id">
       <!-- Importierte Räume stehen nach Kurs, der zuletzt importierte oben; jeder Kurs bekommt eine Zeile darüber. -->
@@ -12,7 +45,7 @@
         <v-card-title class="d-flex align-center flex-wrap ga-2">
           <span>{{ room.name }}</span>
           <v-spacer />
-          <v-chip v-for="name in members" :key="name" size="small" prepend-icon="mdi-account-outline">{{ name }}</v-chip>
+          <v-chip v-for="member in members" :key="member.name" size="small" prepend-icon="mdi-account-outline">{{ member.name }}</v-chip>
         </v-card-title>
         <v-data-table :headers="headers" :items="models" :items-per-page="-1" item-value="workpiece._id" no-data-text="No models in this room yet.">
           <template #[`item.name`]="{ item }">{{ item.workpiece.name }}</template>
@@ -66,10 +99,22 @@ const lastImport = computed(() => {
 // Gesucht wird in Raum, Kurs, Mitgliedern und Modellen; importierte Räume nach Kurs, darin nach Namen.
 const shown = computed(() => {
   const text = props.search.trim().toLowerCase()
-  const matches = (group: GroupRoom) => !text || [group.room.name, group.imported?.course ?? '', ...(group.members ?? []), ...group.models.map((model) => model.workpiece.name)].some((value) => value.toLowerCase().includes(text))
+  const matches = (group: GroupRoom) => !text || [group.room.name, group.imported?.course ?? '', ...(group.members ?? []).map((member) => member.name), ...group.models.flatMap((model) => [model.workpiece.name, model.task ?? ''])].some((value) => value.toLowerCase().includes(text))
   const recency = (group: GroupRoom) => lastImport.value.get(courseKey(group.imported)) ?? ''
   const byCourse = (a: GroupRoom, b: GroupRoom) => recency(b).localeCompare(recency(a)) || (courseKey(a.imported) ?? '').localeCompare(courseKey(b.imported) ?? '') || a.room.name.localeCompare(b.room.name, undefined, { numeric: true })
   return groupRooms.value.filter(matches).sort(byCourse)
+})
+/** Die gezeigten importierten Räume je Kurs, in der Reihenfolge von `shown`. */
+const byCourse = computed(() => {
+  const blocks: { key: string | null; mark: GroupWorkMark; rooms: GroupRoom[] }[] = []
+  for (const group of shown.value) {
+    if (!group.imported) continue
+    const key = courseKey(group.imported)
+    const last = blocks[blocks.length - 1]
+    if (last && last.key === key) last.rooms.push(group)
+    else blocks.push({ key, mark: group.imported, rooms: [group] })
+  }
+  return blocks
 })
 const roomsPerCourse = computed(() => {
   const counts = new Map<string | null, number>()
@@ -99,3 +144,10 @@ defineExpose({ reload, courses })
 // Der Reiter lädt bei jedem Öffnen neu; wer gerade woran arbeitet, gilt für diesen Moment.
 onMounted(reload)
 </script>
+
+<style scoped>
+.member--new {
+  border-style: dashed;
+  opacity: 0.6;
+}
+</style>

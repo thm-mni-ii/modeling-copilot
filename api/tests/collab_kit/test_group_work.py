@@ -61,7 +61,7 @@ def ref(number):
 
 def test_each_group_gets_a_room_its_group_and_a_model_per_task(ck, fbs, tasks):
     rooms, groups, grants, workpieces = ck
-    groups_in = [{"name": "Gruppe 01", "usernames": ["malb76", "bobb12"], "tasks": [ref(1), ref(2)]}]
+    groups_in = [{"name": "Gruppe 01", "usernames": ["malb76", "bobb12"], "names": {"malb76": "Michael Albach", "bobb12": "Bob Bobby"}, "tasks": [ref(1), ref(2)]}]
 
     created = asyncio.run(group_work.create(TUTOR, COURSE, groups_in, "token"))
 
@@ -70,7 +70,9 @@ def test_each_group_gets_a_room_its_group_and_a_model_per_task(ck, fbs, tasks):
     assert rooms[room_id]["name"] == "Gruppe 01"
     assert rooms[room_id]["settings"]["groupWork"]["importedBy"] == "1" and rooms[room_id]["settings"]["groupWork"]["course"] == COURSE
     (group,) = groups.values()
-    assert group["members"] == ["2254", "17"] and group["settings"] == {"groupWork": {"roomId": room_id}}
+    assert group["members"] == ["2254", "17"]
+    # Die Namen aus der Liste je FBS-ID, bis CK die Personen selbst kennt.
+    assert group["settings"] == {"groupWork": {"roomId": room_id, "names": {"2254": "Michael Albach", "17": "Bob Bobby"}}}
     assert grants == [{"groupId": group["_id"], "rights": ["see", "speak", "edit"], "anonymous": False, "scope": {"kind": "room", "id": room_id}}]
     # Je Aufgabe wie beim Teilen: Werkstück für Markierungen und Notizen, feste CK-Aufgabe, Modell.
     assert [w["contract"]["format"] for w in workpieces] == [share.TASK_FORMAT, "copilot-cells", share.TASK_FORMAT, "copilot-cells"]
@@ -193,6 +195,18 @@ def test_importing_the_course_again_adds_only_what_a_room_lacks(ck, fbs):
     assert next(iter(groups.values()))["members"] == ["2254", "17"]
     # Ein Modell für F2 kam dazu, F1 bekam keines mehr.
     assert [w["name"] for w in workpieces if w["contract"]["format"] == "copilot-cells"] == ["F1 – Case", "F2 – Case"]
+
+
+def test_importing_again_adds_the_names_of_new_members_and_keeps_the_rest(ck, fbs):
+    _, groups, _, _ = ck
+    asyncio.run(group_work.create(TUTOR, COURSE, [{"name": "Gruppe 01", "usernames": ["malb76"], "tasks": [ref(1)]}], "token"))
+    group = next(iter(groups.values()))
+    group["settings"]["other"] = {"kept": True}
+
+    asyncio.run(group_work.create(TUTOR, COURSE, [{"name": "Gruppe 01", "usernames": ["malb76", "bobb12"], "names": {"bobb12": "Bob Bobby"}, "tasks": [ref(1)]}], "token"))
+
+    assert group["settings"]["groupWork"]["names"] == {"17": "Bob Bobby"}
+    assert group["settings"]["other"] == {"kept": True} and group["settings"]["groupWork"]["roomId"] == next(iter(ck[0]))
 
 
 def test_another_release_of_a_task_gets_no_second_model(ck, fbs):

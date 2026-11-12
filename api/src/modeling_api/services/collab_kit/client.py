@@ -81,6 +81,11 @@ async def get_group(group_id: str) -> dict:
     return await _request("GET", f"/groups/{group_id}")
 
 
+async def update_group_settings(group_id: str, settings: dict[str, Any]) -> dict:
+    """CK ersetzt die Einstellungen als Ganzes; fremde Schlüssel muss der Aufrufer mitschicken."""
+    return await _request("PATCH", f"/groups/{group_id}", {"settings": settings})
+
+
 async def add_member(group_id: str, actor_id: str) -> dict:
     return await _request("POST", f"/groups/{group_id}/members", {"actorId": actor_id})
 
