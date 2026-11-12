@@ -1,4 +1,5 @@
 import { shallowRef } from 'vue'
+import type { Editor } from '@tiptap/core'
 import type { JsonObject, TaskVersionReference } from '@/services/api/types/common'
 import type { TaskEditDocument, TaskEditVersionInfo } from '@/services/api/types/model'
 import type { AutonomyMode } from '@/model/Autonomy'
@@ -35,3 +36,20 @@ export interface TaskHistorySource {
   restore(document: JsonObject): void
 }
 export const sharedTaskHistory = shallowRef<TaskHistorySource | null>(null)
+
+/** What the floating window of the task needs of a task of a room; null while no task of a room is shown. */
+export interface SharedTaskContent {
+  title: string
+  contentHtml: string
+  /** Im Gruppenraum der Editor der Notizen; er zieht ins Fenster, solange es offen ist. */
+  notes: Editor | null
+  history: TaskEditHistory
+}
+export interface TaskEditHistory {
+  canUndo: boolean
+  canRedo: boolean
+  undo: () => void
+  redo: () => void
+  notes?: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void }
+}
+export const sharedTaskContent = shallowRef<SharedTaskContent | null>(null)

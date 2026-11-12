@@ -98,10 +98,12 @@
           />
         </div>
         <!-- Modell eines Raums: die mitgeteilte Aufgabe, sofern der Host eine geteilt hat. -->
-        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="task-area" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" @start-evaluation="startEvaluation" />
+        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" :window-open="taskWindowOpen" class="task-area" @pop-out="taskWindowOpen = true" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" @start-evaluation="startEvaluation" />
       </template>
       <template #window-content="{ definition }">
-        <TaskEditEditor v-if="definition.role === 'task'" :key="workspace.taskReference?.versionId" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :base-document="workspace.taskVersion?.data.contentDocument" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" @update:model-value="workspace.updateTaskEditDocument" />
+        <TaskEditEditor v-if="definition.role === 'task' && workspace.diagramTask" :key="workspace.taskReference?.versionId" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :base-document="workspace.taskVersion?.data.contentDocument" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" @update:model-value="workspace.updateTaskEditDocument" />
+        <!-- Modell eines Raums: die Task des Raums mit den Notizen der Gruppe. -->
+        <SharedTaskWindow v-else-if="definition.role === 'task' && sharedTaskContent" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" />
       </template>
     </DrawingCanvas>
 
@@ -150,7 +152,8 @@ import { usePulseSurvey } from '@/composables/usePulseSurvey'
 import { useModelActivity } from '@/composables/useModelActivity'
 import { provideModelFileContext } from '@/composables/useModelFileContext'
 import SharedTask from '@/collab/worksheet/SharedTask.vue'
-import { sharedTaskEdit, sharedTaskSettings, writeSharedTask } from '@/collab/worksheet/sharedTask'
+import SharedTaskWindow from '@/collab/worksheet/SharedTaskWindow.vue'
+import { sharedTaskContent, sharedTaskEdit, sharedTaskSettings, writeSharedTask } from '@/collab/worksheet/sharedTask'
 import { saveRoomCheckpoint } from '@/collab/sharing/shareModel'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
@@ -325,7 +328,12 @@ const startedEvaluationId = ref<string | null>(null)
 const evaluationPerspective = ref<'service' | 'student'>('service')
 const evaluationStarting = ref(false)
 const taskWindowOpen = ref(false)
-const taskWindows = computed<CanvasWindowDefinition[]>(() => (taskWindowOpen.value && workspace.diagramTask ? [{ id: 'task-description', title: workspace.diagramTask.title, x: 260, y: 120, width: 520, height: 360, role: 'task' }] : []))
+const taskWindowTitle = computed(() => workspace.diagramTask?.title ?? sharedTaskContent.value?.title)
+const taskWindows = computed<CanvasWindowDefinition[]>(() => (taskWindowOpen.value && taskWindowTitle.value ? [{ id: 'task-description', title: taskWindowTitle.value, x: 260, y: 120, width: 520, height: 360, role: 'task' }] : []))
+// Ohne Task, etwa nach dem Verlassen des Raums, geht das Fenster zu.
+watch(taskWindowTitle, (title) => {
+  if (!title) taskWindowOpen.value = false
+})
 const connections = computed(() => workspace.editorLanguages.flatMap((language) => language.connections))
 const taskElementOptions = computed(() => buildTaskElementOptions(workspace.editorLanguages))
 const taskConnectionOptions = computed(() => buildTaskConnectionOptions(workspace.editorLanguages))

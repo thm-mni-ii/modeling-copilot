@@ -2,7 +2,7 @@
   <div v-if="task">
     <TaskTopBar
       :task="task"
-      :window-open="false"
+      :window-open="windowOpen"
       :content-html="contentHtml"
       :task-edit="taskEdit"
       :element-options="elementOptions"
@@ -14,9 +14,11 @@
       @select-connection="emit('select-connection', $event)"
       @select-task-edits="emit('select-task-edits', $event)"
       @start-evaluation="emit('start-evaluation')"
+      @pop-out="emit('pop-out')"
       @update:task-edit-document="write"
     >
-      <template v-if="notesEnabled" #default>
+      <!-- Ein Editor lässt sich nur an einer Stelle zeigen; bei offenem Fenster stehen die Notizen dort. -->
+      <template v-if="notesEnabled && !windowOpen" #default>
         <div class="shared-notes">
           <!-- Trennlinie mit Beschriftung statt eigener Leiste; formatiert wird über die Leiste des Textes. -->
           <div class="shared-notes__divider">
@@ -50,7 +52,7 @@ import { roleOf } from '@/collab/rooms/roomRole'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { currentShare } from '@/collab/sharing/shareModel'
 import type { TaskVersionReference } from '@/services/api/types/common'
-import { sharedTaskEdit, sharedTaskHistory, sharedTaskReference, sharedTaskSettings, writeSharedTask, type SharedTaskSettings } from './sharedTask'
+import { sharedTaskContent, sharedTaskEdit, sharedTaskHistory, sharedTaskReference, sharedTaskSettings, writeSharedTask, type SharedTaskSettings } from './sharedTask'
 
 // Notizen beim Teilen vorerst aus: Sie gehen beim Beenden des Teilens noch nicht ins private Modell zurück.
 // Ohne Notizen bleibt der Text `notes` im Task-Workpiece leer und die Leiste wirkt nur auf die Task.
@@ -68,14 +70,17 @@ const props = withDefaults(
     workpieceId: string
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
+    /** The task text is shown in the floating window instead. */
+    windowOpen?: boolean
   }>(),
-  { elementOptions: () => [], connectionOptions: () => [] }
+  { elementOptions: () => [], connectionOptions: () => [], windowOpen: false }
 )
 
 const emit = defineEmits<{
   'select-connection': [reference: { languageId: string; connectionType: string }]
   'select-task-edits': [ids: string[]]
   'start-evaluation': []
+  'pop-out': []
 }>()
 
 const workspace = useModelWorkspaceStore()
@@ -125,6 +130,9 @@ const history = computed(() => ({
   redo: () => step('redo'),
   ...(notesEnabled.value ? { notes: { canUndo: canUndoNotes.value, canRedo: canRedoNotes.value, undo: () => stepNotes('undo'), redo: () => stepNotes('redo') } } : {})
 }))
+
+// Das Fenster der Task zeigt dieselbe Task mit Notizen und Verlauf.
+watch([task, contentHtml, history, notes, notesEnabled], () => (sharedTaskContent.value = task.value ? { title: task.value.title, contentHtml: contentHtml.value, notes: notesEnabled.value ? notes.value ?? null : null, history: history.value } : null), { immediate: true })
 
 let base: JsonObject = { type: 'doc' }
 // The marks as the editor was last given them or last wrote them.
@@ -231,6 +239,7 @@ writeSharedTask.value = write
 onBeforeUnmount(() => {
   unmounted = true
   sharedTaskEdit.value = null
+  sharedTaskContent.value = null
   sharedTaskSettings.value = null
   sharedTaskReference.value = null
   sharedTaskHistory.value = null
