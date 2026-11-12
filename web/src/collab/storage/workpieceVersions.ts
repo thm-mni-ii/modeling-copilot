@@ -4,7 +4,7 @@ import httpClient from '@/services/api/httpClient'
 import { createEmptyModelSnapshot, EMPTY_MODEL_XML } from '@/model/ModelSnapshot'
 import { createModelPatch } from '@/utils/modelPatches'
 import { loadCollabKit } from '@/collab/kit/collabKit'
-import type { CollabEvent, CollabKitApi, Workpiece } from '@/collab/kit/collabKitV1'
+import type { CollabEvent, CollabKitApi, Session, Workpiece } from '@/collab/kit/collabKitV1'
 import { liveSession } from '@/collab/kit/liveSession'
 import { languagesIn, sameUnits, xmlOf, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { sharedTaskHistory } from '@/collab/worksheet/sharedTask'
@@ -19,6 +19,8 @@ export interface ModelVersions {
   createVersion(version: CreateModelVersion): Promise<{ data: ModelVersion }>
   /** What the room holds for the way back: its versions with the change each stands at, and the changes after the last of them. */
   roomHistory(): Promise<{ versions: Entry[]; rest: ModelPatch[] }>
+  /** Die neueste Version, nur aus den Checkpoints gelesen, ohne Verlauf; für den Abgleich nach dem Save eines anderen. */
+  latestVersion(): Promise<ModelVersionInfo | null>
 }
 
 /** The release every shared model starts from; never stored, so all own models of the workpiece share it. */
@@ -102,8 +104,9 @@ const initialOf = (model: Model, workpiece: Workpiece): ModelVersionInfo => ({
 
 /** The versions oldest first: the initial release, then one per checkpoint with the changes since the one before. A workpiece given the private history starts with its first checkpoint, as release 1.0, and has no empty initial release. `done` tells how many stored changes they take up. */
 const entriesOf = (model: Model, history: History, checkpoints: readonly CollabEvent[], host?: { base: ModelVersionInfo | null; since: string | null }) => {
-  // A workpiece made with a history mode starts with its first checkpoint; without one, with the empty initial release.
-  const given = history.workpiece.contract.history !== undefined && checkpoints.length > 0
+  // A workpiece given the private versions starts with their first release; without one, as with the mode "none" of
+  // the group work, with the empty initial release, or its checkpoints would hang on no release and show nowhere.
+  const given = Boolean(checkpoints[0]?.label)
   const entries: Entry[] = host || given ? [] : [{ info: initialOf(model, history.workpiece) }]
   let done = 0
   // The host's own model: what came before sharing is in the private model, so only the checkpoints after it are the room's.
@@ -245,6 +248,8 @@ export const versionsOf = (model: Model): ModelVersions | null => {
         return { data: withState(model, workpiece, first) }
       }
       const checkpoint = await mark(version)
+      // Die anderen am Werkstück übernehmen ihn gleich als Basis (watchCheckpoints); ein Release nennt seinen Namen.
+      liveSession<ModelUnit>(workpieceId)?.presence.set({ [CHECKPOINT_FIELD]: { id: checkpoint._id, label: checkpoint.label ?? null } })
       const { workpiece, entries } = await read(false)
       const entry = entries.find(({ info }) => info.id === checkpoint._id)
       if (!entry) throw new Error('The checkpoint is not in the workpiece.')
@@ -253,6 +258,48 @@ export const versionsOf = (model: Model): ModelVersions | null => {
     roomHistory: async () => {
       const { entries, rest } = await read(true)
       return { versions: entries, rest: rest.flatMap((step) => (step.patch ? [{ createdAt: step.createdAt, xml: step.patch }] : [])) }
-    }
+    },
+    latestVersion: async () => latestOf((await read(false)).entries)
   }
+}
+
+/** Das Feld der Presence, mit dem ein Save den anderen am Werkstück seinen Checkpoint meldet; collab-kit meldet Checkpoints nicht selbst. */
+const CHECKPOINT_FIELD = 'checkpoint'
+
+/**
+ * Hört auf die Checkpoints, die andere in ihrer Presence melden, und nimmt den neuesten als Basis des offenen
+ * Modells, wie es das Öffnen der Timeline tut; danach gilt nur noch als ungespeichert, was nach ihm kam.
+ * Gemeldetes vor dem Verbinden zählt nicht, das hat das Laden schon. `paused` hält den Abgleich an. Ein Release
+ * wird auch der Vergleichsstand für das nächste, und `onRelease` erfährt, wer es wie genannt hat.
+ */
+export const watchCheckpoints = (session: Session, paused: () => boolean, onRelease: (by: string, label: string) => void) => {
+  const announced = () =>
+    session.presence.people().flatMap((person) =>
+      person.self
+        ? []
+        : person.clients.flatMap(({ state }) => {
+            const mark = state[CHECKPOINT_FIELD] as { id?: unknown; label?: unknown } | undefined
+            return typeof mark?.id === 'string' ? [{ id: mark.id, label: typeof mark.label === 'string' ? mark.label : null, by: person.name ?? person.id }] : []
+          })
+    )
+  const seen = new Set(announced().map(({ id }) => id))
+  return session.presence.onChange(() => {
+    const fresh = announced().filter(({ id }) => !seen.has(id))
+    if (fresh.length === 0 || paused()) return
+    fresh.forEach(({ id }) => seen.add(id))
+    for (const { by, label } of fresh) if (label) onRelease(by, label)
+    const workspace = useModelWorkspaceStore()
+    const model = workspace.model
+    if (!model || linkOf(model.preferences)?.workpieceId !== session.workpieceId) return
+    const versions = versionsOf(model)
+    const release = fresh.filter(({ label }) => label).pop()
+    void versions
+      ?.latestVersion()
+      .then(async (latest) => {
+        if (!latest || workspace.model?.id !== model.id) return
+        await workspace.rebaseOnVersion(latest)
+        if (release) workspace.rememberRelease((await versions.getVersion(release.id)).data, model.name)
+      })
+      .catch(() => undefined)
+  })
 }

@@ -9,6 +9,13 @@
         <button v-for="button in buttons" :key="button.key" type="button" class="mode-button" :class="{ 'mode-button--on': button.on, 'mode-button--present': button.key === 'present', 'mode-button--info': button.kind === 'info' }" :title="button.title" :aria-label="button.title" :disabled="isHost && locked" @click="button.toggle()">
           <v-icon :icon="button.icon" size="18" />
         </button>
+        <!-- Ein Release eines anderen steht kurz hier; nachzulesen bleibt es im Event log im Reiter „Collab“. -->
+        <v-fade-transition>
+          <div v-if="recentRelease" class="mode-release" :title="`${recentRelease.by} created release ${recentRelease.label}`">
+            <v-icon icon="mdi-tag-outline" size="14" />
+            {{ recentRelease.label }} by {{ recentRelease.by }}
+          </div>
+        </v-fade-transition>
         <!-- Eine Gruppe verlässt man nicht; zurück geht es über „Group models“. -->
         <div v-if="!group" class="mode-separator" />
         <button v-if="!group" type="button" class="mode-button mode-button--exit" :title="exit.title" :aria-label="exit.title" :disabled="isHost && locked" @click="exit.toggle()">
@@ -34,7 +41,7 @@ const GREEN = 'rgb(var(--v-theme-primary))'
 
 const { graph } = useGraphContext()
 const route = useRoute()
-const { isConnected, anonymous, linkedWorkpieceId } = useCollabConnection()
+const { isConnected, anonymous, linkedWorkpieceId, recentRelease } = useCollabConnection()
 // Wie in der Sidebar „Collab“: Das Modell liegt in einem Gruppenraum, nicht in einer Share; dann grün und ohne Schalter.
 const group = computed(() => Boolean(linkedWorkpieceId.value) && roomRole.value?.kind === 'group')
 
@@ -149,6 +156,22 @@ const exit = computed(() => ({
 .mode-button--on {
   background: #dcebfa;
   color: #1d5fa5;
+}
+
+.mode-release {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  margin-left: 4px;
+  padding: 2px 8px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--mode-color) 15%, transparent);
+  color: var(--mode-color);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .mode-frame--group .mode-button--on {

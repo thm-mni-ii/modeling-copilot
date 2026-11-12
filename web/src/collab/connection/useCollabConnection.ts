@@ -12,7 +12,8 @@ import { showConflicts } from '@/collab/graph/conflicts'
 import { bindGraph } from '@/collab/graph/graphBinding'
 import { LANGUAGES_KEY, languagesChange, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { CELLS_MAP, linkOf } from '@/collab/storage/workpiece'
-import { checkShareGone, resumeShare } from '@/collab/sharing/shareModel'
+import { checkShareGone, resumeShare, shareDialog } from '@/collab/sharing/shareModel'
+import { watchCheckpoints } from '@/collab/storage/workpieceVersions'
 import { watchShare } from '@/collab/sharing/watchShare'
 import { roleOf, roomRole, type RoomRole } from '@/collab/rooms/roomRole'
 import { openWorkpiece } from './openWorkpiece'
@@ -36,11 +37,23 @@ let unbind: (() => void) | null = null
 let stopPresence: (() => void) | null = null
 let stopConflicts: (() => void) | null = null
 let stopShare: (() => void) | null = null
+let stopCheckpoints: (() => void) | null = null
 let session: Session<ModelUnit> | null = null
 let lastLiveStatus = ''
 let lastOnline = ''
 
 const log = (text: string) => logEntries.value.unshift(`${new Date().toLocaleTimeString()} ${text}`)
+
+/** Wie lange die Leiste über dem Modell ein Release eines anderen zeigt. */
+const RELEASE_NOTICE_MS = 10_000
+/** Das Release, das ein anderer eben gemacht hat; die Leiste zeigt es kurz, das Log behält es. */
+const recentRelease = ref<{ by: string; label: string } | null>(null)
+let releaseTimer: ReturnType<typeof setTimeout> | undefined
+const announceRelease = (release: { by: string; label: string }) => {
+  recentRelease.value = release
+  clearTimeout(releaseTimer)
+  releaseTimer = setTimeout(() => (recentRelease.value = null), RELEASE_NOTICE_MS)
+}
 
 // Reconnect attempts repeat the same status; the log keeps only the changes.
 const logLiveStatus = (status: string) => {
@@ -59,6 +72,8 @@ const closeSession = () => {
   stopConflicts = null
   stopShare?.()
   stopShare = null
+  stopCheckpoints?.()
+  stopCheckpoints = null
   session?.close()
   session = null
   holdSession(null)
@@ -158,6 +173,15 @@ const connect = async (id: string) => {
   unbind = bindGraph(graph, opened, log)
   stopConflicts = showConflicts(graph, opened, log)
   stopShare = watchShare(opened)
+  // Beim Beenden einer Share sperrt der Host den Raum; ein Abgleich mittendrin wäre ein Ablauf zu viel.
+  stopCheckpoints = watchCheckpoints(
+    opened,
+    () => shareDialog.value === 'quit',
+    (by, label) => {
+      log(`${by} created release ${label}`)
+      announceRelease({ by, label })
+    }
+  )
   lastOnline = ''
   stopPresence = startPresence(graph, opened, (list, clients) => {
     people.value = list
@@ -213,7 +237,7 @@ export const useCollabConnection = () => {
     }
   }
 
-  return { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, anonymous, toggleConnection, openFromRoom }
+  return { isConnected, connecting, workpieceId, linkedWorkpieceId, logEntries, people, anonymous, recentRelease, toggleConnection, openFromRoom }
 }
 
 /**
