@@ -134,6 +134,8 @@ def run(store: Workspace, reference_key: str) -> dict:
         },
         "completeness": comparison["completeness"],
     }
+    if "provisionalConnectionStructure" in comparison:
+        report["provisionalConnectionStructure"] = comparison["provisionalConnectionStructure"]
     report["feedbackHash"] = content_hash(report)
     return {"schemaVersion": 1, "schema": "workflow-result/v1", "status": "ok", "mode": "aggregate",
             "capability": SERVICE, "summary": "Vorläufige Erkennungsquoten; keine Gesamtbewertung", "result": report}

@@ -8,7 +8,7 @@ from artifacts import content_hash, read_artifacts
 from assignment_capacity import analyze_proposal_feasibility
 from correspondence_state import build_provisional_state
 from initial_evaluation import evaluate_initial_coverage
-from initial_recognition import propose_connections, recognition_metrics
+from initial_recognition import evaluate_connections, propose_connections, recognition_metrics
 from initial_structure import evaluate_provisional_owners
 from semantic_refinement import refine_semantic_proposals
 import workflow_io
@@ -56,6 +56,9 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     evaluation["metrics"]["provisionalRecognition"] = recognition_metrics(
         indices, evaluation["mapping"]["provisionalElements"], connections,
         graph_matching.get("elementCategories", []),
+    )
+    evaluation["provisionalConnectionStructure"] = evaluate_connections(
+        indices, evaluation["mapping"]["provisionalElements"],
     )
     structure = evaluate_provisional_owners(indices, candidates, evaluation["mapping"]["provisionalElements"])
     evaluation["metrics"]["provisionalOwnerConsistency"] = structure["metrics"]

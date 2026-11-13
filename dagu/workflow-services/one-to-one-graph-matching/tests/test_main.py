@@ -1,5 +1,7 @@
 import io
+import importlib.util
 import os
+from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -117,6 +119,45 @@ class MainTests(unittest.TestCase):
         self.assertEqual(child["studentContainmentPaths"], [["s-child", "s1"]])
         self.assertEqual(result["comparisonHash"], content_hash({
             key: value for key, value in result.items() if key != "comparisonHash"
+        }))
+
+    def test_connection_structure_is_included_in_feedback(self):
+        store = Store()
+        for side, key, element, connection_type in (
+            ("reference", "ref", "r1", "first"),
+            ("student", "submission", "s1", "second"),
+        ):
+            graph = store.files[f"graphs/{key}.json"]["result"]
+            link = node(f"{element}-link", "connection")
+            link.update({"type": connection_type, "comparisonGroup": "links", "directed": True})
+            graph["graph"]["nodes"].append(link)
+            graph["graph"]["edges"].extend([
+                {"kind": "endpoint", "role": "source", "source": element, "target": link["id"]},
+                {"kind": "endpoint", "role": "target", "source": link["id"], "target": element},
+            ])
+            graph["graphHash"] = content_hash({field: graph[field] for field in GRAPH_HASH_FIELDS})
+            inventory = store.files[f"labels/{key}.json"]["result"]
+            inventory["graphHash"] = graph["graphHash"]
+            inventory["inventoryHash"] = content_hash({
+                field: value for field, value in inventory.items() if field != "inventoryHash"
+            })
+            store.candidates["graphHashes"][side] = graph["graphHash"]
+            store.candidates["inventoryHashes"][side] = inventory["inventoryHash"]
+        store.publish_candidates()
+        comparison = main.run(store, "ref")
+        structure = comparison["result"]["provisionalConnectionStructure"]
+        self.assertEqual(structure["completeness"], "complete")
+        self.assertEqual(structure["byEndpoints"][0]["typeStatus"], "different")
+        self.assertEqual(len(comparison["result"]["mapping"]["provisionalConnections"]), 1)
+        store.files["comparisons/ref.json"] = comparison
+        feedback_path = Path(__file__).resolve().parents[2] / "feedback-generation" / "src" / "main.py"
+        spec = importlib.util.spec_from_file_location("feedback_generation", feedback_path)
+        feedback = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(feedback)
+        result = feedback.run(store, "ref")["result"]
+        self.assertEqual(result["provisionalConnectionStructure"], structure)
+        self.assertEqual(result["feedbackHash"], feedback.content_hash({
+            key: value for key, value in result.items() if key != "feedbackHash"
         }))
 
     def test_run_rejects_invalid_graph_and_candidate_hashes(self):

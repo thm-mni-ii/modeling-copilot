@@ -1,6 +1,6 @@
 """Conservative connection proposals and provisional recognition counts."""
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from artifacts import _key
 from initial_evaluation import _class_key, _language_value, _sort_key, _type_key
@@ -50,6 +50,100 @@ def propose_connections(indices, elements):
                                         for identity in identities),
         "unresolvedReferenceIds": sorted(set(connections["reference"]) - {p["referenceId"] for p in proposals}),
         "unresolvedStudentIds": sorted(set(connections["student"]) - {p["studentId"] for p in proposals}),
+    }
+
+
+def evaluate_connections(indices, elements):
+    """Compare connection relations without selecting connection identities."""
+    pairs = [(item["referenceId"], item["studentId"]) for item in elements]
+    if (len({reference for reference, _ in pairs}) != len(pairs)
+            or len({student for _, student in pairs}) != len(pairs)
+            or any(reference not in indices["reference"].nodes
+                   or indices["reference"].nodes[reference]["kind"] != "modelElement"
+                   or student not in indices["student"].nodes
+                   or indices["student"].nodes[student]["kind"] != "modelElement"
+                   for reference, student in pairs)):
+        raise ValueError("provisional elements must be unique one-to-one model element pairs")
+    mapping = dict(pairs)
+    inverse = {student: reference for reference, student in pairs}
+    groups = defaultdict(lambda: {"reference": [], "student": []})
+    unresolved = {"reference": [], "student": []}
+    counts = {"reference": 0, "student": 0}
+    for side, index in indices.items():
+        for identity, node in index.nodes.items():
+            if node["kind"] != "connection":
+                continue
+            counts[side] += 1
+            endpoints = index.endpoints.get(identity, {})
+            source, target = endpoints.get("source"), endpoints.get("target")
+            source_student = mapping.get(source) if side == "reference" else source
+            target_student = mapping.get(target) if side == "reference" else target
+            if source_student not in inverse or target_student not in inverse:
+                unresolved[side].append(identity)
+                continue
+            endpoints_key = tuple(sorted((source_student, target_student)))
+            groups[endpoints_key][side].append({
+                "id": identity, "sourceId": source, "targetId": target,
+                "directed": node.get("directed"), "type": node["type"],
+                "language": node["language"], "languageResolution": node["languageResolution"],
+                "_mappedSource": source_student, "_mappedTarget": target_student,
+            })
+
+    def direction_signature(item):
+        if item["directed"]:
+            return True, item["_mappedSource"], item["_mappedTarget"]
+        return (False,)
+
+    rows = []
+    for endpoints, grouped in sorted(groups.items()):
+        references = sorted(grouped["reference"], key=lambda item: item["id"])
+        students = sorted(grouped["student"], key=lambda item: item["id"])
+        balanced = bool(references and len(references) == len(students))
+        directions_known = all(isinstance(item["directed"], bool) for item in references + students)
+        direction_status = "not_evaluated"
+        if balanced and directions_known:
+            direction_status = ("equal" if Counter(map(direction_signature, references))
+                                == Counter(map(direction_signature, students)) else "different")
+
+        def language_key(item):
+            language = item["language"]
+            if (item["languageResolution"] != "resolved" or not language
+                    or not item["type"]):
+                return None
+            return language["languageId"], language["versionId"]
+
+        languages = {language_key(item) for item in references + students}
+        type_status = "not_evaluated"
+        if balanced and len(languages) == 1 and None not in languages:
+            type_status = ("equal" if Counter(item["type"] for item in references)
+                           == Counter(item["type"] for item in students) else "different")
+        configuration_status = "not_evaluated"
+        if direction_status != "not_evaluated" and type_status != "not_evaluated":
+            def configuration(item):
+                return direction_signature(item), item["type"]
+
+            configuration_status = ("equal" if Counter(map(configuration, references))
+                                    == Counter(map(configuration, students)) else "different")
+
+        def public(items):
+            return [{key: value for key, value in item.items() if not key.startswith("_")} for item in items]
+
+        rows.append({
+            "referenceEndpointIds": sorted(inverse[identity] for identity in endpoints),
+            "studentEndpointIds": list(endpoints),
+            "referenceCount": len(references), "studentCount": len(students),
+            "referenceOnlyCount": max(0, len(references) - len(students)),
+            "studentOnlyCount": max(0, len(students) - len(references)),
+            "directionStatus": direction_status, "typeStatus": type_status,
+            "configurationStatus": configuration_status,
+            "referenceConnections": public(references), "studentConnections": public(students),
+        })
+    return {
+        "completeness": "partial" if any(unresolved.values()) else "complete",
+        "referenceConnectionCount": counts["reference"], "studentConnectionCount": counts["student"],
+        "unresolvedReferenceConnectionIds": sorted(unresolved["reference"]),
+        "unresolvedStudentConnectionIds": sorted(unresolved["student"]),
+        "byEndpoints": rows,
     }
 
 

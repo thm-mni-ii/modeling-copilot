@@ -64,6 +64,33 @@ Besitzer bleiben offen. Das Intervall reicht von `satisfied / expected` bis
 `(satisfied + unresolved) / expected`; bei leerem Nenner sind beide Werte `null`.
 Diese Kennzahl bestätigt weder Zuordnungen noch strukturelle Korrektheit.
 
+`provisionalConnectionStructure` vergleicht Verbindungsrelationen anhand der
+vorläufig zugeordneten Endpunkte, ohne Verbindungsidentitäten zu erzwingen.
+`byEndpoints` gruppiert nach ungeordnetem Endpunktpaar und enthält pro Seite
+die ursprünglichen Verbindungs-IDs, Endpunkte, Typen und Richtungen.
+`referenceOnlyCount` und `studentOnlyCount` beschreiben den Mengenüberschuss
+je Endpunktpaar. Ein veränderter Endpunkt erscheint damit als Überschuss auf
+beiden Seiten; daraus folgt keine Identität der betroffenen Verbindungen.
+
+Bei gleicher, positiver Anzahl vergleichen `directionStatus` und `typeStatus`
+die jeweiligen Multimengen (`equal`, `different` oder `not_evaluated`).
+Gerichtete Verbindungen berücksichtigen Quelle und Ziel, ungerichtete nicht.
+Konkrete Verbindungstypen werden nur bei bekannter, gleicher Sprachversion
+verglichen; Vergleichsgruppen ersetzen diesen Typvergleich nicht.
+`configurationStatus` vergleicht zusätzlich die Kombinationen aus Richtung
+und Typ, damit parallele Verbindungen nicht fälschlich als gleich erscheinen.
+Bei ungleichen Anzahlen oder unbekannten Metadaten bleibt die jeweilige
+Eigenschaft unausgewertet. Parallele Verbindungen werden nicht gepaart.
+
+`completeness` bezieht sich nur auf die Endpunktzuordnung der vorhandenen
+Verbindungen. Offene oder nicht vorläufig zugeordnete Endpunkte stehen in
+`unresolvedReferenceConnectionIds` beziehungsweise
+`unresolvedStudentConnectionIds` und setzen sie auf `partial`. Dann sind
+auch die Mengenüberschüsse nur Beobachtungen über den auswertbaren Teil und
+kein Nachweis fehlender oder zusätzlicher Verbindungen im Gesamtgraphen.
+Sämtliche Aussagen hängen von vorläufigen Elementzuordnungen ab; unveränderte
+Erkennungsquoten bleiben davon getrennt.
+
 Die Ausgabe bleibt partiell: `completeness.matching` ist `provisional`,
 `completeness.structuralComparison` ist `provisional_owner_and_connections` und
 `assessmentAvailable` ist `false`. Es gibt keine bestätigten Identitäten,

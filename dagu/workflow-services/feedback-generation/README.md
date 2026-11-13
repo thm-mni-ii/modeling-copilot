@@ -19,6 +19,9 @@ der Status partiell. Nicht klassifizierte Elemente stehen in `other`; dessen
 Status ist partiell.
 
 Semantische Schwellen, offene Elemente und Verbindungen bleiben nachvollziehbar.
+Wenn vorhanden, wird `provisionalConnectionStructure` aus dem Vergleich
+unverändert in den Feedbackbericht übernommen; seine Grenzen und Felder sind
+im [Graph-Matcher](../one-to-one-graph-matching/README.md) beschrieben.
 Die Quoten sind vorläufige Erkennungszahlen, keine bestätigte fachliche
 Übereinstimmung. Eine vollständige Strukturprüfung, Gesamtbewertung und Note
 stehen nicht zur Verfügung.
