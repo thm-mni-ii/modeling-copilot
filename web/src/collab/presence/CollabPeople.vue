@@ -22,7 +22,6 @@
 
 <script lang="ts">
 import { computed, ref } from 'vue'
-import { currentShare } from '@/collab/sharing/shareModel'
 
 // Kept beside the component, so it stays closed while another sidebar tab is shown.
 const open = ref(false)
@@ -34,7 +33,7 @@ import type { Person } from './presence'
 const props = defineProps<{ people: Person[] }>()
 
 /** People in the room besides the host, shown next to the title while the box is closed. */
-const guests = computed(() => props.people.filter((person) => person.id !== currentShare.value?.hostId).length)
+const guests = computed(() => props.people.filter((person) => !person.host).length)
 
 /** What else to tell of a person, such as "(you) · read only · 2 tabs". */
 const noteOf = (person: Person) => [person.self ? '(you)' : '', person.readOnly ? 'read only' : '', person.tabs > 1 ? `${person.tabs} tabs` : ''].filter(Boolean).join(' · ')

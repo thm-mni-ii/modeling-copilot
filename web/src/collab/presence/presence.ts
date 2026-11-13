@@ -4,6 +4,7 @@ import { notifyWarning } from '@/composables/useNotifications'
 import { isPseudonym } from '@/collab/kit/collabKit'
 import { compareNames } from '@/utils/sorting'
 import type { Session } from '@/collab/kit/collabKitV1'
+import { liveSession } from '@/collab/kit/liveSession'
 import { announcedRights, currentShare, hostPresenting, personColors, presenting, settingsLoaded, shareSettings } from '@/collab/sharing/shareModel'
 import { startCursors } from './cursors'
 
@@ -13,6 +14,8 @@ export interface Person {
   name: string
   color: string
   self: boolean
+  /** Ob die Person die Share des offenen Werkstücks hostet. */
+  host: boolean
   /** Whether a session of the person may only read; each announces it, CK tells no one the rights of others. */
   readOnly: boolean
   /** How many sessions the person has open, such as tabs. */
@@ -40,7 +43,11 @@ const PALETTE = ['#c29ed7', '#214b25', '#ee9813', '#0e26dc', '#12c19f', '#652f55
 /** After this long without input a client gives up its selection, and with it the locks. */
 const IDLE_MS = 90_000
 
-const hostId = () => currentShare.value?.hostId ?? ''
+/** Der Host der Share, nur wenn sie zu dem Werkstück gehört, das der Editor offen hat; eine alte Share im Browser machte sonst einen anderen zum Host. */
+const hostId = () => {
+  const share = currentShare.value
+  return share && liveSession(share.workpieceId) ? share.hostId : ''
+}
 
 /** The host's color, else what the host handed out; without the host a hash, so a person still has the same color on every screen. */
 export const colorOf = (id: string) => (id !== '' && id === hostId() ? HOST_COLOR : personColors.value[id] ?? PALETTE[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length])
@@ -297,6 +304,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
       name: nameOf(person),
       color: colorOf(person.id),
       self: person.self,
+      host: person.id === hostId(),
       readOnly: person.clients.some(({ state }) => (state as PresenceState).readOnly === true),
       tabs: person.clients.length
     }))
