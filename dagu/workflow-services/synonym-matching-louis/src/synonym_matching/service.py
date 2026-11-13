@@ -148,6 +148,12 @@ class MatchingEngine:
                 self.backends[name] = WordNet(self.config['lexicons'].get(name))
             elif name == 'odenet':
                 self.backends[name] = OdeNet(self.config['lexicons'].get(name))
+            elif name == 'wn_translation':
+                english = WordNet(self.config['lexicons'].get('wordnet'))
+                german = OdeNet(self.config['lexicons'].get('odenet'))
+                if english.path.resolve() != german.path.resolve():
+                    raise ValueError('wn_translation requires both lexicons in the same wn directory')
+                self.backends[name] = {'en': english, 'de': german}
             elif name == 'openthesaurus':
                 path = self.config['lexicons'].get(name)
                 self.backends[name] = OpenThesaurus(path)
@@ -218,7 +224,11 @@ class MatchingEngine:
             if backend is None:
                 matrix = function(left, right)
             else:
-                matrix = function(left, right, backend=backend)
+                options = {}
+                if 'uses_languages' in METHOD_TRAITS.get(name, ()):
+                    options = {'left_languages': string_languages[:split],
+                               'right_languages': string_languages[split:]}
+                matrix = function(left, right, backend=backend, **options)
 
             if matrix.shape != shape or not np.isfinite(matrix).all():
                 raise ValueError(f'invalid score matrix from {name}')

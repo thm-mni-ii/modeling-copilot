@@ -202,6 +202,8 @@ def calculate_features(cases, definitions, methods):
                         'eligible': (result['validPairs'] & result['usablePairs'][method]).tolist(),
                     }
                     backend = getattr(engine, 'backends', {}).get(method)
+                    if method == 'wn_translation':
+                        features[key, case['id']]['crosslingual_coverage'] = backend['coverage']
                     if isinstance(backend, (WordNet, OdeNet, OpenThesaurus)):
                         # Reine Diagnose nach der Scoreberechnung; kein zusätzlicher
                         # Kombinationsscore, keine Änderung der Kandidatenmaske.
@@ -211,6 +213,16 @@ def calculate_features(cases, definitions, methods):
                             for side, texts in result['processedLabels'][method].items()}
                         features[key, case['id']]['coverage_seconds'] = (
                             time.perf_counter() - diagnosis_started)
+                    requested = methods[method].get('relation_features', [])
+                    if requested:
+                        relation_started = time.perf_counter()
+                        texts = result['processedLabels'][method]
+                        relations = backend.relation_features(
+                            texts['reference'], texts['student'], requested)
+                        features[key, case['id']]['relation_features'] = {
+                            name: values.tolist() for name, values in relations.items()}
+                        features[key, case['id']]['relation_seconds'] = (
+                            time.perf_counter() - relation_started)
                 except Exception as error:
                     reason = f'{type(error).__name__}: {error}'
                     features[key, case['id']] = {'status': 'error', 'reason': reason}
@@ -325,6 +337,12 @@ def run_experiments(data, output, config):
                'additional_resources': {'word_vectors': word_vectors},
                'score_statistics': score_statistics(feature_records),
                'lexicon_coverage': summarize_coverage(feature_records, data['cases']),
+               'relation_policy': ('Evidence only, not used in combinedScores. Binary values '
+                                   'mean a relation exists for at least one possible sense; '
+                                   '0 may mean unknown. Synset counts are raw counts. '
+                                   'Direction is reference to student; wn.closure follows all hypernyms. '
+                                   'Path/Wu-Palmer use native wn metrics, max over connected noun/verb '
+                                   'sense pairs, no simulated root; check taxonomy_available.'),
                'dataset_sha256': dataset_hash,
                'elapsed_seconds': time.perf_counter() - started}
     from .rank_results import build_rankings, print_rankings

@@ -29,7 +29,11 @@
     "multilingual": {},
     "translated_embedding": {"languages": ["de", "en"]},
     "translated_string": {"languages": ["de", "en"]},
-    "wordnet": {"languages": ["de", "en"]},
+    "wn_translation": {"languages": ["de", "en"]},
+    "wordnet": {
+      "languages": ["de", "en"],
+      "relation_features": ["pair_known", "reference_synset_count", "student_synset_count", "reference_hypernym", "reference_hyponym", "antonym", "path_similarity", "wup_similarity", "taxonomy_available"]
+    },
     "openthesaurus": {"languages": ["de"]},
     "word2vec_de_matching": {
       "files": {"de": ".cache/word-vectors/word2vec-de/german.model"},
@@ -73,7 +77,10 @@
     "fasttext_de_bidirectional_matching": {"based_on": "fasttext_de_matching", "matching": "bidirectional"},
     "fasttext_en_optimal_matching": {"based_on": "fasttext_en_matching", "matching": "optimal"},
     "fasttext_en_bidirectional_matching": {"based_on": "fasttext_en_matching", "matching": "bidirectional"},
-    "odenet": {"languages": ["de"]}
+    "odenet": {
+      "languages": ["de"],
+      "relation_features": ["pair_known", "reference_synset_count", "student_synset_count", "reference_hypernym", "reference_hyponym", "antonym", "path_similarity", "wup_similarity", "taxonomy_available"]
+    }
   },
   "chains": {
     "lev": ["$pre", "levenshtein"],
@@ -89,6 +96,7 @@
     "trans_emb": ["normalize", "translated_embedding"],
     "trans_str": ["normalize", "translated_string"],
     "wordnet": ["normalize", "wordnet"],
+    "wn_translate": ["normalize", "wn_translation"],
     "thesaurus": ["normalize", "openthesaurus"],
     "w2v_de": ["$pre", "word2vec_de_matching"],
     "ft_de": ["$pre", "fasttext_de_matching"],

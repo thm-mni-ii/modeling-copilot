@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 from synonym_matching.combinations import REQUIRES
+from synonym_matching.lexicons import RELATION_FEATURES
 from synonym_matching.preprocessing import STEPS as PREPROCESSING_STEPS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +34,14 @@ def load_config(path=DEFAULT_CONFIG):
         if steps is not None and (not isinstance(steps, list)
                                   or any(step not in PREPROCESSING_STEPS for step in steps)):
             raise ValueError(f'{name}: unknown preprocessing_steps')
+        relations = config['methods'][name].get('relation_features')
+        if relations is not None:
+            if (name not in {'wordnet', 'odenet'} or not isinstance(relations, list)
+                    or any(not isinstance(r, str) or r not in RELATION_FEATURES for r in relations)
+                    or len(relations) != len(set(relations))):
+                raise ValueError(f'{name}: invalid relation_features')
+        if 'relation_depth' in config['methods'][name]:
+            raise ValueError(f'{name}: relation_depth removed; wn.closure follows all hypernyms')
     if not 0 <= config['threshold'] <= 1:
         raise ValueError('threshold must be in [0,1]')
     if not config['preprocessing'] or not config['methods'] or not config['chains']:

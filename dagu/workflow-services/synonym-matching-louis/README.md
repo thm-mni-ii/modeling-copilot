@@ -241,6 +241,66 @@ Neue Rechenregeln gehören in `src/synonym_matching/combinations.py`, neue
 Similarity-Funktionen zunächst in die Forschung und später in `methods.py`.
 `DEFAULT_CONFIG` bleibt unabhängig von `experiments.json`.
 
+### Explizite Relationsmerkmale
+
+Unter `methods.wordnet` und `methods.odenet` aktiviert `relation_features` die
+zusätzlichen numerischen Matrizen; eine leere Merkmalsliste schaltet sie ab.
+Oberbegriffe werden durch `Synset.closure('hypernym', 'instance_hypernym')`
+ermittelt. Die eigene Graphsuche und die Option `relation_depth` sind entfernt.
+Sie nutzen dieselben vorbereiteten Labels und denselben Lexikonleser wie die
+Synsetsuche. Abfragen werden je Label bzw. Synset wiederverwendet.
+
+| Merkmal | Bedeutung |
+| --- | --- |
+| `pair_known` | Beide Labels haben mindestens einen Synseteintrag. |
+| `reference_synset_count` | Anzahl möglicher Referenzlesarten, unskaliert. |
+| `student_synset_count` | Anzahl möglicher Schülerlesarten, unskaliert. |
+| `reference_hypernym` | Eine Referenzlesart ist ein Oberbegriff einer Schülerlesart. |
+| `reference_hyponym` | Eine Referenzlesart ist ein Unterbegriff einer Schülerlesart. |
+| `antonym` | Explizite Antonymrelation zwischen Synsets oder den tatsächlich gefundenen Wortlesarten. |
+| `path_similarity` | Native `wn.similarity.path`, Maximum über verbundene Nomen-/Verb-Lesarten. |
+| `wup_similarity` | Native `wn.similarity.wup`, ebenfalls maximiert über mögliche Lesarten. |
+| `taxonomy_available` | Mindestens ein Nomen-/Verb-Lesartenpaar konnte mit beiden Metriken ausgewertet werden. |
+
+Die Matrizen stehen unter `features[].relation_features`. Die Zusatzlaufzeit
+steht separat unter `relation_seconds`. Der bestehende gemeinsame Synsetscore
+bleibt unter `features[].scores`; er wird nicht als neues Verfahren dupliziert.
+OpenThesaurus liefert weiterhin nur seine vorhandenen Synonymgruppen.
+
+Diese Merkmale werden zunächst nur als Evidenz gespeichert, ohne eigene Synonymentscheidung.
+Sie werden noch nicht gemittelt, als Kandidatenfilter benutzt oder in der
+Synonymmatrix des Service ausgegeben. Bei binären Relationsmerkmalen bedeutet 1
+Existenz bei mindestens einer möglichen Lesart, nicht die fachlich passende Bedeutung. Mehrere Relationen
+können gleichzeitig auftreten. Eine 0 beweist keine fehlende Beziehung: Labels,
+Lesarten oder Relationen können im Lexikon fehlen. Auch `pair_known=1` garantiert
+keine vollständigen Relationen. Path/Wu-Palmer verwenden keine simulierte Wurzel;
+bei fehlender Verbindung oder ungeeigneter Wortart steht `taxonomy_available=0`.
+Das Maximum wird je Metrik separat bestimmt und ist keine Lesartenauswahl.
+Ein hoher ontologischer Score beweist keine Synonymie. IC-Metriken bleiben bis
+zur Wahl geeigneter Häufigkeitsdaten zurückgestellt; kleine Labelmengen werden
+nicht als allgemeine Bedeutungsstatistik ausgegeben.
+
+### Sprachübergreifender Vergleich mit wn.translate
+
+Die neue Kette `wn_translate: ["normalize", "wn_translation"]` vergleicht DE/EN
+ohne maschinelles Textübersetzungsmodell. Für deutsche Labels werden mögliche
+OdeNet-Synsets mit `Synset.translate(lexicon='omw-en:1.4')` auf englische Synsets
+abgebildet. Englische Labels werden direkt im englischen WordNet gesucht.
+Gemeinsame englische Synsets ergeben 1, sonst 0. Es wird keine erste Lesart oder
+ein einzelnes englisches Ersatzwort ausgewählt. Beide Datenbestände müssen im
+selben wn-Datenverzeichnis liegen. Der bestehende DE→EN-Textübersetzungspfad bleibt
+als eigenes Verfahren erhalten; nur eine zusätzliche Vergleichskette wird ergänzt.
+Der Vergleich steht als Funktion in `methods.py` und verwendet die gemeinsame
+Matrixbildung. Der vorhandene WordNet-Zugriff cached die nativen Synsetübersetzungen.
+Hierfür einmal `python scripts/download_lexicons.py --wordnet` und
+`python scripts/download_lexicons.py --odenet` ausführen. Der bisherige Docker-Build
+bereitet OdeNet nicht automatisch vor; der neue Vergleich wurde lokal getestet.
+
+`features[].crosslingual_coverage` unterscheidet `linked`, `unknown`, `unlinked`
+und `empty`: Ein bekannter deutscher Eintrag kann ohne englische Verknüpfung bleiben.
+Leere Eingabemengen werden ohne Lexikonzugriff als `not_assessed` markiert.
+Auch vorhandene ILI-Verknüpfungen bestimmen nicht die fachlich richtige Lesart.
+
 ### Gezielte Preprocessing-Vergleiche und OdeNet
 
 Neue Vergleichsläufe speichern zusätzlich `lexicon_coverage`: eindeutige

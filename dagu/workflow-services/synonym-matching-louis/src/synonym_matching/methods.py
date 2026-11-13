@@ -9,6 +9,7 @@ from rapidfuzz.fuzz import token_sort_ratio as _token_sort_ratio
 from .preprocessing import Preprocessor
 from .translation import Translator
 from .combinations import string_ensemble
+from .lexicons import synonym_matrix
 
 
 def _pairwise(left, right, score):
@@ -127,6 +128,36 @@ def odenet(left, right, *, backend):
     return backend.matrix(left, right)
 
 
+def wn_translation(left, right, *, backend, left_languages, right_languages):
+    """Vergleiche sprachübergreifende Synsets über wn statt maschineller Übersetzung."""
+    sides = {'reference': list(zip(left, left_languages, strict=True)),
+             'student': list(zip(right, right_languages, strict=True))}
+    if not left or not right:
+        backend['coverage'] = {side: [{'status': 'not_assessed', 'source_synset_count': None,
+                                       'english_synset_count': None} for _ in items]
+                               for side, items in sides.items()}
+        return np.zeros((len(left), len(right)))
+    if any(text.strip() for text in left + right) and backend['en'].reader is None:
+        backend['en']._load()
+    coverage = {}
+
+    def lookup(item):
+        text, language = item
+        if text.strip() and language not in {'de', 'en'}:
+            raise ValueError('wn_translation requires explicit de/en language')
+        source = backend[language] if text.strip() else None
+        original = source.lookup(text) if source else frozenset()
+        english = source.translate(text) if language == 'de' and original else original
+        coverage[item] = {'source_synset_count': len(original), 'english_synset_count': len(english),
+                          'status': ('empty' if not text.strip() else 'unknown' if not original
+                                     else 'unlinked' if not english else 'linked')}
+        return english
+
+    result = synonym_matrix(sides['reference'], sides['student'], lookup)
+    backend['coverage'] = {side: [coverage[item] for item in items] for side, items in sides.items()}
+    return result
+
+
 # Diese Namen werden auch in der JSON-Konfiguration verwendet.
 METHODS = {
     'levenshtein': levenshtein,
@@ -142,17 +173,20 @@ METHODS = {
     'wordnet': wordnet,
     'openthesaurus': openthesaurus,
     'odenet': odenet,
+    'wn_translation': wn_translation,
     'multilingual': multilingual_embedding,
     'translated_embedding': translated_embedding,
 }
 # Was die Engine für ein Verfahren vorbereitet, statt Namensabfragen in der Engine:
 # translate = Texte vorher DE→EN übersetzen, german_only = Sprache de verlangen,
 # original_text = nur normalisierten Originaltext verwenden (Preprocessing ignorieren).
+# uses_languages = Sprachen nach dem Preprocessing an die Vergleichsfunktion übergeben.
 METHOD_TRAITS = {
     'translated_string': {'translate'},
     'wordnet': {'translate'},
     'openthesaurus': {'german_only'},
     'odenet': {'german_only'},
+    'wn_translation': {'uses_languages'},
     'exact_match': {'original_text'},
 }
 # Die bisherige String-Baseline bleibt ausdrücklich auswählbar.

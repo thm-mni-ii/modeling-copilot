@@ -24,6 +24,7 @@ METHOD_NAMES = {
     'multilingual': 'Multilinguales Embedding',
     'translated_embedding': 'DE→EN-Übersetzung → monolinguales Embedding',
     'wordnet': 'DE→EN-Übersetzung → WordNet',
+    'wn_translation': 'DE/EN-Synsets → wn.translate (ohne Textübersetzungsmodell)',
     'openthesaurus': 'OpenThesaurus',
     'odenet': 'OdeNet (DE, gemeinsame Synsets)',
     'word2vec_de_matching': 'Word2Vec (DE) → Greedy-1:1-Wort-Matching',
