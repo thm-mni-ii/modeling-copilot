@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "model": {
     "id": "6843e584-904c-5c63-8edb-7259cf68489c",
-    "name": "Laborverwaltung - Strukturpr?fung: M05 - Typen und Container",
+    "name": "Laborverwaltung - Strukturprüfung: M05 - Typen und Container",
     "ownerId": "1",
     "latestVersionId": "5d610d09-be1e-57d3-aee8-0460f8062207",
     "taskVersion": {
@@ -29,8 +29,8 @@
         "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
       },
       "kind": "release",
-      "releaseName": "Laborverwaltung - Strukturpr?fung: M05 - Typen und Container",
-      "description": "T08: Projektbeteiligung als ER-Typ. T19: Attributlisten von Geb?ude und Ger?te getauscht. T09: not_applicable, Generalisierung in Attributliste unzul?ssig.",
+      "releaseName": "Laborverwaltung - Strukturprüfung: M05 - Typen und Container",
+      "description": "T08: Projektbeteiligung als ER-Typ. T19: Attributlisten von Gebäude und Geräte getauscht. T09: not_applicable, Generalisierung in Attributliste unzulässig.",
       "data": {
         "format": "maxgraph-xml",
         "version": 1,

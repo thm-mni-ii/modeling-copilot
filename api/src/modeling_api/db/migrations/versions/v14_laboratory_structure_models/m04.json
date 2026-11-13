@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "model": {
     "id": "1440520a-8517-5c42-9cf9-62b2df11729f",
-    "name": "Laborverwaltung - Strukturpr?fung: M04 - Knoten",
+    "name": "Laborverwaltung - Strukturprüfung: M04 - Knoten",
     "ownerId": "1",
     "latestVersionId": "563ebb2f-fb89-558d-ad72-8239c13182cc",
     "taskVersion": {
@@ -29,8 +29,8 @@
         "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
       },
       "kind": "release",
-      "releaseName": "Laborverwaltung - Strukturpr?fung: M04 - Knoten",
-      "description": "T06: Laborausstattung samt Attributliste, f?nf Attributen und zwei Verbindungen entfernt. T07: Probenkatalog erg?nzt.",
+      "releaseName": "Laborverwaltung - Strukturprüfung: M04 - Knoten",
+      "description": "T06: Laborausstattung samt Attributliste, fünf Attributen und zwei Verbindungen entfernt. T07: Probenkatalog ergänzt.",
       "data": {
         "format": "maxgraph-xml",
         "version": 1,

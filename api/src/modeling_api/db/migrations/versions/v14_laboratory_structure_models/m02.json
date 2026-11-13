@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "model": {
     "id": "21a8852b-add2-5f2d-a91e-1d7916f7a898",
-    "name": "Laborverwaltung - Strukturpr?fung: M02 - Synonyme",
+    "name": "Laborverwaltung - Strukturprüfung: M02 - Synonyme",
     "ownerId": "1",
     "latestVersionId": "5ddee0b4-2283-5570-b416-6d1d48d46eb6",
     "taskVersion": {
@@ -29,7 +29,7 @@
         "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
       },
       "kind": "release",
-      "releaseName": "Laborverwaltung - Strukturpr?fung: M02 - Synonyme",
+      "releaseName": "Laborverwaltung - Strukturprüfung: M02 - Synonyme",
       "description": "T02: Bauwerk, Apparate, Mailadresse und Versuchsbeschreibung als alternative Beschriftungen.",
       "data": {
         "format": "maxgraph-xml",

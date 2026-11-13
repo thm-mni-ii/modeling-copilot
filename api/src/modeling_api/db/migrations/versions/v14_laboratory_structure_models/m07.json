@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "model": {
     "id": "b81b88d0-b358-5617-8efb-3531b346d292",
-    "name": "Laborverwaltung - Strukturpr?fung: M07 - Mehrdeutigkeit",
+    "name": "Laborverwaltung - Strukturprüfung: M07 - Mehrdeutigkeit",
     "ownerId": "1",
     "latestVersionId": "e07e3507-18b7-520d-98d4-126620eac71e",
     "taskVersion": {
@@ -29,8 +29,8 @@
         "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
       },
       "kind": "release",
-      "releaseName": "Laborverwaltung - Strukturpr?fung: M07 - Mehrdeutigkeit",
-      "description": "T16: Parallele Verbindung Forschungsprojekt ? Projektbeteiligung. T17: PersonalNr. beim Wissenschaftler dupliziert. T18: Gr??e als Bezeichnung benannt.",
+      "releaseName": "Laborverwaltung - Strukturprüfung: M07 - Mehrdeutigkeit",
+      "description": "T16: Parallele Verbindung Forschungsprojekt → Projektbeteiligung. T17: PersonalNr. beim Wissenschaftler dupliziert. T18: Größe als Bezeichnung benannt.",
       "data": {
         "format": "maxgraph-xml",
         "version": 1,

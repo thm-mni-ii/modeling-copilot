@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "model": {
     "id": "0db757a9-d3ae-59d1-913e-1871e389e045",
-    "name": "Laborverwaltung - Strukturpr?fung: M03 - Attribute",
+    "name": "Laborverwaltung - Strukturprüfung: M03 - Attribute",
     "ownerId": "1",
     "latestVersionId": "8a4aa995-8646-5a72-af3d-8b6046a5a696",
     "taskVersion": {
@@ -29,8 +29,8 @@
         "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
       },
       "kind": "release",
-      "releaseName": "Laborverwaltung - Strukturpr?fung: M03 - Attribute",
-      "description": "T03: E-Mail entfernt. T04: Inventarstatus erg?nzt. T05: Gr??e dem Forschungsprojekt statt dem Laborraum zugeordnet.",
+      "releaseName": "Laborverwaltung - Strukturprüfung: M03 - Attribute",
+      "description": "T03: E-Mail entfernt. T04: Inventarstatus ergänzt. T05: Größe dem Forschungsprojekt statt dem Laborraum zugeordnet.",
       "data": {
         "format": "maxgraph-xml",
         "version": 1,

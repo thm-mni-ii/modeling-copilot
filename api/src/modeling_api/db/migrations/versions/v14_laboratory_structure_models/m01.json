@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "model": {
     "id": "107409bb-8886-5d1d-b627-b0b213cf4e45",
-    "name": "Laborverwaltung - Strukturpr?fung: M01 - Neue IDs",
+    "name": "Laborverwaltung - Strukturprüfung: M01 - Neue IDs",
     "ownerId": "1",
     "latestVersionId": "5b99a61a-ab10-528e-a01d-19a3c0704ead",
     "taskVersion": {
@@ -29,8 +29,8 @@
         "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
       },
       "kind": "release",
-      "releaseName": "Laborverwaltung - Strukturpr?fung: M01 - Neue IDs",
-      "description": "T01: Unver?nderte Musterl?sung mit neuen Modell-, Versions- und Zell-IDs.",
+      "releaseName": "Laborverwaltung - Strukturprüfung: M01 - Neue IDs",
+      "description": "T01: Unveränderte Musterlösung mit neuen Modell-, Versions- und Zell-IDs.",
       "data": {
         "format": "maxgraph-xml",
         "version": 1,

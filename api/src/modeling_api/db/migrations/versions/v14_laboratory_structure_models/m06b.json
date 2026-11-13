@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "model": {
     "id": "a99ae5af-ef2b-55e8-a178-a7d600a93fb8",
-    "name": "Laborverwaltung - Strukturpr?fung: M06b - Richtung und Typ",
+    "name": "Laborverwaltung - Strukturprüfung: M06b - Richtung und Typ",
     "ownerId": "1",
     "latestVersionId": "bda5b79c-6257-5335-bcf2-63ef1554753c",
     "taskVersion": {
@@ -29,8 +29,8 @@
         "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
       },
       "kind": "release",
-      "releaseName": "Laborverwaltung - Strukturpr?fung: M06b - Richtung und Typ",
-      "description": "T13: Laborraum ? Projektbeteiligung statt Arbeitseinsatz. T14: Versuch ? Arbeitseinsatz umgekehrt. T15: Geb?ude ? Etage von 1-n auf 0-1 ge?ndert.",
+      "releaseName": "Laborverwaltung - Strukturprüfung: M06b - Richtung und Typ",
+      "description": "T13: Laborraum → Projektbeteiligung statt Arbeitseinsatz. T14: Versuch → Arbeitseinsatz umgekehrt. T15: Gebäude → Etage von 1-n auf 0-1 geändert.",
       "data": {
         "format": "maxgraph-xml",
         "version": 1,

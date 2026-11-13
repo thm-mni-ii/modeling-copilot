@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "model": {
     "id": "7ab4d0dc-c938-56a5-aec7-08e5fcd69c93",
-    "name": "Laborverwaltung - Strukturpr?fung: M08 - Kombinierte ?nderungen",
+    "name": "Laborverwaltung - Strukturprüfung: M08 - Kombinierte Änderungen",
     "ownerId": "1",
     "latestVersionId": "a462d1ab-23c3-5cc9-b41f-7e969e64891d",
     "taskVersion": {
@@ -29,8 +29,8 @@
         "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
       },
       "kind": "release",
-      "releaseName": "Laborverwaltung - Strukturpr?fung: M08 - Kombinierte ?nderungen",
-      "description": "T20: Projekt umbenannt, ProjektNr. verschoben, E-Mail und eine Verbindung entfernt, Probenkatalog erg?nzt, Verbindungsquelle und Kardinalit?t ge?ndert.",
+      "releaseName": "Laborverwaltung - Strukturprüfung: M08 - Kombinierte Änderungen",
+      "description": "T20: Projekt umbenannt, ProjektNr. verschoben, E-Mail und eine Verbindung entfernt, Probenkatalog ergänzt, Verbindungsquelle und Kardinalität geändert.",
       "data": {
         "format": "maxgraph-xml",
         "version": 1,

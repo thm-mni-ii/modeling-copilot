@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "model": {
     "id": "ef5722ed-76ff-54fc-9772-f86fd2dd6986",
-    "name": "Laborverwaltung - Strukturpr?fung: M06a - Verbindungen",
+    "name": "Laborverwaltung - Strukturprüfung: M06a - Verbindungen",
     "ownerId": "1",
     "latestVersionId": "ec667ec9-4fd8-5f56-8264-dc01d0cbf145",
     "taskVersion": {
@@ -29,8 +29,8 @@
         "versionId": "a710c28b-d603-5936-b00e-0648a62e0e11"
       },
       "kind": "release",
-      "releaseName": "Laborverwaltung - Strukturpr?fung: M06a - Verbindungen",
-      "description": "T10: Wissenschaftler ? Arbeitseinsatz entfernt. T11: Ger?te ? Versuch erg?nzt. T12: Forschungsprojekt ersetzt Geb?ude als Quelle von Etage.",
+      "releaseName": "Laborverwaltung - Strukturprüfung: M06a - Verbindungen",
+      "description": "T10: Wissenschaftler → Arbeitseinsatz entfernt. T11: Geräte → Versuch ergänzt. T12: Forschungsprojekt ersetzt Gebäude als Quelle von Etage.",
       "data": {
         "format": "maxgraph-xml",
         "version": 1,
