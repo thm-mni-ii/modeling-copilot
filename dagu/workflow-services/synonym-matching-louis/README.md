@@ -241,7 +241,41 @@ Neue Rechenregeln gehören in `src/synonym_matching/combinations.py`, neue
 Similarity-Funktionen zunächst in die Forschung und später in `methods.py`.
 `DEFAULT_CONFIG` bleibt unabhängig von `experiments.json`.
 
-### Explizite Relationsmerkmale
+### Konservative Evidenzfusion
+
+Ein neuer Versuch `translated_embedding_wordnet_evidence` verwendet das übersetzte
+monolinguale Embedding als Basis und die bestehende englische WordNet-Kette als
+Evidenz. Es werden keine neuen Gewichte gesucht. Die Regel ist fest:
+
+- Beide Labels müssen gefunden sein und jeweils genau einen erfassten Synset haben.
+- Gemeinsamer Synset ohne Gegenrelation: Score 1.
+- Kein gemeinsamer Synset, aber explizite Antonym- oder Ober-/Unterbegriffsrelation: Score 0.
+- Sonst bleibt der auf [0,1] begrenzte Basisscore unverändert, auch bei widersprüchlicher Evidenz.
+
+Eine einzige erfasste Lesart ist keine garantierte Eindeutigkeit in der Aufgabe.
+Die Endpunkte 0 und 1 sind heuristische Regelentscheidungen, keine Wahrscheinlichkeiten.
+Die Ablehnung hierarchischer Beziehungen setzt die strenge Labelgleichwertigkeit
+unserer Annotationen voraus. Path und Wu-Palmer werden nicht zur Synonymbestätigung
+benutzt. Diese Forschungskombination verändert den Service-Standard nicht.
+
+Im Baukasten: `{"name": "...", "evidence": true, "parts": ["trans_emb", "wordnet"]}`.
+Der erste Teil ist die Basis, der zweite WordNet oder OdeNet mit den sechs
+Abdeckungs-/Lesarten-/Relationsmerkmalen. Einzelne Änderungen stehen mit IDs,
+Vorher-/Nachher-Score und Grund unter `records[].evidence_changes`.
+Die Rechenzeit dieser Kombination enthält zusätzlich die angeforderte Relationsdiagnose.
+
+Nur den neuen Versuch auf Laborverwaltung ausführen:
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --only translated_embedding_wordnet_evidence --output results/evidence-fusion.json.gz
+```
+
+`--only` wählt vorhandene Experiment-IDs aus. Ohne diese Option läuft weiterhin
+der vollständige JSON-Baukasten. Konfiguration und Auswahl werden gespeichert.
+
+### Explizite Relationsmerkmale (Einzelwerte)
 
 Unter `methods.wordnet` und `methods.odenet` aktiviert `relation_features` die
 zusätzlichen numerischen Matrizen; eine leere Merkmalsliste schaltet sie ab.

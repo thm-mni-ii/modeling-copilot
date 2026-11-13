@@ -26,7 +26,7 @@ from .evaluation import evaluate_case, select_matches, global_ranking
 from .experiments import (DEFAULT_CONFIG, ROOT, configurations, is_wordvec, load_config,
                           unsupported)
 from synonym_matching.lexicons import DATA_DIR, OdeNet, OpenThesaurus, WordNet
-from synonym_matching.combinations import combine
+from synonym_matching.combinations import combine, evidence_fusion
 from synonym_matching.methods import EmbeddingMethod
 from synonym_matching.cache import Cache
 from synonym_matching.translation import Translator
@@ -255,7 +255,7 @@ def split_by_language(data, languages):
     return {**data, 'cases': kept}, excluded
 
 
-def run_experiments(data, output, config):
+def run_experiments(data, output, config, *, only=None):
     """Berechne gemeinsame Features einmal; vergleiche alle Varianten ohne Tuning."""
     output = Path(output)
     if output.exists():
@@ -272,6 +272,11 @@ def run_experiments(data, output, config):
     random.seed(config['seed'])
     np.random.seed(config['seed'])
     definitions, skipped = configurations(config)
+    if only is not None:
+        unknown = set(only) - definitions.keys()
+        if unknown or not only:
+            raise ValueError(f'unknown or empty experiment selection: {sorted(unknown)}')
+        definitions = {name: definitions[name] for name in dict.fromkeys(only)}
     methods = config['methods']
     started = time.perf_counter()
     with track_loading():
@@ -297,7 +302,20 @@ def run_experiments(data, output, config):
             eligible = np.logical_or.reduce([
                 np.asarray(p['eligible'], dtype=bool).reshape(shape) for p in parts.values()])
             t0 = time.perf_counter()
-            scores = combine(raw, spec['combiner'])
+            changes = []
+            if spec['combiner']['kind'] == 'evidence':
+                baseline = spec['combiner']['baseline']
+                lexical = spec['combiner']['lexicon']
+                scores = evidence_fusion(raw[baseline], raw[lexical], parts[lexical]['relation_features'])
+                before = np.clip(raw[baseline], 0, 1)
+                for i, j in np.argwhere(scores != before):
+                    changes.append({'reference_id': case['reference'][i]['id'],
+                                    'student_id': case['student'][j]['id'],
+                                    'before': float(before[i, j]), 'after': float(scores[i, j]),
+                                    'reason': 'single_sense_synonym' if scores[i, j] == 1
+                                              else 'single_sense_counterrelation'})
+            else:
+                scores = combine(raw, spec['combiner'])
             if spec.get('global_ranking'):
                 scores = global_ranking(scores, eligible)
             combine_seconds = time.perf_counter() - t0
@@ -314,6 +332,9 @@ def run_experiments(data, output, config):
                             'combinedScores': scores.tolist(), 'decisions': decisions,
                             'feature_seconds': sum(p['seconds'] for p in parts.values()),
                             'combine_seconds': combine_seconds})
+            if spec['combiner']['kind'] == 'evidence':
+                records[-1]['evidence_changes'] = changes
+                records[-1]['feature_seconds'] += parts[lexical].get('relation_seconds', 0)
 
     # Eine einzige Datei reicht zur Rekonstruktion: Daten, Parameter und Rohscores.
     feature_records = []
@@ -324,6 +345,7 @@ def run_experiments(data, output, config):
     for item in feature_records:
         model_load_seconds[item['method']] += item.get('load_seconds', 0)
     payload = {'version': 3, 'seed': config['seed'], 'threshold': threshold, 'config': config,
+               'selected_experiments': only,
                'score_policy': 'raw cosine [-1,1]; combinations clip to [0,1]; no calibration',
                'timing_policy': ('sequential CPU; compute seconds exclude model loading, which is stored '
                                  'in model_load_seconds (shared models count for the first method needing '
@@ -337,7 +359,7 @@ def run_experiments(data, output, config):
                'additional_resources': {'word_vectors': word_vectors},
                'score_statistics': score_statistics(feature_records),
                'lexicon_coverage': summarize_coverage(feature_records, data['cases']),
-               'relation_policy': ('Evidence only, not used in combinedScores. Binary values '
+               'relation_policy': ('Only explicit evidence mixes use relations in combinedScores. Binary values '
                                    'mean a relation exists for at least one possible sense; '
                                    '0 may mean unknown. Synset counts are raw counts. '
                                    'Direction is reference to student; wn.closure follows all hypernyms. '
@@ -383,8 +405,10 @@ def main():
     parser.add_argument('--config', type=Path, default=DEFAULT_CONFIG)
     parser.add_argument('--data', type=Path, default=Path(__file__).with_name('model-cases.json'))
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--only', nargs='+', help='Nur die genannten Experiment-IDs ausführen')
     args = parser.parse_args()
-    errors = run_experiments(json.loads(args.data.read_text()), args.output, load_config(args.config))
+    errors = run_experiments(json.loads(args.data.read_text()), args.output, load_config(args.config),
+                             only=args.only)
     print(f'Gespeichert: {args.output}; technische Fehler: {len(errors)}')
     return int(bool(errors))
 

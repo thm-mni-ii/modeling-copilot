@@ -135,6 +135,7 @@
     "ft_en_bi_identifiers": ["normalize", "split_identifiers", "translate", "fasttext_en_bidirectional_matching"]
   },
   "mixes": [
+    {"name": "translated_embedding_wordnet_evidence", "evidence": true, "parts": ["trans_emb", "wordnet"]},
     {"name": "string_ensemble", "variant": "string_ensemble", "parts": ["lev", "jw", "trigram"]},
     {"name": "token_ensemble", "variant": "token_ensemble", "parts": ["jaccard", "tsort"]},
     {

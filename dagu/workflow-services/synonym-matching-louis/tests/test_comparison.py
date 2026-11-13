@@ -95,6 +95,8 @@ def test_run_experiments_stores_load_seconds_separately_from_compute(tmp_path):
 def test_research_configurations_use_service_methods_and_combiners():
     config = load_config()
     for spec in configurations(config)[0].values():
+        if spec['combiner']['kind'] == 'evidence':
+            continue  # Relationsmerkmale werden zunächst nur im Forschungspfad kombiniert.
         chains = spec['chains'].values()
         # Wortvektoren, 'translate' und Ketten-Mischungen sind reine Forschungsschreibweisen.
         if (any('files' in config['methods'][chain[-1]] or 'translate' in chain for chain in chains)

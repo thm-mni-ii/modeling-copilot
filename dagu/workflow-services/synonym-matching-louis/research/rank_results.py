@@ -74,6 +74,11 @@ def describe_chains(spec):
 
 def describe_pipeline(spec):
     """Zeige Schritte in Ausführungsreihenfolge und die tatsächliche Kombination."""
+    if spec.get('combiner', {}).get('kind') == 'evidence':
+        baseline = spec['chains'][spec['combiner']['baseline']]
+        lexical = spec['chains'][spec['combiner']['lexicon']]
+        return (f'Basis: {chain_text(baseline)}; Lexikonevidenz: {chain_text(lexical)} '
+                '(beidseits eine Lesart: Synset→1, Gegenrelation→0, sonst Basis)')
     if spec.get('chain_based'):
         return describe_chains(spec)
     strings = mean([METHOD_NAMES[name] for name in STRINGS])
