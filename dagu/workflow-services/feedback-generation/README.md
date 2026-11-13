@@ -36,3 +36,18 @@ lesbar.
 Die Quoten sind vorläufige Erkennungszahlen, keine bestätigte fachliche
 Übereinstimmung. Eine vollständige Strukturprüfung, Gesamtbewertung und Note
 stehen nicht zur Verfügung.
+
+## Projektion aus analytischem Feedback
+
+Im aktuellen Auswertungsworkflow erhält der Dienst zusätzlich
+`ANALYSIS_INPUT_PATH`. Dieser verweist auf das konkret im selben Referenz-Unterlauf
+veröffentlichte `analysis-feedback/v1`. Herkunft, Analysehash, adressierter Pfad,
+Vergleichsidentität und interne Konsistenz werden geprüft. Der Bericht aggregiert
+seine bisherigen fachlichen Felder aus dem ursprünglichen Vergleich und ergänzt
+`analysisHash` und `analysisPath`. Seine Erkennungszahlen werden mit der Analyse
+abgeglichen. Es findet keine erneute Zuordnungsentscheidung statt.
+
+Ohne `ANALYSIS_INPUT_PATH` bleibt die direkte Aggregation eines bestehenden
+Vergleichs verfügbar. Gespeicherte frühere Berichte bleiben lesbar.
+Analyse und kompakte Projektion sind interne Schritte des Hauptworkflows.
+Details: [Analytical Feedback](../analytical-feedback/README.md).

@@ -36,7 +36,7 @@ def node_by_id(result, identity):
 
 
 class GraphParserTests(unittest.TestCase):
-    def test_graph_v3_omits_redundant_fields_and_empty_optional_fields(self):
+    def test_graph_v1_omits_redundant_fields_and_empty_optional_fields(self):
         result = parse(
             [
                 '<Cell id="item" value="Item" diagramElementType="item" vertex="1" parent="modeling"/>',
@@ -49,7 +49,7 @@ class GraphParserTests(unittest.TestCase):
         graph = result["graph"]
         node = node_by_id(result, "item")
         custom = node_by_id(result, "custom")
-        self.assertEqual(graph["schemaVersion"], 3)
+        self.assertEqual(graph["schemaVersion"], 1)
         self.assertNotIn("excluded", graph)
         self.assertNotIn("category", node)
         self.assertFalse({"nativeType", "origin", "properties", "definitionCandidates"} & node.keys())

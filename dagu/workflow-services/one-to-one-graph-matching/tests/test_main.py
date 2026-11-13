@@ -50,7 +50,7 @@ def store_with_containment():
 
 
 class MainTests(unittest.TestCase):
-    def test_run_loads_valid_v3_artifacts_and_reports_provisional_coverage(self):
+    def test_run_loads_valid_v1_artifacts_and_reports_provisional_coverage(self):
         store = Store()
         reference = store.files["graphs/ref.json"]["result"]
         extra = node("r2")

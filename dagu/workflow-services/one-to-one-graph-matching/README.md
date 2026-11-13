@@ -1,5 +1,22 @@
 # one-to-one-graph-matching
 
+Neue Vergleiche enthalten zusätzlich `decisionEvents`: deterministische
+Entscheidungsereignisse direkt aus exakter Auswahl, Besitzer- und Kindevidenz,
+semantischer Verfeinerung, Kapazitätsprüfung und Verbindungsauswahl. Jedes Ereignis
+nennt Phase, Regel, tatsächliches Ergebnis, Gründe, betrachtete Objekt-IDs,
+gegebenenfalls Reservierungen beziehungsweise Alternativen und Abhängigkeiten.
+Eine lokale vorgeschlagene Zuordnung kann in einer späteren Phase blockiert
+werden; die Phase gehört deshalb zur Interpretation. Die Ereignis-ID ist
+inhaltsbasiert, die Ausgabeliste nach ID sortiert und kein behauptetes Zeitprotokoll.
+Nicht betrachtete Paare werden nicht nachträglich als abgelehnt bezeichnet.
+
+Die Instrumentierung verändert keine Matchingregel. Die bestehende Zuordnung,
+Strukturprüfung und Kennzahlen wurden für Baseline, M02, M03, M05, M06a/b und M08
+mit vollständigen synthetischen Kandidaten gegen den bisherigen Matcher
+verglichen. Das neue [analytische Feedback](../analytical-feedback/README.md)
+verwendet diese Ereignisse; bei älteren Artefakten bleibt fehlende Historie
+ausdrücklich `not_recorded`.
+
 Der Dienst liest über `WORKFLOW_EVALUATION_ID` und `REFERENCE_KEY` die Graphen,
 Inventare und semantischen Kandidaten eines Modellpaares aus dem Workspace.
 Er validiert Herkunft und Hashes und liefert `reference-comparison/v1` innerhalb

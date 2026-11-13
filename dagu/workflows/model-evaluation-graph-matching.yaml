@@ -52,7 +52,7 @@ steps:
       artifact: initialization.json
     action: k8s.run
     with:
-      image: modeling-copilot/workflow-data:latest
+      image: modeling-copilot/workflow-data:v1
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -117,23 +117,22 @@ steps:
       items: ${reference_models}
       max_concurrent: 1
 
-  - name: generate_feedback
-    description: Aggregiert den validierten Vergleich jeder Musterlösung zu einem vorläufigen Feedbackbericht.
+  - name: generate_analytical_feedback
+    description: Erstellt je Musterlösung analytische Profile und daraus den kompakten Feedbackbericht.
     depends: [match_graphs]
     action: dag.run
     with:
-      dag: feedback-generation-pair
+      dag: analytical-feedback-pair
       params:
         EVALUATION_ID: ${evaluation_id}
         REFERENCE_KEY: ${ITEM.key}
-        OUTPUT_PREFIX: feedback
     parallel:
       items: ${reference_models}
       max_concurrent: 1
 
   - name: publish_results
     description: Veröffentlicht die Übersicht des vorläufigen Vergleichs; eine vollständige Bewertung liegt noch nicht vor.
-    depends: [generate_feedback]
+    depends: [generate_analytical_feedback]
     action: outputs.write
     with:
       values:
@@ -147,6 +146,7 @@ steps:
         modelLabels: labels/
         synonymCandidates: candidates/
         referenceComparisons: comparisons/
+        analyticalFeedbackReports: analysis/
         feedbackReports: feedback/
         assessmentAvailable: false
 
@@ -155,6 +155,7 @@ name: graph-parser-model
 description: Parst genau einen Modell-Snapshot als eigenen Kubernetes Job.
 tags:
   - visibility=internal
+  - version=v1
 artifacts:
   enabled: true
 kubernetes:
@@ -187,7 +188,7 @@ steps:
       artifact: parser-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/graph-parser:latest
+      image: modeling-copilot/graph-parser:v1
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -213,6 +214,7 @@ name: model-label-extraction-model
 description: Erstellt das vollständige Elementinventar genau eines Modellgraphen als eigenen Kubernetes Job.
 tags:
   - visibility=internal
+  - version=v1
 artifacts:
   enabled: true
 kubernetes:
@@ -248,7 +250,7 @@ steps:
       artifact: labels-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/model-label-extraction:latest
+      image: modeling-copilot/model-label-extraction:v1
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -275,6 +277,7 @@ name: synonym-matching-pair
 description: Berechnet semantische Kandidaten für die Abgabe und genau eine Musterlösung.
 tags:
   - visibility=internal
+  - version=v1
 artifacts:
   enabled: true
 kubernetes:
@@ -314,7 +317,7 @@ steps:
       artifact: candidates-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/synonym-matching:latest
+      image: modeling-copilot/synonym-matching:v1
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -340,6 +343,7 @@ name: one-to-one-graph-matching-pair
 description: Vergleicht die Abgabe vorläufig mit genau einer Musterlösung.
 tags:
   - visibility=internal
+  - version=v1
 artifacts:
   enabled: true
 kubernetes:
@@ -372,7 +376,7 @@ steps:
       artifact: comparison-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/one-to-one-graph-matching:latest
+      image: modeling-copilot/one-to-one-graph-matching:v1
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -394,10 +398,11 @@ steps:
         artifactPath: comparison-result.json
 
 ---
-name: feedback-generation-pair
-description: Aggregiert den vorläufigen Vergleich genau einer Musterlösung.
+name: analytical-feedback-pair
+description: Erzeugt analytische Profile und die kompakte Feedbackprojektion je Musterlösung.
 tags:
   - visibility=internal
+  - version=v1
 artifacts:
   enabled: true
 kubernetes:
@@ -417,36 +422,69 @@ params:
         type: string
       EVALUATION_ID:
         type: string
-      OUTPUT_PREFIX:
-        type: string
   values:
     REFERENCE_KEY: ''
     EVALUATION_ID: ''
-    OUTPUT_PREFIX: feedback
 steps:
-  - name: generate_feedback
-    description: Validiert und aggregiert das gespeicherte Vergleichsartefakt.
+  - name: generate_analytical_feedback
+    description: Validiert den Artefaktsatz und veröffentlicht eine unveränderliche Analyse.
     stdout:
-      artifact: feedback-result.json
+      artifact: analysis-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/feedback-generation:latest
+      image: modeling-copilot/analytical-feedback:v1
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
           value: ${EVALUATION_ID}
         - name: REFERENCE_KEY
           value: ${REFERENCE_KEY}
-        - name: WORKFLOW_OUTPUT_PATH
-          value: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
 
-  - name: publish_feedback
-    description: Veröffentlicht Referenzschlüssel und Feedbackartefakt.
-    depends: [generate_feedback]
+  - name: read_analysis_metadata
+    id: read_analysis_metadata
+    description: Liest den Übergabevertrag der veröffentlichten Analyse.
+    depends: [generate_analytical_feedback]
+    action: jq.filter
+    with:
+      input: ${context.paths.artifacts_dir}/analysis-result.json
+      filter: '(.analysisPath // .path) as $path | if .status != "ok" or ($path | type) != "string" then error("invalid analytical feedback output: missing analysis path") elif ($path | test("^analysis/[A-Za-z0-9_-]{1,100}/[a-f0-9]{64}\\.json$") | not) then error("invalid analytical feedback output: invalid analysis path") else {analysisPath: $path, analysisKey: ($path | split("/") | last | rtrimstr(".json"))} end'
+    output:
+      analysisPath:
+        from: stdout
+        decode: json
+        select: .analysisPath
+      analysisKey:
+        from: stdout
+        decode: json
+        select: .analysisKey
+
+  - name: generate_feedback
+    description: Projiziert den konkret veröffentlichten Analysebericht in den kompakten Feedbackvertrag.
+    depends: [read_analysis_metadata]
+    stdout:
+      artifact: feedback-result.json
+    action: k8s.run
+    with:
+      image: modeling-copilot/feedback-generation:v1
+      image_pull_policy: IfNotPresent
+      env:
+        - name: WORKFLOW_EVALUATION_ID
+          value: ${EVALUATION_ID}
+        - name: REFERENCE_KEY
+          value: ${REFERENCE_KEY}
+        - name: ANALYSIS_INPUT_PATH
+          value: ${read_analysis_metadata.output.analysisPath}
+        - name: WORKFLOW_OUTPUT_PATH
+          value: feedback/${REFERENCE_KEY}.json
+
+  - name: publish_analysis
+    description: Veröffentlicht den konkreten Analysepfad dieses Unterlaufs.
+    depends: [read_analysis_metadata]
     action: outputs.write
     with:
       values:
         evaluationId: ${EVALUATION_ID}
         referenceKey: ${REFERENCE_KEY}
-        feedbackPath: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
-        artifactPath: feedback-result.json
+        analysisPath: ${read_analysis_metadata.output.analysisPath}
+        analysisKey: ${read_analysis_metadata.output.analysisKey}
+        artifactPath: analysis-result.json

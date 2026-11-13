@@ -3,11 +3,14 @@
 from uuid import UUID
 
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 
 from modeling_api.routes.deps import CurrentUser, Limit, Skip
 from modeling_api.schemas.common import Page
 from modeling_api.schemas.evaluations import Evaluation, EvaluationDetail, EvaluationWorkflow, StartEvaluation
 from modeling_api.services import evaluations as service
+from modeling_api.services import evaluation_export
 
 router = APIRouter(tags=["Evaluations"])
 
@@ -33,3 +36,18 @@ async def list_evaluations(model_id: UUID, user: CurrentUser, skip: Skip = 0, li
 @router.get("/evaluations/{evaluation_id}", response_model=EvaluationDetail)
 async def get_evaluation(evaluation_id: UUID, user: CurrentUser) -> EvaluationDetail:
     return EvaluationDetail.model_validate(await service.detail(evaluation_id, user))
+
+
+@router.get("/evaluations/{evaluation_id}/archive.zip", response_class=StreamingResponse)
+async def download_evaluation(evaluation_id: UUID, user: CurrentUser) -> StreamingResponse:
+    archive = await evaluation_export.create_archive(evaluation_id, user)
+
+    def chunks():
+        try:
+            while content := archive.read(1024 * 1024):
+                yield content
+        finally:
+            archive.close()
+
+    return StreamingResponse(chunks(), media_type="application/zip", background=BackgroundTask(archive.close),
+                             headers={"Content-Disposition": f'attachment; filename="evaluation-{evaluation_id}.zip"'})

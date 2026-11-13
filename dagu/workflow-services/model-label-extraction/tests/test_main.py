@@ -30,7 +30,7 @@ def node(identity, kind, role, label, **fields):
 
 def payload(nodes=None, edges=None):
     graph = {
-        "schemaVersion": 3,
+        "schemaVersion": 1,
         "languages": [],
         "nodes": nodes if nodes is not None else [
             node("entity", "modelElement", "semantic", "<b>Stockwerk</b>", type="serm-entity",
@@ -51,12 +51,12 @@ def payload(nodes=None, edges=None):
         ],
     }
     data = {
-        "schema": "graph-result/v3",
+        "schema": "graph-result/v1",
         "evaluationId": "evaluation-1",
         "source": copy.deepcopy(SOURCE),
         "inputHash": "1" * 64,
         "languageResources": [],
-        "producer": {"service": "graph-parser", "version": "0.1.0", "resourceHash": "2" * 64},
+        "producer": {"service": "graph-parser", "version": "1.0.0", "resourceHash": "2" * 64},
         "graphHash": "",
         "graph": graph,
         "completeness": {"interpretation": "complete"},
@@ -76,7 +76,7 @@ class ModelLabelExtractionTests(unittest.TestCase):
     def test_extracts_semantic_elements_and_separate_connection_texts(self):
         result = run(payload())["result"]
 
-        self.assertEqual(result["schema"], "element-inventory/v2")
+        self.assertEqual(result["schema"], "element-inventory/v1")
         self.assertEqual([item["id"] for item in result["elements"]], ["entity", "entity-copy"])
         self.assertEqual(result["elements"][0], {
             "id": "entity",

@@ -1,9 +1,9 @@
 # synonym-matching
 
 Erzeugt für genau ein Abgabe-/Referenzpaar vollständige semantische Kandidatenevidenz.
-Der Service verarbeitet ausschließlich die V2-Inventare aus Paket 03. Er liest kein
+Der Service verarbeitet ausschließlich die V1-Inventare aus Paket 03. Er liest kein
 Modell-XML und vergibt keine IDs. Die Implementierung und Capability heißen
-`synonym-matching`, Serviceversion `0.1.0`.
+`synonym-matching`, Serviceversion `1.0.0`.
 
 **Stand:** An die lokale Auswertungspipeline bis Phase 4 angebunden. Ein eigener
 Paarlauf verarbeitet jede Musterlösung gegen das einmal erzeugte Abgabeinventar;
@@ -30,7 +30,7 @@ das gemeinsame `workflow_io.py` aus `dagu/workflow-services`.
 | `preprocessing.py` | Aus der Referenz übernommenes NFC und Zusammenfassen von Whitespace |
 | `config.py` | Validierung der aktivierten Methoden und Vorverarbeitung |
 | `service.py` | Genau ein Paar, Einzelmatrizen, Kandidaten, unveränderte Instanzdaten |
-| `inventories.py` | V2-Schema, Identitäten, Inventarhashes und Snapshot-Bindung prüfen |
+| `inventories.py` | V1-Schema, Identitäten, Inventarhashes und Snapshot-Bindung prüfen |
 | `provenance.py` | Kanonische Hashes, eigene Codekennung und verwendete Paketversionen |
 | `workflow.py` | Workspace-Eingabe, Diagnosen und V1-Ergebnishülle |
 
@@ -59,7 +59,7 @@ Alle Artefaktpfade sind relativ zu
 | `WORKFLOW_EVALUATION_ID` | Gültige Auswertungs-ID; aktiviert den Workspace-Modus |
 | `REFERENCE_KEY` | Genau eine Referenz mit Rolle `reference` aus dem eingefrorenen Snapshot |
 | `inputs/evaluation-input.json` | Bestehender Snapshot `evaluation-input/v1`; Zugriff und `inputHash` werden durch `Workspace.snapshot()` geprüft |
-| `labels/submission.json` | Vollständige erfolgreiche `workflow-result/v1`-Hülle mit `result.schema: element-inventory/v2` |
+| `labels/submission.json` | Vollständige erfolgreiche `workflow-result/v1`-Hülle mit `result.schema: element-inventory/v1` |
 | `labels/<REFERENCE_KEY>.json` | Dieselbe Inventarhülle für die gewählte Referenz |
 | `comparisonConfig` | Aus dem Snapshot; `{}` genügt |
 | `WORKFLOW_OUTPUT_PATH` | Erforderlich, regulär `candidates/<REFERENCE_KEY>.json`; Dateiname muss zur Referenz passen, Verzeichnispräfix ist innerhalb des Workspace frei |
@@ -141,7 +141,7 @@ verglichen; zusätzliche Labels benötigen zusätzlich dieselbe nicht leere
 Die Ausgabe ist eine `workflow-result/v1`-Hülle mit `schemaVersion: 1`, `status: ok`,
 `capability: synonym-matching`, `mode: match` und `result.schema: semantic-candidates/v1`.
 `schemas/output.schema.json` beschreibt die Ausgabe; `input.schema.json` definiert
-`element-inventory/v2` mit Typ-, Vergleichsgruppen- und Sprachfeldern sowie
+`element-inventory/v1` mit Typ-, Vergleichsgruppen- und Sprachfeldern sowie
 gesonderten Verbindungstexten. Für die fachlichen Elemente nutzt das Matching
 `id`, `type`, `comparisonGroup`, `language`, `matchText` und `labelStatus`.
 Eigenständige Aufrufer bewahren die Inventare unter

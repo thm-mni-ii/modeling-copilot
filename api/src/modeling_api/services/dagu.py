@@ -20,7 +20,7 @@ def _headers() -> dict[str, str]:
     return {}
 
 
-async def _request(method: str, path: str, **kwargs: Any) -> Any:
+async def _request(method: str, path: str, *, raw: bool = False, allow_missing: bool = False, **kwargs: Any) -> Any:
     try:
         async with httpx.AsyncClient(base_url=settings.dagu_base_url.rstrip("/"), timeout=settings.dagu_request_timeout_seconds) as client:
             response = await client.request(method, f"/api/v1{path}", headers=_headers(), **kwargs)
@@ -28,10 +28,14 @@ async def _request(method: str, path: str, **kwargs: Any) -> Any:
         raise ApiError(503, "DAGU_UNAVAILABLE", "The evaluation service is currently unavailable.") from error
     if response.status_code in (401, 403):
         raise ApiError(503, "DAGU_UNAUTHORIZED", "The evaluation service rejected its credentials.")
+    if allow_missing and response.status_code == 404:
+        return None
     if method == "POST" and path.endswith("/start") and 400 <= response.status_code < 500 and response.status_code not in (408, 409):
         raise ApiError(503, "DAGU_START_REJECTED", "The evaluation service rejected the workflow start.")
     if response.status_code >= 400:
         raise ApiError(503, "DAGU_REQUEST_FAILED", "The evaluation workflow could not be queried.")
+    if raw:
+        return response.content
     try:
         return response.json() if response.content else {}
     except ValueError as error:

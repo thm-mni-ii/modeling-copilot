@@ -24,6 +24,10 @@ _EVALUATION_FIELDS = frozenset({
 _EVALUATION_DETAIL_FIELDS = _EVALUATION_FIELDS | {"submissionSnapshot", "steps", "finalResult", "scorePercent"}
 
 
+def can_view_analysis(user: User) -> bool:
+    return user.is_admin or user.global_role == "MODERATOR" or "MODERATOR" in user.roles
+
+
 def _public_evaluation(document: Document, *, detail: bool = False) -> Document:
     """Drop persistence-only fields before validating an evaluation response."""
     api_document = to_api(document) if "_id" in document else document
@@ -246,14 +250,21 @@ async def list_for_model(model_id: UUID, user: User, skip: int, limit: int) -> D
     return {**page, "items": [_public_evaluation(item) for item in page["items"]]}
 
 
-async def _model_run_steps(evaluation: Document, parent: Document, children: list[Document]) -> list[Document]:
-    step_name, artifact_path, capability, label, source_param = {
+async def _model_run_steps(
+    evaluation: Document, parent: Document, children: list[Document], *, allow_analysis: bool
+) -> list[Document]:
+    step_spec = {
         "parse_models": ("parse_model", "parser-result.json", "graph-parser", "Graph", "MODEL_KEY"),
         "extract_labels": ("extract_labels", "labels-result.json", "model-label-extraction", "Elementinventar", "MODEL_KEY"),
         "match_synonyms": ("match_synonyms", "candidates-result.json", "synonym-matching", "Semantische Kandidaten", "REFERENCE_KEY"),
         "match_graphs": ("match_graph", "comparison-result.json", "one-to-one-graph-matching", "Vorläufiger Graphvergleich", "REFERENCE_KEY"),
         "generate_feedback": ("generate_feedback", "feedback-result.json", "feedback-generation", "Vorläufiges Feedback", "REFERENCE_KEY"),
+        "generate_analytical_feedback": ("generate_analytical_feedback", "analysis-result.json", "analytical-feedback", "Analytisches Feedback", "REFERENCE_KEY"),
     }[parent["id"]]
+    source_param = step_spec[-1]
+    step_specs = [step_spec]
+    if parent["id"] == "generate_analytical_feedback":
+        step_specs.append(("generate_feedback", "feedback-result.json", "feedback-generation", "Vorläufiges Feedback", "REFERENCE_KEY"))
     by_key = {}
     for child in children:
         try:
@@ -268,7 +279,8 @@ async def _model_run_steps(evaluation: Document, parent: Document, children: lis
         if isinstance(params, dict) and params.get(source_param):
             by_key[params[source_param]] = child
 
-    async def read(source: Document) -> Document:
+    async def read(source: Document, spec: tuple[str, ...]) -> Document:
+        step_name, artifact_path, capability, label, _ = spec
         step = {"id": f"{step_name}_{source['key']}", "label": f"{label}: {source['label']}",
                 "description": f"{label} für Modell {source['modelId']}, Version {source['versionId']}",
                 "status": "pending", "resultSummary": None, "result": None, "_modelRun": True}
@@ -281,6 +293,13 @@ async def _model_run_steps(evaluation: Document, parent: Document, children: lis
             child_id = child["dagRunId"]
             run = _dag_run(await dagu.get_sub_run(evaluation["dagName"], evaluation["dagRunId"], child_id))
             step["status"] = _state(run.get("statusLabel") or run.get("status"))
+            node = next((item for item in run.get("nodes", []) if
+                         (item.get("name") or item.get("id") or (item.get("step") or {}).get("name")) == step_name), None)
+            if node is not None:
+                step["status"] = _state(node.get("statusLabel") or node.get("status"))
+            if capability == "analytical-feedback" and not allow_analysis:
+                step["resultSummary"] = "Analytisches Feedback ist Moderatoren und Administratoren vorbehalten."
+                return step
             errors = [node.get("error") for node in run.get("nodes", []) if node.get("error")]
             step["resultSummary"] = "\n".join(errors) or None
             if step["status"] == "succeeded":
@@ -307,7 +326,7 @@ async def _model_run_steps(evaluation: Document, parent: Document, children: lis
 
     sources = [source for source in evaluation["parserModels"]
                if source_param == "MODEL_KEY" or source["role"] == "reference"]
-    return list(await gather(*(read(source) for source in sources)))
+    return list(await gather(*(read(source, spec) for source in sources for spec in step_specs)))
 
 
 async def detail(evaluation_id: UUID, user: User) -> Document:
@@ -341,11 +360,15 @@ async def detail(evaluation_id: UUID, user: User) -> Document:
     raw_steps = _run_steps(run, evaluation["workflow"])
     # Expand model and reference-pair fan-outs into their persisted artifacts.
     expanded = []
+    allow_analysis = can_view_analysis(user)
     for step in raw_steps:
         children = step.pop("_subRuns", [])
-        if step["id"] in {"parse_models", "extract_labels", "match_synonyms", "match_graphs", "generate_feedback"} and evaluation.get("parserModels"):
-            expanded.extend(await _model_run_steps(evaluation, step, children))
+        if step["id"] in {"parse_models", "extract_labels", "match_synonyms", "match_graphs", "generate_analytical_feedback", "generate_feedback"} and evaluation.get("parserModels"):
+            expanded.extend(await _model_run_steps(evaluation, step, children, allow_analysis=allow_analysis))
         else:
+            if step["id"] == "generate_analytical_feedback" and not allow_analysis:
+                step["resultSummary"] = "Analytisches Feedback ist Moderatoren und Administratoren vorbehalten."
+                step["_modelRun"] = True
             expanded.append(step)
     raw_steps = expanded
     completed_steps = [step for step in raw_steps if step["status"] in {"succeeded", "failed"}]

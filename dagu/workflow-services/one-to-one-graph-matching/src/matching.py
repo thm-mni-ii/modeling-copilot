@@ -3,8 +3,10 @@
 from collections import defaultdict
 import unicodedata
 
+from decision_diagnostics import record
 
-def propose_exact_anchors(indices, candidates):
+
+def propose_exact_anchors(indices, candidates, events=None, phase="exact_label"):
     """Return unique exact-label anchors and competing exact candidate pairs.
 
     The validated graph indices are reserved for later stages; graph structure
@@ -27,15 +29,20 @@ def propose_exact_anchors(indices, candidates):
         if len(references) == len(students) == 1:
             reference_id, student_id = pairs[0]
             anchors.append({"referenceId": reference_id, "studentId": student_id, "reason": "unique_exact_label"})
+            record(events, phase, "unique_exact_label", reference_id, student_id, "proposed", ["unique_exact_label"])
         else:
             unresolved.extend({"referenceId": reference_id, "studentId": student_id}
                               for reference_id, student_id in pairs)
+            for reference_id, student_id in sorted(pairs):
+                record(events, phase, "unique_exact_label", reference_id, student_id, "deferred",
+                       ["ambiguous_candidates"], referenceAlternatives=sorted(references),
+                       studentAlternatives=sorted(students))
     anchors.sort(key=lambda pair: (pair["referenceId"], pair["studentId"]))
     unresolved.sort(key=lambda pair: (pair["referenceId"], pair["studentId"]))
     return anchors, unresolved
 
 
-def propose_containment_anchors(exact_unresolved, anchors, containment_evidence):
+def propose_containment_anchors(exact_unresolved, anchors, containment_evidence, events=None, phase="owner_anchor"):
     """Propose one-to-one anchors supported by already anchored owners."""
     used_references = {anchor["referenceId"] for anchor in anchors}
     used_students = {anchor["studentId"] for anchor in anchors}
@@ -53,8 +60,19 @@ def propose_containment_anchors(exact_unresolved, anchors, containment_evidence)
     for reference_id, student_id in consistent_pairs:
         references[reference_id].add(student_id)
         students[student_id].add(reference_id)
-    return [
+    proposals = [
         {"referenceId": reference_id, "studentId": student_id, "reason": "consistent_owner_anchor"}
         for reference_id, student_id in sorted(consistent_pairs)
         if len(references[reference_id]) == 1 and len(students[student_id]) == 1
     ]
+    proposed = {(item["referenceId"], item["studentId"]) for item in proposals}
+    evidence = {(item["referenceId"], item["studentId"]): item for item in containment_evidence}
+    for ref, sub in sorted(unresolved_pairs):
+        owner = evidence.get((ref, sub), {})
+        reason = ("consistent_owner_anchor" if (ref, sub) in proposed else
+                  "ambiguous_candidates" if (ref, sub) in consistent_pairs else
+                  "owner_conflict" if owner.get("ownerAnchorRelation") == "conflicting" else "owner_unresolved")
+        record(events, phase, "consistent_owner_anchor", ref, sub,
+               "proposed" if (ref, sub) in proposed else "deferred", [reason],
+               ownerAnchorRelation=owner.get("ownerAnchorRelation", "unknown"))
+    return proposals

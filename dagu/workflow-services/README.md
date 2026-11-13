@@ -1,21 +1,19 @@
-# Durchspielbare Workflow-Services
+# Workflow-Services für die Modellauswertung
 
-Die fünf Capability-Images sind eigenständige Services: jedes Verzeichnis
-enthält Dockerfile, Source, Eingabe-/Ausgabe-Schema, Capability-Metadaten,
-README. Sie führen keine Fachlogik aus, geben jedoch strukturierte,
-deterministische Dummy-Ergebnisse auf stdout aus. Die Workflow-Schritte nutzen
-eine viersekündige Verzögerung, damit parallele und abhängige Status im
-Frontend sichtbar werden.
+`model-evaluation-graph-matching` verwendet sieben eigenständige Service-Images:
 
-## Lokal bauen und prüfen
+- `workflow-data` validiert und speichert den eingefrorenen Eingabesnapshot.
+- `graph-parser` normalisiert die Modellgraphen.
+- `model-label-extraction` extrahiert die Elementinventare.
+- `synonym-matching` berechnet semantische Kandidaten.
+- `one-to-one-graph-matching` erzeugt vorläufige Zuordnungen und Strukturprüfungen.
+- `analytical-feedback` erstellt kompakte elementbezogene Hinweise.
+- `feedback-generation` erzeugt die kompakte Feedbackprojektion.
 
-```bash
-docker compose --profile workflow-services build
-docker run --rm -e TEMPLATE_INPUT='{"step":"graph_parser"}' modeling-copilot/graph-parser:latest
-```
+Alle Workflow-Serviceversionen sind `1.0.0`, alle Artefaktverträge verwenden
+`/v1` und alle Images den Tag `v1`. Die benötigten Modell- und Paarabläufe sind
+intern in der einzigen Workflowdatei eingebettet.
 
-Docker-Desktop-Kubernetes kann lokal gebaute Images mit
-`image_pull_policy: IfNotPresent` verwenden. Nach jedem Build müssen Images mit
-dem Tag `latest` erneut in den Kubernetes-Knoten importiert werden. Für K3s
-müssen die Images vor dem Start in eine für den Cluster erreichbare Registry
-gepusht werden.
+Build und lokale Kubernetes-Bereitstellung sind in [dagu/README.md](../README.md)
+beschrieben. Die übrigen Serviceordner enthalten frühere Vorlagen oder
+Forschungsressourcen und werden vom Auswertungsworkflow nicht verwendet.

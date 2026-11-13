@@ -19,7 +19,7 @@ class Store:
         inventory_hashes = {}
         for side, source, identity in (("student", student, "s1"), ("reference", reference, "r1")):
             data = {
-                "schema": "graph-result/v3", "evaluationId": "evaluation", "inputHash": "a" * 64,
+                "schema": "graph-result/v1", "evaluationId": "evaluation", "inputHash": "a" * 64,
                 "source": source, "languageResources": [
                     {"languageId": "test", "versionId": "1", "hash": content_hash(language["data"])},
                 ], "producer": {}, "graph": graph([node(identity)], []),
@@ -31,7 +31,7 @@ class Store:
             self.files[f"graphs/{source['key']}.json"] = self.wrap("graph-parser", data)
             element = data["graph"]["nodes"][0]
             inventory = {
-                "schema": "element-inventory/v2", "evaluationId": "evaluation", "inputHash": "a" * 64,
+                "schema": "element-inventory/v1", "evaluationId": "evaluation", "inputHash": "a" * 64,
                 "source": source, "graphHash": data["graphHash"], "graphPath": f"graphs/{source['key']}.json",
                 "elements": [{"id": identity, "type": element["type"], "comparisonGroup": None,
                               "language": element["language"], "matchText": "Name",

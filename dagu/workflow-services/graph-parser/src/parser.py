@@ -60,7 +60,7 @@ class GraphEdge(TypedDict):
 
 
 class Graph(TypedDict):
-    schemaVersion: Literal[3]
+    schemaVersion: Literal[1]
     languages: list[LanguageReference]
     nodes: list[GraphNode]
     edges: list[GraphEdge]
@@ -522,7 +522,7 @@ def parse_model(value: object) -> dict:
         diagnose("MULTIPLE_LANGUAGE_ORIGINS", [identity for identity in model_cells if bindings[identity]["language"]], "Elements from multiple language definitions were observed.", "info",
                  languages=[{"languageId": language_id, "versionId": version_id} for language_id, version_id in sorted(observed)])
     diagnostics.sort(key=lambda item: (item["code"], item["elementIds"], content_hash(item)))
-    graph: Graph = {"schemaVersion": 3, "languages": references,
+    graph: Graph = {"schemaVersion": 1, "languages": references,
                     "nodes": sorted(nodes.values(), key=lambda node: node["id"]),
                     "edges": sorted(edges, key=lambda edge: (edge["kind"], edge["source"] or "", edge["target"] or "", edge["role"] or ""))}
     return {"graph": graph,

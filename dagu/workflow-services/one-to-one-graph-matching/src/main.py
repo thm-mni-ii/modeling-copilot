@@ -52,6 +52,10 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     evaluation["semanticRefinement"] = semantics
     connections = propose_connections(indices, evaluation["mapping"]["provisionalElements"])
     evaluation["mapping"]["provisionalConnections"] = connections["proposals"]
+    evaluation["decisionEvents"] = sorted(
+        state["decisionEvents"] + semantics["decisionEvents"] + connections["decisionEvents"],
+        key=lambda item: item["id"],
+    )
     evaluation["unresolvedReferenceConnectionIds"] = connections["unresolvedReferenceIds"]
     evaluation["unresolvedStudentConnectionIds"] = connections["unresolvedStudentIds"]
     evaluation["provisionalTypeComparison"] = evaluate_type_comparison(
@@ -77,7 +81,7 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     })
     producer = {
         "service": SERVICE,
-        "version": "0.1.0",
+        "version": "1.0.0",
         "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()}),
     }
     incomplete = (candidates["completeness"]["interpretation"] == "partial"

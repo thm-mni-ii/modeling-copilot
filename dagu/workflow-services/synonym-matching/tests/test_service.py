@@ -360,7 +360,7 @@ class ComparePairTests(unittest.TestCase):
             },
         }
         producer = {
-            "service": "synonym-matching", "version": "0.1.0", "resourceHash": "f" * 64,
+            "service": "synonym-matching", "version": "1.0.0", "resourceHash": "f" * 64,
             "runtime": {"python": "3.12", "unicode": "15.0"},
             "packages": {"numpy": "2", "rapidfuzz": "3"},
         }

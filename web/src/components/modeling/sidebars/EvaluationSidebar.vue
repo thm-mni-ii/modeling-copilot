@@ -115,6 +115,16 @@
                 <SemanticComparisonViewer v-if="semanticComparisonResult(entry.result)" :result="semanticComparisonResult(entry.result)!" />
               </template>
             </JsonResultViewer>
+            <v-btn
+              v-if="terminal(detail.state) && entry.id === timelineEntries[timelineEntries.length - 1]?.id"
+              class="mt-2"
+              size="small"
+              variant="tonal"
+              prepend-icon="mdi-download"
+              :loading="exporting"
+              :disabled="exporting"
+              @click="downloadRun"
+            >Run als ZIP herunterladen</v-btn>
           </v-timeline-item>
         </v-timeline>
       </template>
@@ -127,7 +137,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ApiId, JsonObject } from '@/services/api/types/common'
 import type { Evaluation, EvaluationDetail } from '@/services/api/types/evaluation'
 import evaluationService from '@/services/evaluation/evaluation.service'
-import { notifySuccess } from '@/composables/useNotifications'
+import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import { useUserStore } from '@/stores/userStore'
 import JsonResultViewer from './JsonResultViewer.vue'
 import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
@@ -148,6 +158,7 @@ const detailLoading = ref(false)
 const listError = ref<string | null>(null)
 const detailError = ref<string | null>(null)
 const isPolling = ref(false)
+const exporting = ref(false)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 let pollingGeneration = 0
 
@@ -336,6 +347,30 @@ const openDetail = async (id: ApiId) => {
 
 const reload = async () => {
   if (selectedId.value) await open(selectedId.value)
+}
+
+const downloadRun = async () => {
+  const evaluationId = detail.value?.id
+  if (!evaluationId || exporting.value) return
+  exporting.value = true
+  try {
+    const { data } = await evaluationService.downloadArchive(evaluationId)
+    const url = URL.createObjectURL(data)
+    try {
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `evaluation-${evaluationId}.zip`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
+  } catch {
+    notifyError('Der Run konnte nicht als ZIP heruntergeladen werden. Bitte versuche es erneut.')
+  } finally {
+    exporting.value = false
+  }
 }
 
 watch(

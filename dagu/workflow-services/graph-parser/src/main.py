@@ -29,7 +29,7 @@ class ParserRequest(TypedDict, total=False):
 
 
 class ParserData(TypedDict):
-    schema: Literal["graph-result/v3"]
+    schema: Literal["graph-result/v1"]
     evaluationId: str
     source: ModelSource
     inputHash: str
@@ -98,9 +98,9 @@ def run(payload: ParserRequest, store: Workspace | None = None) -> ParserResult:
                           "languages": languages})
     resources = {"parser.py": Path(__file__).with_name("parser.py"), "main.py": Path(__file__),
                  "workflow_io.py": Path(workflow_io.__file__)}
-    producer = {"service": SERVICE, "version": "0.1.0",
+    producer = {"service": SERVICE, "version": "1.0.0",
                 "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()})}
-    result: ParserData = {"schema": "graph-result/v3", "evaluationId": evaluation_id, "source": source,
+    result: ParserData = {"schema": "graph-result/v1", "evaluationId": evaluation_id, "source": source,
                           "inputHash": bundle["inputHash"], "producer": producer,
                           "languageResources": [{"languageId": language["languageId"], "versionId": language["versionId"],
                                                  "hash": content_hash(language["data"])} for language in languages], **parsed}

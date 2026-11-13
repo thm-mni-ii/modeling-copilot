@@ -8,5 +8,6 @@ class EvaluationService {
   start(modelId: ApiId): Promise<AxiosResponse<Evaluation>> { return httpClient.post(`/v1/models/${modelId}/evaluations`, {}) }
   list(modelId: ApiId): Promise<AxiosResponse<EvaluationPage>> { return httpClient.get(`/v1/models/${modelId}/evaluations`) }
   get(evaluationId: ApiId): Promise<AxiosResponse<EvaluationDetail>> { return httpClient.get(`/v1/evaluations/${evaluationId}`) }
+  downloadArchive(evaluationId: ApiId): Promise<AxiosResponse<Blob>> { return httpClient.get(`/v1/evaluations/${evaluationId}/archive.zip`, { responseType: 'blob' }) }
 }
 export default new EvaluationService()

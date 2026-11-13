@@ -6,8 +6,7 @@ Account `workflow-runner`.
 
 ## Struktur
 
-- `workflows/`: Hauptworkflow für die Modellauswertung und `hello.yaml` als
-  einfacher Testworkflow.
+- `workflows/`: ausschließlich `model-evaluation-graph-matching.yaml` mit seinen eingebetteten internen Modell- und Paarabläufen.
 - `workflow-services/`: Container für Workflow-Schritte. `template-service/`
   zeigt den vorgesehenen Vertrag für JSON-Eingabe, JSON-Ausgabe und Exit-Codes.
 - `infra/base.yaml`: gemeinsame Kubernetes-Vorgaben für Dev und Prod inklusive
@@ -59,13 +58,16 @@ Das Backend übergibt Modelle und Sprachversionen als vollständigen Snapshot.
 `/work/evaluations/<evaluationId>/inputs/evaluation-input.json`.
 `model-evaluation-graph-matching` führt die Phasen 1 bis 6 aus: Initialisierung,
 Graph-Parsing und Elementinventar je Modell, anschließend semantisches Matching
-einen vorläufigen Graphvergleich und aggregiertes Feedback je Musterlösung. Graphen liegen unter `graphs/<modelKey>.json`,
+einen vorläufigen Graphvergleich, analytische Profile und aggregiertes Feedback je Musterlösung. Graphen liegen unter `graphs/<modelKey>.json`,
 Inventare unter `labels/<modelKey>.json` und semantische Kandidaten unter
 `candidates/<referenceKey>.json`; Vergleiche liegen unter
 `comparisons/<referenceKey>.json` und Feedbackberichte unter
-`feedback/<referenceKey>.json`. Die Abgabe wird nur einmal vorbereitet.
-Die internen Modell- und Paarworkflows sind in derselben Datei eingebettet.
-`hello` bleibt der einfache Testworkflow.
+`feedback/<referenceKey>.json`. Analysen liegen unveränderlich unter
+`analysis/<referenceKey>/<analysisKey>.json`. Die Abgabe wird nur einmal vorbereitet.
+Alle benötigten Modell- und Paarabläufe sind intern in derselben Datei eingebettet.
+Dagu registriert ausschließlich `model-evaluation-graph-matching`. Die Workflowversion
+ist `v1`, alle Workflow-Serviceversionen sind `1.0.0`, alle Artefaktverträge verwenden
+`/v1` und alle zugehörigen Image-Tags sind `v1`.
 
 `WORKFLOW_EVALUATION_ID` wählt den Laufordner, `MODEL_KEY` das Parsermodell.
 `WORKFLOW_INPUT_PATH` und `WORKFLOW_OUTPUT_PATH` wählen relative JSON-Dateipfade;
@@ -81,6 +83,11 @@ der Auswertungsbutton im Aufgabenbereich einen neuen Lauf. Die Auswertungs-Sideb
 zeigt Graph und Elementinventar für Abgabe und Musterlösungen sowie einen Schritt
 „Semantische Kandidaten“ und „Vorläufiger Graphvergleich“ je Musterlösung.
 Die Serviceansicht zeigt außerdem das vorläufige Feedback je Musterlösung.
+Der Schritt „Analytisches Feedback“ zeigt Moderatoren und Administratoren die
+kompakten elementbezogenen Hinweise. Das Analyseartefakt liegt zusätzlich im
+Workflow-Workspace. Der Feedbackbericht wird im selben Referenz-Unterlauf unter
+Verwendung dieses Analyseartefakts erzeugt. Details und Aussagegrenzen:
+[Analytical Feedback](workflow-services/analytical-feedback/README.md).
 Der Vergleich zeigt Ankerabdeckung, maximale Zuordnungskapazität und ein
 Intervall der vorläufigen Zugehörigkeitskonsistenz. Diese Zahlen sind keine
 bestätigte Modellübereinstimmung. „Ausklappen“, „Groß anzeigen“ und
@@ -93,7 +100,7 @@ sind noch nicht Teil dieses Workflows.
 Lokal nur die tatsächlich benötigten Images bauen:
 
 ```powershell
-docker compose --profile workflow-services build workflow-data workflow-graph-parser workflow-model-label-extraction workflow-synonym-matching workflow-one-to-one-matching workflow-feedback-generation
+docker compose --profile workflow-services build workflow-data workflow-graph-parser workflow-model-label-extraction workflow-synonym-matching workflow-one-to-one-matching workflow-analytical-feedback workflow-feedback-generation
 docker compose up -d --no-deps --build api
 ```
 
@@ -111,12 +118,12 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:latest modeling-copilot/graph-parser:latest modeling-copilot/model-label-extraction:latest modeling-copilot/synonym-matching:latest modeling-copilot/one-to-one-graph-matching:latest modeling-copilot/feedback-generation:latest | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v1 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v1 modeling-copilot/one-to-one-graph-matching:v1 modeling-copilot/analytical-feedback:v1 modeling-copilot/feedback-generation:v1 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre
 Image-Daten beim Weiterreichen als Text beschädigen. Nach jedem lokalen Build
-müssen die `latest`-Images erneut in den Kubernetes-Knoten importiert werden.
+müssen die `v1`-Images erneut in den Kubernetes-Knoten importiert werden.
 Bei einer anderen lokalen Kubernetes-Installation stattdessen deren Image-Import
 oder eine erreichbare Registry verwenden. Keine produktiven Cluster hierfür
 verändern. Die Images werden mit `IfNotPresent` gestartet; ein bereits

@@ -3,10 +3,12 @@
 from collections import Counter, defaultdict
 
 from artifacts import _key
+from decision_diagnostics import record
 from initial_evaluation import _class_key, _language_value, _sort_key, _type_key
 
 
 def propose_connections(indices, elements):
+    events = []
     pairs = [(item["referenceId"], item["studentId"]) for item in elements]
     if len(set(pairs)) != len(pairs) or len({r for r, _ in pairs}) != len(pairs) or len({s for _, s in pairs}) != len(pairs):
         raise ValueError("provisional elements must be unique one-to-one pairs")
@@ -37,12 +39,40 @@ def propose_connections(indices, elements):
             value = signature(indices[side], identity, node, mapping if side == "reference" else None)
             if value is not None:
                 grouped[side][value].append(identity)
+            else:
+                reasons = []
+                endpoints = indices[side].endpoints.get(identity, {})
+                if _key(node) is None or node["languageResolution"] != "resolved" or node["comparisonRole"] != "semantic":
+                    reasons.append("connection_metadata_unresolved")
+                if not isinstance(node.get("directed"), bool):
+                    reasons.append("direction_unresolved")
+                if any(endpoints.get(role) is None for role in ("source", "target")):
+                    reasons.append("endpoint_unresolved")
+                elif side == "reference" and any(endpoint not in mapping for endpoint in endpoints.values()):
+                    reasons.append("endpoint_mapping_unresolved")
+                record(events, "connections", "compatible_type_and_mapped_endpoints",
+                       identity if side == "reference" else None, identity if side == "student" else None,
+                       "deferred", reasons)
     proposals = []
     for signature_key, references in grouped["reference"].items():
         students = grouped["student"].get(signature_key, [])
         if len(references) == len(students) == 1:
             proposals.append({"referenceId": references[0], "studentId": students[0],
                               "reason": "compatible_type_and_mapped_endpoints", "status": "provisional"})
+            record(events, "connections", "compatible_type_and_mapped_endpoints", references[0], students[0],
+                   "proposed", ["compatible_type_and_mapped_endpoints"])
+        else:
+            for identity in sorted(references):
+                record(events, "connections", "compatible_type_and_mapped_endpoints", identity, None,
+                       "deferred", ["ambiguous_candidates" if students else "no_compatible_connection"],
+                       studentAlternatives=sorted(students), referenceAlternatives=sorted(references))
+    for signature_key, students in grouped["student"].items():
+        references = grouped["reference"].get(signature_key, [])
+        if len(references) != 1 or len(students) != 1:
+            for identity in sorted(students):
+                record(events, "connections", "compatible_type_and_mapped_endpoints", None, identity,
+                       "deferred", ["ambiguous_candidates" if references else "no_compatible_connection"],
+                       studentAlternatives=sorted(students), referenceAlternatives=sorted(references))
     proposals.sort(key=lambda item: (item["referenceId"], item["studentId"]))
     return {
         "proposals": proposals,
@@ -50,6 +80,7 @@ def propose_connections(indices, elements):
                                         for identity in identities),
         "unresolvedReferenceIds": sorted(set(connections["reference"]) - {p["referenceId"] for p in proposals}),
         "unresolvedStudentIds": sorted(set(connections["student"]) - {p["studentId"] for p in proposals}),
+        "decisionEvents": sorted(events, key=lambda item: item["id"]),
     }
 
 

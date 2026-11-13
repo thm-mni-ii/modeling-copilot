@@ -5,6 +5,7 @@ from copy import deepcopy
 import math
 
 from assignment_capacity import analyze_proposal_feasibility
+from decision_diagnostics import record
 from structural_evidence import analyze_containment
 
 
@@ -26,6 +27,7 @@ def _thresholds(candidates, thresholds):
 def refine_semantic_proposals(indices, candidates, state, thresholds):
     """Assess candidate evidence and propose only mutually unambiguous pairs."""
     thresholds = _thresholds(candidates, thresholds)
+    events = []
     excluded = {(item["referenceId"], item["studentId"])
                 for field in ("conflictingProposals", "blockedProposals") for item in state[field]}
     anchors = [item for item in state["proposals"]
@@ -65,6 +67,12 @@ def refine_semantic_proposals(indices, candidates, state, thresholds):
         if pair[0] not in used_references and pair[1] not in used_students
         and item["status"] != "below_threshold"
     }
+    for pair, item in pairs.items():
+        if pair not in available_pairs:
+            reserved_pair = pair[0] in used_references or pair[1] in used_students
+            record(events, "semantic", "supported_semantic_evidence", *pair,
+                   "deferred" if reserved_pair else "rejected",
+                   ["one_to_one_reservation" if reserved_pair else "below_threshold"])
     by_reference, by_student = defaultdict(list), defaultdict(list)
     for pair, item in available_pairs.items():
         by_reference[pair[0]].append(item)
@@ -84,13 +92,23 @@ def refine_semantic_proposals(indices, candidates, state, thresholds):
     proposed = []
     for pair, item in available_pairs.items():
         if item["status"] != "supported" or item["ownerAnchorRelation"] == "conflicting":
+            reasons = []
+            if item["status"] != "supported":
+                reasons.append("semantic_not_configured" if not thresholds else "score_unavailable")
+            if item["ownerAnchorRelation"] == "conflicting":
+                reasons.append("owner_conflict")
+            record(events, "semantic", "supported_semantic_evidence", *pair, "deferred", reasons)
             continue
         owner = owners[pair]
         if (item["ownerAnchorRelation"] == "unknown"
                 and (owner["referenceParentIds"] or owner["studentParentIds"])):
+            record(events, "semantic", "supported_semantic_evidence", *pair, "deferred", ["owner_unresolved"])
             continue
         competitors = [other for other in by_reference[pair[0]] + by_student[pair[1]] if other is not item]
         if not all(dominates(item, other) for other in competitors):
+            record(events, "semantic", "supported_semantic_evidence", *pair, "deferred",
+                   ["ambiguous_candidates"], competitors=[{"referenceId": other["referenceId"],
+                    "studentId": other["studentId"]} for other in competitors])
             continue
         dependencies = []
         if owner["ownerAnchorRelation"] == "consistent":
@@ -106,6 +124,13 @@ def refine_semantic_proposals(indices, candidates, state, thresholds):
 
     individually_feasible = [item for item in proposed if preserves_capacity([item])]
     proposals = individually_feasible if preserves_capacity(individually_feasible) else []
+    for item in proposed:
+        accepted = item in proposals
+        record(events, "semantic_capacity", "supported_semantic_evidence", item["referenceId"],
+               item["studentId"], "proposed" if accepted else "blocked",
+               ["supported_semantic_evidence" if accepted else "capacity_conflict"],
+               depends_on=item["dependsOn"], individuallyFeasible=item in individually_feasible,
+               jointlyFeasible=bool(proposals))
     proposed_references = {item["referenceId"] for item in proposals}
     reference_ids = {identity for identity, node in indices["reference"].nodes.items()
                      if node["kind"] == "modelElement"}
@@ -130,4 +155,5 @@ def refine_semantic_proposals(indices, candidates, state, thresholds):
         "candidateEvidence": [
             {key: value for key, value in pairs[pair].items() if key != "_scores"} for pair in sorted(pairs)
         ],
+        "decisionEvents": sorted(events, key=lambda item: item["id"]),
     }

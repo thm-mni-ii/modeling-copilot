@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Analytical feedback workspace selection",
+  "description": "Environment variables selecting a frozen evaluation and one reference; artifact payloads are read from the workspace.",
+  "type": "object",
+  "required": ["WORKFLOW_EVALUATION_ID", "REFERENCE_KEY"],
+  "properties": {
+    "WORKFLOW_EVALUATION_ID": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$"},
+    "REFERENCE_KEY": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$", "not": {"const": "submission"}},
+    "WORKFLOW_DATA_ROOT": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}

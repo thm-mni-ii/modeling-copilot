@@ -8,11 +8,11 @@ Labelzerlegung, Übersetzung oder Matchingentscheidung.
 ## Eingabe und Aufruf
 
 - Eingabe ist die erfolgreiche `workflow-result/v1`-Hülle mit
-  `result.schema: graph-result/v3` und `result.graph.schemaVersion: 3` aus Paket 02.
+  `result.schema: graph-result/v1` und `result.graph.schemaVersion: 1` aus Paket 02.
   Benötigt werden `evaluationId`, vollständige `source`, `inputHash`, `graphHash`,
   `producer`, `languageResources`, `graph`, `completeness` und `diagnostics`.
 - `graph` enthält `nodes`, `edges` und `languages`. Knoten- und
-  Kanten-IDs müssen gemeinsam eindeutige, nicht leere Strings sein. Der V3-Vertrag
+  Kanten-IDs müssen gemeinsam eindeutige, nicht leere Strings sein. Der V1-Vertrag
   verwendet `kind` für Knotenkategorien und `role` für Kantenrollen; `properties` und
   `definitionCandidates` sind optionale, nicht leere Felder. Der Graphhash wird nach
   dem tatsächlichen Parservertrag geprüft:
@@ -84,10 +84,10 @@ Ausgabe ist `workflow-result/v1`, `schemaVersion: 1`, `status: ok`,
 
 | Feld | Inhalt |
 | --- | --- |
-| `schema` | `element-inventory/v2` |
+| `schema` | `element-inventory/v1` |
 | `evaluationId`, `source`, `inputHash`, `graphHash` | Unveränderte Lauf-, Modell- und Eingabebindung des Parserergebnisses. |
 | `graphPath` | Relativer Eingabepfad im Auswertungsbereich; im Workflow aus `WORKFLOW_INPUT_PATH`, eigenständig standardmäßig `graphs/<source.key>.json`. Beim eigenständigen Aufruf muss der Aufrufer den referenzierten Graphen für spätere Nachverfolgung separat aufbewahren. |
-| `producer` | Service `model-label-extraction`, Serviceversion `0.1.0` und `resourceHash` über die tatsächlichen Quelldateien `main.py` und `workflow_io.py`. |
+| `producer` | Service `model-label-extraction`, Serviceversion `1.0.0` und `resourceHash` über die tatsächlichen Quelldateien `main.py` und `workflow_io.py`. |
 | `elements` | Nach ID sortierte Einträge mit `id`, `type`, `comparisonGroup`, `language`, `matchText`, `labelStatus` und `textLanguage`. |
 | `connectionTexts` | Nach Verbindungs-ID, Art, Label-ID und ID sortierte eigene Verbindungstexte und zusätzliche Beschriftungen. |
 | `completeness`, `diagnostics` | Interpretationsstatus und Graphdiagnosen werden übernommen. Textextraktionsdiagnosen werden ergänzt; nicht-textuelle Werte oder ungelöste Besitzer setzen die Interpretation auf `partial`. |
@@ -100,7 +100,7 @@ Element-IDs und Inhaltshash geordnet. Fachlich geordnete Inhalte behalten ihre
 Reihenfolge. Zeitstempel und Laufzeitmessungen werden nicht ergänzt.
 
 Falsche Hüllen/Versionen, widersprüchliche Lauf-/Quell-/Hashbezüge, ungültige IDs
-oder fehlende V3-Strukturmetadaten liefern Exitcode 1 und eine Meldung auf stderr;
+oder fehlende V1-Strukturmetadaten liefern Exitcode 1 und eine Meldung auf stderr;
 es wird kein neues Erfolgsartefakt veröffentlicht. Ein leeres Inventar ist gültig.
 `interpretation: partial` wird niemals zu `complete` aufgewertet.
 
@@ -108,8 +108,8 @@ es wird kein neues Erfolgsartefakt veröffentlicht. Ein leeres Inventar ist gül
 
 Acht gezielte Tests für SERM-/UML-/ERM-Projektionen, Verbindungsbeschriftungen,
 ungültige Besitzer, Textstatus, Determinismus und Hash-/Evaluation-Validierung
-bestanden. Das neu gebaute Extractor-Image erzeugte `element-inventory/v2`; das
-neue Synonym-Matching-Image akzeptierte diese Ausgabe gegen sein V2-Schema.
+bestanden. Das neu gebaute Extractor-Image erzeugte `element-inventory/v1`; das
+neue Synonym-Matching-Image akzeptierte diese Ausgabe gegen sein V1-Schema.
 
 Paket 04 liest die beiden kompakten Inventare über den bestehenden Workspace.
 Strukturelles Matching, Feedback und Bewertung bleiben Folgeaufgaben. Der aktuelle

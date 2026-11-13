@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a text projection from one graph-result/v3 without reinterpreting it."""
+"""Build a text projection from one graph-result/v1 without reinterpreting it."""
 import argparse
 from copy import deepcopy
 import hashlib
@@ -63,13 +63,13 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
             or payload.get("status") != "ok"):
         raise ValueError("a successful workflow-result/v1 is required")
     data = payload.get("result")
-    if not isinstance(data, dict) or data.get("schema") != "graph-result/v3":
-        raise ValueError("result must be a graph-result/v3 object")
+    if not isinstance(data, dict) or data.get("schema") != "graph-result/v1":
+        raise ValueError("result must be a graph-result/v1 object")
     evaluation_id = identifier(data.get("evaluationId"))
     graph, source = data.get("graph"), data.get("source")
-    if (not isinstance(graph, dict) or type(graph.get("schemaVersion")) is not int or graph["schemaVersion"] != 3
+    if (not isinstance(graph, dict) or type(graph.get("schemaVersion")) is not int or graph["schemaVersion"] != 1
             or any(not isinstance(graph.get(key), list) for key in ("nodes", "edges", "languages"))):
-        raise ValueError("result.graph must contain schemaVersion=3 and nodes/edges/languages arrays")
+        raise ValueError("result.graph must contain schemaVersion=1 and nodes/edges/languages arrays")
     if not isinstance(source, dict) or not all(
         isinstance(source.get(key), str) and source[key] for key in ("key", "role", "label", "modelId", "versionId")
     ):
@@ -87,7 +87,7 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
     if not isinstance(diagnostics, list) or any(not isinstance(item, dict) for item in diagnostics):
         raise ValueError("result.diagnostics must be an array of objects")
     if data.get("graphHash") != content_hash({field: data[field] for field in GRAPH_HASH_FIELDS}):
-        raise ValueError("graph hash does not match the graph-result/v3 content")
+        raise ValueError("graph hash does not match the graph-result/v1 content")
     if store is not None:
         bundle = store.snapshot()
         if evaluation_id != store.evaluation_id or data["inputHash"] != bundle["inputHash"]:
@@ -148,7 +148,7 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
                     or ("directed" in cell and cell["directed"] is not None and type(cell["directed"]) is not bool)
                     or ("connectionLabelId" in cell and cell["connectionLabelId"] is not None
                         and not isinstance(cell["connectionLabelId"], str))):
-                raise ValueError("graph nodes need valid V3 type, kind and language metadata")
+                raise ValueError("graph nodes need valid V1 type, kind and language metadata")
             language = cell["language"]
             if language is not None and not all(
                 isinstance(language.get(key), str) and language[key] for key in ("languageId", "versionId")
@@ -213,12 +213,12 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
                                             text["connectionLabelId"] or "", text["id"]))
     diagnostics.sort(key=lambda item: (item.get("code", ""), item.get("elementIds", []), content_hash(item)))
     resources = {"main.py": Path(__file__), "workflow_io.py": Path(workflow_io.__file__)}
-    producer = {"service": SERVICE, "version": "0.1.0",
+    producer = {"service": SERVICE, "version": "1.0.0",
                 "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()})}
     graph_path = os.environ.get("WORKFLOW_INPUT_PATH", f"graphs/{source['key']}.json")
     if store is not None:
         store.path(graph_path)
-    result = {"schema": "element-inventory/v2", "evaluationId": evaluation_id, "source": deepcopy(source),
+    result = {"schema": "element-inventory/v1", "evaluationId": evaluation_id, "source": deepcopy(source),
               "inputHash": data["inputHash"], "graphHash": data["graphHash"], "graphPath": graph_path,
               "producer": producer, "elements": elements, "connectionTexts": connection_texts,
               "completeness": completeness, "diagnostics": diagnostics}

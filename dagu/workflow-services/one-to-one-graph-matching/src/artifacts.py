@@ -58,7 +58,7 @@ def read_artifacts(store, reference_key):
     language_data = {(item["languageId"], item["versionId"]): item["data"] for item in bundle["languages"]}
     for side, model in models.items():
         key = model["source"]["key"]
-        data = _result(store.read(f"graphs/{key}.json"), "graph-parser", "graph-result/v3")
+        data = _result(store.read(f"graphs/{key}.json"), "graph-parser", "graph-result/v1")
         if (data["evaluationId"] != bundle["evaluationId"] or data["inputHash"] != bundle["inputHash"]
                 or data["source"] != model["source"]):
             raise ValueError(f"{side} graph does not belong to the frozen model")
@@ -102,7 +102,7 @@ def read_artifacts(store, reference_key):
         path = f"labels/{key}.json"
         if data["inventoryPaths"][side] != path:
             raise ValueError(f"{side} candidate inventory path mismatch")
-        inventory = _result(store.read(path), "model-label-extraction", "element-inventory/v2")
+        inventory = _result(store.read(path), "model-label-extraction", "element-inventory/v1")
         if (inventory["evaluationId"] != bundle["evaluationId"]
                 or inventory["inputHash"] != bundle["inputHash"]
                 or inventory["source"] != model["source"]

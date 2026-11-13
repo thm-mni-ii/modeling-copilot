@@ -1,4 +1,4 @@
-"""Derived indices for graph-result/v3, preserving its original relations."""
+"""Derived indices for graph-result/v1, preserving its original relations."""
 
 from collections import defaultdict
 import json
@@ -7,9 +7,9 @@ import json
 class GraphIndex:
     def __init__(self, graph):
         if (not isinstance(graph, dict) or type(graph.get("schemaVersion")) is not int
-                or graph["schemaVersion"] != 3
+                or graph["schemaVersion"] != 1
                 or any(not isinstance(graph.get(key), list) for key in ("nodes", "edges", "languages"))):
-            raise ValueError("graph must contain schemaVersion=3 and nodes/edges/languages arrays")
+            raise ValueError("graph must contain schemaVersion=1 and nodes/edges/languages arrays")
         self.nodes = {}
         self.by_kind = defaultdict(list)
         self.by_type = defaultdict(list)
