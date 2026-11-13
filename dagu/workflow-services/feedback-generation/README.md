@@ -22,6 +22,10 @@ Semantische Schwellen, offene Elemente und Verbindungen bleiben nachvollziehbar.
 Wenn vorhanden, wird `provisionalConnectionStructure` aus dem Vergleich
 unverändert in den Feedbackbericht übernommen; seine Grenzen und Felder sind
 im [Graph-Matcher](../one-to-one-graph-matching/README.md) beschrieben.
+Die dort dokumentierte `provisionalContainment`-Auswertung wird bei neuen
+Vergleichen mit Referenzzählern, Intervall und Einzelbeziehungen übernommen;
+ihre Zähler werden gegen die Einzelstatus validiert. Ältere Vergleiche ohne
+diese Erweiterung bleiben lesbar.
 Die Quoten sind vorläufige Erkennungszahlen, keine bestätigte fachliche
 Übereinstimmung. Eine vollständige Strukturprüfung, Gesamtbewertung und Note
 stehen nicht zur Verfügung.

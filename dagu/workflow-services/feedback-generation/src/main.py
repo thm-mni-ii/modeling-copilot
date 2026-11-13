@@ -97,6 +97,28 @@ def run(store: Workspace, reference_key: str) -> dict:
             ("configured" if thresholds else "not_configured")):
         raise ValueError("invalid semantic configuration status")
 
+    has_containment = ("provisionalContainment" in comparison["metrics"]
+                       or "provisionalContainmentEvidence" in comparison)
+    containment_metrics = comparison["metrics"].get("provisionalContainment")
+    containment_relations = comparison.get("provisionalContainmentEvidence")
+    if has_containment:
+        if not isinstance(containment_metrics, dict) or not isinstance(containment_relations, list):
+            raise ValueError("invalid provisional containment data")
+        statuses = ("satisfied", "violated", "unresolved")
+        counts = {status: sum(isinstance(row, dict) and row.get("status") == status
+                              for row in containment_relations) for status in statuses}
+        total = len(containment_relations)
+        expected_agreement = {
+            "lower": counts["satisfied"] / total if total else None,
+            "upper": (counts["satisfied"] + counts["unresolved"]) / total if total else None,
+        }
+        if (sum(counts.values()) != total or type(containment_metrics.get("referenceRelationCount")) is not int
+                or containment_metrics["referenceRelationCount"] != total
+                or any(type(containment_metrics.get(status)) is not int
+                       or containment_metrics[status] != counts[status] for status in statuses)
+                or containment_metrics.get("agreement") != expected_agreement):
+            raise ValueError("provisional containment counts do not match relations")
+
     def evaluated(counts, category):
         denominator = counts["referenceCount"]
         evaluable = counts["evaluableReferenceCount"]
@@ -136,6 +158,8 @@ def run(store: Workspace, reference_key: str) -> dict:
     }
     if "provisionalConnectionStructure" in comparison:
         report["provisionalConnectionStructure"] = comparison["provisionalConnectionStructure"]
+    if has_containment:
+        report["provisionalContainment"] = {"metrics": containment_metrics, "relations": containment_relations}
     report["feedbackHash"] = content_hash(report)
     return {"schemaVersion": 1, "schema": "workflow-result/v1", "status": "ok", "mode": "aggregate",
             "capability": SERVICE, "summary": "Vorläufige Erkennungsquoten; keine Gesamtbewertung", "result": report}

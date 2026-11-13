@@ -160,6 +160,34 @@ class MainTests(unittest.TestCase):
             key: value for key, value in result.items() if key != "feedbackHash"
         }))
 
+    def test_containment_relations_are_included_and_validated_in_feedback(self):
+        store = store_with_containment()
+        comparison = main.run(store, "ref")
+        result = comparison["result"]
+        metrics = result["metrics"]["provisionalContainment"]
+        self.assertEqual(metrics, {
+            "referenceRelationCount": 1, "satisfied": 1, "violated": 0, "unresolved": 0,
+            "agreement": {"lower": 1.0, "upper": 1.0},
+        })
+        self.assertEqual(result["provisionalContainmentEvidence"][0]["decisionBasis"], "same_parent")
+        store.files["comparisons/ref.json"] = comparison
+        feedback_path = Path(__file__).resolve().parents[2] / "feedback-generation" / "src" / "main.py"
+        spec = importlib.util.spec_from_file_location("feedback_generation", feedback_path)
+        feedback = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(feedback)
+        report = feedback.run(store, "ref")["result"]
+        self.assertEqual(report["provisionalContainment"], {
+            "metrics": metrics, "relations": result["provisionalContainmentEvidence"],
+        })
+        self.assertEqual(report["feedbackHash"], feedback.content_hash({
+            key: value for key, value in report.items() if key != "feedbackHash"
+        }))
+        metrics["satisfied"] = 0
+        result["comparisonHash"] = content_hash({key: value for key, value in result.items()
+                                                  if key != "comparisonHash"})
+        with self.assertRaisesRegex(ValueError, "containment counts"):
+            feedback.run(store, "ref")
+
     def test_run_rejects_invalid_graph_and_candidate_hashes(self):
         for artifact in ("graph", "candidate"):
             with self.subTest(artifact=artifact):

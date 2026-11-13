@@ -9,7 +9,7 @@ from assignment_capacity import analyze_proposal_feasibility
 from correspondence_state import build_provisional_state
 from initial_evaluation import evaluate_initial_coverage
 from initial_recognition import evaluate_connections, propose_connections, recognition_metrics
-from initial_structure import evaluate_provisional_owners
+from initial_structure import evaluate_containment_relations, evaluate_provisional_owners
 from semantic_refinement import refine_semantic_proposals
 import workflow_io
 from workflow_io import Workspace, workspace, write_output
@@ -63,6 +63,9 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     structure = evaluate_provisional_owners(indices, candidates, evaluation["mapping"]["provisionalElements"])
     evaluation["metrics"]["provisionalOwnerConsistency"] = structure["metrics"]
     evaluation["provisionalOwnerEvidence"] = structure["pairs"]
+    containment = evaluate_containment_relations(indices, evaluation["mapping"]["provisionalElements"])
+    evaluation["metrics"]["provisionalContainment"] = containment["metrics"]
+    evaluation["provisionalContainmentEvidence"] = containment["relations"]
     source_dir = Path(__file__).parent
     resources = {"src/workflow_io.py": Path(workflow_io.__file__)}
     resources.update({

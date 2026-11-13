@@ -63,6 +63,47 @@ oder widersprüchliche Besitzeranker gelten als vorläufig verletzt; ungeklärte
 Besitzer bleiben offen. Das Intervall reicht von `satisfied / expected` bis
 `(satisfied + unresolved) / expected`; bei leerem Nenner sind beide Werte `null`.
 Diese Kennzahl bestätigt weder Zuordnungen noch strukturelle Korrektheit.
+Sie ist eine eingeschränkte Bestandskennzahl: Auch bei 100 % können offene
+Elemente oder besitzerabhängige Vorschläge Strukturabweichungen verdecken.
+
+`metrics.provisionalContainment` und `provisionalContainmentEvidence` ergänzen
+eine separate, referenzbezogene Prüfung aller unmittelbaren `contains`-Kanten,
+einschließlich struktureller Zwischencontainer und nicht zugeordneter Knoten.
+Jede Beziehung enthält Quell- und Ziel-ID, Rolle, zugehörige Abgabe-IDs und
+Eltern, vollständige Pfade, Zuordnungsgrundlagen, Abhängigkeiten, Status und
+Entscheidungsgrundlage. `referenceRelationCount` ist der vollständige Nenner;
+`satisfied + violated + unresolved` entspricht diesem Wert. Das Intervall
+reicht von `satisfied / referenceRelationCount` bis
+`(satisfied + unresolved) / referenceRelationCount`; bei leerem Nenner sind
+beide Grenzen `null`.
+
+Nur unabhängige exakte Elementanker können eine Beziehung als erfüllt oder
+verletzt belegen. Besitzerabhängige, semantisch gewählte oder fehlende
+Elementzuordnungen sowie mehrdeutige oder zyklische Pfade bleiben offen.
+Ein struktureller Container kann anhand seiner eindeutigen Sprachdefinition
+und eines unabhängig zugeordneten übergeordneten Elements abgeleitet werden.
+Die eigene Beziehung des Containers zu diesem übergeordneten Element bleibt
+jedoch offen: Ihre Verwendung zur Herleitung wäre zirkuläre Evidenz. Dies gilt
+auch bei verschachtelten Containern. Vergleichbar sind unmittelbare Eltern;
+die gespeicherte Kantenrolle wird dokumentiert, aber nicht zusätzlich bewertet.
+Auch `satisfied` ist ausdrücklich keine bestätigte Identität oder Korrektheit.
+
+Reproduzierbarer lokaler Prüfstand mit den vorhandenen Modell-JSONs, Parser,
+v13-Elementvergleichsgruppen und vollständiger synthetischer Kandidatenmatrix
+aus den Parserlabels; ohne Synonymverfahren oder vollständigen Pipeline-Lauf:
+
+| Modell | Bisher: erfüllt / geprüft | Neu: erfüllt / verletzt / offen | Neu: Intervall |
+| --- | --- | --- | --- |
+| Referenz | 38 / 38 | 7 / 0 / 41 von 48 | 14,6–100 % |
+| M03 | 36 / 37 | 5 / 1 / 42 von 48 | 10,4–97,9 % |
+| M05 | 36 / 36 | 7 / 0 / 41 von 48 | 14,6–100 % |
+| M08 | 35 / 35 | 6 / 0 / 42 von 48 | 12,5–100 % |
+
+Die Intervalle sind wegen ungeklärter oder abhängiger Zuordnungen bewusst
+breit. Insbesondere weist M05 damit keine gesicherte perfekte Übereinstimmung
+aus; der Test allein beweist jedoch nicht, welche offenen Instanzen identisch
+sind. Die Zahlen sind keine Ergebnisse des früheren, nicht verfügbaren
+Workflow-Exports.
 
 `provisionalConnectionStructure` vergleicht Verbindungsrelationen anhand der
 vorläufig zugeordneten Endpunkte, ohne Verbindungsidentitäten zu erzwingen.

@@ -107,7 +107,7 @@
             <div v-if="entry.comparison" class="text-caption mt-1">
               <div>Vorläufige Anker: {{ entry.comparison.anchors }} / {{ entry.comparison.references }} ({{ entry.comparison.coverage }})</div>
               <div>Maximal zuordenbar: {{ entry.comparison.capacity }} / {{ entry.comparison.references }} ({{ entry.comparison.capacityBound }})</div>
-              <div v-if="entry.comparison.owners">Zugehörigkeitskonsistenz: {{ entry.comparison.owners }}</div>
+              <div v-if="entry.comparison.owners">{{ entry.comparison.ownerLabel }}: {{ entry.comparison.owners }}</div>
               <div class="text-medium-emphasis">Keine bestätigte Modellübereinstimmung.</div>
             </div>
             <JsonResultViewer :data="entry.result ?? { title: entry.title, description: entry.description ?? null, resultSummary: entry.resultSummary ?? null }" class="mt-1">
@@ -197,7 +197,7 @@ interface TimelineEntry {
   description?: string | null
   resultSummary?: string | null
   result?: JsonObject | null
-  comparison?: { anchors: number; references: number; coverage: string; capacity: number; capacityBound: string; owners?: string }
+  comparison?: { anchors: number; references: number; coverage: string; capacity: number; capacityBound: string; owners?: string; ownerLabel?: string }
 }
 const jsonObject = (value: unknown): JsonObject | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : undefined
@@ -211,17 +211,26 @@ const comparisonSummary = (result: JsonObject | null | undefined): TimelineEntry
   const overall = jsonObject(metrics?.overall)
   if (!overall || typeof overall.referenceCount !== 'number' || typeof overall.provisionalAnchorCount !== 'number' ||
       typeof overall.maximumAssignableCount !== 'number') return undefined
+  const containment = jsonObject(metrics?.provisionalContainment)
+  const containmentAgreement = jsonObject(containment?.agreement)
+  const hasContainment = containment && containmentAgreement &&
+    typeof containment.satisfied === 'number' && typeof containment.violated === 'number' &&
+    typeof containment.unresolved === 'number' && typeof containment.referenceRelationCount === 'number'
   const owner = jsonObject(metrics?.provisionalOwnerConsistency)
-  const agreement = jsonObject(owner?.agreement)
+  const ownerAgreement = jsonObject(owner?.agreement)
+  const hasOwner = owner && ownerAgreement && typeof owner.satisfied === 'number' && typeof owner.expected === 'number'
   return {
     anchors: overall.provisionalAnchorCount,
     references: overall.referenceCount,
     coverage: percent(overall.anchorCoverage),
     capacity: overall.maximumAssignableCount,
     capacityBound: percent(overall.capacityUpperBound),
-    owners: owner && agreement && typeof owner.satisfied === 'number' && typeof owner.expected === 'number'
-      ? `${percent(agreement.lower)} – ${percent(agreement.upper)} (${owner.satisfied} / ${owner.expected})`
-      : undefined
+    owners: hasContainment
+      ? `${percent(containmentAgreement.lower)} – ${percent(containmentAgreement.upper)} (${containment.satisfied} / ${containment.referenceRelationCount}, ${containment.violated} abweichend, ${containment.unresolved} offen)`
+      : hasOwner
+        ? `${percent(ownerAgreement.lower)} – ${percent(ownerAgreement.upper)} (${owner.satisfied} / ${owner.expected})`
+        : undefined,
+    ownerLabel: hasContainment ? 'Zugehörigkeitskonsistenz (vorläufig)' : 'Zugehörigkeitskonsistenz (nur zugeordnete Elemente)'
   }
 }
 const timelineEntries = computed<TimelineEntry[]>(() => {
