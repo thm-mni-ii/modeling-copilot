@@ -93,3 +93,52 @@ jobs:
 
       - name: Show web image digest
         run: echo "${{ steps.build-web.outputs.digest }}"
+
+  publish-workflow-services:
+    # Reuse the release validation performed by the application image job.
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - workflow-data
+          - graph-parser
+          - model-label-extraction
+          - synonym-matching
+          - one-to-one-graph-matching
+          - feedback-generation
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata for workflow service
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-${{ matrix.service }}
+          tags: |
+            type=semver,pattern=v{{version}}
+            type=raw,value=latest
+
+      - name: Build and push workflow service image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./dagu/workflow-services
+          file: ./dagu/workflow-services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
