@@ -87,6 +87,12 @@
                     "type": "number",
                     "minimum": -1,
                     "maximum": 1
+                  },
+                  "patternProperties": {
+                    "^(wordnet|odenet)_(reference|student)_synset_count$": {
+                      "type": "number",
+                      "minimum": 0
+                    }
                   }
                 },
                 "combinedScore": {

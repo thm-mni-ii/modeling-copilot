@@ -241,7 +241,68 @@ Neue Rechenregeln gehören in `src/synonym_matching/combinations.py`, neue
 Similarity-Funktionen zunächst in die Forschung und später in `methods.py`.
 `DEFAULT_CONFIG` bleibt unabhängig von `experiments.json`.
 
-### Konservative Evidenzfusion
+### Bedeutungsmerkmale in der Synonymmatrix
+
+Die öffentliche Struktur bleibt `synonymMatrix → matches → scores/combinedScore`.
+Über `config.semantic_features` werden Merkmale für ausgewählte Lexikonverfahren
+zugeschaltet. Der bisherige Service-Standard und Aufrufe ohne diese Option bleiben
+unverändert. Beispiel:
+
+```json
+{
+  "methods": ["levenshtein", "wordnet"],
+  "semantic_features": {
+    "wordnet": ["reference_synset_count", "student_synset_count", "antonym", "wup_similarity"]
+  },
+  "combiner": {"kind": "mean", "methods": ["levenshtein"]}
+}
+```
+
+In `scores` stehen dann neben den bisherigen Methodenscores beispielsweise
+`wordnet_reference_known`, `wordnet_student_known`, `wordnet_pair_known`,
+`wordnet_shared_synset`, `wordnet_antonym` und `wordnet_wup_similarity`.
+Die übrigen Merkmale werden genauso mit `wordnet_` bzw. `odenet_` vorangestellt.
+Bei Path/Wu-Palmer wird `taxonomy_available` automatisch mit ausgegeben.
+`reference` bezeichnet die Musterlösung, `student` die Schülerlösung.
+
+Die drei Abdeckungsmerkmale werden immer ergänzt: Ein Relationswert 0 bei
+`pair_known=0` hat eine andere Grundlage als 0 bei zwei gefundenen Labels.
+Auch vollständige Labelabdeckung garantiert keine vollständigen Beziehungen oder
+die richtige Lesart. WordNet-Abdeckung bezieht sich auf die englischen Suchtexte
+nach Übersetzung. `shared_synset` ist ein lesbarer Alias des bisherigen
+WordNet-/OdeNet-Scores; der alte Methodenname bleibt erhalten.
+
+`"openthesaurus": []` aktiviert Abdeckung und `openthesaurus_shared_group`, ohne
+erfundene Taxonomierelationen. `"wn_translation": []` ergänzt zusätzlich
+`reference_linked` und `student_linked`: Ein Lexikoneintrag kann vorhanden sein,
+ohne eine englische Verknüpfung zu besitzen. Die Quellen müssen jeweils unter
+`methods` ausgewählt sein. Eine leere Liste bedeutet hier nur Abdeckungsmerkmale.
+
+Zusatzmerkmale werden nicht automatisch gemittelt oder abgeschnitten.
+Lesartenanzahlen bleiben echte Zählwerte und können größer als 1 sein;
+das Ausgabeschema erlaubt dies gezielt für die beiden Synsetanzahlen je Quelle.
+Die übrigen Scores behalten ihren bisherigen Wertebereich, `combinedScore` bleibt
+in [0,1]. Die bereits getestete Regel ist auch im Service explizit auswählbar:
+
+```json
+{"kind": "evidence", "baseline": "translated_embedding", "lexicon": "wordnet"}
+```
+
+Sie verwendet dieselbe Funktion und dieselben ungerundeten Bedeutungsmerkmale wie
+der Forschungslauf. Ohne explizite Merkmalsliste werden ihre sechs notwendigen
+Merkmale automatisch angefordert; eine explizite Liste muss diese enthalten.
+Das ist weiterhin eine vorläufige Heuristik, kein nachgewiesener Qualitätssprung.
+Es wird kein Feld `equivalent` oder `not_equivalent` ergänzt. Threshold und weitere
+Zuordnung bleiben nachgelagert; gerundet wird erst für die JSON-Ausgabe.
+
+Ein vollständiges Eingabebeispiel mit dieser Regel und unfiltrierten Kandidaten:
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python src/main.py --input examples/semantic-features-input.json
+```
+
+### Konservative Evidenzfusion (Forschungsversuch)
 
 Ein neuer Versuch `translated_embedding_wordnet_evidence` verwendet das übersetzte
 monolinguale Embedding als Basis und die bestehende englische WordNet-Kette als
@@ -296,14 +357,15 @@ Synsetsuche. Abfragen werden je Label bzw. Synset wiederverwendet.
 | `wup_similarity` | Native `wn.similarity.wup`, ebenfalls maximiert über mögliche Lesarten. |
 | `taxonomy_available` | Mindestens ein Nomen-/Verb-Lesartenpaar konnte mit beiden Metriken ausgewertet werden. |
 
-Die Matrizen stehen unter `features[].relation_features`. Die Zusatzlaufzeit
+Die Matrizen stehen unter `features[].relation_features` und werden bereits im
+Matching-Kern berechnet; der Forschungslauf übernimmt sie unverändert. Die Zusatzlaufzeit
 steht separat unter `relation_seconds`. Der bestehende gemeinsame Synsetscore
 bleibt unter `features[].scores`; er wird nicht als neues Verfahren dupliziert.
 OpenThesaurus liefert weiterhin nur seine vorhandenen Synonymgruppen.
 
 Diese Merkmale werden zunächst nur als Evidenz gespeichert, ohne eigene Synonymentscheidung.
-Sie werden noch nicht gemittelt, als Kandidatenfilter benutzt oder in der
-Synonymmatrix des Service ausgegeben. Bei binären Relationsmerkmalen bedeutet 1
+Sie werden nicht automatisch gemittelt oder als Kandidatenfilter benutzt.
+Im Service werden sie über `semantic_features` explizit ausgewählt. Bei binären Relationsmerkmalen bedeutet 1
 Existenz bei mindestens einer möglichen Lesart, nicht die fachlich passende Bedeutung. Mehrere Relationen
 können gleichzeitig auftreten. Eine 0 beweist keine fehlende Beziehung: Labels,
 Lesarten oder Relationen können im Lexikon fehlen. Auch `pair_known=1` garantiert

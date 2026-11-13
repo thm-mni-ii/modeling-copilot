@@ -29,12 +29,12 @@
     "multilingual": {},
     "translated_embedding": {"languages": ["de", "en"]},
     "translated_string": {"languages": ["de", "en"]},
-    "wn_translation": {"languages": ["de", "en"]},
+    "wn_translation": {"languages": ["de", "en"], "relation_features": []},
     "wordnet": {
       "languages": ["de", "en"],
       "relation_features": ["pair_known", "reference_synset_count", "student_synset_count", "reference_hypernym", "reference_hyponym", "antonym", "path_similarity", "wup_similarity", "taxonomy_available"]
     },
-    "openthesaurus": {"languages": ["de"]},
+    "openthesaurus": {"languages": ["de"], "relation_features": []},
     "word2vec_de_matching": {
       "files": {"de": ".cache/word-vectors/word2vec-de/german.model"},
       "format": "word2vec_binary",

@@ -254,6 +254,44 @@ class OpenThesaurus:
         return synonym_matrix(left, right, self.lookup)
 
 
+def semantic_features(backend, left, right, names, shared):
+    """Erzeuge dieselben Bedeutungsmerkmale für Service und Forschung.
+
+    Abdeckung bleibt separat sichtbar, auch wenn keine Relation gefunden wird.
+    OpenThesaurus hat nur Gruppen; dafür werden keine Taxonomierelationen erfunden.
+    """
+    shape = (len(left), len(right))
+    result = {name: np.zeros(shape) for name in ('reference_known', 'student_known', 'pair_known')}
+    if left and right:
+        if isinstance(backend, dict):
+            coverage = backend['coverage']
+            reference_known = np.array([e['source_synset_count'] > 0 for e in coverage['reference']])[:, None]
+            student_known = np.array([e['source_synset_count'] > 0 for e in coverage['student']])[None, :]
+            reference_linked = np.array([e['english_synset_count'] > 0 for e in coverage['reference']])[:, None]
+            student_linked = np.array([e['english_synset_count'] > 0 for e in coverage['student']])[None, :]
+            result['reference_linked'] = np.broadcast_to(reference_linked, shape).astype(float)
+            result['student_linked'] = np.broadcast_to(student_linked, shape).astype(float)
+        else:
+            known = {text: bool(backend.lookup(text)) for text in set(left + right)}
+            reference_known = np.array([known[text] for text in left])[:, None]
+            student_known = np.array([known[text] for text in right])[None, :]
+        result['reference_known'] = np.broadcast_to(reference_known, shape).astype(float)
+        result['student_known'] = np.broadcast_to(student_known, shape).astype(float)
+        result['pair_known'] = (reference_known & student_known).astype(float)
+    if isinstance(backend, WordNet):
+        requested = list(names)
+        if {'path_similarity', 'wup_similarity'} & set(requested) and 'taxonomy_available' not in requested:
+            requested.append('taxonomy_available')
+        if requested:
+            result.update(backend.relation_features(left, right, requested))
+        result['shared_synset'] = shared
+    elif isinstance(backend, dict):
+        result['shared_synset'] = shared
+    else:
+        result['shared_group'] = shared
+    return result
+
+
 def synonym_matrix(left, right, lookup):
     """Liefere 1 bei gemeinsamem Eintrag, sonst 0; unbekannt ist keine Evidenz."""
     matrix = np.zeros((len(left), len(right)))

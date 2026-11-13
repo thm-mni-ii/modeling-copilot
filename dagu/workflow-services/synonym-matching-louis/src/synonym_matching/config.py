@@ -5,6 +5,7 @@ from copy import deepcopy
 
 from .methods import EMBEDDING_MODELS, METHODS
 from .preprocessing import Preprocessor
+from .lexicons import RELATION_FEATURES
 
 # Vorläufige Auswahl aus dem Vergleich auf allen 35 auswertbaren Szenarien.
 # Das String-Ensemble und das multilinguale Embedding erhalten je 50 Prozent.
@@ -24,7 +25,7 @@ def validate_config(value=None):
         raise ValueError("config must be an object")
     allowed_fields = {
         "methods", "preprocessing", "embedding_preprocessing", "embedding",
-        "combiner", "seed", "lexicons",
+        "combiner", "seed", "lexicons", "semantic_features",
     }
     unknown = set(config) - allowed_fields
     if unknown:
@@ -54,6 +55,21 @@ def validate_config(value=None):
         raise ValueError("lexicon paths must be nonempty strings")
     combiner = config.setdefault("combiner", {"kind": "mean"})
     _validate_combiner(combiner, methods)
+    semantic = config.setdefault('semantic_features', {})
+    if not isinstance(semantic, dict):
+        raise ValueError('semantic_features must map selected lexicons to feature lists')
+    if combiner['kind'] == 'evidence':
+        from .combinations import EVIDENCE_FEATURES
+        semantic.setdefault(combiner['lexicon'], list(EVIDENCE_FEATURES))
+    for name, features in semantic.items():
+        if (name not in {'wordnet', 'odenet', 'openthesaurus', 'wn_translation'} or name not in methods
+                or not isinstance(features, list)
+                or any(not isinstance(f, str) or f not in RELATION_FEATURES for f in features)
+                or len(features) != len(set(features))
+                or (name in {'openthesaurus', 'wn_translation'} and features)):
+            raise ValueError('invalid semantic_features source or feature list')
+    if combiner['kind'] == 'evidence' and set(EVIDENCE_FEATURES) - set(semantic[combiner['lexicon']]):
+        raise ValueError('evidence combiner requires all six lexicon evidence features')
     return config
 
 
@@ -90,16 +106,26 @@ def _validate_combiner(combiner, methods):
             raise ValueError("unknown variant")
         if not isinstance(combiner.get("options", {}), dict):
             raise ValueError("variant options must be an object")
+    elif kind == 'evidence':
+        allowed |= {'baseline', 'lexicon'}
+        baseline, lexicon = combiner.get('baseline'), combiner.get('lexicon')
+        if (not isinstance(baseline, str) or not isinstance(lexicon, str)
+                or baseline not in methods or lexicon not in {'wordnet', 'odenet'}
+                or lexicon not in methods or baseline == lexicon):
+            raise ValueError('evidence combiner requires distinct baseline and WordNet/OdeNet methods')
     elif kind not in {"mean", "max"}:
         raise ValueError(f"unknown combiner: {kind}")
     if set(combiner) - allowed:
         raise ValueError("unknown combiner options")
-    selected = combiner.setdefault("methods", methods.copy())
+    default_methods = [combiner['baseline'], combiner['lexicon']] if kind == 'evidence' else methods.copy()
+    selected = combiner.setdefault("methods", default_methods)
     if (not isinstance(selected, list) or not selected
             or any(not isinstance(name, str) for name in selected)):
         raise ValueError("combiner methods must be a nonempty list")
     if len(set(selected)) != len(selected) or set(selected) - set(methods):
         raise ValueError("combiner methods must be a unique subset of methods")
+    if kind == 'evidence' and set(selected) != set(default_methods):
+        raise ValueError('evidence combiner methods must contain exactly baseline and lexicon')
     if kind == "variant":
         from .combinations import REQUIRES
         if set(REQUIRES[combiner["name"]]) - set(selected):

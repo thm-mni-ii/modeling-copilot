@@ -36,9 +36,10 @@ def load_config(path=DEFAULT_CONFIG):
             raise ValueError(f'{name}: unknown preprocessing_steps')
         relations = config['methods'][name].get('relation_features')
         if relations is not None:
-            if (name not in {'wordnet', 'odenet'} or not isinstance(relations, list)
+            if (name not in {'wordnet', 'odenet', 'openthesaurus', 'wn_translation'} or not isinstance(relations, list)
                     or any(not isinstance(r, str) or r not in RELATION_FEATURES for r in relations)
-                    or len(relations) != len(set(relations))):
+                    or len(relations) != len(set(relations))
+                    or (name in {'openthesaurus', 'wn_translation'} and relations)):
                 raise ValueError(f'{name}: invalid relation_features')
         if 'relation_depth' in config['methods'][name]:
             raise ValueError(f'{name}: relation_depth removed; wn.closure follows all hypernyms')

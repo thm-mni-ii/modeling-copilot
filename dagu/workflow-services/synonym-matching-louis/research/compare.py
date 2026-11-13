@@ -153,8 +153,10 @@ def make_engine(name, method, steps, translator, models):
         files = {lang: str(ROOT / path) for lang, path in method['files'].items()}
         return WordMatching({**method, 'files': files, 'preprocessing': steps},
                             translator, name=name, models=models)
-    return MatchingEngine({'methods': [name], 'preprocessing': steps,
-                           'embedding_preprocessing': steps}, translator)
+    config = {'methods': [name], 'preprocessing': steps, 'embedding_preprocessing': steps}
+    if 'relation_features' in method:
+        config['semantic_features'] = {name: method['relation_features']}
+    return MatchingEngine(config, translator)
 
 
 def calculate_features(cases, definitions, methods):
@@ -194,9 +196,10 @@ def calculate_features(cases, definitions, methods):
                     result = engine.compute_scores(case['reference'], case['student'])
                     elapsed = time.perf_counter() - started
                     load = LOAD_SECONDS[0] - load_before
+                    relation_seconds = result.get('semantic_seconds', {}).get(method, 0)
                     features[key, case['id']] = {
                         'status': 'ok', 'scores': result['scores'][method].tolist(),
-                        'shape': result['shape'], 'seconds': elapsed - load,
+                        'shape': result['shape'], 'seconds': elapsed - load - relation_seconds,
                         'load_seconds': load,
                         'processedLabels': result['processedLabels'][method],
                         'eligible': (result['validPairs'] & result['usablePairs'][method]).tolist(),
@@ -213,16 +216,11 @@ def calculate_features(cases, definitions, methods):
                             for side, texts in result['processedLabels'][method].items()}
                         features[key, case['id']]['coverage_seconds'] = (
                             time.perf_counter() - diagnosis_started)
-                    requested = methods[method].get('relation_features', [])
-                    if requested:
-                        relation_started = time.perf_counter()
-                        texts = result['processedLabels'][method]
-                        relations = backend.relation_features(
-                            texts['reference'], texts['student'], requested)
+                    if method in result.get('semantic_features', {}):
+                        relations = result['semantic_features'][method]
                         features[key, case['id']]['relation_features'] = {
                             name: values.tolist() for name, values in relations.items()}
-                        features[key, case['id']]['relation_seconds'] = (
-                            time.perf_counter() - relation_started)
+                        features[key, case['id']]['relation_seconds'] = relation_seconds
                 except Exception as error:
                     reason = f'{type(error).__name__}: {error}'
                     features[key, case['id']] = {'status': 'error', 'reason': reason}

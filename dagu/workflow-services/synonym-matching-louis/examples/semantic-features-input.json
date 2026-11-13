@@ -1,0 +1,65 @@
+{
+  "step": "synonym_matching",
+  "input": {
+    "referenceModel": {
+      "elements": [
+        {
+          "id": "ref_1",
+          "label": "Nachname",
+          "language": "de"
+        }
+      ]
+    },
+    "studentModel": {
+      "elements": [
+        {
+          "id": "sub_1",
+          "label": "Familienname",
+          "language": "de"
+        },
+        {
+          "id": "sub_2",
+          "label": "Vorname",
+          "language": "de"
+        },
+        {
+          "id": "sub_3",
+          "label": "FachbegriffXYZ",
+          "language": "de"
+        }
+      ]
+    },
+    "threshold": null,
+    "config": {
+      "methods": [
+        "levenshtein",
+        "translated_embedding",
+        "wordnet"
+      ],
+      "preprocessing": [
+        "normalize"
+      ],
+      "embedding_preprocessing": [
+        "normalize"
+      ],
+      "semantic_features": {
+        "wordnet": [
+          "pair_known",
+          "reference_synset_count",
+          "student_synset_count",
+          "reference_hypernym",
+          "reference_hyponym",
+          "antonym",
+          "path_similarity",
+          "wup_similarity",
+          "taxonomy_available"
+        ]
+      },
+      "combiner": {
+        "kind": "evidence",
+        "baseline": "translated_embedding",
+        "lexicon": "wordnet"
+      }
+    }
+  }
+}

@@ -5,13 +5,14 @@ ungerundete Scores; erst die Ausgabeformatierung rundet sie für JSON.
 """
 
 import math
+import time
 
 import numpy as np
 
 from .cache import Cache
-from .combinations import combine
+from .combinations import combine, evidence_fusion
 from .config import validate_config
-from .lexicons import OdeNet, OpenThesaurus, WordNet
+from .lexicons import OdeNet, OpenThesaurus, WordNet, semantic_features
 from .methods import EMBEDDING_MODELS, METHODS, METHOD_TRAITS, EmbeddingMethod
 from .preprocessing import Preprocessor, normalize
 from .translation import Translator
@@ -213,6 +214,7 @@ class MatchingEngine:
         matrices = {}
         processed_labels = {}
         usable_pairs = {}
+        semantics, semantic_seconds = {}, {}
         for name, function in self.methods.items():
             texts = self._prepare_texts(
                 name, labels, string_texts, embedding_texts, string_languages,
@@ -237,6 +239,17 @@ class MatchingEngine:
             matrix[~valid] = 0
             matrices[name] = matrix
             processed_labels[name] = {'reference': left, 'student': right}
+            if name in self.config['semantic_features']:
+                started = time.perf_counter()
+                features = semantic_features(backend, left, right,
+                                             self.config['semantic_features'][name], matrix)
+                for feature, values in features.items():
+                    if values.shape != shape or not np.isfinite(values).all():
+                        raise ValueError(f'invalid semantic feature {name}_{feature}')
+                    values[~valid] = 0
+                    matrices[f'{name}_{feature}'] = values
+                semantics[name] = features
+                semantic_seconds[name] = time.perf_counter() - started
 
         return {
             'referenceElements': reference,
@@ -246,6 +259,8 @@ class MatchingEngine:
             'processedLabels': processed_labels,
             'validPairs': valid,
             'usablePairs': usable_pairs,
+            'semantic_features': semantics,
+            'semantic_seconds': semantic_seconds,
         }
 
     def match(self, reference, student, *, threshold=None):
@@ -279,7 +294,12 @@ class MatchingEngine:
             usable_combined |= usable_pairs[name]
         valid &= usable_combined
 
-        combined = combine(matrices, self.config['combiner'])
+        combiner = self.config['combiner']
+        if combiner['kind'] == 'evidence':
+            combined = evidence_fusion(matrices[combiner['baseline']], matrices[combiner['lexicon']],
+                                       result['semantic_features'][combiner['lexicon']])
+        else:
+            combined = combine(matrices, combiner)
         if combined.shape != shape or not np.isfinite(combined).all():
             raise ValueError('combiner returned an invalid score matrix')
         combined = np.clip(combined, 0, 1)
