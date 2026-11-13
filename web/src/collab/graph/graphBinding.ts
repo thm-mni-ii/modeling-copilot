@@ -2,6 +2,7 @@ import { InternalEvent, type Cell, type Graph } from '@maxgraph/core'
 import { notifyWarning } from '@/composables/useNotifications'
 import { exportModelAsXml, importModelFromXml } from '@/utils/modelPersistence'
 import type { Session } from '@/collab/kit/collabKitV1'
+import type { Log } from '@/collab/connection/useCollabConnection'
 import { applyCells, cellsOfUndoneEdit, type HeldText } from './applyCells'
 import { watchGraphChanges } from './graphChanges'
 import { joinModel, splitModel } from '@/collab/converters/model/modelCells'
@@ -9,8 +10,18 @@ import { cellsOf, isCellKey, type ModelUnit } from '@/collab/converters/model/mo
 import { lockGraph } from './readOnly'
 import { sharedHistory } from './sharedHistory'
 
-/** Keeps the model in the units of the session one cell per key, so edits on different cells merge. */
-export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: (text: string) => void) => {
+/** Was eine Änderung eines anderen mit einem Element gemacht hat; name ist die Beschriftung, leer ohne eine. */
+export interface RemoteEdit {
+  kind: 'added' | 'deleted' | 'renamed' | 'moved' | 'changed'
+  id: string
+  name: string
+  edge: boolean
+  /** Bei renamed der Name davor. */
+  from?: string
+}
+
+/** Keeps the model in the units of the session one cell per key, so edits on different cells merge. `onRemote` hears of every change of another, with its cells and what it did to them. */
+export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: Log, onRemote: (keys: string[], edits: RemoteEdit[]) => void) => {
   const model = graph.getDataModel()
   let stopRemote: (() => void) | null = null
   let ready = false
@@ -18,6 +29,8 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: (text:
   let stopped = false
   let unlock: (() => void) | null = null
   let warned = false
+  // Das eigene Undo und Redo kommt wie eine Änderung von außen; es ist aber keine eines anderen.
+  let stepping = false
   // Text another changed while it is edited here, with the text before; the own text wins.
   const heldBack = new Map<Cell, unknown>()
 
@@ -31,7 +44,8 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: (text:
   }
   takePrefix()
 
-  const applyRemote = (what: string) => {
+  // Ohne what geht es nicht ins Log.
+  const applyRemote = (what?: string) => {
     const xml = joinModel(known())
     if (!xml) return
     // Loading replaces every cell, so the selection is taken over by ID to what still exists.
@@ -43,11 +57,12 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: (text:
     } finally {
       applyingRemote = false
     }
-    log(what)
+    if (what) log(what)
   }
 
   // Only the cells a change touched, so the selection and an edit in progress stay; what it cannot read loads the whole model.
-  const applyChanged = (keys: string[], what: string) => {
+  // Ein Neuladen geht immer ins Log, sonst nur mit logged.
+  const applyChanged = (keys: string[], what: string, logged = true) => {
     applyingRemote = true
     let held: HeldText | null
     try {
@@ -62,7 +77,7 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: (text:
       heldBack.set(held.cell, held.before)
       notifyWarning('Someone else changed this text while you edit it. Yours replaces it when you finish; Esc keeps theirs.')
     }
-    log(what)
+    if (logged) log(what)
   }
 
   // Held-back text whose edit has ended: left as it was, theirs comes in; changed, it went out as own text.
@@ -81,11 +96,50 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: (text:
   const onEditingStopped = () => setTimeout(takeOverHeld)
   graph.addListener(InternalEvent.EDITING_STOPPED, onEditingStopped)
 
+  // Was an einer Zelle zum Einordnen einer Änderung zählt, als Text, damit es das Übernehmen übersteht.
+  const shapeOf = (cell: Cell | null | undefined) => {
+    if (!cell) return null
+    const geometry = cell.getGeometry()
+    return {
+      edge: cell.isEdge(),
+      parent: cell.getParent()?.getId() ?? '',
+      label: graph.convertValueToString(cell).trim(),
+      geometry: JSON.stringify(geometry ? [geometry.x, geometry.y, geometry.width, geometry.height, geometry.points] : null),
+      rest: JSON.stringify([cell.style, cell.getTerminal(true)?.getId(), cell.getTerminal(false)?.getId()])
+    }
+  }
+  type Shape = ReturnType<typeof shapeOf>
+
+  /**
+   * Was die Änderung mit den Zellen gemacht hat, verglichen mit dem Stand davor. Ohne das, was nur mitging:
+   * die Kinder eines Elements, das ebenso hinzukam oder ging, die Kanten neben hinzugefügten oder gelöschten
+   * Elementen und Kanten, die beim Bewegen nur mitgezogen wurden.
+   */
+  const describe = (before: Map<string, Shape>) => {
+    const all = Array.from(before).flatMap(([id, was]) => {
+      const now = shapeOf(model.getCell(id))
+      const shape = now ?? was
+      if (!shape) return []
+      const kind = !was ? 'added' : !now ? 'deleted' : was.label !== now.label ? 'renamed' : was.rest !== now.rest ? 'changed' : was.geometry !== now.geometry ? 'moved' : null
+      if (!kind) return []
+      return [{ kind, id, name: shape.label, from: was && kind === 'renamed' ? was.label : undefined, edge: shape.edge, parent: shape.parent }] as const
+    })
+    const kinds = new Map(all.map(({ id, kind }) => [id, kind]))
+    const isSide = (kind: RemoteEdit['kind']) => kind === 'added' || kind === 'deleted'
+    const taggedAlong = ({ kind, edge, parent }: (typeof all)[number]) => kinds.get(parent) === kind || (edge && (kind === 'moved' || (isSide(kind) && all.some((other) => !other.edge && other.kind === kind))))
+    return all.filter((edit) => !taggedAlong(edit)).map(({ kind, id, name, edge, from }): RemoteEdit => ({ kind, id, name, edge, from }))
+  }
+
   // Undo and redo take back only own steps; what comes back is taken in like a change from outside.
   const step = (back: boolean) => {
     if (stopped || !session.mayWrite) return
-    if (back) session.units.undo()
-    else session.units.redo()
+    stepping = true
+    try {
+      if (back) session.units.undo()
+      else session.units.redo()
+    } finally {
+      stepping = false
+    }
     showHistory()
   }
   // Read after update, undo and redo; within onChange the library still tells the state before.
@@ -110,7 +164,8 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: (text:
     })
     if (changed.length === 0 && removed.length === 0) return
     session.units.update({ set: Object.fromEntries(changed), delete: removed }, { undoable })
-    log(`${session.status === 'connected' ? 'sent' : 'kept for connect ·'} ${changed.length} of ${cells.size} cells · ${removed.length} removed`)
+    // Nur was auf die Verbindung wartet; das Senden selbst wäre bei jeder Änderung eine Zeile.
+    if (session.status !== 'connected') log(`kept for connect · ${changed.length} of ${cells.size} cells · ${removed.length} removed`)
     showHistory()
   }
 
@@ -149,19 +204,21 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: (text:
       notifyWarning('You may only view this model.')
     }
     setTimeout(() => {
-      if (!stopped) applyRemote(replaced ? 'model replaced locally · shared state restored' : 'read only · own change taken back')
+      if (stopped) return
+      applyRemote()
+      if (!replaced) log('Your change was taken back · you can only view', 'undo')
     })
   })
   // The library asks for the rights again on every reconnect and keeps mayWrite up to date.
   const stopRightsWatch = session.on('rightsChanged', (mayWrite) => {
-    log(`rights changed · ${mayWrite ? 'may edit' : 'read only'}`)
+    log(mayWrite ? 'You can edit now' : 'You can only view now', 'rights')
     if (stopped) return
     setReadOnly(!mayWrite)
     showHistory()
   })
   // Told once the library made the new client, so its ID is already the new one.
   const stopAnonymityWatch = session.on('anonymityChanged', (anonymous) => {
-    log(`anonymity changed · ${anonymous ? 'anonymous' : 'by name'} · new cells ${session.clientId}-…`)
+    log(anonymous ? 'Others now see you under a pseudonym' : 'Others now see your name', 'rights')
     if (!stopped) takePrefix()
   })
 
@@ -181,7 +238,9 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: (text:
       stopRemote = session.units.onChange((keys, remote) => {
         const cellKeys = keys.filter(isCellKey)
         if (!remote || cellKeys.length === 0) return
-        applyChanged(cellKeys, `received ${cellKeys.length} of ${known().size} cells`)
+        const before = new Map(cellKeys.map((id) => [id, shapeOf(model.getCell(id))]))
+        applyChanged(cellKeys, `received ${cellKeys.length} of ${known().size} cells`, false)
+        if (!stepping) onRemote(cellKeys, describe(before))
         if (heldBack.size > 0) takeOverHeld()
       })
       ready = true

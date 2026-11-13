@@ -316,9 +316,9 @@ const CHECKPOINT_FIELD = 'checkpoint'
  * Hört auf die Checkpoints, die andere in ihrer Presence melden, und nimmt den neuesten als Basis des offenen
  * Modells, wie es das Öffnen der Timeline tut; danach gilt nur noch als ungespeichert, was nach ihm kam.
  * Gemeldetes vor dem Verbinden zählt nicht, das hat das Laden schon. `paused` hält den Abgleich an. Ein Release
- * wird auch der Vergleichsstand für das nächste, und `onRelease` erfährt, wer es wie genannt hat.
+ * wird auch der Vergleichsstand für das nächste. `onCheckpoint` erfährt, wer gespeichert hat, bei einem Release mit dessen Namen.
  */
-export const watchCheckpoints = (session: Session, paused: () => boolean, onRelease: (by: string, label: string) => void) => {
+export const watchCheckpoints = (session: Session, paused: () => boolean, onCheckpoint: (by: string, label: string | null) => void) => {
   const announced = () =>
     session.presence.people().flatMap((person) =>
       person.self
@@ -333,7 +333,7 @@ export const watchCheckpoints = (session: Session, paused: () => boolean, onRele
     const fresh = announced().filter(({ id }) => !seen.has(id))
     if (fresh.length === 0 || paused()) return
     fresh.forEach(({ id }) => seen.add(id))
-    for (const { by, label } of fresh) if (label) onRelease(by, label)
+    for (const { by, label } of fresh) onCheckpoint(by, label)
     const workspace = useModelWorkspaceStore()
     const model = workspace.model
     if (!model || linkOf(model.preferences)?.workpieceId !== session.workpieceId) return
