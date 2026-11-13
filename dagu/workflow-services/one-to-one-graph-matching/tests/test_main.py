@@ -1,3 +1,4 @@
+import copy
 import io
 import importlib.util
 import os
@@ -153,6 +154,9 @@ class MainTests(unittest.TestCase):
         self.assertEqual(structure["completeness"], "complete")
         self.assertEqual(structure["byEndpoints"][0]["typeStatus"], "different")
         self.assertEqual(len(comparison["result"]["mapping"]["provisionalConnections"]), 1)
+        type_comparison = comparison["result"]["provisionalTypeComparison"]
+        self.assertEqual(type_comparison["connections"]["compatibleTypeDifferenceCount"], 1)
+        self.assertEqual(type_comparison["connections"]["pairs"][0]["status"], "compatible_type_difference")
         store.files["comparisons/ref.json"] = comparison
         feedback_path = Path(__file__).resolve().parents[2] / "feedback-generation" / "src" / "main.py"
         spec = importlib.util.spec_from_file_location("feedback_generation", feedback_path)
@@ -160,9 +164,33 @@ class MainTests(unittest.TestCase):
         spec.loader.exec_module(feedback)
         result = feedback.run(store, "ref")["result"]
         self.assertEqual(result["provisionalConnectionStructure"], structure)
+        self.assertEqual(result["provisionalTypeComparison"], type_comparison)
         self.assertEqual(result["feedbackHash"], feedback.content_hash({
             key: value for key, value in result.items() if key != "feedbackHash"
         }))
+        broken = copy.deepcopy(comparison)
+        broken["result"]["provisionalTypeComparison"]["connections"]["pairs"][0]["status"] = "same_type"
+        broken["result"]["comparisonHash"] = content_hash({
+            key: value for key, value in broken["result"].items() if key != "comparisonHash"
+        })
+        store.files["comparisons/ref.json"] = broken
+        with self.assertRaisesRegex(ValueError, "concrete type status"):
+            feedback.run(store, "ref")
+        broken = copy.deepcopy(comparison)
+        broken["result"]["provisionalTypeComparison"]["connections"]["compatibleTypeDifferenceCount"] = 0
+        broken["result"]["comparisonHash"] = content_hash({
+            key: value for key, value in broken["result"].items() if key != "comparisonHash"
+        })
+        store.files["comparisons/ref.json"] = broken
+        with self.assertRaisesRegex(ValueError, "type comparison counts"):
+            feedback.run(store, "ref")
+        legacy = copy.deepcopy(comparison)
+        del legacy["result"]["provisionalTypeComparison"]
+        legacy["result"]["comparisonHash"] = content_hash({
+            key: value for key, value in legacy["result"].items() if key != "comparisonHash"
+        })
+        store.files["comparisons/ref.json"] = legacy
+        self.assertNotIn("provisionalTypeComparison", feedback.run(store, "ref")["result"])
 
     def test_containment_relations_are_included_and_validated_in_feedback(self):
         store = store_with_containment()

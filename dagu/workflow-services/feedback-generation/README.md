@@ -26,6 +26,13 @@ Die dort dokumentierte `provisionalContainment`-Auswertung wird bei neuen
 Vergleichen mit Referenzzählern, Intervall und Einzelbeziehungen übernommen;
 ihre Zähler werden gegen die Einzelstatus validiert. Ältere Vergleiche ohne
 diese Erweiterung bleiben lesbar.
+Wenn vorhanden, übernimmt `provisionalTypeComparison` die vorläufige
+Typauswertung für Elemente und Verbindungen einschließlich Einzelpaaren,
+Abhängigkeiten, offenen Referenzen und Prozentnenner. Zähler und Paarstatus
+werden gegen die vorläufigen Zuordnungen validiert. Ein kompatibler konkreter
+Typunterschied ist keine automatische Fehlermeldung; die fachliche Zulässigkeit
+bestimmen die Sprachmetadaten. Ältere Vergleiche ohne diese Erweiterung bleiben
+lesbar.
 Die Quoten sind vorläufige Erkennungszahlen, keine bestätigte fachliche
 Übereinstimmung. Eine vollständige Strukturprüfung, Gesamtbewertung und Note
 stehen nicht zur Verfügung.

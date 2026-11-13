@@ -2,7 +2,7 @@ import copy
 import unittest
 
 from correspondence_state import build_provisional_state
-from initial_evaluation import evaluate_initial_coverage
+from initial_evaluation import evaluate_initial_coverage, evaluate_type_comparison
 from test_correspondence_state import fixture
 from test_matching import make_inputs
 
@@ -174,6 +174,51 @@ class InitialCoverageTests(unittest.TestCase):
         noncandidate["proposals"][0]["studentId"] = "unknown"
         with self.assertRaisesRegex(ValueError, "not a candidate"):
             evaluate_initial_coverage(indices, noncandidate)
+
+    def test_type_results_keep_unresolved_and_dependent_pairs_separate(self):
+        indices, _candidates = make_inputs(
+            {"r1": "A", "r2": "B", "r3": "C", "r4": "D"},
+            {"s1": "A", "s2": "B", "s4": "D"}, [],
+        )
+        for side, identity, node_type in (
+            ("reference", "r1", "first"), ("student", "s1", "first"),
+            ("reference", "r2", "first"), ("student", "s2", "second"),
+            ("reference", "r4", None), ("student", "s4", "second"),
+        ):
+            indices[side].nodes[identity].update({"type": node_type, "comparisonGroup": "group"})
+        mapping = [
+            {"referenceId": "r1", "studentId": "s1", "reason": "unique_exact_label",
+             "status": "provisional", "dependsOn": []},
+            {"referenceId": "r2", "studentId": "s2", "reason": "consistent_owner_anchor",
+             "status": "provisional", "dependsOn": [{"referenceId": "r1", "studentId": "s1"}]},
+            {"referenceId": "r4", "studentId": "s4", "reason": "unique_exact_label",
+             "status": "provisional", "dependsOn": []},
+        ]
+        result = evaluate_type_comparison(indices, mapping, [])
+        data = result["elements"]
+        self.assertEqual(result["evaluationStatus"], "provisional")
+        self.assertEqual((data["referenceCount"], data["mappedCount"], data["evaluatedCount"]), (4, 3, 2))
+        self.assertEqual((data["sameTypeCount"], data["compatibleTypeDifferenceCount"], data["unresolvedCount"]),
+                         (1, 1, 2))
+        self.assertEqual((data["sameTypePercentage"], data["compatibleTypeDifferencePercentage"]), (50, 50))
+        self.assertEqual(data["unresolvedReferenceIds"], ["r3", "r4"])
+        rows = {item["referenceId"]: item for item in data["pairs"]}
+        self.assertEqual(rows["r2"]["status"], "compatible_type_difference")
+        self.assertEqual(rows["r2"]["dependsOn"], mapping[1]["dependsOn"])
+        self.assertEqual(rows["r3"]["mappingStatus"], "unresolved")
+        self.assertEqual(rows["r4"]["mappingStatus"], "provisional")
+        self.assertIsNone(result["connections"]["sameTypePercentage"])
+
+    def test_type_results_reject_incompatible_provisional_pairs(self):
+        for ref_group, sub_group in ((None, None), ("first-group", "second-group")):
+            with self.subTest(referenceGroup=ref_group, studentGroup=sub_group):
+                indices, _candidates = make_inputs({"r": "A"}, {"s": "A"}, [])
+                indices["reference"].nodes["r"].update({"type": "first", "comparisonGroup": ref_group})
+                indices["student"].nodes["s"].update({"type": "second", "comparisonGroup": sub_group})
+                mapping = [{"referenceId": "r", "studentId": "s", "reason": "unique_exact_label",
+                            "status": "provisional", "dependsOn": []}]
+                with self.assertRaisesRegex(ValueError, "incompatible provisional type mapping"):
+                    evaluate_type_comparison(indices, mapping, [])
 
 
 if __name__ == "__main__":

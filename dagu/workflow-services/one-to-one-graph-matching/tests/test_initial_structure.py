@@ -5,7 +5,8 @@ import unittest
 from artifacts import _key
 from correspondence_state import build_provisional_state
 from graph_index import GraphIndex
-from initial_evaluation import evaluate_initial_coverage
+from initial_evaluation import evaluate_initial_coverage, evaluate_type_comparison
+from initial_recognition import propose_connections
 from initial_structure import evaluate_containment_relations, evaluate_provisional_owners
 from test_graph_index import graph, node
 from test_initial_connections import ROOT, parser
@@ -286,6 +287,8 @@ class LaboratoryContainmentRegressionTests(unittest.TestCase):
              "elementTypes": ["serm-entity", "serm-er", "serm-relationship"]},
             {"id": "serm-attribute", "name": "Attribute",
              "elementTypes": ["serm-attribute", "serm-key-attribute"]},
+            {"id": "serm-connection", "name": "Relationship",
+             "connectionTypes": ["serm-0-1", "serm-0-n", "serm-1-1", "serm-1-n"]},
         ]}
         language_ref = {"languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
                         "versionId": "4b748971-57b5-575f-a744-8617241d081f", "data": language}
@@ -304,7 +307,7 @@ class LaboratoryContainmentRegressionTests(unittest.TestCase):
                 raise AssertionError(parsed["diagnostics"])
             cls.graphs[name] = GraphIndex(parsed["graph"])
 
-    def evaluate_model(self, name):
+    def evaluate_model(self, name, include_type_comparison=False):
         indices = {"reference": self.graphs["reference"], "student": self.graphs[name]}
         elements = {
             side: {identity: item for identity, item in index.nodes.items()
@@ -325,6 +328,9 @@ class LaboratoryContainmentRegressionTests(unittest.TestCase):
         result = evaluate_containment_relations(indices, mapping)
         self.assertEqual(result["metrics"]["referenceRelationCount"], 48)
         self.assertEqual(sum(result["metrics"][status] for status in ("satisfied", "violated", "unresolved")), 48)
+        if include_type_comparison:
+            connections = propose_connections(indices, mapping)["proposals"]
+            return indices["reference"], old, result, evaluate_type_comparison(indices, mapping, connections)
         return indices["reference"], old, result
 
     def test_m03_moved_attribute_is_violated(self):
@@ -342,7 +348,7 @@ class LaboratoryContainmentRegressionTests(unittest.TestCase):
         self.assertEqual(result["metrics"]["agreement"]["upper"], 1.0)
 
     def test_m05_swapped_containers_do_not_confirm_dependent_matches(self):
-        reference, old, result = self.evaluate_model("m05")
+        reference, old, result, types = self.evaluate_model("m05", include_type_comparison=True)
         self.assertEqual((old["metrics"]["satisfied"], old["metrics"]["expected"]), (36, 36))
         self.assertLess(result["metrics"]["agreement"]["lower"], 1)
         moved = [row for row in result["relations"] if any(
@@ -360,6 +366,11 @@ class LaboratoryContainmentRegressionTests(unittest.TestCase):
         self.assertTrue(all(row["sourceMappingBasis"] == "consistent_owner_anchor"
                             and row["referenceSourceId"] != row["studentSourceId"] for row in names))
         self.assertTrue(all(row["status"] == "unresolved" for row in names))
+        changed = next(row for row in types["elements"]["pairs"] if row["referenceId"] == "17")
+        self.assertEqual((changed["referenceType"], changed["studentType"], changed["comparisonGroup"]),
+                         ("serm-relationship", "serm-er", "serm-entity"))
+        self.assertEqual(changed["status"], "compatible_type_difference")
+        self.assertEqual(changed["mappingStatus"], "provisional")
 
     def test_m08_unresolved_moved_attribute_is_in_denominator(self):
         reference, old, result = self.evaluate_model("m08")

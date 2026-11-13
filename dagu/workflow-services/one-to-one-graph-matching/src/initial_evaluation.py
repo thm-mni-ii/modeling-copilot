@@ -3,6 +3,7 @@
 from collections import defaultdict
 from copy import deepcopy
 
+from artifacts import _key
 from assignment_capacity import (
     analyze_assignment_capacity,
     analyze_proposal_feasibility,
@@ -125,3 +126,71 @@ def evaluate_initial_coverage(indices, state):
         "proposalFeasibility": feasibility,
         "metrics": metrics,
     }
+
+
+def evaluate_type_comparison(indices, elements, connections):
+    """Describe concrete types for existing provisional mappings only."""
+    element_mapping = {item["referenceId"]: item for item in elements}
+    result = {"evaluationStatus": "provisional"}
+    for kind, field, mapping in (
+        ("modelElement", "elements", elements), ("connection", "connections", connections),
+    ):
+        references = {identity: node for identity, node in indices["reference"].nodes.items()
+                      if node["kind"] == kind}
+        students = {identity: node for identity, node in indices["student"].nodes.items()
+                    if node["kind"] == kind}
+        pairs = [(item["referenceId"], item["studentId"]) for item in mapping]
+        if (len({ref for ref, _ in pairs}) != len(pairs)
+                or len({sub for _, sub in pairs}) != len(pairs)
+                or any(ref not in references or sub not in students for ref, sub in pairs)
+                or any(item["status"] != "provisional" for item in mapping)):
+            raise ValueError("type comparison requires provisional one-to-one mappings")
+        mapped = {item["referenceId"]: item for item in mapping}
+        rows = []
+        for ref, reference in sorted(references.items()):
+            item = mapped.get(ref)
+            student = students[item["studentId"]] if item else None
+            status = "unresolved"
+            group = reference["comparisonGroup"]
+            if student is not None:
+                ref_key, sub_key = _key(reference), _key(student)
+                metadata_known = all(node["comparisonRole"] == "semantic"
+                                     and node["languageResolution"] == "resolved"
+                                     and _key(node) is not None
+                                     for node in (reference, student))
+                if metadata_known and ref_key != sub_key:
+                    raise ValueError("incompatible provisional type mapping")
+                if metadata_known and reference["type"] and student["type"]:
+                    status = ("same_type" if reference["type"] == student["type"]
+                              else "compatible_type_difference")
+            dependencies = deepcopy(item.get("dependsOn", [])) if item else []
+            if item and kind == "connection":
+                endpoints = indices["reference"].endpoints.get(ref, {})
+                if (set(endpoints) != {"source", "target"}
+                        or any(identity not in element_mapping for identity in endpoints.values())):
+                    raise ValueError("connection type mapping requires mapped endpoints")
+                dependencies = [
+                    {"referenceId": identity, "studentId": element_mapping[identity]["studentId"]}
+                    for identity in sorted(set(endpoints.values()))
+                ]
+            rows.append({
+                "referenceId": ref, "studentId": item["studentId"] if item else None,
+                "referenceType": reference["type"], "studentType": student["type"] if student else None,
+                "comparisonGroup": group,
+                "studentComparisonGroup": student["comparisonGroup"] if student else None,
+                "status": status, "mappingStatus": "provisional" if item else "unresolved",
+                "mappingReason": item["reason"] if item else None, "dependsOn": dependencies,
+            })
+        same = sum(row["status"] == "same_type" for row in rows)
+        different = sum(row["status"] == "compatible_type_difference" for row in rows)
+        evaluated = same + different
+        unresolved = [row["referenceId"] for row in rows if row["status"] == "unresolved"]
+        result[field] = {
+            "referenceCount": len(rows), "mappedCount": len(mapping), "evaluatedCount": evaluated,
+            "sameTypeCount": same, "compatibleTypeDifferenceCount": different,
+            "unresolvedCount": len(unresolved), "percentageDenominator": evaluated,
+            "sameTypePercentage": 100 * same / evaluated if evaluated else None,
+            "compatibleTypeDifferencePercentage": 100 * different / evaluated if evaluated else None,
+            "unresolvedReferenceIds": unresolved, "pairs": rows,
+        }
+    return result

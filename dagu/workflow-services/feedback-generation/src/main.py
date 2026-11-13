@@ -119,6 +119,80 @@ def run(store: Workspace, reference_key: str) -> dict:
                 or containment_metrics.get("agreement") != expected_agreement):
             raise ValueError("provisional containment counts do not match relations")
 
+    type_comparison = comparison.get("provisionalTypeComparison")
+    if "provisionalTypeComparison" in comparison:
+        if not isinstance(type_comparison, dict) or type_comparison.get("evaluationStatus") != "provisional":
+            raise ValueError("invalid provisional type comparison")
+        element_pairs = {(item["referenceId"], item["studentId"]) for item in elements}
+        for field, mapping, reference_count, unmatched in (
+            ("elements", elements, recognition["overall"]["referenceCount"], comparison["unresolvedReferenceIds"]),
+            ("connections", connections, len(connections) + len(comparison["unresolvedReferenceConnectionIds"]),
+             comparison["unresolvedReferenceConnectionIds"]),
+        ):
+            data = type_comparison.get(field)
+            if not isinstance(data, dict) or not isinstance(data.get("pairs"), list):
+                raise ValueError("invalid provisional type comparison data")
+            type_rows = data["pairs"]
+            proposals = {item["referenceId"]: item for item in mapping}
+            seen_refs, unresolved = set(), []
+            counts = {"same_type": 0, "compatible_type_difference": 0, "unresolved": 0}
+            for row in type_rows:
+                if not isinstance(row, dict) or row.get("status") not in counts:
+                    raise ValueError("invalid provisional type comparison row")
+                ref, sub = row.get("referenceId"), row.get("studentId")
+                if not isinstance(ref, str) or not ref or ref in seen_refs:
+                    raise ValueError("invalid provisional type comparison reference")
+                seen_refs.add(ref)
+                proposal = proposals.get(ref)
+                dependencies = row.get("dependsOn")
+                if not isinstance(dependencies, list) or any(
+                    not isinstance(dep, dict) or set(dep) != {"referenceId", "studentId"}
+                    or not isinstance(dep["referenceId"], str) or not isinstance(dep["studentId"], str)
+                    or (dep["referenceId"], dep["studentId"]) not in element_pairs for dep in dependencies
+                ):
+                    raise ValueError("invalid provisional type comparison dependencies")
+                if proposal:
+                    if (sub != proposal["studentId"] or row.get("mappingStatus") != "provisional"
+                            or row.get("mappingReason") != proposal["reason"]
+                            or (field == "elements" and dependencies != proposal.get("dependsOn", []))):
+                        raise ValueError("provisional type comparison does not match mapping")
+                elif (sub is not None or row.get("mappingStatus") != "unresolved"
+                      or row.get("mappingReason") is not None or dependencies
+                      or row.get("studentType") is not None or row.get("studentComparisonGroup") is not None):
+                    raise ValueError("provisional type comparison invents a mapping")
+                status = row["status"]
+                if status != "unresolved":
+                    ref_type, sub_type = row.get("referenceType"), row.get("studentType")
+                    group, sub_group = row.get("comparisonGroup"), row.get("studentComparisonGroup")
+                    if (not proposal or not isinstance(ref_type, str) or not ref_type
+                            or not isinstance(sub_type, str) or not sub_type or group != sub_group
+                            or (group is not None and (not isinstance(group, str) or not group))
+                            or (status == "same_type" and ref_type != sub_type)
+                            or (status == "compatible_type_difference"
+                                and (ref_type == sub_type or not isinstance(group, str) or not group))):
+                        raise ValueError("invalid provisional concrete type status")
+                else:
+                    unresolved.append(ref)
+                counts[status] += 1
+            evaluated = counts["same_type"] + counts["compatible_type_difference"]
+            expected = {
+                "referenceCount": reference_count, "mappedCount": len(mapping), "evaluatedCount": evaluated,
+                "sameTypeCount": counts["same_type"],
+                "compatibleTypeDifferenceCount": counts["compatible_type_difference"],
+                "unresolvedCount": counts["unresolved"], "percentageDenominator": evaluated,
+                "sameTypePercentage": 100 * counts["same_type"] / evaluated if evaluated else None,
+                "compatibleTypeDifferencePercentage":
+                    100 * counts["compatible_type_difference"] / evaluated if evaluated else None,
+                "unresolvedReferenceIds": sorted(unresolved),
+            }
+            if (len(type_rows) != reference_count or not set(proposals).issubset(seen_refs)
+                    or seen_refs - set(proposals) != set(unmatched)
+                    or any(type(data.get(key)) is not int for key in (
+                        "referenceCount", "mappedCount", "evaluatedCount", "sameTypeCount",
+                        "compatibleTypeDifferenceCount", "unresolvedCount", "percentageDenominator"))
+                    or any(data.get(key) != value for key, value in expected.items())):
+                raise ValueError("provisional type comparison counts do not match mapping")
+
     def evaluated(counts, category):
         denominator = counts["referenceCount"]
         evaluable = counts["evaluableReferenceCount"]
@@ -160,6 +234,8 @@ def run(store: Workspace, reference_key: str) -> dict:
         report["provisionalConnectionStructure"] = comparison["provisionalConnectionStructure"]
     if has_containment:
         report["provisionalContainment"] = {"metrics": containment_metrics, "relations": containment_relations}
+    if type_comparison is not None:
+        report["provisionalTypeComparison"] = type_comparison
     report["feedbackHash"] = content_hash(report)
     return {"schemaVersion": 1, "schema": "workflow-result/v1", "status": "ok", "mode": "aggregate",
             "capability": SERVICE, "summary": "Vorläufige Erkennungsquoten; keine Gesamtbewertung", "result": report}

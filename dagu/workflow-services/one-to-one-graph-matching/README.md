@@ -93,6 +93,52 @@ Sprachversion. Die Anzahl studentischer Elemente in der Typansicht bezieht sich
 auf denselben konkreten Typ; die Kapazität kann dennoch Kandidaten anderer Typen
 derselben Vergleichsgruppe nutzen.
 
+`provisionalTypeComparison` beschreibt vorhandene vorläufige Element- und
+Verbindungszuordnungen getrennt, ohne neue Zuordnungen zu erzeugen. Jede
+Referenzinstanz erscheint mit IDs, konkreten Typen, Vergleichsgruppen,
+Zuordnungsstatus, Zuordnungsgrund und Abhängigkeiten. Bei Verbindungen
+verweisen die Abhängigkeiten auf die verwendeten Endpunktzuordnungen.
+`same_type` bedeutet gleichen konkreten Typ;
+`compatible_type_difference` bedeutet unterschiedliche konkrete Typen bei
+gleicher expliziter Vergleichsgruppe. Unzugeordnete Instanzen und Paare mit
+unzureichenden Metadaten bleiben `unresolved`. Bekannte inkompatible
+Typzuordnungen werden zurückgewiesen. Ohne explizite Vergleichsgruppe sind
+nur gleiche konkrete Typen kompatibel; Sprach-ID und Version müssen ebenfalls
+übereinstimmen.
+
+Die Zähler enthalten `referenceCount`, `mappedCount`, `evaluatedCount` und
+`unresolvedCount`. Prozentwerte für gleiche und unterschiedliche Typen
+verwenden `percentageDenominator = evaluatedCount`, nicht alle Referenzen;
+bei leerem Nenner sind sie `null`. Die Auswertung ist `provisional`: Auch
+ein nachgewiesener Typunterschied ist keine automatische fachliche
+Fehlermeldung. Seine Zulässigkeit hängt von den Sprachmetadaten ab.
+
+Lokaler Parser-Prüfstand mit synthetischer vollständiger Elementkandidatenmatrix,
+den Vergleichsgruppen aus v13 und bestehenden Zuordnungen (kein vollständiger
+Pipeline-Lauf):
+
+| Modell | Kategorie | Gleicher Typ | Kompatibler Unterschied | Offen |
+| --- | --- | --- | --- | --- |
+| M05 | Elemente | 45 | 1 | 2 von 48 |
+| M05 | Verbindungen | 10 | 0 | 0 von 10 |
+| M06b | Elemente | 48 | 0 | 0 von 48 |
+| M06b | Verbindungen | 7 | 1 | 2 von 10 |
+
+M05 enthält einen kompatiblen Elementtypwechsel. In M06b sind die geänderten
+Verbindungstypen unter diesen Metadaten durch `serm-connection` kompatibel;
+die Zuordnung weist ihren konkreten Typunterschied aus. Ohne gemeinsame
+Vergleichsgruppe bleibt die Verbindung ungeklärt; der bestehende
+`provisionalConnectionStructure`-Vergleich kann den Typunterschied der
+Endpunktgruppe weiterhin als `different` ausweisen, ohne eine Identität zu
+erfinden. Welche Gruppen ein tatsächlicher Lauf verwendet, hängt von seinen
+eingefrorenen Sprachmetadaten ab.
+
+Prüfung dieser Erweiterung: 123 Matcher-Tests (17 Subtests), 8 Parser- und
+8 Extraktor-Tests bestanden. API- und Synonymtests konnten wegen fehlender
+lokaler Abhängigkeiten (`cryptography`, `jsonschema`, `rapidfuzz`) nicht
+gesammelt werden. Ein vollständiger Pipeline-Test mit den ursprünglichen
+semantischen Kandidaten bleibt offen.
+
 `metrics.provisionalOwnerConsistency` bewertet ausschließlich vorläufig
 zugeordnete Elementpaare anhand unabhängiger exakter Besitzeranker. Die
 zugehörigen Eltern, Besitzer und vollständigen Containment-Pfade stehen unter

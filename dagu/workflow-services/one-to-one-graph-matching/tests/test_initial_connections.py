@@ -6,8 +6,8 @@ import unittest
 from artifacts import _key
 from correspondence_state import build_provisional_state
 from graph_index import GraphIndex
-from initial_evaluation import evaluate_initial_coverage
-from initial_recognition import evaluate_connections
+from initial_evaluation import evaluate_initial_coverage, evaluate_type_comparison
+from initial_recognition import evaluate_connections, propose_connections
 from test_graph_index import graph, node
 
 
@@ -42,6 +42,44 @@ def indices_with_connections(reference, student):
 
 
 class ConnectionStructureTests(unittest.TestCase):
+    def test_type_comparison_uses_only_compatible_connection_proposals(self):
+        indices, _mapping = indices_with_connections(
+            [("r1", "a", "b", {"connection_type": "first"}),
+             ("r2", "a", "c", {"connection_type": "first"})],
+            [("s1", "a", "b", {"connection_type": "second"}),
+             ("s2", "a", "c", {"connection_type": "second"})],
+        )
+        indices["reference"].nodes["r1"]["comparisonGroup"] = "links"
+        indices["student"].nodes["s1"]["comparisonGroup"] = "links"
+        elements = [{"referenceId": name, "studentId": name, "reason": "unique_exact_label",
+                     "dependsOn": [], "status": "provisional"} for name in ("a", "b", "c")]
+        connections = propose_connections(indices, elements)
+        data = evaluate_type_comparison(indices, elements, connections["proposals"])["connections"]
+        self.assertEqual((data["referenceCount"], data["mappedCount"], data["evaluatedCount"]), (2, 1, 1))
+        self.assertEqual((data["sameTypeCount"], data["compatibleTypeDifferenceCount"], data["unresolvedCount"]),
+                         (0, 1, 1))
+        self.assertEqual(data["compatibleTypeDifferencePercentage"], 100)
+        self.assertEqual(data["unresolvedReferenceIds"], ["r2"])
+        first, second = data["pairs"]
+        self.assertEqual((first["referenceType"], first["studentType"], first["comparisonGroup"]),
+                         ("first", "second", "links"))
+        self.assertEqual(first["dependsOn"], [{"referenceId": "a", "studentId": "a"},
+                                              {"referenceId": "b", "studentId": "b"}])
+        self.assertEqual(second["status"], "unresolved")
+
+    def test_ambiguous_parallel_connections_have_no_invented_type_differences(self):
+        indices, _mapping = indices_with_connections(
+            [("r1", "a", "b", {}), ("r2", "a", "b", {})],
+            [("s1", "a", "b", {}), ("s2", "a", "b", {})],
+        )
+        elements = [{"referenceId": name, "studentId": name, "reason": "unique_exact_label",
+                     "dependsOn": [], "status": "provisional"} for name in ("a", "b", "c")]
+        connections = propose_connections(indices, elements)
+        data = evaluate_type_comparison(indices, elements, connections["proposals"])["connections"]
+        self.assertEqual((data["mappedCount"], data["unresolvedCount"]), (0, 2))
+        self.assertEqual(data["compatibleTypeDifferenceCount"], 0)
+        self.assertIsNone(data["compatibleTypeDifferencePercentage"])
+
     def test_parallel_edges_are_counted_without_forcing_identity(self):
         indices, mapping = indices_with_connections(
             [("r1", "a", "b", {}), ("r2", "a", "b", {})],
@@ -125,6 +163,14 @@ class LaboratoryConnectionRegressionTests(unittest.TestCase):
     def setUpClass(cls):
         versions = ROOT / "api" / "src" / "modeling_api" / "db" / "migrations" / "versions"
         language_data = json.loads((versions / "v00_initial_data" / "serm.json").read_text(encoding="utf-8"))
+        language_data["evaluation"] = {"comparisonGroups": [
+            {"id": "serm-entity", "name": "Entity",
+             "elementTypes": ["serm-entity", "serm-er", "serm-relationship"]},
+            {"id": "serm-attribute", "name": "Attribute",
+             "elementTypes": ["serm-attribute", "serm-key-attribute"]},
+            {"id": "serm-connection", "name": "Relationship",
+             "connectionTypes": ["serm-0-1", "serm-0-n", "serm-1-1", "serm-1-n"]},
+        ]}
         language_id = "a09ff8fb-5a26-4621-91e7-003cee10c555"
         version_id = "4b748971-57b5-575f-a744-8617241d081f"
         cls.graphs = {}
@@ -143,7 +189,7 @@ class LaboratoryConnectionRegressionTests(unittest.TestCase):
                 raise AssertionError(parsed["diagnostics"])
             cls.graphs[name] = GraphIndex(parsed["graph"])
 
-    def evaluate_model(self, name):
+    def evaluate_model(self, name, include_type_comparison=False):
         reference, student = self.graphs["reference"], self.graphs[name]
         reference_elements = {key: value for key, value in reference.nodes.items() if value["kind"] == "modelElement"}
         student_elements = {key: value for key, value in student.nodes.items() if value["kind"] == "modelElement"}
@@ -164,10 +210,15 @@ class LaboratoryConnectionRegressionTests(unittest.TestCase):
         self.assertEqual(evaluation["unresolvedStudentIds"], [])
         result = evaluate_connections(indices, evaluation["mapping"]["provisionalElements"])
         self.assertEqual(result["completeness"], "complete")
-        return {
+        rows = {
             tuple(sorted(reference.nodes[identity]["label"] for identity in row["referenceEndpointIds"])): row
             for row in result["byEndpoints"]
         }
+        if include_type_comparison:
+            elements = evaluation["mapping"]["provisionalElements"]
+            proposals = propose_connections(indices, elements)["proposals"]
+            return rows, evaluate_type_comparison(indices, elements, proposals)
+        return rows
 
     def test_m06a_removed_added_and_changed_endpoint(self):
         rows = self.evaluate_model("m06a")
@@ -177,11 +228,17 @@ class LaboratoryConnectionRegressionTests(unittest.TestCase):
         self.assertEqual(rows["Etage", "Forschungs\nprojekt"]["studentOnlyCount"], 1)
 
     def test_m06b_endpoint_reversal_and_concrete_type(self):
-        rows = self.evaluate_model("m06b")
+        rows, types = self.evaluate_model("m06b", include_type_comparison=True)
         self.assertEqual(rows["Arbeitseinsatz", "Laborraum"]["referenceOnlyCount"], 1)
         self.assertEqual(rows["Laborraum", "Projekt\nbeteiligung"]["studentOnlyCount"], 1)
         self.assertEqual(rows["Arbeitseinsatz", "Versuch"]["directionStatus"], "different")
         self.assertEqual(rows["Etage", "Gebäude"]["typeStatus"], "different")
+        changed_id = rows["Etage", "Gebäude"]["referenceConnections"][0]["id"]
+        changed = next(item for item in types["connections"]["pairs"] if item["referenceId"] == changed_id)
+        self.assertEqual((changed["referenceType"], changed["studentType"], changed["comparisonGroup"]),
+                         ("serm-1-n", "serm-0-1", "serm-connection"))
+        self.assertEqual(changed["status"], "compatible_type_difference")
+        self.assertEqual(changed["mappingStatus"], "provisional")
 
     def test_reference_has_no_connection_differences(self):
         rows = self.evaluate_model("reference")

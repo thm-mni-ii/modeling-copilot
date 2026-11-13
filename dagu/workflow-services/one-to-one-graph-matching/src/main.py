@@ -7,7 +7,7 @@ import sys
 from artifacts import content_hash, read_artifacts
 from assignment_capacity import analyze_proposal_feasibility
 from correspondence_state import build_provisional_state
-from initial_evaluation import evaluate_initial_coverage
+from initial_evaluation import evaluate_initial_coverage, evaluate_type_comparison
 from initial_recognition import evaluate_connections, propose_connections, recognition_metrics
 from initial_structure import evaluate_containment_relations, evaluate_provisional_owners
 from semantic_refinement import refine_semantic_proposals
@@ -54,6 +54,9 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     evaluation["mapping"]["provisionalConnections"] = connections["proposals"]
     evaluation["unresolvedReferenceConnectionIds"] = connections["unresolvedReferenceIds"]
     evaluation["unresolvedStudentConnectionIds"] = connections["unresolvedStudentIds"]
+    evaluation["provisionalTypeComparison"] = evaluate_type_comparison(
+        indices, evaluation["mapping"]["provisionalElements"], connections["proposals"],
+    )
     evaluation["metrics"]["provisionalRecognition"] = recognition_metrics(
         indices, evaluation["mapping"]["provisionalElements"], connections,
         graph_matching.get("elementCategories", []),
