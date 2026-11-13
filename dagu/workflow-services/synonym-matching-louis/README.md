@@ -163,6 +163,24 @@ Unbekannt ergibt 0, auch bei identischen unbekannten Labels. Nicht transitive Su
 Wortmehrdeutigkeit bleibt ohne Kontext ungelöst. Eigene Lexikonpfade sind über
 `config.lexicons` möglich. Lokale Daten liegen unter `.cache/lexicons/`.
 
+Englisches WordNet und deutsches OdeNet werden beide über `wn` gelesen.
+Englisch verwendet fest `omw-en:1.4` (Princeton WordNet 3.0), Deutsch `odenet:1.4`.
+Deutsche Labels werden für das englische WordNet weiterhin zuerst übersetzt;
+englische Labels und deutsche OdeNet-Eingaben benötigen keine Übersetzung.
+Morphy berücksichtigt englische Wortformen; Adjektive einschließlich ihrer
+satellites bleiben bei der Suche erhalten. Die Normalisierung für OdeNet nutzt
+den wn-Standard; englische Wortformen werden ohne zusätzliche Akzentangleichung
+gesucht. Synset-IDs stammen jetzt aus wn statt aus NLTK.
+
+Nach der Umstellung einmal `python scripts/download_lexicons.py --wordnet`
+ausführen. Die Daten liegen gemeinsam in `.cache/lexicons/wn`; Matching lädt
+keine Ressourcen nach. Ein eigener Pfad unter `config.lexicons.wordnet` verweist
+jetzt auf ein wn-Datenverzeichnis mit `wn.db`, nicht auf `nltk_data`.
+Vorhandene NLTK-Korpusdateien werden nicht mehr benutzt und nicht automatisch
+gelöscht. NLTK bleibt als Bibliothek für Snowball-Stemming erhalten.
+Der Docker-Build lädt über das bestehende Vorbereitungsskript ebenfalls die
+englischen wn-Daten; ein vorhandenes Image muss dafür neu gebaut werden.
+
 Lemmatisierung braucht spaCy-Modelle, Stemming keinen Korpusdownload.
 Kompositazerlegung ist eine einfache DE-Heuristik mit OpenThesaurus-Wortliste.
 Stopword Removal kann Negation entfernen. Beide sind bewusst Ablationen.
@@ -240,10 +258,11 @@ Die Diagnose verändert weder Scores noch Auswahlmasken; `coverage_seconds`
 speichert ihre zusätzliche Laufzeit außerhalb der bisherigen Score-Rechenzeiten.
 Gemessen wird der aktuelle Zugriff des jeweiligen Backends. Ein unbekannter
 Suchtext beweist deshalb nicht, dass der Eintrag im Datenbestand fehlt.
-Die erste Prüfung zeigte einen OdeNet-Zugriffsfehler: Der eigene Normalizer
-passt bei Umlauten nicht zur Suchnormalisierung von wn. Beispielsweise findet
-der Standardzugriff Einträge für Gebäude, Größe und Fläche, unser bisheriger
-Zugriff nicht. Diese Korrektur und eine Neubewertung der OdeNet-Scores stehen aus.
+Die erste Prüfung zeigte einen OdeNet-Zugriffsfehler: Unser eigener Normalizer
+passte bei Umlauten nicht zum Suchindex von wn. OdeNet verwendet deshalb jetzt
+die Standardnormalisierung von wn. Gebäude, Größe, Fläche und Gerät werden wieder
+gefunden. Frühere OdeNet-Ergebnisse vor dieser Korrektur sind nur eingeschränkt
+aussagekräftig; fehlende Einträge und tatsächliche Datenlücken sind zu unterscheiden.
 
 Für die fünf vorhandenen Laborverwaltungsmodelle gibt es einen getrennten Datensatz:
 
@@ -417,7 +436,7 @@ muss vom aufrufenden Dienst angepasst werden.
   (`cache.py`) liegt nur im Prozessspeicher und ist unabhängig von den Gewichten.
 - `fasttext` und `gensim` stehen in `requirements-research.txt` und nicht im Image.
 
-Lexikonquellen: [WordNet/NLTK](https://www.nltk.org/howto/wordnet.html),
+Lexikonquellen: [WordNet über wn](https://github.com/goodmami/wn),
 [WordNet-Lizenz](https://wordnet.princeton.edu/license-and-commercial-use),
 [OpenThesaurus](https://www.openthesaurus.de/about/download/api).
 OpenThesaurus bietet CC BY-SA 4.0 oder LGPL; Lizenzhinweise werden mit heruntergeladen.

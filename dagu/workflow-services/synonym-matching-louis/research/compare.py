@@ -101,7 +101,7 @@ def provenance(engines, translator=None):
         models['translation'] = translator.revision
     from synonym_matching.methods import EMBEDDING_MODELS
     resources = {}
-    for name in ('openthesaurus.txt', 'nltk_data/corpora/wordnet.zip', 'wn/wn.db'):
+    for name in ('openthesaurus.txt', 'wn/wn.db'):
         path = DATA_DIR / name
         if path.exists():
             resources[name] = sha256(path)
@@ -109,6 +109,7 @@ def provenance(engines, translator=None):
             'packages': packages, 'models': models, 'model_names': EMBEDDING_MODELS,
             'translation_model': 'Helsinki-NLP/opus-mt-de-en',
             'odenet_version': OdeNet.version,
+            'wordnet_version': WordNet.version,
             'resources': resources,
             'source_hashes': {
                 str(p.relative_to(ROOT)): sha256(p)

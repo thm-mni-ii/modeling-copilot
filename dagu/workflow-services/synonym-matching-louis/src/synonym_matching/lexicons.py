@@ -22,92 +22,75 @@ def key(text):
 
 
 class WordNet:
-    """Suche englische Synsets und speichere Ergebnisse pro eindeutigem Label."""
+    """Lokaler wn-Zugriff auf englisches WordNet 3.0 mit Wortformensuche.
 
-    def __init__(self, path=None):
-        """Merke das Datenverzeichnis; geladen wird erst bei der ersten Suche."""
-        self.path = Path(path) if path else DATA_DIR / 'nltk_data'
-        self.reader = None
-        self.cache = {}
-
-    def _load(self):
-        """Öffne den lokal installierten WordNet-Korpus, auch als ZIP-Datei."""
-        import nltk
-        from nltk.corpus.reader import WordNetCorpusReader
-
-        root = None
-        locations = ['corpora/wordnet', 'corpora/wordnet.zip/wordnet/']
-        for location in locations:
-            try:
-                root = nltk.data.find(location, paths=[str(self.path)])
-                break
-            except LookupError:
-                continue
-        if root is None:
-            raise FileNotFoundError(
-                'WordNet missing: run python scripts/download_lexicons.py'
-            )
-
-        # NLTK sucht index.sense zusätzlich über seinen globalen Suchpfad.
-        directory = str(self.path.resolve())
-        if directory not in nltk.data.path:
-            nltk.data.path.insert(0, directory)
-        self.reader = WordNetCorpusReader(root, None)
-
-    def lookup(self, text):
-        """Liefere Synset-Namen; ein unbekanntes Label ergibt eine leere Menge."""
-        text = key(text).replace(' ', '_')
-        if not text:
-            return frozenset()
-        if text not in self.cache:
-            if self.reader is None:
-                self._load()
-            self.cache[text] = frozenset(
-                synset.name() for synset in self.reader.synsets(text)
-            )
-        return self.cache[text]
-
-    def matrix(self, left, right):
-        """Vergleiche jedes linke Label mit jedem rechten Label."""
-        return synonym_matrix(left, right, self.lookup)
-
-
-class OdeNet:
-    """Suche gemeinsame deutsche Synsets in der lokalen OdeNet-Version 1.4.
-
-    Ein Treffer bedeutet nur, dass eine gemeinsame Lesart existiert. Die passende
-    Bedeutung im Modell wird damit nicht bestimmt. Keine Downloads beim Matching.
+    Ein gemeinsamer Synset ist Evidenz für eine mögliche gemeinsame Lesart,
+    keine Bestimmung der fachlich passenden Bedeutung im Modell.
     """
 
-    version = 'odenet:1.4'
+    version = 'omw-en:1.4'
+    language = 'en'
 
     def __init__(self, path=None):
+        """Merke den gemeinsamen wn-Datenpfad; lade erst bei der ersten Suche."""
         self.path = Path(path) if path else DATA_DIR / 'wn'
         self.reader = None
+        self.morphy = None
         self.cache = {}
 
     def _load(self):
+        """Öffne nur lokale Daten; Englisch bekommt zusätzlich Morphy."""
         import wn
 
+        command = '--wordnet' if self.language == 'en' else '--odenet'
+        message = (f'{type(self).__name__} missing ({self.version}): '
+                   f'run python scripts/download_lexicons.py {command}')
         if not (self.path / 'wn.db').is_file():
-            raise FileNotFoundError('OdeNet missing: run python scripts/download_lexicons.py --odenet')
+            raise FileNotFoundError(message)
         wn.config.data_directory = self.path.resolve()
-        self.reader = wn.Wordnet(self.version, normalizer=key)
+        if not wn.lexicons(lexicon=self.version):
+            raise FileNotFoundError(message)
+        if self.language == 'en':
+            from wn.morphy import Morphy
+
+            # Exakte englische Lemmasuche plus explizite Wortformen, wie bisher.
+            self.reader = wn.Wordnet(self.version, normalizer=None, search_all_forms=False)
+            self.morphy = Morphy(self.reader)
+        else:
+            # Für OdeNet muss die Normalisierung zum wn-Suchindex passen.
+            self.reader = wn.Wordnet(self.version)
 
     def lookup(self, text):
-        """Speichere alle Lesarten pro Label; unbekannte Wörter bleiben unbekannt."""
+        """Cache alle möglichen Synsets pro Label; unbekannte Labels bleiben leer."""
+        if self.language == 'en':
+            text = text.replace('_', ' ')
         text = key(text)
         if not text:
             return frozenset()
         if text not in self.cache:
             if self.reader is None:
                 self._load()
-            self.cache[text] = frozenset(synset.id for synset in self.reader.synsets(text))
+            forms = self.morphy(text) if self.morphy else {}
+            if not forms:
+                forms = {None: {text}}
+            if 'a' in forms:
+                # OMW führt adjective satellites separat als 's'; Morphy liefert 'a'.
+                forms['s'] = forms['a']
+            self.cache[text] = frozenset(
+                synset.id for pos, words in forms.items() for word in words
+                for synset in self.reader.synsets(word, pos=pos))
         return self.cache[text]
 
     def matrix(self, left, right):
-        """Liefere binäre Synset-Evidenz, keinen kalibrierten Ähnlichkeitswert."""
+        """Liefere 1 bei gemeinsamem Synset, sonst 0; Unbekanntes ist keine Evidenz."""
         return synonym_matrix(left, right, self.lookup)
+
+
+class OdeNet(WordNet):
+    """Nutze denselben lokalen Zugriff für Deutsch, ohne englische Morphologie."""
+
+    version = 'odenet:1.4'
+    language = 'de'
 
 
 class OpenThesaurus:
