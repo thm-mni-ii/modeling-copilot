@@ -124,7 +124,8 @@ die Synonymmatrix, der Forschungslauf speichert seine vollständigen Ergebnisse.
   Engine für ein Verfahren vorbereitet (`translate`, `german_only`, `original_text`);
   ein neues Verfahren trägt sich dort ein, die Engine bleibt unverändert.
 - `preprocessing.py`: `normalize`, `lowercase`, `split_identifiers`, `lemmatize`,
-  `stem`, `remove_stopwords`, `split_compounds`. Geordnete Liste, `[]` für Rohtexte.
+  `stem`, `remove_stopwords`, `split_compounds`, `expand_abbreviations`,
+  `split_label_parts`. Geordnete Liste, `[]` für Rohtexte.
   Zusätzlich darf einmal `translate` (DE→EN, gebündelt) in der Liste stehen, z. B.
   `"preprocessing": ["normalize", "translate", "lowercase"]`: Schritte davor laufen auf
   dem Originaltext, Schritte danach auf dem englischen Text. Das gilt für jedes
@@ -335,6 +336,152 @@ PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=fa
 
 `--only` wählt vorhandene Experiment-IDs aus. Ohne diese Option läuft weiterhin
 der vollständige JSON-Baukasten. Konfiguration und Auswahl werden gespeichert.
+
+### Kleine Probe: Abkürzungen und Labelbestandteile
+
+Zwei optionale deutsche Schritte, ohne neue Modelle:
+
+- `expand_abbreviations`: `Nr.`/`Nr` am Wortende wird zu `Nummer`, auch in `GebäudeNr.`.
+- `split_label_parts`: kombiniert diese Auflösung mit `split_identifiers` und der
+  vorhandenen OpenThesaurus-Kompositazerlegung. Zusätzlich gilt ein linker Teil auf
+  `e` als bekannt, wenn die Form ohne `e` im Lexikon steht: `Geräteraum` → `geräte raum`.
+
+Andere Sprachen bleiben unverändert. Die Pluralheuristik ist bewusst einfach und
+kann falsch zerlegen; sie ist keine Lemmatisierung. Ohne vorhandenes OpenThesaurus
+ist die Kompositazerlegung nicht verfügbar. Das bisherige `split_compounds`, die
+Standardpipeline und das Outputschema bleiben unverändert.
+
+Gezielter Vergleich mit derselben Übersetzungs-/Embedding-Baseline:
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --only 'normalize → translated_embedding' \
+  'normalize+expand_abbreviations → translated_embedding' \
+  'normalize+split_label_parts → translated_embedding' \
+  --output results/label-parts-laboratory.json.gz
+```
+
+Für die kleine Objekt-/Nummernprobe denselben Aufruf mit
+`--data research/label-parts-cases.json` und einem anderen Ausgabepfad verwenden.
+Ausgabedateien werden nicht überschrieben. Die zwei neuen festen Ketten stehen in
+`research/experiments.json`; es entsteht kein zusätzliches Kreuzprodukt von Varianten.
+
+Ergebnis vom 13.11.2026, Seed 42, Threshold 0,5: fünf Laborvarianten, **nur geänderte
+Schülerlabels**, jeweils gegen alle Referenzkandidaten. Die folgenden Werte bewerten
+Threshold-Treffer, keine 1:1-Zuordnung. Rohdaten einschließlich Konfiguration und
+Modellrevisionen: `results/label-parts-laboratory-20261113.json.gz` (lokal, ignoriert).
+
+| Vorverarbeitung vor Übersetzung + monolingualem Embedding | Precision | Recall | F1 | FP |
+| --- | ---: | ---: | ---: | ---: |
+| normalize (Baseline) | 0,611 | 0,818 | 0,699 | 100 |
+| + expand_abbreviations | 0,348 | 0,880 | 0,499 | 317 |
+| + split_label_parts (enthält Abkürzungsauflösung) | 0,290 | 0,792 | 0,424 | 373 |
+
+Auf der kleinen Entwicklungsprobe mit 24 Paaren steigt F1 dagegen von 0,533 auf
+0,625 (nur Abkürzungen) bzw. 0,588 (Labelzerlegung); alle fünf positiven Paare
+werden erkannt statt vier. Das verallgemeinert nicht auf die Laborvarianten.
+Rohdaten: `results/label-parts-targeted-20261113.json.gz`.
+
+| Gezieltes Paar | Baseline | Abkürzungen | Labelzerlegung |
+| --- | ---: | ---: | ---: |
+| Gebäude / GebäudeNr. (negativ) | 0,5158 | 0,5662 | 0,5662 |
+| GebäudeNr. / Gebäudenummer (positiv) | 0,6136 | 1,0000 | 1,0000 |
+| Geräte / Geräteraum (negativ) | 0,7260 | 0,7260 | 0,7260 |
+| GeräteNr. / Gerätenummer (positiv) | 0,2584 | 0,5713 | 1,0000 |
+
+Fazit dieser Entwicklungsprobe: bessere Erkennung einzelner Schreibvarianten,
+aber **keine Reduktion falscher Treffer bei unverändertem Threshold**. Gemeinsame
+Bestandteile erhöhen auch bei fachlich verschiedenen Labels die Ähnlichkeit.
+Die Schritte bleiben optional; aus diesen Ergebnissen folgt keine Änderung des
+Service-Standards und keine Aussage über einen separat validierten Threshold.
+
+### Optionale Konfliktregel für Labelbestandteile
+
+`label_part_compatibility` analysiert normalisierte **Originaltexte** unabhängig vom
+Preprocessing der Embeddings. Die kleine feste DE/EN-Liste erkennt Nummern und
+Räume sowie Gebäude, Geräte, Etagen, Räume und Projekte als Objektbestandteile.
+Abkürzungen und bekannte Endungen werden ohne Modell oder Lexikon zerlegt.
+Der vollständige Umfang der Liste steht direkt in `methods.py`.
+
+Der Wert ist 0 bei einem erkannten Konflikt, sonst neutral 1:
+
+- Nur ein Label enthält `Nummer`/`number`/`ID`: möglicher Objekt-/Attributkonflikt.
+- Beide sind Nummern, aber ihre bekannten Objektbestandteile widersprechen sich.
+- Ein Label bezeichnet einen Raum, das andere dasselbe erkannte Objekt ohne Raumzusatz.
+
+Unbekannte Objektbestandteile werden nicht als unterschiedliche Objekte gewertet.
+Eine erkannte Nummer kann trotzdem einen Abschlag auslösen, wenn beim anderen Label
+kein Nummernmarker erkannt wird. Implizite Kennungen, andere Sprachen, Mehrdeutigkeit
+(etwa englisches `number`) und unbekannte Abkürzungen sind Grenzen dieser Heuristik.
+Neutral 1 bedeutet ausdrücklich **keine Synonymbestätigung**. Leere Labels bleiben
+wie bisher nicht zuordenbar. Das zusätzliche numerische Merkmal steht unter `scores`;
+das Outputschema und der Service-Standard ändern sich nicht.
+
+Die Variante `label_part_fusion` verwendet:
+`combinedScore = clip(translated_embedding, 0, 1) * (1 - penalty * (1 - compatibility))`.
+Für den Versuch ist `penalty = 0.5` festgelegt, ohne Parameteroptimierung.
+Konflikte halbieren den Basisscore, alle übrigen Scores bleiben unverändert.
+Ein Basisscore von 1 bleibt damit bei Threshold 0,5 trotz Konflikt ein Treffer.
+
+Service-Konfiguration für die optionale Variante:
+
+```json
+{
+  "methods": ["translated_embedding", "label_part_compatibility"],
+  "preprocessing": ["normalize"],
+  "embedding_preprocessing": ["normalize"],
+  "combiner": {
+    "kind": "variant",
+    "name": "label_part_fusion",
+    "options": {"penalty": 0.5}
+  }
+}
+```
+
+Im JSON-Baukasten stehen die zwei festen Mischungen
+`translated_embedding_part_conflicts` (ursprüngliche Baseline + Konfliktregel) und
+`translated_embedding_parts_and_conflicts` (zusätzlich zerlegte Embedding-Eingabe).
+Die Regel wird nicht als normaler Similarity-Score mitgemittelt.
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --only 'normalize → translated_embedding' \
+  'normalize+split_label_parts → translated_embedding' \
+  translated_embedding_part_conflicts translated_embedding_parts_and_conflicts \
+  --output results/label-conflicts-laboratory.json.gz
+```
+
+Entwicklungsvergleich vom 13.11.2026, Seed 42, Threshold 0,5, geänderte Schülerlabels
+gegen alle Referenzkandidaten der fünf Laborvarianten:
+
+| Variante | TP | FP | FN | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Ursprüngliche Übersetzungs-/Embedding-Baseline | 157 | 100 | 35 | 0,611 | 0,818 | 0,699 |
+| Baseline + Konfliktregel | 157 | 12 | 35 | 0,929 | 0,818 | 0,870 |
+| Zerlegte Embedding-Eingabe | 152 | 373 | 40 | 0,290 | 0,792 | 0,424 |
+| Zerlegte Eingabe + Konfliktregel | 152 | 158 | 40 | 0,490 | 0,792 | 0,606 |
+
+Die Regel entfernt hier 88 falsche Treffer, ohne einen der 157 richtigen zu verlieren.
+Auf allen Laborpaaren sinkt FP von 419 auf 103 bei unveränderten TP/FN (579/35).
+`Gebäude / GebäudeNr.` fällt von 0,5158 auf 0,2579, `Geräte / Geräteraum` von 0,7260
+auf 0,3630. `GebäudeNr. / Gebäudenummer` bleibt mit 0,6136 ein Treffer.
+Ein vorher übersehenes Synonym wird durch einen reinen Abschlag nicht neu erkannt.
+
+Die kleine Objekt-/Nummernprobe verbessert sich von F1 0,533 (FP 6, FN 1) auf 0,889
+(FP 0, FN 1); mit zusätzlicher Zerlegung erreicht sie dort 1,0. Auf den 33 auswertbaren
+bestehenden synthetischen Kontrollszenarien steigt F1 von 0,680 auf 0,723, FP sinkt
+von 23 auf 17 bei unveränderten TP/FN (34/9). Das sind ebenfalls bekannte
+Entwicklungsdaten, kein unabhängiger Nachweis für neue Aufgaben.
+
+Alle drei Läufe sind lokal reproduzierbar gespeichert, jeweils mit Rohscores,
+Konfiguration und Modellrevisionen (im ignorierten Ordner `results`):
+`label-conflicts-laboratory-20261113.json.gz`, `label-conflicts-targeted-20261113.json.gz`
+und `label-conflicts-control-20261113.json.gz`. Für die anderen Datensätze den Aufruf
+mit `--data research/label-parts-cases.json` beziehungsweise `research/model-cases.json`
+und eigenem Ausgabepfad verwenden. Nächste notwendige Prüfung: unabhängige Aufgaben
+mit echten Synonymen für Kennungen und bisher unbekannten Objektbezeichnungen.
 
 ### Explizite Relationsmerkmale (Einzelwerte)
 

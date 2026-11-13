@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "purpose": "Gezielte Entwicklungsprobe: Objekt, Nummer und Raum unterscheiden; kein unabhängiger Test.",
+  "cases": [
+    {
+      "id": "label-parts",
+      "case_number": 201,
+      "title": "Objekte, Abkürzungen und zusammengesetzte Labels",
+      "reference": [
+        {"id": "r1", "label": "Gebäude", "language": "de"},
+        {"id": "r2", "label": "GebäudeNr.", "language": "de"},
+        {"id": "r3", "label": "Geräte", "language": "de"},
+        {"id": "r4", "label": "GeräteNr.", "language": "de"}
+      ],
+      "student": [
+        {"id": "s1", "label": "Gebäude", "language": "de"},
+        {"id": "s2", "label": "Gebäudenummer", "language": "de"},
+        {"id": "s3", "label": "GebäudeNr.", "language": "de"},
+        {"id": "s4", "label": "Geräte", "language": "de"},
+        {"id": "s5", "label": "Geräteraum", "language": "de"},
+        {"id": "s6", "label": "Gerätenummer", "language": "de"}
+      ],
+      "annotations": [
+        ["correct", "incorrect", "incorrect", "incorrect", "incorrect", "incorrect"],
+        ["incorrect", "correct", "correct", "incorrect", "incorrect", "incorrect"],
+        ["incorrect", "incorrect", "incorrect", "correct", "incorrect", "incorrect"],
+        ["incorrect", "incorrect", "incorrect", "incorrect", "incorrect", "correct"]
+      ]
+    }
+  ]
+}

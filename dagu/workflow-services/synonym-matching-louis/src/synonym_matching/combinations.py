@@ -191,6 +191,18 @@ def context_aware(scores, *, penalty=0.5):
     return np.clip(base - penalty * (row_gap + column_gap) / 2, 0, 1)
 
 
+def label_part_fusion(scores, *, penalty=0.5):
+    """Senke den Basisscore bei expliziten Labelkonflikten, sonst unverändert.
+
+    penalty ist ein fester experimenteller Abschlag, keine Wahrscheinlichkeit.
+    Fehlender Konflikt erhöht den Score ausdrücklich nicht.
+    """
+    if type(penalty) not in (float, int) or not np.isfinite(penalty) or not 0 <= penalty <= 1:
+        raise ValueError('penalty must be in [0,1]')
+    values = _select(scores, ('translated_embedding', 'label_part_compatibility'))
+    return values['translated_embedding'] * (1 - penalty * (1 - values['label_part_compatibility']))
+
+
 # Explizite Zuordnung zwischen Konfigurationsnamen und Funktionen.
 VARIANTS = {
     'string_ensemble': string_ensemble,
@@ -209,6 +221,7 @@ VARIANTS = {
     'exact_match_fusion': exact_match_fusion,
     'consensus_fusion': consensus_fusion,
     'context_aware': context_aware,
+    'label_part_fusion': label_part_fusion,
 }
 
 REQUIRES = {
@@ -228,6 +241,7 @@ REQUIRES = {
     'exact_match_fusion': STRINGS + ('multilingual', 'exact_match'),
     'consensus_fusion': EMBEDDINGS,
     'context_aware': ('levenshtein', 'jaro_winkler', 'char_trigram', 'multilingual'),
+    'label_part_fusion': ('translated_embedding', 'label_part_compatibility'),
 }
 
 

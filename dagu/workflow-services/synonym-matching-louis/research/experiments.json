@@ -26,6 +26,7 @@
     "token_sort_ratio": {},
     "word_order": {},
     "exact_match": {},
+    "label_part_compatibility": {"preprocessing_steps": ["normalize"]},
     "multilingual": {},
     "translated_embedding": {"languages": ["de", "en"]},
     "translated_string": {"languages": ["de", "en"]},
@@ -92,6 +93,7 @@
     "tsort": ["$pre", "token_sort_ratio"],
     "order": ["$pre", "word_order"],
     "exact": ["normalize", "exact_match"],
+    "part_compatibility": ["normalize", "label_part_compatibility"],
     "multi": ["normalize", "multilingual"],
     "trans_emb": ["normalize", "translated_embedding"],
     "trans_str": ["normalize", "translated_string"],
@@ -124,6 +126,8 @@
     "trans_emb_lemma": ["normalize", "translate", "lemmatize", "translated_embedding"],
     "trans_emb_identifiers": ["normalize", "split_identifiers", "translated_embedding"],
     "trans_emb_compounds": ["normalize", "split_compounds", "translated_embedding"],
+    "trans_emb_abbreviations": ["normalize", "expand_abbreviations", "translated_embedding"],
+    "trans_emb_label_parts": ["normalize", "split_label_parts", "translated_embedding"],
     "ft_en_lowercase": ["normalize", "translate", "lowercase", "fasttext_en_matching"],
     "ft_en_lemma": ["normalize", "translate", "lemmatize", "fasttext_en_matching"],
     "ft_en_identifiers": ["normalize", "split_identifiers", "translate", "fasttext_en_matching"],
@@ -135,6 +139,8 @@
     "ft_en_bi_identifiers": ["normalize", "split_identifiers", "translate", "fasttext_en_bidirectional_matching"]
   },
   "mixes": [
+    {"name": "translated_embedding_part_conflicts", "variant": "label_part_fusion", "options": {"penalty": 0.5}, "parts": ["trans_emb", "part_compatibility"]},
+    {"name": "translated_embedding_parts_and_conflicts", "variant": "label_part_fusion", "options": {"penalty": 0.5}, "parts": ["trans_emb_label_parts", "part_compatibility"]},
     {"name": "translated_embedding_wordnet_evidence", "evidence": true, "parts": ["trans_emb", "wordnet"]},
     {"name": "string_ensemble", "variant": "string_ensemble", "parts": ["lev", "jw", "trigram"]},
     {"name": "token_ensemble", "variant": "token_ensemble", "parts": ["jaccard", "tsort"]},
