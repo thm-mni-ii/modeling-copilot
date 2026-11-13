@@ -292,6 +292,7 @@ class LaboratoryContainmentRegressionTests(unittest.TestCase):
         cls.graphs = {}
         for name, path in (
             ("reference", versions / "v12_laboratory_management" / "sample_solution.json"),
+            ("m02", versions / "v14_laboratory_structure_models" / "m02.json"),
             ("m03", versions / "v14_laboratory_structure_models" / "m03.json"),
             ("m05", versions / "v14_laboratory_structure_models" / "m05.json"),
             ("m08", versions / "v14_laboratory_structure_models" / "m08.json"),
@@ -362,13 +363,23 @@ class LaboratoryContainmentRegressionTests(unittest.TestCase):
 
     def test_m08_unresolved_moved_attribute_is_in_denominator(self):
         reference, old, result = self.evaluate_model("m08")
-        self.assertEqual((old["metrics"]["satisfied"], old["metrics"]["expected"]), (35, 35))
+        self.assertEqual((old["metrics"]["satisfied"], old["metrics"]["expected"]), (35, 36))
         project_numbers = [row for row in result["relations"]
                            if "ProjektNr." in reference.nodes[row["referenceSourceId"]].get("label", "")
                            and reference.nodes[reference.owner(row["referenceSourceId"])]["label"]
                            == "Forschungs\nprojekt"]
         self.assertTrue(any(row["status"] == "unresolved"
                             and row["decisionBasis"] == "source_mapping_missing" for row in project_numbers))
+
+    def test_m02_renamed_owners_are_supported_by_children(self):
+        reference, old, result = self.evaluate_model("m02")
+        owner_rows = [row for row in result["relations"]
+                      if row["targetMappingBasis"] == "independent_child_evidence"]
+        owners = {reference.nodes[row["referenceTargetId"]]["label"]:
+                  self.graphs["m02"].nodes[row["studentTargetId"]]["label"] for row in owner_rows}
+        self.assertEqual(owners, {"Gebäude": "Bauwerk", "Geräte": "Apparate"})
+        self.assertTrue(all(row["status"] == "unresolved" for row in owner_rows))
+        self.assertEqual((old["metrics"]["satisfied"], old["metrics"]["unresolved"]), (32, 4))
 
 
 if __name__ == "__main__":

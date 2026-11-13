@@ -21,6 +21,7 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     bundle, graphs, indices, candidates = read_artifacts(store, reference_key)
     state = build_provisional_state(indices, candidates)
     evaluation = evaluate_initial_coverage(indices, state)
+    evaluation["childOwnerEvidence"] = state["childOwnerEvidence"]
     graph_matching = bundle["comparisonConfig"].get("graphMatching", {})
     if not isinstance(graph_matching, dict):
         raise ValueError("comparisonConfig.graphMatching must be an object")

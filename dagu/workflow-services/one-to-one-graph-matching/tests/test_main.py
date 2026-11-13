@@ -117,6 +117,10 @@ class MainTests(unittest.TestCase):
         self.assertEqual(child["status"], "satisfied")
         self.assertEqual(child["referenceContainmentPaths"], [["r-child", "r1"]])
         self.assertEqual(child["studentContainmentPaths"], [["s-child", "s1"]])
+        owner_evidence = next(item for item in result["childOwnerEvidence"]
+                              if item["referenceId"] == "r1" and item["studentId"] == "s1")
+        self.assertEqual(owner_evidence["proposalStatus"], "reserved")
+        self.assertEqual(owner_evidence["supportingChildren"][0]["referenceId"], "r-child")
         self.assertEqual(result["comparisonHash"], content_hash({
             key: value for key, value in result.items() if key != "comparisonHash"
         }))

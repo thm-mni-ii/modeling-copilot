@@ -72,12 +72,25 @@ def evaluate_initial_coverage(indices, state):
         key=lambda item: (item["referenceId"], item["studentId"]),
     )
     used = {(item["referenceId"], item["studentId"]): item for item in proposals}
+    dependencies = {}
     for item in proposals:
+        item_pair = (item["referenceId"], item["studentId"])
+        dependencies[item_pair] = set()
         for dependency in item["dependsOn"]:
             pair = (dependency["referenceId"], dependency["studentId"])
-            if (pair not in used or pair == (item["referenceId"], item["studentId"])
-                    or used[pair]["reason"] != "unique_exact_label"):
-                raise ValueError("proposal dependency must refer to a used original anchor")
+            if pair not in used or pair == item_pair:
+                raise ValueError("proposal dependency must refer to a used active proposal")
+            dependencies[item_pair].add(pair)
+    ready = [pair for pair, required in dependencies.items() if not required]
+    while ready:
+        pair = ready.pop()
+        for other, required in dependencies.items():
+            if pair in required:
+                required.remove(pair)
+                if not required:
+                    ready.append(other)
+    if any(dependencies.values()):
+        raise ValueError("proposal dependencies must not contain cycles")
 
     reference_ids, student_ids = set(nodes["reference"]), set(nodes["student"])
     metrics = {

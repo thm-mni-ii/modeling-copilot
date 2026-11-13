@@ -14,6 +14,45 @@ Die Obergrenze verwendet alle zulässigen Kandidaten, unabhängig von Ankern.
 Leere Referenzmengen ergeben `null`. Die Verträglichkeit der Anker mit der
 globalen Kapazität steht unter `proposalFeasibility`.
 
+Eindeutig erkannte Kinder können vorhandene, typ- beziehungsweise
+vergleichsgruppenkompatible Besitzerkandidaten unterstützen. `childOwnerEvidence`
+führt für diese Kandidaten unterstützende, widersprechende und ungeklärte
+Kinder mit IDs, Pfaden und Zuordnungsabhängigkeiten auf. Der
+`proposalStatus` unterscheidet vorgeschlagene, bereits belegte, widersprüchliche,
+nicht unabhängig gestützte, konkurrierende und kapazitätsunverträgliche Paare.
+Nur beidseitig eindeutige Vorschläge ohne widersprechende Kindevidenz, die
+gemeinsam die globale Zuordnungskapazität erhalten, werden aufgenommen.
+Fehlende oder mehrdeutige Kinder bleiben ungeklärt.
+
+Nach bereits aktiven 1:1-Zuordnungen kann ein zuvor mehrdeutiges exaktes
+Kindpaar eindeutig werden (`unique_exact_after_reservations`); seine
+Abhängigkeiten dokumentieren alle Reservierungen, die gleich beschriftete
+Alternativen ausschließen. Diese Abhängigkeiten werden transitiv betrachtet:
+Kindevidenz darf nicht von dem damit begründeten Besitzer abhängen.
+Besitzervorschläge (`independent_child_evidence`) hängen von ihren
+unterstützenden Kindern ab; anschließend können weitere Kinder vom Besitzer
+abhängen. Alle Vorschläge bleiben vorläufig. Die Containment-Prüfung behandelt
+die neuen abhängigen Vorschläge weiterhin nicht als unabhängigen Beweis.
+
+Mit Parsergraphen und vollständiger synthetischer Kandidatenmatrix, ohne
+Synonymverfahren oder vollständigen Pipeline-Lauf, ergeben sich folgende
+Elementzuordnungen (vorher → nachher):
+
+| Modell | Vorschläge | Offene Referenzen | Neue Besitzer |
+| --- | --- | --- | --- |
+| M02 | 40 → 46 | 8 → 2 | Gebäude → Bauwerk; Geräte → Apparate |
+| M03 | 47 → 47 | 1 → 1 | keine |
+| M05 | 46 → 46 | 2 → 2 | keine |
+| M08 | 44 → 46 | 4 → 2 | Forschungsprojekt → Forschungsvorhaben |
+
+In M02 kommen außerdem die beiden Nummernattribute und zwei
+`Bezeichnung`-Attribute hinzu; `E-Mail` und `Beschreibung` bleiben offen.
+In M08 kommt ein `Bezeichnung`-Attribut hinzu, das verschobene `ProjektNr.`
+bleibt ungeklärt. Die vollständige referenzbezogene Containment-Auswertung
+bleibt für M02 bei 5/0/43, M03 bei 5/1/42, M05 bei 7/0/41 und M08 bei
+6/0/42 (erfüllt/verletzt/offen). Die synthetische Matrix ersetzt keine
+Regression mit den ursprünglichen semantischen Kandidaten.
+
 Optionale Mindestähnlichkeiten werden im eingefrorenen `comparisonConfig` als
 `graphMatching.minimumSimilarity` angegeben: ein Objekt mit Methodennamen und
 Mindestwerten. Nur deklarierte Methoden und Werte innerhalb ihrer Scorebereiche
@@ -90,7 +129,9 @@ Auch `satisfied` ist ausdrücklich keine bestätigte Identität oder Korrektheit
 
 Reproduzierbarer lokaler Prüfstand mit den vorhandenen Modell-JSONs, Parser,
 v13-Elementvergleichsgruppen und vollständiger synthetischer Kandidatenmatrix
-aus den Parserlabels; ohne Synonymverfahren oder vollständigen Pipeline-Lauf:
+aus den Parserlabels; ohne Synonymverfahren oder vollständigen Pipeline-Lauf.
+Die Bestandskennzahl in dieser Tabelle stammt aus der Messung vor der
+Kindevidenz-Erweiterung; für M08 beträgt sie danach 35 / 36:
 
 | Modell | Bisher: erfüllt / geprüft | Neu: erfüllt / verletzt / offen | Neu: Intervall |
 | --- | --- | --- | --- |

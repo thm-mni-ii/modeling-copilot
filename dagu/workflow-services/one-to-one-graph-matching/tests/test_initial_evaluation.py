@@ -159,8 +159,17 @@ class InitialCoverageTests(unittest.TestCase):
             evaluate_initial_coverage(indices, conflicting)
         missing = copy.deepcopy(state)
         missing["proposals"][0]["dependsOn"] = [{"referenceId": "missing", "studentId": "missing"}]
-        with self.assertRaisesRegex(ValueError, "used original anchor"):
+        with self.assertRaisesRegex(ValueError, "used active proposal"):
             evaluate_initial_coverage(indices, missing)
+        cyclic = copy.deepcopy(state)
+        cyclic["proposals"][0]["dependsOn"] = [
+            {"referenceId": cyclic["proposals"][1]["referenceId"],
+             "studentId": cyclic["proposals"][1]["studentId"]}]
+        cyclic["proposals"][1]["dependsOn"] = [
+            {"referenceId": cyclic["proposals"][0]["referenceId"],
+             "studentId": cyclic["proposals"][0]["studentId"]}]
+        with self.assertRaisesRegex(ValueError, "cycles"):
+            evaluate_initial_coverage(indices, cyclic)
         noncandidate = copy.deepcopy(state)
         noncandidate["proposals"][0]["studentId"] = "unknown"
         with self.assertRaisesRegex(ValueError, "not a candidate"):
