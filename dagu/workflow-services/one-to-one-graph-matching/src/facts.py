@@ -304,6 +304,7 @@ def _identity_facts(indices, evaluation):
             result.append(fact("identity." + status, "satisfied" if status == "uniquely_supported" else "unresolved", refs, subs,
                                basis="independent_evidence" if status == "uniquely_supported" else "conditional_mapping",
                                reason="evaluated_identity_evidence", identityStatus=status, criteria=criteria,
+                               evaluationStatus="evaluated" if node.get("comparisonRole") == "semantic" and node.get("languageResolution") == "resolved" and _key(node) is not None else "not_evaluated",
                                supportingCandidateCount=sum(any(item["result"] == "satisfied" and item["role"] != "compatibility"
                                                                 for item in row["criteria"]) for row in candidates)))
     return result

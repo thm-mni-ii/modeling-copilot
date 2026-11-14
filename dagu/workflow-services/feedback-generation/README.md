@@ -1,60 +1,27 @@
 # feedback-generation
 
-Serviceversion `1.0.3`, Image `v6`. Der eingebettete Analysevalidator akzeptiert
-Revision `1.3` und frühere Revisionen und prüft übernommene Matcher-Fakten,
-Identitätsprofile und Anzeigeziele gegen den Vergleich.
+Serviceversion `2.1.0`, Image `v8`, Ausgabe `feedback-report/v3` in
+`workflow-result/v1`.
 
-Der Dienst liest mit `WORKFLOW_EVALUATION_ID` und `REFERENCE_KEY` den
-eingefrorenen Snapshot und das Vergleichsartefakt `comparisons/<referenceKey>.json`.
-Er validiert Herkunft, Schema, Hash und Konsistenz der vorläufigen Zähler.
-Er berechnet keine Zuordnungen und erzeugt je Referenz ein `feedback-report/v1`
-innerhalb von `workflow-result/v1`. `WORKFLOW_OUTPUT_PATH` speichert es im
-Workspace.
+Der Dienst verlangt `WORKFLOW_EVALUATION_ID`, `REFERENCE_KEY` und
+`ANALYSIS_INPUT_PATH`. Er validiert das konkrete Analyseartefakt gegen Snapshot,
+Referenzpaar, Vergleich, Pfad und Hash. Anschließend übernimmt er dessen
+`recognition` unverändert und ergänzt Analyse-/Vergleichsprovenienz und
+`feedbackHash`. Es gibt keine eigene Aggregation aus vorläufigen Matcher-Metriken.
 
-Die Kategorien `nodes`, `attributes`, `connections` und `other` werden aus den
-vom Vergleich gelieferten Typzählern aggregiert. Die Konfiguration der
-Elementkategorien ist im [Graph-Matcher](../one-to-one-graph-matching/README.md)
-beschrieben. Jede Kategorie und jeder konkrete Typ enthält Referenz- und
-Abgabeanzahl, getrennte Anker-, Semantik- und Verbindungsvorschläge, ihre
-gemeinsame vorläufige Anzahl, einen Prozentwert und einen Auswertungsstatus.
-Ohne Referenzelemente oder ohne auswertbare Referenzen ist der Prozentwert
-`null`. Bei teilweise auswertbaren Kategorien bleibt der Nenner vollständig und
-der Status partiell. Nicht klassifizierte Elemente stehen in `other`; dessen
-Status ist partiell.
+`recognition` enthält dynamische Gruppen-/Typzeilen, Gesamtzahlen und separat nicht zugeordnete
+Abgabeobjekte. Details und Statusdefinitionen stehen im
+[Analysevertrag](../analytical-feedback/README.md); das gemeinsame
+[JSON-Schema](../analytical-feedback/schemas/output.schema.json) definiert
+`$defs.feedbackReportV3`. Die UI zeigt diese veröffentlichten Werte an, ohne aus
+Zuordnungen neue Erkennungszahlen zu berechnen. Die Quote ist keine
+Korrektheitsquote und keine Note; `assessmentAvailable` bleibt `false`.
 
-Semantische Schwellen, offene Elemente und Verbindungen bleiben nachvollziehbar.
-Wenn vorhanden, wird `provisionalConnectionStructure` aus dem Vergleich
-unverändert in den Feedbackbericht übernommen; seine Grenzen und Felder sind
-im [Graph-Matcher](../one-to-one-graph-matching/README.md) beschrieben.
-Die dort dokumentierte `provisionalContainment`-Auswertung wird bei neuen
-Vergleichen mit Referenzzählern, Intervall und Einzelbeziehungen übernommen;
-ihre Zähler werden gegen die Einzelstatus validiert. Ältere Vergleiche ohne
-diese Erweiterung bleiben lesbar.
-Wenn vorhanden, übernimmt `provisionalTypeComparison` die vorläufige
-Typauswertung für Elemente und Verbindungen einschließlich Einzelpaaren,
-Abhängigkeiten, offenen Referenzen und Prozentnenner. Zähler und Paarstatus
-werden gegen die vorläufigen Zuordnungen validiert. Ein kompatibler konkreter
-Typunterschied ist keine automatische Fehlermeldung; die fachliche Zulässigkeit
-bestimmen die Sprachmetadaten. Ältere Vergleiche ohne diese Erweiterung bleiben
-lesbar.
-Die Quoten sind vorläufige Erkennungszahlen, keine bestätigte fachliche
-Übereinstimmung. Eine vollständige Strukturprüfung, Gesamtbewertung und Note
-stehen nicht zur Verfügung.
+Die vollständige kompakte Ausgabe bleibt eine JSON-Zeile auf stdout und wird von
+Dagu als `feedback-result.json` gespeichert. Alte Felder `categories`, `totals`,
+`analyticalSummary` und redundante Strukturkopien sind in v2 entfernt und bleiben in v3 entfernt.
 
-## Projektion aus analytischem Feedback
-
-Im aktuellen Auswertungsworkflow erhält der Dienst zusätzlich
-`ANALYSIS_INPUT_PATH`. Dieser verweist auf das konkret im selben Referenz-Unterlauf
-veröffentlichte `analysis-feedback/v1`. Herkunft, Analysehash, adressierter Pfad,
-Vergleichsidentität und interne Konsistenz werden geprüft. Der Bericht aggregiert
-seine bisherigen fachlichen Felder aus dem ursprünglichen Vergleich und ergänzt
-`analysisHash` und `analysisPath` sowie `analyticalSummary`. Die Analyse validiert
-ihre Kategorien gegen eingefrorene Sprachmetadaten, Graphobjekte und bestehende
-Zuordnungen. Die bisherigen Matcher-Zähler bleiben erhalten, auch wenn die
-Analyse zusätzlich unbekannte Objekte einbezieht. Es findet keine erneute
-Zuordnungsentscheidung statt.
-
-Ohne `ANALYSIS_INPUT_PATH` bleibt die direkte Aggregation eines bestehenden
-Vergleichs verfügbar. Gespeicherte frühere Berichte bleiben lesbar.
-Analyse und kompakte Projektion sind interne Schritte des Hauptworkflows.
-Details: [Analytical Feedback](../analytical-feedback/README.md).
+Gespeicherte v1-/v2-Artefakte bleiben unverändert als historische technische Ergebnisse
+verfügbar. Sie werden nicht als aktuelle `recognition` angezeigt. Neue Berichte
+aus alten Analysen oder ohne Analysepfad erfordern eine Neuberechnung; der bisherige
+parallele Generierungspfad ohne Analyse ist entfernt.

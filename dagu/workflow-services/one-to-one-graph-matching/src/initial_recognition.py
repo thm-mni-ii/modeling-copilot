@@ -216,7 +216,7 @@ def recognition_metrics(indices, elements, connections, category_config):
         if (not isinstance(item, dict) or set(item) != {"languageId", "versionId", "type", "category"}
                 or any(not isinstance(item[field], str) or not item[field]
                        for field in ("languageId", "versionId", "type"))
-                or item["category"] not in ("nodes", "attributes", "other")):
+                or item["category"] not in ("nodes", "attributes", "connections", "other")):
             raise ValueError("invalid graphMatching.elementCategories entry")
         key = (item["languageId"], item["versionId"], item["type"])
         if key in categories:

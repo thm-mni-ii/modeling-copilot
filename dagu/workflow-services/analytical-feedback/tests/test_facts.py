@@ -1,77 +1,51 @@
-"""Check exact matcher-fact projection and conservative consistency claims."""
-
+"""Projection keeps independent positive, negative and open matcher facts."""
 from copy import deepcopy
 import unittest
-
 from test_analysis import build, case, contains, endpoints, node, rehash
-from analysis_contract import validate_analysis
-from facts import evaluate_facts
-from initial_recognition import evaluate_connections
-
-
-def with_facts(store):
-    store.comparison["provisionalConnectionStructure"] = evaluate_connections(
-        store.indices, store.comparison["mapping"]["provisionalElements"])
-    store.comparison["propertyFacts"] = evaluate_facts(store.indices, store.comparison,
-        {side: {"completeness": {"interpretation": "complete"}} for side in store.indices}, {"synonymMatrix": []})
-    return store
+from test_identity_feedback import with_identity_facts
+from analysis_contract import compact_fact, validate_analysis
 
 
 class FactProjectionTests(unittest.TestCase):
-    def test_complete_local_properties_are_explicit_under_provisional_identity(self):
-        store = with_facts(case([node("parent", label="Parent"), node("child", label="Child")],
-                                reference_edges=[contains("child", "parent")]))
+    def test_projection_retains_source_facts_without_duplicated_descriptors(self):
+        nodes = [node("parent", label="Parent"), node("child", label="Child")]
+        store = with_identity_facts(case(nodes, reference_edges=[contains("child", "parent")]))
+        original = deepcopy(store.comparison)
         report = build(store)
         validate_analysis(report, store)
-        self.assertEqual(report["contractVersion"], "1.2")
-        for annotation in report["annotations"]:
-            self.assertEqual(annotation["match"]["status"], "provisional")
-            self.assertEqual(annotation["consistency"], "fully_consistent")
-            self.assertEqual(annotation["checks"]["label"], "satisfied")
-            self.assertEqual(annotation["facts"], [item for item in store.comparison["propertyFacts"]["items"]
-                                                 if annotation["target"]["id"] in item["submissionIds"]])
+        self.assertEqual(store.comparison, original)
+        for item in report["annotations"]:
+            source = [fact for fact in original["propertyFacts"]["items"] if item["target"]["id"] in fact["submissionIds"]
+                      and not fact["code"].startswith(("identity.", "connection_group."))]
+            self.assertEqual(item["facts"], [compact_fact(fact) for fact in source])
+            self.assertTrue(any(fact["code"] == "label.equal" and fact["status"] == "satisfied" for fact in item["facts"]))
+            self.assertFalse({"match", "checks", "consistency", "status"} & item.keys())
 
-    def test_equal_properties_remain_visible_with_wrong_owner_and_open_containment(self):
-        nodes = [node("parent", label="Parent"), node("other"), node("child", label="Child")]
-        store = with_facts(case(nodes, reference_edges=[contains("child", "parent")],
-                                submission_edges=[contains("child", "other")]))
+    def test_missing_reference_connection_has_original_ids_and_endpoint_target(self):
+        store = with_identity_facts(case([node("a", label="A"), node("b", label="B"), node("e", "connection", directed=True)],
+            [node("a", label="A"), node("b", label="B")], endpoints("e", "a", "b"), [], pairs=[]))
         report = build(store)
-        child = next(item for item in report["annotations"] if item["target"]["id"] == "child")
-        self.assertEqual(child["checks"]["label"], "satisfied")
-        self.assertEqual(child["checks"]["owner"], "violated")
-        self.assertEqual(child["status"], "different")
-        self.assertEqual(child["consistency"], "different")
-        validate_analysis(report, store)
-        store = with_facts(case([node("parent"), node("box", "structuralElement"), node("child", label="Child")],
-            reference_edges=[contains("box", "parent"), contains("child", "box")]))
-        report = build(store)
-        child = next(item for item in report["annotations"] if item["target"]["id"] == "child")
-        self.assertEqual(child["checks"]["label"], "satisfied")
-        self.assertEqual(child["checks"]["owner"], "satisfied")
-        self.assertEqual(child["checks"]["containment"], "unresolved")
-        self.assertEqual(child["consistency"], "partial")
-
-    def test_missing_reference_connection_uses_reference_hints(self):
-        store = with_facts(case([node("a"), node("b"), node("e", "connection", directed=True)],
-                                [node("a"), node("b")], endpoints("e", "a", "b"), [], pairs=[("a", "a"), ("b", "b")]))
-        report = build(store)
-        hint = report["referenceHints"][0]
-        self.assertEqual(hint["code"], "reference.missing")
+        hint = next(item for item in report["referenceHints"] if item["referenceId"] == "e")
         self.assertEqual(hint["target"]["id"], "a")
-        self.assertTrue(any(item["code"] == "counterpart.missing" for item in hint["facts"]))
-        self.assertNotIn("facts", hint["parameters"])
+        self.assertIn({"side": "reference", "kind": "connection", "id": "e"}, hint["targets"])
+        self.assertTrue(any(fact["code"].startswith("counterpart.") for fact in hint["facts"]))
         validate_analysis(report, store)
 
-    def test_rejects_invented_fact_and_unsupported_complete_claim(self):
-        store = with_facts(case([node("a"), node("b")], pairs=[("a", "a")]))
+    def test_forged_facts_recognition_and_display_targets_are_rejected(self):
+        nodes = [node("a", label="A"), node("b", label="B"), node("child", label="Child")]
+        store = with_identity_facts(case(nodes, reference_edges=[contains("child", "a")], submission_edges=[contains("child", "b")]))
         original = build(store)
-        for mutate in (lambda report: report["annotations"][0]["facts"][0].update(status="violated"),
-                       lambda report: report["annotations"][1].update(consistency="fully_consistent")):
-            report = deepcopy(original)
-            mutate(report)
-            rehash(report)
-            with self.assertRaises(ValueError):
-                validate_analysis(report, store)
+        mutations = [lambda report: report["annotations"][0]["facts"][0].update(status="satisfied" if report["annotations"][0]["facts"][0]["status"] != "satisfied" else "violated"),
+                     lambda report: report["recognition"]["overall"].update(recognized=99),
+                     lambda report: report["annotations"][2]["hints"][0]["targets"].append({"side":"submission", "kind":"modelElement", "id":"unknown"}),
+                     lambda report: report["recognition"]["unmatchedSubmission"].append({"id":"unknown", "kind":"modelElement", "category":"nodes"})]
+        for index, mutate in enumerate(mutations):
+            with self.subTest(mutation=index):
+                report = deepcopy(original)
+                mutate(report)
+                rehash(report)
+                with self.assertRaises(ValueError):
+                    validate_analysis(report, store)
 
 
 if __name__ == "__main__":

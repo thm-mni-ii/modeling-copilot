@@ -10,7 +10,6 @@ from analysis_contract import validate_analysis
 from artifacts import _key
 from correspondence_state import build_provisional_state
 from initial_structure import evaluate_containment_relations
-from test_facts import with_facts
 from test_identity_feedback import with_identity_facts
 
 sys.path.insert(0, str(SERVICES / "graph-parser/src"))
@@ -35,59 +34,24 @@ def snapshot_graph(relative, key):
 
 
 class SavedSnapshotTests(unittest.TestCase):
-    def test_saved_models_use_actual_correspondences_and_matcher_facts(self):
+    def test_saved_models_preserve_ids_positive_facts_and_historical_metadata(self):
         reference, language = snapshot_graph("v12_laboratory_management/sample_solution.json", "ref")
-        for relative in ("v12_laboratory_management/sample_solution.json", "v14_laboratory_structure_models/m03.json",
-                         "v14_laboratory_structure_models/m05.json", "v14_laboratory_structure_models/m06b.json"):
-            with self.subTest(snapshot=relative):
+        for name, expected in (("baseline", 58), ("M02", 56), ("M04", 50), ("M08", 55)):
+            with self.subTest(snapshot=name):
+                relative = "v12_laboratory_management/sample_solution.json" if name == "baseline" else f"v14_laboratory_structure_models/{name.lower()}.json"
                 submission, _ = snapshot_graph(relative, "submission")
                 store = case(reference["nodes"], submission["nodes"], reference["edges"], submission["edges"], pairs=[])
                 store.bundle["languages"] = [language]
-                # Complete generic compatibility candidates, with no embedding
-                # calculation, synonym service, or threshold changes.
-                candidates = {"synonymMatrix": [
-                    {"referenceElementId": left["id"], "referenceLabel": left["label"], "matches": [
-                        {"submissionElementId": right["id"], "submissionLabel": right["label"]}
-                        for right in submission["nodes"] if right["kind"] == "modelElement" and _key(left) == _key(right)]}
-                    for left in reference["nodes"] if left["kind"] == "modelElement"]}
-                state = build_provisional_state(store.indices, candidates)
-                store.comparison["mapping"]["provisionalElements"] = state["proposals"]
-                store.comparison["provisionalContainmentEvidence"] = evaluate_containment_relations(store.indices, state["proposals"])["relations"]
-                with_facts(store)
-                report = build(store)
-                validate_analysis(report, store)
-                equal_labels = [fact for item in report["annotations"] for fact in item["facts"] if fact["code"] == "label.equal"]
-                self.assertTrue(any(fact["status"] == "satisfied" for fact in equal_labels))
-                self.assertEqual(report, build(store))
                 with_identity_facts(store)
                 report = build(store)
                 validate_analysis(report, store)
-                self.assertEqual(report["contractVersion"], "1.3")
-                self.assertTrue(any(item.get("identity", {}).get("status") == "uniquely_supported" for item in report["annotations"]))
-
-    def test_baseline_m03_m05_m06b_preserve_ids_and_unchecked_observations(self):
-        reference, language = snapshot_graph("v12_laboratory_management/sample_solution.json", "ref")
-        for name, relative in (("baseline", "v12_laboratory_management/sample_solution.json"),
-                               ("M03", "v14_laboratory_structure_models/m03.json"),
-                               ("M05", "v14_laboratory_structure_models/m05.json"),
-                               ("M06b", "v14_laboratory_structure_models/m06b.json")):
-            with self.subTest(snapshot=name):
-                submission, _ = snapshot_graph(relative, "submission")
-                store = case(reference["nodes"], submission["nodes"], reference["edges"], submission["edges"], pairs=[])
-                store.bundle["languages"] = [language]
-                report = build(store)
-                validate_analysis(report, store)
-                self.assertEqual({item["target"]["id"] for item in report["annotations"]},
-                                 {item["id"] for item in submission["nodes"]})
-                self.assertFalse(any(item["status"] == "different" or "referenceId" in item for item in report["annotations"]))
-                self.assertEqual(len(report["referenceHints"]), len(reference["nodes"]))
-                for item in report["annotations"]:
-                    original = store.indices["student"].nodes[item["target"]["id"]]
-                    if original["kind"] == "connection":
-                        self.assertEqual(item["connection"]["submission"]["directed"], original["directed"])
-                        self.assertEqual(item["connection"]["submission"]["type"], original["type"])
-                        self.assertEqual(item["checks"]["endpoints"], "unresolved")
-                    self.assertEqual(item["checks"]["owner"], "not_evaluated")
+                self.assertEqual(report["recognition"]["overall"]["recognized"], expected)
+                self.assertEqual(report["recognition"]["overall"]["expected"], 58)
+                self.assertTrue(report["recognition"]["buckets"])
+                self.assertTrue(all(row["expected"] > 0 for row in report["recognition"]["buckets"]))
+                self.assertEqual(sum(row["expected"] for row in report["recognition"]["buckets"]), 58)
+                self.assertEqual({item["target"]["id"] for item in report["annotations"]}, {item["id"] for item in submission["nodes"]})
+                self.assertTrue(any(fact["code"] == "label.equal" and fact["status"] == "satisfied" for item in report["annotations"] for fact in item["facts"]))
                 self.assertEqual(report, build(store))
 
 

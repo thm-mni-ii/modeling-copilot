@@ -5,27 +5,25 @@ import os
 import sys
 
 from artifacts import read_artifacts
-import comparison_report
 from workflow_io import Workspace, workspace, write_output
 import analysis
-from analysis_contract import SCHEMA, analysis_key, analysis_path, content_hash, require, validate_analysis
+from analysis_contract import SCHEMA, analysis_key, analysis_path, content_hash, read_comparison, require, validate_analysis
 
 SERVICE = "analytical-feedback"
 
 
 def run(store: Workspace, reference_key: str) -> dict:
     bundle, graphs, indices, candidates = read_artifacts(store, reference_key)
-    comparison = comparison_report.read_comparison(store, reference_key)
+    comparison = read_comparison(store, reference_key)
     expected = {"graphHashes": {side: graph["graphHash"] for side, graph in graphs.items()},
                 "inventoryHashes": candidates["inventoryHashes"], "candidateHash": candidates["candidateHash"],
                 "languageResources": {side: graph["languageResources"] for side, graph in graphs.items()}}
     require(all(comparison.get(key) == value for key, value in expected.items()),
             "comparison does not match its source artifact chain")
     thresholds = bundle["comparisonConfig"].get("graphMatching", {}).get("minimumSimilarity", {})
-    require(comparison["semanticRefinement"]["minimumSimilarity"] == thresholds,
+    require((comparison.get("semanticConfiguration") or comparison.get("semanticRefinement", {})).get("minimumSimilarity") == thresholds,
             "comparison thresholds differ from frozen configuration")
-    compact = comparison_report.build_report(comparison)["result"]
-    report = analysis.build(store, bundle, indices, candidates, comparison, compact)
+    report = analysis.build(bundle, indices, comparison)
     require(report["schema"] == SCHEMA, "invalid analysis schema")
     report["analysisKey"] = analysis_key(report)
     report["analysisHash"] = content_hash(report)
@@ -33,8 +31,7 @@ def run(store: Workspace, reference_key: str) -> dict:
     path = analysis_path(report)
     return {"schemaVersion": 1, "schema": "workflow-result/v1", "status": "ok", "mode": "aggregate",
             "capability": SERVICE, "summary": "Vorläufige elementbezogene Hinweise",
-            "analysisPath": path, "analysisKey": report["analysisKey"],
-            "metadata": {"analysisPath": path, "analysisKey": report["analysisKey"]}, "result": report}
+            "analysisPath": path, "analysisKey": report["analysisKey"], "result": report}
 
 
 def main() -> int:

@@ -22,8 +22,6 @@ export interface ComparisonGroup {
 
 export interface DiagramEvaluationConfig {
   comparisonGroups: ComparisonGroup[]
-  /** Recognition categories by native type; independent of comparison groups. */
-  elementCategories?: Record<string, 'nodes' | 'attributes' | 'other'>
 }
 
 /** Complete editor payload stored unchanged in `LanguageVersion.data`. */

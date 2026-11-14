@@ -6,6 +6,7 @@ import io
 import json
 import os
 import sys
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -23,7 +24,7 @@ def load(name, path):
     return module
 
 
-comparison_report = load("comparison_report", SERVICES / "feedback-generation/src/main.py")
+feedback = load("feedback", SERVICES / "feedback-generation/src/main.py")
 service = load("analytical_service", SERVICES / "analytical-feedback/src/main.py")
 matcher = load("matching_fixture", SERVICES / "one-to-one-graph-matching/src/main.py")
 
@@ -32,7 +33,6 @@ class ServiceTests(unittest.TestCase):
     def test_stdout_artifact_and_downstream_feedback_use_same_analysis(self):
         # Reuse the matcher's existing tiny artifact fixture; never start a workflow.
         store = Store()
-        store.bundle["languages"][0]["data"]["evaluation"] = {"elementCategories": {"modelElement": "nodes"}}
         for side, key in (("student", "submission"), ("reference", "ref")):
             graph = store.files[f"graphs/{key}.json"]["result"]
             graph["languageResources"][0]["hash"] = content_hash(store.bundle["languages"][0]["data"])
@@ -51,12 +51,22 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(service.main(), 0)
         envelope = json.loads(output.getvalue())
         self.assertEqual(output.getvalue().count("\n"), 1)
-        self.assertEqual(envelope["result"]["contractVersion"], "1.3")
-        result = comparison_report.run(store, "ref", envelope["analysisPath"])["result"]
+        self.assertEqual(envelope["result"]["schema"], "analysis-feedback/v3")
+        result = feedback.run(store, "ref", envelope["analysisPath"])["result"]
         self.assertEqual(result["analysisHash"], envelope["result"]["analysisHash"])
-        self.assertEqual(result["analyticalSummary"], envelope["result"]["summary"])
-        self.assertEqual(result["analyticalSummary"]["nodes"]["recognized"], 1)
-        self.assertEqual(result["categories"][3]["provisionalRecognizedCount"], 1)
+        self.assertEqual(result["recognition"], envelope["result"]["recognition"])
+        self.assertEqual(result["recognition"]["buckets"][0]["recognized"], 1)
+        self.assertFalse({"categories", "totals", "analyticalSummary", "metrics"} & result.keys())
+        from test_contract import CHECK, ROOT
+        payload = [{"envelope": envelope, "feedback": result, "context": {
+            "evaluationId": "evaluation", "referenceKey": "ref", "modelId": "s",
+            "submissionObjects": store.files["graphs/submission.json"]["result"]["graph"]["nodes"],
+            "referenceObjects": store.files["graphs/ref.json"]["result"]["graph"]["nodes"]}}]
+        check = subprocess.run(["node", "-e", CHECK], input=json.dumps(payload), cwd=ROOT,
+                               text=True, capture_output=True, check=False)
+        self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+        with self.assertRaisesRegex(ValueError, "feedback path"):
+            feedback.run(store, "ref")
 
 
 if __name__ == "__main__":

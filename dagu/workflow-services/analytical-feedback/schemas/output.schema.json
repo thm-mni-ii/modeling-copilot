@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "analysis-feedback/v1",
+  "$id": "analysis-feedback/v3",
   "title": "Compact analytical feedback artifact (contracts 1.1 through 1.3)",
   "type": "object",
-  "required": ["schemaVersion", "schema", "status", "mode", "capability", "analysisPath", "analysisKey", "metadata", "result"],
+  "required": ["schemaVersion", "schema", "status", "mode", "capability", "analysisPath", "analysisKey", "result"],
   "properties": {
     "schemaVersion": {"const": 1},
     "schema": {"const": "workflow-result/v1"},
@@ -19,10 +19,86 @@
       "properties": {"analysisPath": {"type": "string"}, "analysisKey": {"$ref": "#/$defs/hash"}},
       "additionalProperties": false
     },
-    "result": {"$ref": "#/$defs/report"}
+    "result": {"anyOf": [{"$ref": "#/$defs/report"}, {"$ref": "#/$defs/reportV2"}, {"$ref": "#/$defs/reportV3"}]}
   },
   "additionalProperties": false,
   "$defs": {
+    "recognitionV3": {"type": "object", "required": ["basis", "buckets", "overall", "unmatchedSubmission"], "properties": {"basis": {"const": "uniquely_supported"}, "overall": {"$ref": "#/$defs/recognitionRow"}, "buckets": {"type": "array", "items": {"type": "object", "required": ["id", "label", "kind", "grouped", "recognized", "expected", "percent", "evaluationStatus"], "properties": {"id": {"$ref": "#/$defs/hash"}, "label": {"type": "string", "minLength": 1}, "kind": {"enum": ["modelElement", "connection", "connectionLabel", null]}, "grouped": {"type": "boolean"}, "recognized": {"type": "integer", "minimum": 0}, "expected": {"type": "integer", "minimum": 0}, "percent": {"type": ["number", "null"], "minimum": 0, "maximum": 100}, "evaluationStatus": {"enum": ["evaluated", "partial", "not_evaluated", "not_applicable"]}}, "additionalProperties": false}}, "unmatchedSubmission": {"type": "array", "items": {"type": "object", "required": ["id", "kind"], "properties": {"id": {"type": "string", "minLength": 1}, "kind": {"enum": ["modelElement", "connection", "connectionLabel", null]}}, "additionalProperties": false}}}, "additionalProperties": false},
+    "annotationV3": {"type": "object", "required": ["target", "facts", "hints"], "properties": {"target": {"$ref": "#/$defs/target"}, "referenceId": {"type": "string", "minLength": 1}, "mappingReason": {"type": "string"}, "identity": {"$ref": "#/$defs/identityV2"}, "facts": {"$ref": "#/$defs/factsV2"}, "hints": {"type": "array", "items": {"$ref": "#/$defs/hintV2"}}, "dependencies": {"type": "array", "items": {"type": "object", "required": ["referenceId", "studentId"], "properties": {"referenceId": {"type": "string"}, "studentId": {"type": "string"}}, "additionalProperties": false}}, "owner": {"type": "object", "required": ["referenceOwnerId", "submissionOwnerId"], "properties": {"referenceOwnerId": {"type": ["string", "null"]}, "submissionOwnerId": {"type": ["string", "null"]}}, "additionalProperties": false}, "containment": {"$ref": "#/$defs/annotation/properties/containment"}, "connection": {"$ref": "#/$defs/annotation/properties/connection"}, "groupIds": {"type": "array", "items": {"$ref": "#/$defs/hash"}}}, "allOf": [{"if": {"properties": {"target": {"properties": {"kind": {"enum": ["modelElement", "connection"]}}}}}, "then": {"required": ["identity"]}}], "additionalProperties": false},
+    "reportV3": {"type": "object", "required": ["schema", "producer", "evaluationId", "pair", "comparisonHash", "status", "assessmentAvailable", "recognition", "annotations", "referenceHints", "connectionGroups", "limitations", "structuralContainers", "analysisKey", "analysisHash"], "properties": {"schema": {"const": "analysis-feedback/v3"}, "producer": {"type": "object", "required": ["service", "version"], "properties": {"service": {"const": "analytical-feedback"}, "version": {"type": "string"}}, "additionalProperties": false}, "evaluationId": {"type": "string"}, "pair": {"$ref": "#/$defs/report/properties/pair"}, "comparisonHash": {"$ref": "#/$defs/hash"}, "status": {"const": "provisional"}, "assessmentAvailable": {"const": false}, "recognition": {"$ref": "#/$defs/recognitionV3"}, "annotations": {"type": "array", "items": {"$ref": "#/$defs/annotationV3"}}, "referenceHints": {"type": "array", "items": {"$ref": "#/$defs/referenceHintV2"}}, "connectionGroups": {"type": "array", "items": {"$ref": "#/$defs/groupV2"}}, "limitations": {"type": "array", "items": {"$ref": "#/$defs/hintV2"}}, "structuralContainers": {"type": "object", "required": ["referenceCount", "submissionCount"], "properties": {"referenceCount": {"type": "integer", "minimum": 0}, "submissionCount": {"type": "integer", "minimum": 0}}, "additionalProperties": false}, "analysisKey": {"$ref": "#/$defs/hash"}, "analysisHash": {"$ref": "#/$defs/hash"}}, "additionalProperties": false},
+    "feedbackReportV3": {"type": "object", "required": ["schema", "status", "assessmentAvailable", "evaluationId", "inputHash", "pair", "comparisonHash", "analysisHash", "analysisPath", "recognition", "producer", "feedbackHash"], "properties": {"schema": {"const": "feedback-report/v3"}, "status": {"const": "partial"}, "assessmentAvailable": {"const": false}, "evaluationId": {"type": "string"}, "inputHash": {"$ref": "#/$defs/hash"}, "pair": {"$ref": "#/$defs/report/properties/pair"}, "comparisonHash": {"$ref": "#/$defs/hash"}, "analysisHash": {"$ref": "#/$defs/hash"}, "analysisPath": {"type": "string"}, "recognition": {"$ref": "#/$defs/recognitionV3"}, "producer": {"type": "object"}, "feedbackHash": {"$ref": "#/$defs/hash"}}, "additionalProperties": false},
+    "recognitionRow": {
+      "type": "object", "required": ["recognized", "expected", "percent", "evaluationStatus"],
+      "properties": {"recognized": {"type": "integer", "minimum": 0}, "expected": {"type": "integer", "minimum": 0},
+        "percent": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "evaluationStatus": {"enum": ["evaluated", "partial", "not_evaluated", "not_applicable"]}}, "additionalProperties": false
+    },
+    "recognition": {
+      "type": "object", "required": ["basis", "categories", "overall", "unmatchedSubmission"],
+      "properties": {"basis": {"const": "uniquely_supported"}, "overall": {"$ref": "#/$defs/recognitionRow"},
+        "categories": {"type": "object", "required": ["nodes", "attributes", "connections", "other"],
+          "properties": {"nodes": {"$ref": "#/$defs/recognitionRow"}, "attributes": {"$ref": "#/$defs/recognitionRow"},
+            "connections": {"$ref": "#/$defs/recognitionRow"}, "other": {"$ref": "#/$defs/recognitionRow"}}, "additionalProperties": false},
+        "unmatchedSubmission": {"type": "array", "items": {"type": "object", "required": ["id", "kind", "category"],
+          "properties": {"id": {"type": "string", "minLength": 1}, "kind": {"enum": ["modelElement", "connection", "connectionLabel", null]},
+            "category": {"enum": ["nodes", "attributes", "connections", "other"]}}, "additionalProperties": false}}}, "additionalProperties": false
+    },
+    "identityV2": {
+      "type": "object", "required": ["status", "criteria"], "properties": {
+        "status": {"enum": ["uniquely_supported", "supported", "unresolved"]},
+        "criteria": {"type": "array", "items": {"type": "object", "required": ["method", "role", "result"],
+          "properties": {"method": {"type": "string", "minLength": 1}, "role": {"enum": ["compatibility", "support", "identity_anchor"]},
+            "result": {"$ref": "#/$defs/factStatus"}, "matched": {"type": "integer", "minimum": 0}, "expected": {"type": "integer", "minimum": 0},
+            "observed": {"type": "integer", "minimum": 0}, "complete": {"type": "boolean"},
+            "referenceChildIds": {"type": "array", "items": {"type": "string"}}, "submissionChildIds": {"type": "array", "items": {"type": "string"}},
+            "dependsOn": {"type": "array", "items": {"type": "object", "required": ["referenceId", "studentId"],
+              "properties": {"referenceId": {"type": "string"}, "studentId": {"type": "string"}}, "additionalProperties": false}}}, "additionalProperties": false}}}, "additionalProperties": false
+    },
+    "factsV2": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/fact"}, {"required": ["id"]}]}},
+    "hintV2": {
+      "type": "object", "required": ["code", "scope", "targets"], "properties": {
+        "code": {"type": "string", "minLength": 1}, "scope": {"enum": ["element", "relation", "group", "model"]},
+        "targets": {"type": "array", "items": {"$ref": "#/$defs/objectReference"}},
+        "factId": {"$ref": "#/$defs/hash"}, "findingId": {"$ref": "#/$defs/hash"}}, "additionalProperties": false
+    },
+    "annotationV2": {
+      "type": "object", "required": ["target", "category", "facts", "hints"],
+      "properties": {"target": {"$ref": "#/$defs/target"}, "category": {"enum": ["nodes", "attributes", "connections", "other", null]},
+        "referenceId": {"type": "string", "minLength": 1}, "mappingReason": {"type": "string"}, "identity": {"$ref": "#/$defs/identityV2"},
+        "facts": {"$ref": "#/$defs/factsV2"}, "hints": {"type": "array", "items": {"$ref": "#/$defs/hintV2"}},
+        "dependencies": {"type": "array", "items": {"type": "object", "required": ["referenceId", "studentId"],
+          "properties": {"referenceId": {"type": "string"}, "studentId": {"type": "string"}}, "additionalProperties": false}},
+        "owner": {"type": "object", "required": ["referenceOwnerId", "submissionOwnerId"], "properties": {
+          "referenceOwnerId": {"type": ["string", "null"]}, "submissionOwnerId": {"type": ["string", "null"]}}, "additionalProperties": false},
+        "containment": {"$ref": "#/$defs/annotation/properties/containment"}, "connection": {"$ref": "#/$defs/annotation/properties/connection"},
+        "groupIds": {"type": "array", "items": {"$ref": "#/$defs/hash"}}},
+      "allOf": [{"if": {"properties": {"target": {"properties": {"kind": {"enum": ["modelElement", "connection"]}}}}}, "then": {"required": ["identity"]}}],
+      "additionalProperties": false
+    },
+    "referenceHintV2": {
+      "type": "object", "required": ["code", "target", "scope", "targets", "referenceId", "kind", "facts"],
+      "properties": {"code": {"enum": ["reference.missing", "reference.unresolved", "reference.not_evaluated"]},
+        "target": {"$ref": "#/$defs/target"}, "scope": {"const": "element"}, "targets": {"type": "array", "items": {"$ref": "#/$defs/objectReference"}},
+        "referenceId": {"type": "string"}, "kind": {"enum": ["modelElement", "structuralElement", "connection", "connectionLabel", null]},
+        "facts": {"$ref": "#/$defs/factsV2"}, "identity": {"$ref": "#/$defs/identityV2"}, "label": {"type": "string"}}, "additionalProperties": false
+    },
+    "groupV2": {"type": "object", "required": ["id", "referenceIds", "submissionIds", "referenceEndpointIds", "submissionEndpointIds", "facts"],
+      "properties": {"id": {"$ref": "#/$defs/hash"}, "referenceIds": {"type": "array", "items": {"type": "string"}},
+        "submissionIds": {"type": "array", "items": {"type": "string"}}, "referenceEndpointIds": {"type": "array", "items": {"type": "string"}},
+        "submissionEndpointIds": {"type": "array", "items": {"type": "string"}}, "facts": {"$ref": "#/$defs/factsV2"}}, "additionalProperties": false},
+    "reportV2": {"type": "object", "required": ["schema", "producer", "evaluationId", "pair", "comparisonHash", "status", "assessmentAvailable", "recognition", "annotations", "referenceHints", "connectionGroups", "limitations", "structuralContainers", "analysisKey", "analysisHash"],
+      "properties": {"schema": {"const": "analysis-feedback/v2"}, "producer": {"type": "object", "required": ["service", "version"], "properties": {"service": {"const": "analytical-feedback"}, "version": {"type": "string"}}, "additionalProperties": false},
+        "evaluationId": {"type": "string"}, "pair": {"$ref": "#/$defs/report/properties/pair"}, "comparisonHash": {"$ref": "#/$defs/hash"},
+        "status": {"const": "provisional"}, "assessmentAvailable": {"const": false}, "recognition": {"$ref": "#/$defs/recognition"},
+        "annotations": {"type": "array", "items": {"$ref": "#/$defs/annotationV2"}}, "referenceHints": {"type": "array", "items": {"$ref": "#/$defs/referenceHintV2"}},
+        "connectionGroups": {"type": "array", "items": {"$ref": "#/$defs/groupV2"}}, "limitations": {"type": "array", "items": {"$ref": "#/$defs/hintV2"}},
+        "structuralContainers": {"type": "object", "required": ["referenceCount", "submissionCount"], "properties": {"referenceCount": {"type": "integer", "minimum": 0}, "submissionCount": {"type": "integer", "minimum": 0}}, "additionalProperties": false},
+        "analysisKey": {"$ref": "#/$defs/hash"}, "analysisHash": {"$ref": "#/$defs/hash"}}, "additionalProperties": false},
+    "feedbackReport": {"type": "object", "required": ["schema", "status", "assessmentAvailable", "evaluationId", "inputHash", "pair", "comparisonHash", "analysisHash", "analysisPath", "recognition", "producer", "feedbackHash"],
+      "properties": {"schema": {"const": "feedback-report/v2"}, "status": {"const": "partial"}, "assessmentAvailable": {"const": false},
+        "evaluationId": {"type": "string"}, "inputHash": {"$ref": "#/$defs/hash"}, "pair": {"$ref": "#/$defs/report/properties/pair"},
+        "comparisonHash": {"$ref": "#/$defs/hash"}, "analysisHash": {"$ref": "#/$defs/hash"}, "analysisPath": {"type": "string"},
+        "recognition": {"$ref": "#/$defs/recognition"}, "producer": {"type": "object"}, "feedbackHash": {"$ref": "#/$defs/hash"}}, "additionalProperties": false},
     "identity": {
       "type": "object", "required": ["status", "criteria", "supportingCandidateCount"],
       "properties": {

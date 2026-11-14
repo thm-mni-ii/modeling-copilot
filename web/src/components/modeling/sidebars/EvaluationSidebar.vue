@@ -96,9 +96,27 @@
           <p class="text-caption text-medium-emphasis mb-0">{{ studentResultMessage }}</p>
         </section>
 
-        <AnalyticalFeedbackPanel v-if="showServiceView" :detail="detail" />
+        <section class="my-3" aria-label="Erkennungsübersicht" aria-live="polite">
+          <h3 class="text-body-2 font-weight-medium mb-1">Erkennung</h3>
+          <p class="text-caption text-medium-emphasis">Eindeutig erkannte Gegenstücke. Die Erkennungsquote ist keine Korrektheitsquote oder Note.</p>
+          <p v-if="selectedRecognition?.recognition.buckets" class="text-caption text-medium-emphasis">Vergleichsgruppen sind zusammengefasst; nicht gruppierte Typen stehen einzeln. Angezeigt wird, was in der Musterlösung vorkommt.</p>
+          <v-select v-if="recognitionOptions.length > 1" v-model="referenceKey" :items="recognitionOptions" item-title="label" item-value="key" label="Musterlösung" density="compact" variant="outlined" hide-details class="mb-2" />
+          <v-alert v-if="recognitionState.error" type="warning" density="compact" variant="tonal">{{ recognitionState.error }}</v-alert>
+          <template v-else-if="selectedRecognition">
+            <div v-for="entry in recognitionRows" :key="entry.key" class="mb-3">
+              <div class="d-flex justify-space-between ga-2 text-caption"><strong>{{ entry.label }}</strong><span>{{ entry.row.recognized }} von {{ entry.row.expected }} erkannt</span></div>
+              <div class="d-flex justify-space-between ga-2 text-caption text-medium-emphasis"><span>{{ analysisValueLabel(entry.row.evaluationStatus) }}</span><span>{{ recognitionPercent(entry.row) }}</span></div>
+              <v-progress-linear v-if="entry.row.percent !== null" :model-value="entry.row.percent" height="4" rounded color="primary" :aria-label="`${entry.label}: Erkennungsquote`" :aria-valuetext="`${entry.row.recognized} von ${entry.row.expected} erkannt`" />
+            </div>
+            <p class="text-caption">{{ selectedRecognition.recognition.unmatchedSubmission.length }} Abgabeobjekte ohne Zuordnung.</p>
+          </template>
+          <p v-else class="text-caption text-medium-emphasis">Für diese Auswertung und Musterlösung ist noch keine Erkennungsübersicht verfügbar.</p>
+        </section>
 
-        <v-timeline v-if="showServiceView" density="compact" side="end" truncate-line="both" class="evaluation-timeline">
+        <AnalyticalFeedbackPanel v-if="showServiceView" v-model:reference-key="referenceKey" :detail="detail" />
+
+        <details v-if="showServiceView" class="mt-3"><summary class="text-body-2">Technische Details</summary>
+        <v-timeline density="compact" side="end" truncate-line="both" class="evaluation-timeline">
           <v-timeline-item v-for="entry in timelineEntries" :key="entry.id" :dot-color="entry.color" size="x-small">
             <template #icon
               ><v-icon size="12" color="white">{{ entry.icon }}</v-icon></template
@@ -129,6 +147,7 @@
             >Run als ZIP herunterladen</v-btn>
           </v-timeline-item>
         </v-timeline>
+        </details>
       </template>
     </div>
   </div>
@@ -145,6 +164,7 @@ import JsonResultViewer from './JsonResultViewer.vue'
 import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
 import AnalyticalFeedbackPanel from './AnalyticalFeedbackPanel.vue'
 import { semanticComparisonResult } from '@/utils/semanticComparison'
+import { analysisCategories, analysisValueLabel, categoryLabels, recognitionReportsFromEvaluation, type RecognitionCount } from '@/utils/analysisFeedback'
 
 const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null; evaluationPerspective?: 'service' | 'student' }>()
 const emit = defineEmits<{ 'evaluation-updated': [evaluation: EvaluationDetail] }>()
@@ -155,6 +175,22 @@ const showServiceView = computed(() => canViewService.value && selectedPerspecti
 const view = ref<'list' | 'detail'>('list')
 const evaluations = ref<Evaluation[]>([])
 const detail = ref<EvaluationDetail | null>(null)
+const referenceKey = ref('')
+const recognitionState = computed(() => {
+  try { return { reports: detail.value ? recognitionReportsFromEvaluation(detail.value) : [], error: null } }
+  catch { return { reports: [], error: 'Die Erkennungsübersicht hat ein ungültiges Format.' } }
+})
+const recognitionOptions = computed(() => recognitionState.value.reports.map((report, index) => ({ key: report.referenceKey, label: `Musterlösung ${index + 1}` })))
+watch([recognitionOptions, () => detail.value?.id], ([options, evaluationId], [, previousId]) => {
+  if (evaluationId !== previousId || !referenceKey.value) referenceKey.value = options[0]?.key ?? ''
+}, { immediate: true })
+const selectedRecognition = computed(() => recognitionState.value.reports.find(report => report.referenceKey === referenceKey.value))
+const recognitionRows = computed(() => selectedRecognition.value ? [
+  { key: 'overall', label: 'Insgesamt', row: selectedRecognition.value.recognition.overall },
+  ...(selectedRecognition.value.recognition.buckets?.map(row => ({ key: row.id, label: row.label, row })) ??
+    analysisCategories.map(key => ({ key, label: categoryLabels[key], row: selectedRecognition.value!.recognition.categories![key] })))
+] : [])
+const recognitionPercent = (row: RecognitionCount) => row.percent === null ? 'nicht bestimmbar' : `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(row.percent)} %`
 const selectedId = ref<ApiId | null>(null)
 const loading = ref(false)
 const detailLoading = ref(false)

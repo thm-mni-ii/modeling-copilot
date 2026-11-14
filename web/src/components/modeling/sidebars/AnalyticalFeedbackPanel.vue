@@ -6,27 +6,22 @@
     <template v-else-if="analysis">
       <p>Alle Zuordnungen sind vorläufig. Erkennung bestätigt keine endgültige Korrektheit.</p>
       <ul v-if="analysis.report.limitations?.length" class="pl-4 my-2 text-medium-emphasis"><li v-for="hint in analysis.report.limitations" :key="hint.code">{{ analysisHintText(hint) }}</li></ul>
-      <dl class="recognition-counts">
-        <template v-for="category in analysisCategories" :key="category">
-          <dt>{{ categoryLabels[category] }}</dt>
-          <dd>{{ recognitionText(analysis.report.summary[category]) }}<br /><span class="text-medium-emphasis">{{ analysisValueLabel(analysis.report.summary[category].evaluationStatus) }}</span></dd>
-        </template>
-      </dl>
-      <p v-if="analysis.report.structuralContainers" class="text-medium-emphasis">Strukturelle Container: {{ analysis.report.structuralContainers.submissionCount }} in der Abgabe, {{ analysis.report.structuralContainers.referenceCount }} in der Referenz; {{ analysis.report.structuralContainers.contextCount }} mit abgeleitetem Kontext. Keine fachliche Knotenzählung.</p>
+      <p v-if="analysis.report.structuralContainers" class="text-medium-emphasis">Strukturelle Container: {{ analysis.report.structuralContainers.submissionCount }} in der Abgabe, {{ analysis.report.structuralContainers.referenceCount }} in der Referenz. Keine fachliche Knotenzählung.</p>
       <v-alert v-if="stale" type="info" density="compact" variant="tonal" class="my-2">Das aktuelle Diagramm weicht vom ausgewerteten Stand ab. Markierungen sind ausgeblendet; die folgenden Befunde gelten für den gespeicherten Stand.</v-alert>
       <v-select v-model="selectedId" :items="objectOptions" item-title="label" item-value="id" label="Element oder Verbindung" density="compact" variant="outlined" hide-details class="my-3" @update:model-value="focusObject" />
+      <v-switch v-model="showDiagnostics" label="Details und Diagnosen anzeigen" density="compact" hide-details class="mb-2" />
       <template v-if="selected">
         <p class="d-flex align-center ga-1"><v-icon :color="display.color" size="18">{{ display.icon }}</v-icon>{{ display.label }}</p>
         <p v-if="selected.identity" class="text-body-2 font-weight-medium my-2">{{ analysisIdentityLabel(selected.identity.status) }}</p>
         <dl class="object-details">
           <dt>Original-ID</dt><dd>{{ selected.target.id }}</dd>
-          <dt>Zuordnung</dt><dd>{{ analysisValueLabel(selected.match.status) }}</dd>
+          <template v-if="selected.match"><dt>Historische Zuordnung</dt><dd>{{ analysisValueLabel(selected.match.status) }}</dd></template>
           <template v-if="selected.referenceId"><dt>Referenzgegenstück</dt><dd>{{ referenceLabel(selected.referenceId) }}</dd></template>
-          <template v-if="selected.match.reason"><dt>Zuordnungsgrund</dt><dd>{{ analysisReasonLabel(selected.match.reason) }}</dd></template>
+          <template v-if="selected.mappingReason || selected.match?.reason"><dt>Zuordnungsgrund</dt><dd>{{ analysisReasonLabel(selected.mappingReason ?? selected.match?.reason ?? '') }}</dd></template>
           <template v-if="selected.context"><dt>Strukturkontext</dt><dd>{{ referenceLabel(selected.context.referenceId) }} (abgeleitet, keine Zuordnung)</dd></template>
           <template v-if="selected.owner"><dt>Besitzer (Referenz / Abgabe)</dt><dd>{{ selected.owner.referenceOwnerId ?? 'ungeklärt oder ohne Besitzer' }} / {{ selected.owner.submissionOwnerId ?? 'ungeklärt oder ohne Besitzer' }}</dd></template>
           <template v-if="selected.containment"><dt>Direkte Parents (Referenz / Abgabe)</dt><dd>{{ parentText(selected.containment.referenceParents) }} / {{ parentText(selected.containment.submissionParents) }}</dd></template>
-          <template v-if="!selected.facts"><template v-for="(status, check) in selected.checks" :key="check"><dt>{{ checkLabels[check] ?? check }}{{ groupCheck(check) ? ' (Gruppe)' : '' }}</dt><dd>{{ analysisValueLabel(status) }}</dd></template></template>
+          <template v-if="!selected.facts && selected.checks"><template v-for="(status, check) in selected.checks" :key="check"><dt>{{ checkLabels[check] ?? check }}{{ groupCheck(check) ? ' (Gruppe)' : '' }}</dt><dd>{{ analysisValueLabel(status) }}</dd></template></template>
         </dl>
         <strong v-if="selected.identity?.criteria.length">Identitätsevidenz</strong>
         <dl v-if="selected.identity?.criteria.length" class="object-details my-2" aria-label="Identitätsevidenz">
@@ -48,7 +43,7 @@
         </div>
         <p v-if="selected.consistency" class="my-2">{{ analysisValueLabel(selected.consistency) }}</p>
         <dl v-if="selected.facts?.length" class="object-details my-2" aria-label="Einzelbefunde">
-          <template v-for="fact in selected.facts" :key="fact.code">
+          <template v-for="fact in visibleFacts" :key="fact.code">
             <dt>{{ analysisFactLabel(fact.code) }}</dt>
             <dd>{{ analysisValueLabel(fact.status) }}<br /><span class="text-medium-emphasis">{{ analysisFactEvidence(fact) }}</span></dd>
           </template>
@@ -61,10 +56,10 @@
             <dd v-else>Kein individuell zugeordnetes Gegenstück</dd>
           </template>
         </dl>
-        <p v-if="selected.checks.connectionScope === 'endpoint_group'">Richtung und Verbindungstyp gelten für die Endpunktgruppe. Sie beweisen keinen individuellen Fehler dieser Verbindung.</p>
-        <div v-if="selected.match.dependsOn?.length" class="my-2">
+        <p v-if="selected.checks?.connectionScope === 'endpoint_group'">Richtung und Verbindungstyp gelten für die Endpunktgruppe. Sie beweisen keinen individuellen Fehler dieser Verbindung.</p>
+        <div v-if="showDiagnostics && selectedDependencies.length" class="my-2">
           <strong>Abhängige Zuordnungen</strong>
-          <div v-for="dep in selected.match.dependsOn" :key="dep.submissionId">{{ dep.submissionId }} → {{ referenceLabel(dep.referenceId) }}</div>
+          <div v-for="dep in selectedDependencies" :key="dep.submissionId">{{ dep.submissionId }} → {{ referenceLabel(dep.referenceId) }}</div>
         </div>
         <template v-for="(fieldLabel, field) in localFields" :key="field">
           <div v-if="selected.local?.[field]" class="my-2">
@@ -86,13 +81,14 @@
           <div>Relationsrolle: {{ analysisValueLabel(relation.roleStatus) }}</div>
         </div>
         <div v-for="group in selectedGroups" :key="group.id" class="my-2">
-          <strong>Verbindungsgruppe · {{ analysisValueLabel(group.status) }}</strong>
+          <strong>Verbindungsgruppe</strong>
           <p>Dieser Befund gilt für die Gruppe und belegt keinen Fehler jeder einzelnen Verbindung.</p>
           <div>Referenz: {{ group.referenceIds.join(', ') || 'keine' }}<br />Abgabe: {{ group.submissionIds.join(', ') || 'keine' }}</div>
-          <dl class="object-details"><template v-for="(status, check) in group.checks" :key="check"><dt>{{ checkLabels[check] ?? check }}</dt><dd>{{ analysisValueLabel(status) }}</dd></template></dl>
-          <div>Ohne Gegenstück in der Gruppe: {{ group.referenceOnlyCount }} Referenz / {{ group.submissionOnlyCount }} Abgabe. Individuelle Identitäten bleiben ungeklärt.</div>
+          <dl v-if="group.facts" class="object-details"><template v-for="fact in group.facts" :key="fact.id ?? fact.code"><dt>{{ analysisFactLabel(fact.code) }}</dt><dd>{{ analysisValueLabel(fact.status) }}<br /><span class="text-medium-emphasis">{{ analysisFactEvidence(fact) }}</span></dd></template></dl>
+          <dl v-else class="object-details"><template v-for="(status, check) in group.checks" :key="check"><dt>{{ checkLabels[check] ?? check }}</dt><dd>{{ analysisValueLabel(status) }}</dd></template></dl>
+          <div v-if="group.referenceOnlyCount !== undefined">Ohne Gegenstück in der Gruppe: {{ group.referenceOnlyCount }} Referenz / {{ group.submissionOnlyCount }} Abgabe. Individuelle Identitäten bleiben ungeklärt.</div>
         </div>
-        <ul v-if="selected.hints.length" class="pl-4 my-2">
+        <ul v-if="showDiagnostics && selected.hints.length" class="pl-4 my-2">
           <li v-for="(hint, index) in selected.hints" :key="`${hint.code}:${index}`" class="mb-2">{{ analysisHintText(hint) }}<div class="technical-parameters text-medium-emphasis">{{ analysisHintParameters(hint) }}</div></li>
         </ul>
       </template>
@@ -114,12 +110,13 @@ import { GraphDataModel, InternalEvent, type Cell, type Graph } from '@maxgraph/
 import type { EvaluationDetail } from '@/services/api/types/evaluation'
 import { useGraphContextOptional } from '@/composables/useGraphContext'
 import { createModelSerializer, importModelFromXml } from '@/utils/modelPersistence'
-import { analysisCategories, analysisChildChecklist, analysisDisplay, analysisFactEvidence, analysisFactLabel, analysisFromEvaluation, analysisHintParameters, analysisHintText, analysisIdentityLabel, analysisIdentityMethodLabel, analysisIdentityRoleLabel, analysisReasonLabel, analysisStatus, analysisValueLabel, categoryLabels, checkLabels, type AdaptedAnalysis, type LocalCounts, type ParentRelation, type RecognitionCount } from '@/utils/analysisFeedback'
+import { analysisChildChecklist, analysisDisplay, analysisFactEvidence, analysisFactLabel, analysisFromEvaluation, analysisHintParameters, analysisHintText, analysisIdentityLabel, analysisIdentityMethodLabel, analysisIdentityRoleLabel, analysisReasonLabel, analysisStatus, analysisValueLabel, checkLabels, type AdaptedAnalysis, type LocalCounts, type ParentRelation } from '@/utils/analysisFeedback'
 import { analysisTargetCell, installAnalysisOverlays, referenceHintTarget } from '@/utils/analysisFeedbackGraph'
 
 const props = defineProps<{ detail: EvaluationDetail }>()
 const graphContext = useGraphContextOptional()
-const referenceKey = ref('')
+const referenceKey = defineModel<string>('referenceKey', { default: '' })
+const showDiagnostics = ref(false)
 const selectedId = ref<string | null>(null)
 const stale = ref(false)
 const analysis = shallowRef<AdaptedAnalysis | null>(null)
@@ -154,14 +151,14 @@ const objectOptions = computed(() => {
   const labels = new Map(objects('submission').map(item => [item.id, item.label]))
   return analysis.value?.report.annotations.map(item => ({ id: item.target.id, label: `${labels.get(item.target.id) || item.target.kind || 'Objekt'} (${item.target.id})` })) ?? []
 })
-const percentFormat = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 })
-const recognitionText = (row: RecognitionCount) => `${row.recognized ?? '–'} / ${row.expected ?? '–'} · ${row.percent === null ? 'nicht bestimmbar' : `${percentFormat.format(row.percent)} %`}`
 const localLabels: Record<keyof LocalCounts, string> = { expected: 'Erwartet', observed: 'In der Abgabe', recognized: 'Vorläufig erkannt', recognizedAtTarget: 'Davon an diesem Ziel', unresolvedReference: 'Referenz ungeklärt', unresolvedSubmission: 'Abgabegegenstück ungeklärt', mappedFromOtherTargets: 'Anderem Kontext zugeordnet', deviating: 'Individuell abweichend', unresolvedChecks: 'Mit ungeklärten Einzelprüfungen' }
 const localFields = { children: 'Fachliche Kinder einschließlich Zwischencontainern', directChildren: 'Unmittelbare Kinder', connections: 'Angrenzende Verbindungen', incoming: 'Eingehend', outgoing: 'Ausgehend', undirected: 'Ungerichtet', unresolved: 'Richtung ungeklärt' } as const
 const parentText = (parents: ParentRelation[] | null) => parents === null ? 'nicht ausgewertet' : parents.map(parent => `${parent.parentId} (${parent.role ?? 'Rolle ungeklärt'})`).join(', ') || 'keine'
 const selectedRelations = computed(() => analysis.value?.report.containmentRelations?.filter(relation => selected.value?.relationIds?.includes(relation.id)) ?? [])
 const selectedGroups = computed(() => analysis.value?.report.connectionGroups?.filter(group => selected.value?.groupIds?.includes(group.id) || !!selectedId.value && group.submissionEndpointIds.includes(selectedId.value)) ?? [])
-const groupCheck = (check: string) => selected.value?.checks.connectionScope === 'endpoint_group' && ['direction', 'connectionType'].includes(check)
+const groupCheck = (check: string) => selected.value?.checks?.connectionScope === 'endpoint_group' && ['direction', 'connectionType'].includes(check)
+const visibleFacts = computed(() => selected.value?.facts?.filter(fact => showDiagnostics.value || fact.status === 'violated' || fact.status === 'unresolved' || /^(label|type|owner|containment|counterpart|connection)\./.test(fact.code)) ?? [])
+const selectedDependencies = computed(() => selected.value?.dependencies?.map(dep => ({ referenceId: dep.referenceId, submissionId: dep.studentId })) ?? selected.value?.match?.dependsOn ?? [])
 const selectedChildren = computed(() => analysisChildChecklist(selected.value?.facts))
 const visibleReferenceHints = computed(() => analysis.value?.report.referenceHints.filter(hint => {
   const graph = graphContext?.graph.value
@@ -221,7 +218,7 @@ watch([() => graphContext?.graph.value, analysis], ([graph, value], _, onCleanup
 </script>
 
 <style scoped>
-.recognition-counts, .object-details { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 4px 8px; }
+.object-details { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 4px 8px; }
 dd { margin: 0; overflow-wrap: anywhere; }
 .technical-parameters { overflow-wrap: anywhere; font-size: 11px; }
 </style>

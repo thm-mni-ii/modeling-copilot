@@ -19,7 +19,7 @@ from workflow_io import Workspace, workspace, write_output
 SERVICE = "one-to-one-graph-matching"
 
 
-def run(store: Workspace, reference_key: str | None) -> dict:
+def run(store: Workspace, reference_key: str | None, *, include_diagnostics=False) -> dict:
     bundle, graphs, indices, candidates = read_artifacts(store, reference_key)
     state = build_provisional_state(indices, candidates, graphs=graphs)
     evaluation = evaluate_initial_coverage(indices, state)
@@ -60,19 +60,21 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     )
     evaluation["unresolvedReferenceConnectionIds"] = connections["unresolvedReferenceIds"]
     evaluation["unresolvedStudentConnectionIds"] = connections["unresolvedStudentIds"]
-    evaluation["provisionalTypeComparison"] = evaluate_type_comparison(
-        indices, evaluation["mapping"]["provisionalElements"], connections["proposals"],
-    )
-    evaluation["metrics"]["provisionalRecognition"] = recognition_metrics(
-        indices, evaluation["mapping"]["provisionalElements"], connections,
-        graph_matching.get("elementCategories", []),
-    )
+    if include_diagnostics:
+        evaluation["provisionalTypeComparison"] = evaluate_type_comparison(
+            indices, evaluation["mapping"]["provisionalElements"], connections["proposals"],
+        )
+        evaluation["metrics"]["provisionalRecognition"] = recognition_metrics(
+            indices, evaluation["mapping"]["provisionalElements"], connections,
+            graph_matching.get("elementCategories", []),
+        )
     evaluation["provisionalConnectionStructure"] = evaluate_connections(
         indices, evaluation["mapping"]["provisionalElements"],
     )
-    structure = evaluate_provisional_owners(indices, candidates, evaluation["mapping"]["provisionalElements"])
-    evaluation["metrics"]["provisionalOwnerConsistency"] = structure["metrics"]
-    evaluation["provisionalOwnerEvidence"] = structure["pairs"]
+    if include_diagnostics:
+        structure = evaluate_provisional_owners(indices, candidates, evaluation["mapping"]["provisionalElements"])
+        evaluation["metrics"]["provisionalOwnerConsistency"] = structure["metrics"]
+        evaluation["provisionalOwnerEvidence"] = structure["pairs"]
     containment = evaluate_containment_relations(indices, evaluation["mapping"]["provisionalElements"])
     evaluation["metrics"]["provisionalContainment"] = containment["metrics"]
     evaluation["provisionalContainmentEvidence"] = containment["relations"]
@@ -85,6 +87,11 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     evaluation["propertyFacts"] = evaluate_facts(indices, evaluation, graphs, candidates, {
         side: store.read(candidates["inventoryPaths"][side])["result"] for side in indices
     })
+    semantic_configuration = {key: semantics[key] for key in ("configurationStatus", "minimumSimilarity")}
+    diagnostics = {key: value for key, value in evaluation.items() if key not in (
+        "mapping", "propertyFacts", "unresolvedReferenceIds", "unresolvedStudentIds",
+        "unresolvedReferenceConnectionIds", "unresolvedStudentConnectionIds")}
+    evaluation = {key: value for key, value in evaluation.items() if key not in diagnostics}
     source_dir = Path(__file__).parent
     resources = {"src/workflow_io.py": Path(workflow_io.__file__)}
     resources.update({
@@ -92,7 +99,7 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     })
     producer = {
         "service": SERVICE,
-        "version": "1.2.0",
+        "version": "2.0.0",
         "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()}),
     }
     incomplete = (candidates["completeness"]["interpretation"] == "partial"
@@ -101,7 +108,7 @@ def run(store: Workspace, reference_key: str | None) -> dict:
                       node["comparisonRole"] != "semantic" or node["languageResolution"] != "resolved"
                   ) for index in indices.values() for node in index.nodes.values()))
     result = {
-        "schema": "reference-comparison/v1",
+        "schema": "reference-comparison/v2",
         "status": "partial",
         "assessmentAvailable": False,
         "evaluationId": bundle["evaluationId"],
@@ -114,6 +121,8 @@ def run(store: Workspace, reference_key: str | None) -> dict:
         "candidateHash": candidates["candidateHash"],
         "producer": producer,
         **evaluation,
+        "semanticConfiguration": semantic_configuration,
+        **({"diagnostics": {"purpose": "development_only", **diagnostics}} if include_diagnostics else {}),
         "completeness": {
             "technical": "complete",
             "interpretation": "partial" if incomplete else "complete",
@@ -130,7 +139,7 @@ def run(store: Workspace, reference_key: str | None) -> dict:
 def main() -> int:
     try:
         store = workspace()
-        write_output(run(store, os.environ.get("REFERENCE_KEY")))
+        write_output(run(store, os.environ.get("REFERENCE_KEY"), include_diagnostics=os.environ.get("GRAPH_MATCHING_DIAGNOSTICS") == "1"))
         return 0
     except (ValueError, TypeError, KeyError, OSError) as error:
         print(f"[{SERVICE}] invalid input: {error}", file=sys.stderr)

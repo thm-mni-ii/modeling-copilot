@@ -1,6 +1,25 @@
 # one-to-one-graph-matching
 
-Serviceversion `1.2.0`, Image `v3`. Nach Abschluss der Korrespondenz- und
+Serviceversion `2.0.0`, Image `v4`, Ausgabeschema `reference-comparison/v2`.
+Die Zuordnungsheuristiken und Schwellen sind gegenueber v3 unveraendert.
+Regulaer werden ausgewaehlte Zuordnungen, `propertyFacts`, offene Original-IDs,
+Konfiguration und Herkunft gespeichert. Identitaetsfakten nennen zusaetzlich ihre
+Auswertbarkeit. Die vollstaendige kompakte JSON-Ausgabe bleibt auf stdout erhalten.
+
+Mit `GRAPH_MATCHING_DIAGNOSTICS=1` werden Kandidatenlisten, `identityEvidence`,
+`decisionEvents`, `semanticRefinement`, Besitzer-/Containment-/Verbindungsdiagnosen
+und vorlaeufige Metriken unter `diagnostics` mit `purpose: development_only`
+gespeichert. Sie sind keine zweite Erkennungsquelle. Nur diagnostisch benoetigte
+Aggregationen werden regulaer nicht mehr berechnet. Alle Evidenzen bleiben fuer
+die Matchingentscheidungen erhalten. Mapping und Fakten sind mit und ohne
+Diagnostik identisch. Die verbindliche Erkennungsuebersicht berechnet
+[Analytical Feedback](../analytical-feedback/README.md).
+
+Die folgende Methodendokumentation beschreibt Berechnung und optionale Diagnosen;
+fruehere Top-Level-Diagnosepfade liegen in v2 unter `diagnostics`.
+Gespeicherte v1-Vergleiche bleiben unveraendert lesbar.
+
+ Nach Abschluss der Korrespondenz- und
 Strukturprüfungen ergänzt `propertyFacts` (Version `1.1`) konkrete Einzelbefunde.
 Synonymverfahren und Parameter bleiben gleich. Die Identitätsregeln ergänzen
 globale Konkurrenzprüfung, gemeinsame Kinderstruktur und robuste Verbindungsanker.

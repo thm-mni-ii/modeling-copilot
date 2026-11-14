@@ -60,11 +60,12 @@ export function installAnalysisOverlays(graph: Graph, analysis: AdaptedAnalysis,
   }
   for (const [cell, hints] of hintsByCell) add(cell, hints.some(hint => hint.status !== 'not_evaluated') ? 'unresolved' : 'not_evaluated', hints.map(hint => `${analysisHintText(hint)} (${hint.label ?? hint.referenceId})`).join('\n'), true)
   for (const group of analysis.report.connectionGroups ?? []) {
-    if (!group.hints.length) continue
+    const hasIssue = group.facts?.some(fact => ['violated', 'unresolved'].includes(fact.status)) ?? !!group.hints?.length
+    if (!hasIssue) continue
     for (const id of group.submissionEndpointIds) {
       const item = analysis.report.annotations.find(item => item.target.id === id)
       const cell = item && analysisTargetCell(graph, item.target)
-      if (cell) add(cell, group.status === 'different' ? 'warning' : 'unresolved', `Verbindungsgruppe: ${group.hints.map(analysisHintText).join('\n')}`, true, id)
+      if (cell) add(cell, group.facts?.some(fact => fact.status === 'violated') || group.status === 'different' ? 'warning' : 'unresolved', `Verbindungsgruppe: ${group.hints?.map(analysisHintText).join('\n') || 'Abweichende oder offene Gruppenprüfungen; kein individueller Verbindungsfehler.'}`, true, id)
     }
   }
   return { modelHints, undisplayedAnnotations, remove: () => installed.forEach(({ cell, overlay }) => graph.removeCellOverlay(cell, overlay)) }

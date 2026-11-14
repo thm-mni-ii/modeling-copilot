@@ -48,8 +48,8 @@ class IdentityFeedbackTests(unittest.TestCase):
                 validate_analysis(report, store)
                 parent = next(item for item in report["annotations"] if item["target"]["id"] == "parent")
                 self.assertEqual(parent["identity"]["status"], "uniquely_supported")
-                self.assertEqual(parent["checks"]["label"], "satisfied")
-                self.assertEqual(parent["checks"]["type"], "satisfied")
+                self.assertTrue(any(fact["code"] == "label.equal" and fact["status"] == "satisfied" for fact in parent["facts"]))
+                self.assertTrue(any(fact["code"] == "type.equal" and fact["status"] == "satisfied" for fact in parent["facts"]))
                 children = next(item for item in parent["facts"] if item["code"] == "children.complete")["evidence"]
                 self.assertEqual((children["matched"], children["expected"]), (matched, 2))
                 if scenario == "missing":
@@ -66,12 +66,12 @@ class IdentityFeedbackTests(unittest.TestCase):
         validate_analysis(report, store)
         parent = next(item for item in report["annotations"] if item["target"]["id"] == "parent")
         self.assertEqual(parent["identity"]["status"], "uniquely_supported")
-        self.assertEqual(parent["checks"]["label"], "satisfied")
+        self.assertTrue(any(fact["code"] == "label.equal" and fact["status"] == "satisfied" for fact in parent["facts"]))
         children = next(item for item in parent["facts"] if item["code"] == "children.complete")["evidence"]
         self.assertEqual((children["matched"], children["expected"], children["movedReferenceIds"]), (2, 3, ["c"]))
         child = next(item for item in report["annotations"] if item["target"]["id"] == "c")
         self.assertEqual(child["identity"]["status"], "uniquely_supported")
-        self.assertEqual(child["checks"]["owner"], "violated")
+        self.assertTrue(any(fact["code"].startswith("owner.") and fact["status"] == "violated" for fact in child["facts"]))
         placement_hints = [hint for hint in child["hints"] if "findingId" in hint]
         self.assertEqual(len(placement_hints), 1)
         self.assertEqual({target["id"] for target in placement_hints[0]["targets"] if target["side"] == "submission"}, {"c", "parent", "other"})
@@ -80,7 +80,8 @@ class IdentityFeedbackTests(unittest.TestCase):
         store = with_identity_facts(case([node("parent", label="Parent")]))
         report = build(store)
         validate_analysis(report, store)
-        self.assertEqual(report["annotations"][0]["consistency"], "fully_consistent")
+        self.assertEqual(report["recognition"]["overall"]["recognized"], 1)
+        self.assertFalse({"status", "checks", "consistency", "match"} & report["annotations"][0].keys())
         forged = deepcopy(report)
         forged["annotations"][0]["identity"]["status"] = "supported"
         rehash(forged)

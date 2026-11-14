@@ -1,8 +1,5 @@
-import copy
 import io
-import importlib.util
 import os
-from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -50,7 +47,7 @@ def store_with_containment():
 
 
 class MainTests(unittest.TestCase):
-    def test_run_loads_valid_v1_artifacts_and_reports_provisional_coverage(self):
+    def test_run_publishes_compact_v2_facts_and_preserves_provenance(self):
         store = Store()
         reference = store.files["graphs/ref.json"]["result"]
         extra = node("r2")
@@ -85,14 +82,13 @@ class MainTests(unittest.TestCase):
         self.assertEqual(output["schema"], "workflow-result/v1")
         self.assertEqual(output["mode"], "match")
         result = output["result"]
-        self.assertEqual(result["schema"], "reference-comparison/v1")
+        self.assertEqual(result["schema"], "reference-comparison/v2")
         self.assertEqual(result["status"], "partial")
         self.assertFalse(result["assessmentAvailable"])
         self.assertEqual(result["pair"], {"studentKey": "submission", "referenceKey": "ref"})
-        self.assertEqual(result["metrics"]["overall"], {
-            "referenceCount": 2, "studentCount": 1, "provisionalAnchorCount": 1,
-            "maximumAssignableCount": 1, "anchorCoverage": 0.5, "capacityUpperBound": 0.5,
-        })
+        self.assertNotIn("metrics", result)
+        self.assertNotIn("diagnostics", result)
+        self.assertTrue(result["propertyFacts"]["items"])
         self.assertEqual(result["unresolvedReferenceIds"], ["r2"])
         self.assertEqual(result["mapping"]["provisionalElements"][0]["status"], "provisional")
         self.assertEqual(result["completeness"]["matching"], "provisional")
@@ -105,7 +101,7 @@ class MainTests(unittest.TestCase):
         self.assertEqual(main.run(store, "ref"), output)
 
     def test_run_reports_provisional_owner_consistency(self):
-        result = main.run(store_with_containment(), "ref")["result"]
+        result = main.run(store_with_containment(), "ref", include_diagnostics=True)["result"]["diagnostics"]
         self.assertEqual(result["metrics"]["provisionalOwnerConsistency"], {
             "expected": 1, "satisfied": 1, "violated": 0, "unresolved": 0,
             "agreement": {"lower": 1.0, "upper": 1.0},
@@ -122,11 +118,7 @@ class MainTests(unittest.TestCase):
                               if item["referenceId"] == "r1" and item["studentId"] == "s1")
         self.assertEqual(owner_evidence["proposalStatus"], "reserved")
         self.assertEqual(owner_evidence["supportingChildren"][0]["referenceId"], "r-child")
-        self.assertEqual(result["comparisonHash"], content_hash({
-            key: value for key, value in result.items() if key != "comparisonHash"
-        }))
-
-    def test_connection_structure_is_included_in_feedback(self):
+    def test_connection_facts_are_independent_of_optional_diagnostics(self):
         store = Store()
         for side, key, element, connection_type in (
             ("reference", "ref", "r1", "first"),
@@ -149,79 +141,33 @@ class MainTests(unittest.TestCase):
             store.candidates["graphHashes"][side] = graph["graphHash"]
             store.candidates["inventoryHashes"][side] = inventory["inventoryHash"]
         store.publish_candidates()
-        comparison = main.run(store, "ref")
-        structure = comparison["result"]["provisionalConnectionStructure"]
+        comparison = main.run(store, "ref", include_diagnostics=True)
+        diagnostics = comparison["result"]["diagnostics"]
+        structure = diagnostics["provisionalConnectionStructure"]
         self.assertEqual(structure["completeness"], "complete")
         self.assertEqual(structure["byEndpoints"][0]["typeStatus"], "different")
         self.assertEqual(len(comparison["result"]["mapping"]["provisionalConnections"]), 1)
-        type_comparison = comparison["result"]["provisionalTypeComparison"]
+        type_comparison = diagnostics["provisionalTypeComparison"]
         self.assertEqual(type_comparison["connections"]["compatibleTypeDifferenceCount"], 1)
         self.assertEqual(type_comparison["connections"]["pairs"][0]["status"], "compatible_type_difference")
         type_fact = next(item for item in comparison["result"]["propertyFacts"]["items"]
                          if item["code"] == "type.different" and item["referenceIds"] == ["r1-link"])
         self.assertEqual(type_fact["status"], "violated")
-        store.files["comparisons/ref.json"] = comparison
-        feedback_path = Path(__file__).resolve().parents[2] / "feedback-generation" / "src" / "main.py"
-        spec = importlib.util.spec_from_file_location("feedback_generation", feedback_path)
-        feedback = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(feedback)
-        result = feedback.run(store, "ref")["result"]
-        self.assertEqual(result["provisionalConnectionStructure"], structure)
-        self.assertEqual(result["provisionalTypeComparison"], type_comparison)
-        self.assertEqual(result["feedbackHash"], feedback.content_hash({
-            key: value for key, value in result.items() if key != "feedbackHash"
-        }))
-        broken = copy.deepcopy(comparison)
-        broken["result"]["provisionalTypeComparison"]["connections"]["pairs"][0]["status"] = "same_type"
-        broken["result"]["comparisonHash"] = content_hash({
-            key: value for key, value in broken["result"].items() if key != "comparisonHash"
-        })
-        store.files["comparisons/ref.json"] = broken
-        with self.assertRaisesRegex(ValueError, "concrete type status"):
-            feedback.run(store, "ref")
-        broken = copy.deepcopy(comparison)
-        broken["result"]["provisionalTypeComparison"]["connections"]["compatibleTypeDifferenceCount"] = 0
-        broken["result"]["comparisonHash"] = content_hash({
-            key: value for key, value in broken["result"].items() if key != "comparisonHash"
-        })
-        store.files["comparisons/ref.json"] = broken
-        with self.assertRaisesRegex(ValueError, "type comparison counts"):
-            feedback.run(store, "ref")
-        legacy = copy.deepcopy(comparison)
-        del legacy["result"]["provisionalTypeComparison"]
-        legacy["result"]["comparisonHash"] = content_hash({
-            key: value for key, value in legacy["result"].items() if key != "comparisonHash"
-        })
-        store.files["comparisons/ref.json"] = legacy
-        self.assertNotIn("provisionalTypeComparison", feedback.run(store, "ref")["result"])
+        compact = main.run(store, "ref")["result"]
+        self.assertEqual(compact["mapping"], comparison["result"]["mapping"])
+        self.assertEqual(compact["propertyFacts"], comparison["result"]["propertyFacts"])
+        self.assertNotIn("diagnostics", compact)
 
-    def test_containment_relations_are_included_and_validated_in_feedback(self):
+    def test_diagnostics_do_not_change_matching_or_facts(self):
         store = store_with_containment()
-        comparison = main.run(store, "ref")
-        result = comparison["result"]
-        metrics = result["metrics"]["provisionalContainment"]
-        self.assertEqual(metrics, {
-            "referenceRelationCount": 1, "satisfied": 1, "violated": 0, "unresolved": 0,
-            "agreement": {"lower": 1.0, "upper": 1.0},
-        })
-        self.assertEqual(result["provisionalContainmentEvidence"][0]["decisionBasis"], "same_parent")
-        store.files["comparisons/ref.json"] = comparison
-        feedback_path = Path(__file__).resolve().parents[2] / "feedback-generation" / "src" / "main.py"
-        spec = importlib.util.spec_from_file_location("feedback_generation", feedback_path)
-        feedback = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(feedback)
-        report = feedback.run(store, "ref")["result"]
-        self.assertEqual(report["provisionalContainment"], {
-            "metrics": metrics, "relations": result["provisionalContainmentEvidence"],
-        })
-        self.assertEqual(report["feedbackHash"], feedback.content_hash({
-            key: value for key, value in report.items() if key != "feedbackHash"
-        }))
-        metrics["satisfied"] = 0
-        result["comparisonHash"] = content_hash({key: value for key, value in result.items()
-                                                  if key != "comparisonHash"})
-        with self.assertRaisesRegex(ValueError, "containment counts"):
-            feedback.run(store, "ref")
+        compact = main.run(store, "ref")["result"]
+        verbose = main.run(store, "ref", include_diagnostics=True)["result"]
+        self.assertEqual(compact["mapping"], verbose["mapping"])
+        self.assertEqual(compact["propertyFacts"], verbose["propertyFacts"])
+        diagnostics = verbose["diagnostics"]
+        self.assertEqual(diagnostics["purpose"], "development_only")
+        self.assertEqual(diagnostics["provisionalContainmentEvidence"][0]["decisionBasis"], "same_parent")
+        self.assertGreater(len(str(verbose)), len(str(compact)))
 
     def test_run_rejects_invalid_graph_and_candidate_hashes(self):
         for artifact in ("graph", "candidate"):

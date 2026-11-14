@@ -16,7 +16,6 @@ from modeling_api.db.store import Document, insert, list_page, to_api, utcnow
 from modeling_api.services import dagu, languages
 from modeling_api.services.models import get_version, ensure_task_questionnaire_completed
 from modeling_api.services.tasks import ensure_release_reference, get_sample_solution
-from modeling_api.services.evaluation_categories import element_categories
 
 
 _EVALUATION_FIELDS = frozenset({
@@ -114,7 +113,7 @@ def _enrich_step_output(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     or output.get("schemaVersion") != 1
                     or output.get("status") != "ok" or output.get("capability") != "analytical-feedback"
                     or not isinstance(output.get("result"), dict)
-                    or output["result"].get("schema") != "analysis-feedback/v1"):
+                    or output["result"].get("schema") not in ("analysis-feedback/v1", "analysis-feedback/v2", "analysis-feedback/v3")):
                 step["resultSummary"] = "Das analytische Ergebnis hat ein ungültiges Format."
                 step["result"] = None
                 continue
@@ -127,6 +126,38 @@ def _enrich_step_output(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         elif raw is not None and not isinstance(raw, str):
             step["resultSummary"] = json.dumps(raw, ensure_ascii=False)
     return steps
+
+
+def student_step_results(steps: list[Document]) -> list[Document]:
+    """Expose aggregate recognition only; reference facts and diagnostics stay private."""
+    public = []
+    for step in steps:
+        item = {**step, "description": None, "resultSummary": None, "result": None}
+        report = step.get("result")
+        if isinstance(report, dict) and report.get("schema") in ("feedback-report/v2", "feedback-report/v3"):
+            recognition = report.get("recognition")
+            fields = ("recognized", "expected", "percent", "evaluationStatus")
+            if (isinstance(recognition, dict) and isinstance(recognition.get("overall"), dict)
+                    and isinstance(recognition.get("unmatchedSubmission"), list)):
+                overview = {"basis": recognition.get("basis"),
+                    "overall": {field: recognition["overall"].get(field) for field in fields},
+                    "unmatchedSubmission": [{field: row.get(field) for field in ("id", "kind")} for row in recognition["unmatchedSubmission"] if isinstance(row, dict)]}
+                if report["schema"] == "feedback-report/v3" and isinstance(recognition.get("buckets"), list):
+                    overview["buckets"] = [{field: row.get(field) for field in ("id", "label", "kind", "grouped", *fields)}
+                                           for row in recognition["buckets"] if isinstance(row, dict)]
+                elif report["schema"] == "feedback-report/v2" and isinstance(recognition.get("categories"), dict):
+                    overview["categories"] = {category: {field: row.get(field) for field in fields}
+                        for category, row in recognition["categories"].items() if category in ("nodes", "attributes", "connections", "other") and isinstance(row, dict)}
+                    overview["unmatchedSubmission"] = [{field: row.get(field) for field in ("id", "kind", "category")} for row in recognition["unmatchedSubmission"] if isinstance(row, dict)]
+                else:
+                    public.append(item)
+                    continue
+                item["result"] = {"schema": report["schema"], "evaluationId": report.get("evaluationId"),
+                    "pair": {"studentKey": "submission", "referenceKey": report.get("pair", {}).get("referenceKey")},
+                    "status": report.get("status"), "assessmentAvailable": False, "recognition": overview}
+                item["resultSummary"] = "Erkennungs?bersicht verf?gbar; keine Korrektheitsquote oder Note."
+        public.append(item)
+    return public
 
 
 async def list_workflows() -> list[Document]:
@@ -179,8 +210,6 @@ async def _evaluation_input(
     graph_matching = config.setdefault("graphMatching", {})
     if not isinstance(graph_matching, dict):
         raise ApiError(422, "INVALID_COMPARISON_CONFIG", "graphMatching must be a JSON object.")
-    if "elementCategories" not in graph_matching:
-        graph_matching["elementCategories"] = element_categories(definitions)
     return {"schemaVersion": 1, "schema": "evaluation-input/v1", "evaluationId": evaluation_id,
             "task": task, "models": models, "languages": definitions,
             "comparisonConfig": config}, descriptors
@@ -316,6 +345,8 @@ async def _model_run_steps(
             if capability == "analytical-feedback" and not allow_analysis:
                 step["resultSummary"] = "Analytisches Feedback ist Moderatoren und Administratoren vorbehalten."
                 return step
+            if not allow_analysis and capability != "feedback-generation":
+                return step
             errors = [node.get("error") for node in run.get("nodes", []) if node.get("error")]
             step["resultSummary"] = "\n".join(errors) or None
             if step["status"] == "succeeded":
@@ -371,6 +402,8 @@ async def detail(evaluation_id: UUID, user: User) -> Document:
                        "error": evaluation.get("startError")},
         }]
         result["finalResult"] = None
+        if not can_view_analysis(user):
+            result["steps"] = student_step_results(result["steps"])
         return result
     state = _state(run.get("statusLabel") or run.get("status") or run.get("state"))
     raw_steps = _run_steps(run, evaluation["workflow"])
@@ -390,9 +423,9 @@ async def detail(evaluation_id: UUID, user: User) -> Document:
     completed_steps = [step for step in raw_steps if step["status"] in {"succeeded", "failed"}]
     logs = await gather(*(
         dagu.get_step_log(evaluation["dagName"], evaluation["dagRunId"], step["id"])
-        for step in completed_steps if not step.get("_modelRun")
+        for step in completed_steps if not step.get("_modelRun") and allow_analysis
     ), return_exceptions=True)
-    for step, log in zip([step for step in completed_steps if not step.get("_modelRun")], logs, strict=True):
+    for step, log in zip([step for step in completed_steps if not step.get("_modelRun") and allow_analysis], logs, strict=True):
         if isinstance(log, str) and log:
             step["resultSummary"] = log
     steps = _enrich_step_output(raw_steps)
@@ -403,13 +436,13 @@ async def detail(evaluation_id: UUID, user: User) -> Document:
     })
     result = _public_evaluation(evaluation, detail=True)
     result["state"] = state
-    result["steps"] = steps
+    result["steps"] = steps if allow_analysis else student_step_results(steps)
     final_result = (run.get("result") or run.get("output")) if state == "succeeded" else None
-    if state == "succeeded" and not isinstance(final_result, dict):
+    if state == "succeeded" and allow_analysis and not isinstance(final_result, dict):
         try:
             final_result = await dagu.get_run_outputs(evaluation["dagName"], evaluation["dagRunId"])
         except ApiError:
             # Intermediate artifacts remain available even if outputs cannot be loaded.
             final_result = None
-    result["finalResult"] = final_result if isinstance(final_result, dict) else None
+    result["finalResult"] = final_result if allow_analysis and isinstance(final_result, dict) else None
     return result

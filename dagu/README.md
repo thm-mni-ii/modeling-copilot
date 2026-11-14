@@ -79,8 +79,11 @@ Pfadformat und die Übereinstimmung des Schlüssels mit dem Dateinamen, bevor de
 Feedback-Service startet. Die früher lokal gecachten `v1`-Analyse-Images lieferten
 stattdessen nur `{status, path, sizeBytes}`; mit `v2` wurde die vollständige
 JSON-Ausgabe bereitgestellt. Die früheren `v4`-Tags ergänzten den analytischen
-Vertrag 1.1; `v5` ergänzte die Projektion der Matcher-Fakten. `v6` ergänzt
-die getrennte Identitäts- und Positionscheckliste.
+Vertrag 1.1; `v5` ergänzte die Projektion der Matcher-Fakten. `v6` ergaenzte
+die getrennte Identitaets- und Positionscheckliste. Workflow v8, Matcher-Image v4
+und Analyse-/Feedback-Images v8 veroeffentlichen kompakte v3-Analyse-/Feedback-Vertraege mit einer
+verbindlichen Erkennungsuebersicht. Details und lokale Nachweise stehen im
+[Cleanup-Bericht](workflow-services/analytical-feedback/CLEANUP.md).
 Beide JSON-stdout-Artefakte bleiben für das Frontend erhalten;
 Synonym Matching und seine Parameter sind unverändert.
 
@@ -92,7 +95,7 @@ Anschließend ausschließlich `analytical-feedback-pair` für `reference_1` der 
 Diese Laufprüfung betrifft den früheren stdout-Fix. Die Evidenzrevision ist mit
 165 gezielten lokalen Tests einschließlich gespeicherter Modelle Baseline, M02,
 M03, M05, M06a/b und M08, Schema-/Frontendadapterprüfung, Lint und Typprüfung verifiziert.
-Die drei betroffenen Images (`one-to-one-graph-matching:v3`,
+Die damaligen Images (`one-to-one-graph-matching:v3`,
 `analytical-feedback:v6`, `feedback-generation:v6`) wurden gebaut und mit
 identischen Digests in Docker und im lokalen Kubernetes-Image-Speicher geprüft;
 die Workflow-Spezifikation wurde per MCP validiert. Für diese Änderung wurden
@@ -119,9 +122,8 @@ kompakten elementbezogenen Hinweise. Das Analyseartefakt liegt zusätzlich im
 Workflow-Workspace. Der Feedbackbericht wird im selben Referenz-Unterlauf unter
 Verwendung dieses Analyseartefakts erzeugt. Details und Aussagegrenzen:
 [Analytical Feedback](workflow-services/analytical-feedback/README.md).
-Der Vergleich zeigt Ankerabdeckung, maximale Zuordnungskapazität und ein
-Intervall der vorläufigen Zugehörigkeitskonsistenz. Diese Zahlen sind keine
-bestätigte Modellübereinstimmung. „Ausklappen“, „Groß anzeigen“ und
+Die Uebersicht zeigt eindeutig erkannte Referenzobjekte insgesamt und je vorhandener Vergleichsgruppe oder nicht gruppiertem Typ. Die Erkennungsquote ist keine Korrektheitsquote und keine Note.
+Vorlaeufige Matcher-Metriken sind ausschliesslich optionale Entwicklungsdiagnosen. „Ausklappen“, „Groß anzeigen“ und
 „Als JSON kopieren“ öffnen beziehungsweise exportieren die vollständigen
 Zwischenergebnisse. Auch bei einem späteren Schrittfehler bleiben die bereits
 erzeugten Ergebnisse sichtbar. Die Ergebnisübersicht benennt die erreichte Phase;
@@ -149,7 +151,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v1 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v1 modeling-copilot/one-to-one-graph-matching:v3 modeling-copilot/analytical-feedback:v6 modeling-copilot/feedback-generation:v6 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v1 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v1 modeling-copilot/one-to-one-graph-matching:v4 modeling-copilot/analytical-feedback:v8 modeling-copilot/feedback-generation:v8 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre

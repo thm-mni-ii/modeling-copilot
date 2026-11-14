@@ -15,10 +15,10 @@ export interface AnalysisFact {
 }
 export interface IdentityCriterion {
   method: string; role: 'compatibility' | 'support' | 'identity_anchor'; result: AnalysisFact['status']
-  referenceIds: string[]; submissionIds: string[]; dependsOn: { referenceId: string; studentId: string }[]
+  referenceIds?: string[]; submissionIds?: string[]; dependsOn?: { referenceId: string; studentId: string }[]
   matched?: number; expected?: number; observed?: number; complete?: boolean
 }
-export interface AnalysisIdentity { status: 'uniquely_supported' | 'supported' | 'unresolved'; criteria: IdentityCriterion[]; supportingCandidateCount: number }
+export interface AnalysisIdentity { status: 'uniquely_supported' | 'supported' | 'unresolved'; criteria: IdentityCriterion[]; supportingCandidateCount?: number }
 export interface LocalCounts {
   expected: number | null; observed: number; recognized: number | null; recognizedAtTarget: number | null
   unresolvedReference: number | null; unresolvedSubmission: number; mappedFromOtherTargets: number | null
@@ -33,14 +33,16 @@ export interface AnalysisAnnotation {
   referenceId?: string
   status?: AnalysisStatus
   category?: AnalysisCategory | null
-  match: { status: 'provisional' | 'unresolved' | 'not_evaluated'; reason?: string; dependsOn?: { referenceId: string; submissionId: string }[] }
+  match?: { status: 'provisional' | 'unresolved' | 'not_evaluated'; reason?: string; dependsOn?: { referenceId: string; submissionId: string }[] }
+  mappingReason?: string
+  dependencies?: { referenceId: string; studentId: string }[]
   context?: { referenceId: string; basis: string; status: string }
-  checks: Record<string, string>
+  checks?: Record<string, string>
   hints: AnalysisHint[]
   facts?: AnalysisFact[]
   identity?: AnalysisIdentity
   consistency?: 'fully_consistent' | 'partial' | 'different' | 'unresolved' | 'not_evaluated'
-  owner?: { referenceOwnerId: string | null; submissionOwnerId: string | null; status: string }
+  owner?: { referenceOwnerId: string | null; submissionOwnerId: string | null; status?: string }
   containment?: { referenceParents: ParentRelation[] | null; submissionParents: ParentRelation[] }
   connection?: { reference: ConnectionValue | null; submission: ConnectionValue }
   groupIds?: string[]
@@ -49,17 +51,19 @@ export interface AnalysisAnnotation {
     containmentRelations?: RelationCounts; childRoles?: (RelationCounts & { role: string | null })[]
   }
 }
-export interface ConnectionGroup { id: string; status: AnalysisStatus; referenceIds: string[]; submissionIds: string[]; referenceEndpointIds: string[]; submissionEndpointIds: string[]; checks: Record<string, string>; referenceOnlyCount: number; submissionOnlyCount: number; hints: AnalysisHint[] }
+export interface ConnectionGroup { id: string; status?: AnalysisStatus; referenceIds: string[]; submissionIds: string[]; referenceEndpointIds: string[]; submissionEndpointIds: string[]; facts?: AnalysisFact[]; checks?: Record<string, string>; referenceOnlyCount?: number; submissionOnlyCount?: number; hints?: AnalysisHint[] }
 export interface ContainmentRelation { id: string; status: AnalysisStatus; scope: 'relation'; referenceChildId: string; referenceParentId: string; referenceRole: string | null; submissionChildId: string | null; submissionParentId: string | null; observedParents: ParentRelation[]; roleStatus: string; basis: string }
 export interface RecognitionCount { recognized: number | null; expected: number | null; percent: number | null; evaluationStatus: string }
+export interface RecognitionBucket extends RecognitionCount { id: string; label: string; kind: ObjectKind; grouped: boolean }
+export interface RecognitionReport { basis: 'uniquely_supported'; buckets?: RecognitionBucket[]; categories?: Record<AnalysisCategory, RecognitionCount>; overall: RecognitionCount; unmatchedSubmission: { id: string; kind: ObjectKind; category?: AnalysisCategory }[] }
 export interface ReferenceHint extends AnalysisHint { target: AnalysisTarget; referenceId: string; kind: ObjectKind; label?: string; facts?: AnalysisFact[] }
 export interface AnalysisFeedback {
-  schema: 'analysis-feedback/v1'; evaluationId: string; pair: { studentKey: 'submission'; referenceKey: string }
+  schema: 'analysis-feedback/v1' | 'analysis-feedback/v2' | 'analysis-feedback/v3'; evaluationId: string; pair: { studentKey: 'submission'; referenceKey: string }
   contractVersion?: '1.1' | '1.2' | '1.3'
   status: 'provisional'; assessmentAvailable: false
   comparisonHash: string; analysisKey: string; analysisHash: string
-  summary: Record<AnalysisCategory, RecognitionCount>; annotations: AnalysisAnnotation[]; referenceHints: ReferenceHint[]
-  structuralContainers?: { referenceCount: number; submissionCount: number; contextCount: number; evaluationStatus: 'not_evaluated' }
+  summary?: Record<AnalysisCategory, RecognitionCount>; recognition?: RecognitionReport; annotations: AnalysisAnnotation[]; referenceHints: ReferenceHint[]
+  structuralContainers?: { referenceCount: number; submissionCount: number; contextCount?: number; evaluationStatus?: 'not_evaluated' }
   connectionGroups?: ConnectionGroup[]
   containmentRelations?: ContainmentRelation[]
   limitations?: AnalysisHint[]
@@ -80,6 +84,101 @@ function requireValue(condition: unknown): asserts condition {
 }
 const kinds: ObjectKind[] = ['modelElement', 'structuralElement', 'connection', 'connectionLabel', null]
 const statuses: AnalysisStatus[] = ['provisional', 'different', 'ambiguous', 'unresolved', 'not_evaluated', 'not_applicable']
+const factStatuses = ['satisfied', 'violated', 'unresolved', 'not_evaluated', 'not_applicable']
+const identityStatuses = ['uniquely_supported', 'supported', 'unresolved']
+const recognitionStatuses = ['evaluated', 'partial', 'not_evaluated', 'not_applicable']
+
+/** Validate published counts; never infer recognition from provisional mappings. */
+export function adaptRecognition(value: unknown): RecognitionReport {
+  requireValue(object(value) && value.basis === 'uniquely_supported' && (Array.isArray(value.buckets) || object(value.categories) && Object.keys(value.categories).length === analysisCategories.length) && Array.isArray(value.unmatchedSubmission))
+  const validRow = (row: unknown) => object(row) && count(row.recognized) && count(row.expected) &&
+    (row.recognized as number) <= (row.expected as number) && recognitionStatuses.includes(String(row.evaluationStatus)) &&
+    (row.percent === null ? ['not_evaluated', 'not_applicable'].includes(String(row.evaluationStatus)) :
+      !['not_evaluated', 'not_applicable'].includes(String(row.evaluationStatus)) && typeof row.percent === 'number' && Number.isFinite(row.percent) &&
+      (row.expected as number) > 0 && Math.abs(row.percent - 100 * (row.recognized as number) / (row.expected as number)) < 0.000001)
+  const grouped = Array.isArray(value.buckets)
+  const rows: unknown[] = grouped ? value.buckets as unknown[] : analysisCategories.map(category => (value.categories as Record<string, unknown>)[category])
+  requireValue(validRow(value.overall) && rows.every(validRow))
+  if (grouped) requireValue(rows.every(row => object(row) && hash(row.id) && id(row.label) && kinds.includes(row.kind as ObjectKind) && typeof row.grouped === 'boolean' && Number(row.expected) > 0) &&
+    new Set(rows.map(row => (row as Record<string, unknown>).id)).size === rows.length)
+  for (const key of ['recognized', 'expected']) requireValue((value.overall as Record<string, unknown>)[key] ===
+    rows.reduce<number>((sum, row) => sum + Number((row as Record<string, unknown>)[key]), 0))
+  requireValue(value.unmatchedSubmission.every(item => object(item) && id(item.id) && kinds.includes(item.kind as ObjectKind) && (grouped || analysisCategories.includes(item.category as AnalysisCategory))) &&
+    new Set(value.unmatchedSubmission.map(item => (item as Record<string, unknown>).id)).size === value.unmatchedSubmission.length)
+  return value as unknown as RecognitionReport
+}
+
+export function recognitionReportsFromEvaluation(detail: EvaluationDetail) {
+  const reports = detail.steps.filter(step => step.status === 'succeeded' && ['feedback-report/v2', 'feedback-report/v3'].includes(String(step.result?.schema))).map(step => {
+    const result = step.result!
+    requireValue(object(result.pair) && id(result.pair.referenceKey) && result.evaluationId === detail.id)
+    return { referenceKey: result.pair.referenceKey, recognition: adaptRecognition(result.recognition) }
+  })
+  requireValue(new Set(reports.map(report => report.referenceKey)).size === reports.length)
+  return reports
+}
+
+function adaptCurrentAnalysis(value: Record<string, unknown>, context: AnalysisContext): AdaptedAnalysis {
+  requireValue(value.status === 'provisional' && value.assessmentAvailable === false && value.evaluationId === context.evaluationId &&
+    object(value.pair) && value.pair.studentKey === 'submission' && value.pair.referenceKey === context.referenceKey &&
+    hash(value.analysisKey) && hash(value.analysisHash) && hash(value.comparisonHash))
+  adaptRecognition(value.recognition)
+  const submission = new Map(context.submissionObjects.map(item => [item.id, item]))
+  const reference = new Map(context.referenceObjects.map(item => [item.id, item]))
+  requireValue(submission.size === context.submissionObjects.length && reference.size === context.referenceObjects.length)
+  requireValue([...submission.values(), ...reference.values()].every(item => id(item.id) && kinds.includes(item.kind)))
+  const validTarget = (target: unknown): target is ObjectReference => object(target) && id(target.id) &&
+    (target.side === 'submission' ? target.kind === 'model' ? target.id === context.modelId : submission.get(target.id)?.kind === target.kind && submission.has(target.id) :
+      target.side === 'reference' && reference.has(target.id) && reference.get(target.id)!.kind === target.kind)
+  const validFacts = (facts: unknown) => Array.isArray(facts) && facts.every(fact => object(fact) && hash(fact.id) && id(fact.code) && factStatuses.includes(String(fact.status)) &&
+    Array.isArray(fact.referenceIds) && fact.referenceIds.every(identity => id(identity) && reference.has(identity)) &&
+    Array.isArray(fact.submissionIds) && fact.submissionIds.every(identity => id(identity) && submission.has(identity)) && object(fact.evidence) &&
+    ['direct_observation', 'independent_evidence', 'conditional_mapping'].includes(String(fact.evidence.basis)) && id(fact.evidence.reason) &&
+    !('criteria' in fact.evidence) && !('referenceObservation' in fact.evidence) && !('submissionObservation' in fact.evidence))
+  const validIdentity = (identity: unknown) => object(identity) && identityStatuses.includes(String(identity.status)) && Array.isArray(identity.criteria) &&
+    identity.criteria.every(item => object(item) && id(item.method) && ['compatibility', 'support', 'identity_anchor'].includes(String(item.role)) && factStatuses.includes(String(item.result)) &&
+      (item.dependsOn === undefined || Array.isArray(item.dependsOn) && item.dependsOn.every(dep => object(dep) && id(dep.referenceId) && reference.has(dep.referenceId) && id(dep.studentId) && submission.has(dep.studentId))))
+  const validHints = (hints: unknown) => Array.isArray(hints) && hints.every(hint => object(hint) && id(hint.code) &&
+    ['element', 'relation', 'group', 'model'].includes(String(hint.scope)) && Array.isArray(hint.targets) && hint.targets.every(validTarget) &&
+    (hint.factId === undefined || hash(hint.factId)) && (hint.findingId === undefined || hash(hint.findingId)))
+  requireValue(Array.isArray(value.annotations) && Array.isArray(value.referenceHints) && Array.isArray(value.connectionGroups) && validHints(value.limitations))
+  const annotations = new Map<ObjectKind, Map<string, AnalysisAnnotation>>()
+  const seen = new Set<string>(), matched = new Set<string>()
+  for (const item of value.annotations) {
+    requireValue(object(item) && validTarget(item.target) && item.target.side === 'submission' && item.target.kind !== 'model' && !seen.has(item.target.id) &&
+      (value.schema === 'analysis-feedback/v3' || item.category === null || analysisCategories.includes(item.category as AnalysisCategory)) && validFacts(item.facts) && validHints(item.hints) && !('checks' in item) && !('status' in item))
+    if (item.referenceId !== undefined) {
+      requireValue(id(item.referenceId) && reference.get(item.referenceId)?.kind === item.target.kind && !matched.has(item.referenceId))
+      matched.add(item.referenceId)
+    }
+    if (['modelElement', 'connection'].includes(String(item.target.kind))) requireValue(validIdentity(item.identity))
+    requireValue(item.dependencies === undefined || Array.isArray(item.dependencies) && item.dependencies.every(dep => object(dep) && id(dep.referenceId) && reference.has(dep.referenceId) && id(dep.studentId) && submission.has(dep.studentId)))
+    seen.add(item.target.id)
+    const kind = item.target.kind as ObjectKind
+    if (!annotations.has(kind)) annotations.set(kind, new Map())
+    annotations.get(kind)!.set(item.target.id, item as unknown as AnalysisAnnotation)
+  }
+  requireValue(seen.size === submission.size)
+  const hinted = new Set<string>()
+  for (const hint of value.referenceHints) {
+    requireValue(object(hint) && id(hint.referenceId) && reference.get(hint.referenceId)?.kind === hint.kind && !matched.has(hint.referenceId) &&
+      !hinted.has(hint.referenceId) && validTarget(hint.target) && hint.target.side === 'submission' && validFacts(hint.facts) && validHints([hint]))
+    if (hint.identity !== undefined) requireValue(validIdentity(hint.identity))
+    hinted.add(hint.referenceId)
+  }
+  requireValue([...reference.keys()].every(identity => matched.has(identity) || hinted.has(identity)))
+  const groups = new Set<string>()
+  for (const group of value.connectionGroups) {
+    requireValue(object(group) && hash(group.id) && !groups.has(group.id as string) && validFacts(group.facts) &&
+      Array.isArray(group.referenceIds) && group.referenceIds.every(identity => id(identity) && reference.get(identity)?.kind === 'connection') &&
+      Array.isArray(group.submissionIds) && group.submissionIds.every(identity => id(identity) && submission.get(identity)?.kind === 'connection') &&
+      Array.isArray(group.referenceEndpointIds) && group.referenceEndpointIds.every(identity => id(identity) && reference.has(identity)) &&
+      Array.isArray(group.submissionEndpointIds) && group.submissionEndpointIds.every(identity => id(identity) && submission.has(identity)))
+    groups.add(group.id as string)
+  }
+  for (const item of value.annotations) requireValue(object(item) && (item.groupIds === undefined || Array.isArray(item.groupIds) && item.groupIds.every(identity => typeof identity === 'string' && groups.has(identity))))
+  return { report: value as unknown as AnalysisFeedback, annotations }
+}
 
 /** The detail API unwraps workflow-result/v1; raw saved stdout envelopes are accepted as well. */
 export function adaptAnalysisFeedback(value: unknown, context: AnalysisContext): AdaptedAnalysis {
@@ -89,6 +188,7 @@ export function adaptAnalysisFeedback(value: unknown, context: AnalysisContext):
     requireValue(object(value.result) && value.analysisKey === value.result.analysisKey)
     value = value.result
   }
+  if (object(value) && ['analysis-feedback/v2', 'analysis-feedback/v3'].includes(String(value.schema))) return adaptCurrentAnalysis(value, context)
   requireValue(object(value) && value.schema === 'analysis-feedback/v1' && value.status === 'provisional' && value.assessmentAvailable === false)
   requireValue(value.contractVersion === undefined || ['1.1', '1.2', '1.3'].includes(String(value.contractVersion)))
   const structured = value.contractVersion !== undefined
@@ -197,7 +297,7 @@ export function adaptAnalysisFeedback(value: unknown, context: AnalysisContext):
   }
   requireValue(seen.size === submission.size)
   for (const item of value.annotations as unknown as AnalysisAnnotation[]) {
-    for (const dep of item.match.dependsOn ?? []) requireValue(value.annotations.some((candidate: unknown) =>
+    for (const dep of item.match?.dependsOn ?? []) requireValue(value.annotations.some((candidate: unknown) =>
       object(candidate) && object(candidate.target) && candidate.target.id === dep.submissionId && candidate.referenceId === dep.referenceId))
   }
   const referenceHints = new Set<string>()
@@ -269,7 +369,7 @@ export function analysisFromEvaluation(detail: EvaluationDetail, referenceKey: s
   const step = detail.steps.find(step => step.id === `generate_analytical_feedback_${referenceKey}`)
   requireValue(step?.status === 'succeeded')
   const comparison = detail.steps.find(step => step.id === `match_graph_${referenceKey}`)?.result
-  requireValue(comparison?.schema === 'reference-comparison/v1' && comparison.evaluationId === detail.id && object(comparison.pair) &&
+  requireValue(['reference-comparison/v1', 'reference-comparison/v2'].includes(String(comparison?.schema)) && comparison?.evaluationId === detail.id && object(comparison.pair) &&
     comparison.pair.studentKey === 'submission' && comparison.pair.referenceKey === referenceKey && object(comparison.mapping))
   requireValue(Array.isArray(comparison.mapping.provisionalElements) && Array.isArray(comparison.mapping.provisionalConnections))
   const adapted = adaptAnalysisFeedback(step.result, { evaluationId: detail.id, referenceKey, modelId: detail.submission.modelId,
@@ -287,29 +387,35 @@ export function analysisFromEvaluation(detail: EvaluationDetail, referenceKey: s
   return adapted
 }
 
-export type DisplayStatus = 'recognized' | 'warning' | 'unresolved' | 'not_evaluated'
+export type DisplayStatus = 'recognized' | 'provisional' | 'warning' | 'unresolved' | 'not_evaluated'
 export const analysisStatus = (item: AnalysisAnnotation): DisplayStatus => {
-  if (item.status) return ({ provisional: 'recognized', different: 'warning', ambiguous: 'unresolved', unresolved: 'unresolved', not_evaluated: 'not_evaluated', not_applicable: 'not_evaluated' } as const)[item.status] ?? 'not_evaluated'
+  if (item.identity) {
+    if (item.facts?.some(fact => !fact.code.startsWith('connection_group.') && fact.status === 'violated')) return 'warning'
+    return item.identity.status === 'uniquely_supported' ? 'recognized' : 'unresolved'
+  }
+  if (item.status) return ({ provisional: 'provisional', different: 'warning', ambiguous: 'unresolved', unresolved: 'unresolved', not_evaluated: 'not_evaluated', not_applicable: 'not_evaluated' } as const)[item.status] ?? 'not_evaluated'
+  const checks = item.checks ?? {}
   // Group direction/type findings never prove an individual connection error.
-  const individualDifference = Object.entries(item.checks).some(([check, status]) =>
+  const individualDifference = Object.entries(checks).some(([check, status]) =>
     ['owner', 'containment', 'endpoints', 'direction', 'connectionType'].includes(check) && ['violated', 'different'].includes(status) &&
-    !(item.checks.connectionScope === 'endpoint_group' && ['direction', 'connectionType'].includes(check)))
+    !(checks.connectionScope === 'endpoint_group' && ['direction', 'connectionType'].includes(check)))
   if (individualDifference || item.hints.some(hint => ['owner.violated', 'owner.different', 'containment.violated', 'connection.endpoints_different'].includes(hint.code))) return 'warning'
-  const groupDifference = item.checks.connectionScope === 'endpoint_group' && [item.checks.direction, item.checks.connectionType].includes('different')
-  if (item.match.status === 'unresolved' || Object.values(item.checks).includes('unresolved') || groupDifference || item.hints.some(hint =>
+  const groupDifference = checks.connectionScope === 'endpoint_group' && [checks.direction, checks.connectionType].includes('different')
+  if (item.match?.status === 'unresolved' || Object.values(checks).includes('unresolved') || groupDifference || item.hints.some(hint =>
     ['identity.unresolved', 'identity.ambiguous', 'owner.unresolved', 'connection.group_difference'].includes(hint.code) ||
     /^(children|connections)\.(unresolved_reference|unresolved_submission|outside_target|mapped_from_other_target)$/.test(hint.code))) return 'unresolved'
-  return item.match.status === 'provisional' ? 'recognized' : 'not_evaluated'
+  return item.match?.status === 'provisional' ? 'provisional' : 'not_evaluated'
 }
 export const analysisDisplay = {
-  recognized: { icon: 'mdi-check', color: '#607D8B', label: 'Vorläufig erkannt, keine festgestellte strukturelle Abweichung' },
-  warning: { icon: 'mdi-alert-outline', color: '#B26A00', label: 'Strukturelle Abweichung festgestellt' },
+  recognized: { icon: 'mdi-check', color: '#607D8B', label: 'Eindeutig erkannt; Einzelprüfungen beachten' },
+  provisional: { icon: 'mdi-information-outline', color: '#607D8B', label: 'Historische vorläufige Zuordnung' },
+  warning: { icon: 'mdi-alert-outline', color: '#B26A00', label: 'Abweichung festgestellt' },
   unresolved: { icon: 'mdi-help-circle-outline', color: '#546E7A', label: 'Ungeklärt oder mehrdeutig' },
   not_evaluated: { icon: 'mdi-information-outline', color: '#757575', label: 'Nicht ausgewertet' }
 } as const
 export const categoryLabels: Record<AnalysisCategory, string> = { nodes: 'Knoten', attributes: 'Attribute', connections: 'Verbindungen', other: 'Sonstige' }
 export const checkLabels: Record<string, string> = { label: 'Beschriftung', type: 'Konkreter Typ', owner: 'Besitzer', containment: 'Containment', source: 'Source', target: 'Target', endpoints: 'Endpunkte', direction: 'Richtung', connectionType: 'Verbindungstyp', connectionScope: 'Prüfumfang', configuration: 'Konfiguration', counterpart: 'Gegenstück', children: 'Fachliche Kinder', direct_children: 'Unmittelbare Kinder', directChildren: 'Unmittelbare Kinder', connections: 'Angrenzende Verbindungen', incoming: 'Eingehende Verbindungen', outgoing: 'Ausgehende Verbindungen', undirected: 'Ungerichtete Verbindungen', connection_group: 'Verbindungsgruppe' }
-export const analysisValueLabel = (value: string) => ({ provisional: 'Vorläufig', ambiguous: 'Mehrdeutig', unresolved: 'Ungeklärt', not_evaluated: 'Nicht ausgewertet', not_applicable: 'Nicht anwendbar', partial: 'Teilweise ausgewertet', exact: 'Gleich', equal: 'Gleich', different: 'Abweichend', same_type: 'Gleicher Typ', compatible_type_difference: 'Anderer Typ innerhalb der Vergleichsgruppe', satisfied: 'Erfüllt', violated: 'Verletzt', endpoint_group: 'Verbindungsgruppe', derived_context: 'Abgeleiteter Strukturkontext', fully_consistent: 'Implementierte lokale Prüfungen vollständig erfüllt (unter vorläufiger Zuordnung)', direct_observation: 'Direkt beobachtet', conditional_mapping: 'Unter vorläufiger Zuordnung', independent_evidence: 'Unabhängig gestützt' })[value] ?? value
+export const analysisValueLabel = (value: string) => ({ provisional: 'Vorläufig', evaluated: 'Ausgewertet', ambiguous: 'Mehrdeutig', unresolved: 'Ungeklärt', not_evaluated: 'Nicht ausgewertet', not_applicable: 'Nicht anwendbar', partial: 'Teilweise ausgewertet', exact: 'Gleich', equal: 'Gleich', different: 'Abweichend', same_type: 'Gleicher Typ', compatible_type_difference: 'Anderer Typ innerhalb der Vergleichsgruppe', satisfied: 'Erfüllt', violated: 'Verletzt', endpoint_group: 'Verbindungsgruppe', derived_context: 'Abgeleiteter Strukturkontext', fully_consistent: 'Implementierte lokale Prüfungen vollständig erfüllt (unter vorläufiger Zuordnung)', direct_observation: 'Direkt beobachtet', conditional_mapping: 'Unter vorläufiger Zuordnung', independent_evidence: 'Unabhängig gestützt' })[value] ?? value
 export const analysisFactLabel = (code: string) => {
   const [prefix, dimension] = code.split('.')
   if (prefix === 'identity') return 'Identität'
@@ -350,7 +456,7 @@ export const analysisChildChecklist = (facts: AnalysisFact[] | undefined) => {
     unresolvedReference: ids('unmatchedReferenceIds').filter(id => !absent.includes(id)),
     unresolvedSubmission: ids('unmatchedSubmissionIds'), foreign: ids('mappedFromOtherTargets'), roleDifferences: ids('roleDifferenceReferenceIds') }
 }
-export const analysisReasonLabel = (reason: string) => ({ unique_exact_label: 'Eindeutige gleiche Beschriftung', unique_exact_after_reservations: 'Eindeutige gleiche Beschriftung nach bestehenden Zuordnungen', consistent_owner_anchor: 'Konsistenter zugeordneter Besitzer', independent_child_evidence: 'Unabhängige Evidenz enthaltener Elemente', supported_semantic_evidence: 'Semantisch gestützte Zuordnung', compatible_type_and_mapped_endpoints: 'Kompatibler Typ und zugeordnete Endpunkte', structural_child_of_mapped_parent: 'Kind eines zugeordneten Parents' })[reason] ?? `Zuordnungsregel: ${reason}`
+export const analysisReasonLabel = (reason: string) => ({ combined_child_structure: 'Gemeinsam unterscheidende Kinderstruktur', unique_mapped_endpoints: 'Eindeutig zugeordnete Endpunkte', unique_exact_connection_label: 'Eindeutige Verbindungsbeschriftung', unique_exact_label: 'Eindeutige gleiche Beschriftung', unique_exact_after_reservations: 'Eindeutige gleiche Beschriftung nach bestehenden Zuordnungen', consistent_owner_anchor: 'Konsistenter zugeordneter Besitzer', independent_child_evidence: 'Unabhängige Evidenz enthaltener Elemente', supported_semantic_evidence: 'Semantisch gestützte Zuordnung', compatible_type_and_mapped_endpoints: 'Kompatibler Typ und zugeordnete Endpunkte', structural_child_of_mapped_parent: 'Kind eines zugeordneten Parents' })[reason] ?? `Zuordnungsregel: ${reason}`
 const hintTexts: Record<string, string> = {
   'fact.violated': 'Die Einzelprüfung weist eine Abweichung nach.', 'fact.unresolved': 'Diese Einzelprüfung bleibt ungeklärt.',
   'fact.group_violated': 'Die Verbindungsgruppe weicht ab; einzelne Identitäten bleiben vorläufig.', 'fact.group_unresolved': 'Die Prüfung der Verbindungsgruppe bleibt ungeklärt.',

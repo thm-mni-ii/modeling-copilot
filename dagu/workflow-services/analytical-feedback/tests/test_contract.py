@@ -1,14 +1,13 @@
-"""Validate emitted JSON and the actual frontend adapter with installed tooling."""
-
-from copy import deepcopy
+"""Validate compact JSON and its actual frontend consumer with installed tooling."""
 import json
 from pathlib import Path
 import shutil
 import subprocess
 import unittest
+from copy import deepcopy
 
-from test_analysis import SERVICES, build, case, contains, containment_evidence, endpoints, node
-from test_facts import with_facts
+from test_analysis import SERVICES, build, case, contains, endpoints, node, rehash
+from analysis_contract import validate_analysis
 from test_identity_feedback import with_identity_facts
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -17,82 +16,87 @@ const fs = require('fs'), assert = require('node:assert/strict');
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
 const Ajv = require('./web/node_modules/ajv');
 const schema = JSON.parse(fs.readFileSync('dagu/workflow-services/analytical-feedback/schemas/output.schema.json'));
-// This contract uses the common draft-07/2020-12 keywords supported by installed AJV.
-const validate = new Ajv({validateSchema:false, meta:false, allErrors:true}).compile(schema);
-for (const sample of input) {
-  if (sample.envelope.result.contractVersion) assert.equal(validate(sample.envelope), true, JSON.stringify(validate.errors));
-  const invalid = structuredClone(sample.envelope);
-  invalid.result.annotations[0].status = 'incorrect';
-  assert.equal(validate(invalid), false);
-}
-const ts = require('./web/node_modules/typescript');
-const Module = require('node:module');
-const file = require('node:path').resolve('web/src/utils/analysisFeedback.ts');
-const compiled = new Module(file, module);
+const ajv = new Ajv({validateSchema:false, meta:false, allErrors:true});
+const validate = ajv.compile(schema);
+const validateFeedback = ajv.getSchema('analysis-feedback/v3#/$defs/feedbackReportV3');
+const ts = require('./web/node_modules/typescript'), Module = require('node:module');
+const file = require('node:path').resolve('web/src/utils/analysisFeedback.ts'), compiled = new Module(file, module);
 compiled._compile(ts.transpileModule(fs.readFileSync(file,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText, file);
-const {adaptAnalysisFeedback, analysisStatus, analysisHintText} = compiled.exports;
+const {adaptAnalysisFeedback, adaptRecognition, recognitionReportsFromEvaluation, analysisStatus, analysisHintText} = compiled.exports;
 for (const sample of input) {
-  const adapted = adaptAnalysisFeedback(sample.envelope, sample.context);
-  assert.equal(adapted.report.annotations.length, sample.context.submissionObjects.length);
-  if (['1.2', '1.3'].includes(sample.envelope.result.contractVersion)) {
-    const invalidFact = structuredClone(sample.envelope);
-    invalidFact.result.annotations[0].facts[0].status = 'incorrect';
-    assert.equal(validate(invalidFact), false);
-    assert.throws(() => adaptAnalysisFeedback(invalidFact, sample.context));
-    const open = sample.envelope.result.annotations.find(item => item.facts.some(fact => ['unresolved', 'violated', 'not_evaluated'].includes(fact.status)));
-    if (open) {
-      const falseComplete = structuredClone(sample.envelope);
-      falseComplete.result.annotations.find(item => item.target.id === open.target.id).consistency = 'fully_consistent';
-      assert.throws(() => adaptAnalysisFeedback(falseComplete, sample.context));
-    }
+  if (sample.feedback) {
+    assert.equal(validateFeedback(sample.feedback), true, JSON.stringify(validateFeedback.errors));
+    assert.deepEqual(sample.feedback.recognition, sample.envelope.result.recognition);
   }
+  if (sample.envelope.result.schema === 'analysis-feedback/v3') {
+    assert.equal(validate(sample.envelope), true, JSON.stringify(validate.errors));
+    const invalid = structuredClone(sample.envelope);
+    invalid.result.annotations.find(item => item.facts.length).facts[0].status = 'invalid';
+    assert.equal(validate(invalid), false);
+    assert.throws(() => adaptAnalysisFeedback(invalid, sample.context));
+    const badPercent = structuredClone(sample.envelope.result.recognition);
+    badPercent.overall.percent = null;
+    assert.throws(() => adaptRecognition(badPercent));
+    const detail = {id:sample.context.evaluationId, steps:[{status:'succeeded', result:{schema:'feedback-report/v3',
+      evaluationId:sample.context.evaluationId, pair:{studentKey:'submission',referenceKey:'ref'}, recognition:sample.envelope.result.recognition}}]};
+    assert.deepEqual(recognitionReportsFromEvaluation(detail)[0].recognition, sample.envelope.result.recognition);
+    detail.steps.push(detail.steps[0]);
+    assert.throws(() => recognitionReportsFromEvaluation(detail));
+  }
+  const adapted = adaptAnalysisFeedback(sample.envelope.result.schema === "analysis-feedback/v3" ? sample.envelope : sample.envelope.result, sample.context);
+  assert.equal(adapted.report.annotations.length, sample.context.submissionObjects.length);
   const invalid = structuredClone(sample.envelope);
   invalid.result.annotations[0].target.id = 'unknown-original-id';
-  assert.throws(() => adaptAnalysisFeedback(invalid, sample.context));
-  if (sample.envelope.result.contractVersion && sample.envelope.result.referenceHints.length) {
-    const badHint = structuredClone(sample.envelope);
-    badHint.result.referenceHints[0].targets[0].kind = 'connection';
-    assert.throws(() => adaptAnalysisFeedback(badHint, sample.context));
-  }
+  assert.throws(() => adaptAnalysisFeedback(invalid.result, sample.context));
 }
-assert.equal(analysisStatus({status:'ambiguous'}), 'unresolved');
+assert.equal(analysisStatus({identity:{status:'supported'}, facts:[]}), 'unresolved');
+assert.equal(analysisStatus({identity:{status:'uniquely_supported'}, facts:[{code:'owner.different',status:'violated'}]}), 'warning');
+assert.equal(analysisStatus({identity:{status:'uniquely_supported'}, facts:[{code:'label.equal',status:'satisfied'}]}), 'recognized');
 assert.match(analysisHintText({code:'future.unknown'}), /future.unknown/);
 """
 
 
 def sample(store):
-    report = build(store)
-    path = f"analysis/ref/{report['analysisKey']}.json"
-    envelope = {"schemaVersion": 1, "schema": "workflow-result/v1", "status": "ok", "mode": "aggregate",
-                "capability": "analytical-feedback", "analysisPath": path, "analysisKey": report["analysisKey"],
-                "metadata": {"analysisPath": path, "analysisKey": report["analysisKey"]}, "result": report}
-    return {"envelope": envelope, "context": {"evaluationId": "evaluation", "referenceKey": "ref", "modelId": "model",
-            "submissionObjects": list(store.indices["student"].nodes.values()),
-            "referenceObjects": list(store.indices["reference"].nodes.values())}}
+    report = build(with_identity_facts(store))
+    return {"envelope": {"schemaVersion": 1, "schema": "workflow-result/v1", "status": "ok", "mode": "aggregate",
+                         "capability": "analytical-feedback", "analysisPath": f"analysis/ref/{report['analysisKey']}.json",
+                         "analysisKey": report["analysisKey"], "result": report},
+            "context": {"evaluationId": "evaluation", "referenceKey": "ref", "modelId": "model",
+                        "submissionObjects": list(store.indices["student"].nodes.values()),
+                        "referenceObjects": list(store.indices["reference"].nodes.values())}}
 
 
 class SchemaAndFrontendTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node") and (ROOT / "web/node_modules/ajv").exists(), "installed frontend tooling required")
-    def test_schema_and_frontend_consume_current_projection(self):
-        baseline = case([node("a"), node("child"), node("container", "structuralElement")],
-                        reference_edges=[contains("child", "a")])
-        moved = case([node("a"), node("b"), node("child")], reference_edges=[contains("child", "a")],
-                     submission_edges=[contains("child", "b")],
-                     provisionalContainmentEvidence=[containment_evidence("child", "a", status="violated", studentParentIds=["b"])])
-        missing = case([node("a"), node("child")], [node("a")], [contains("child", "a")], [], pairs=[("a", "a")])
-        connection = case([node("a"), node("b"), node("e", "connection", directed=True)],
-                          reference_edges=endpoints("e", "a", "b"), submission_edges=endpoints("e", "b", "a"))
-        payload = [sample(store) for store in (baseline, moved, missing, connection)]
-        payload += [sample(with_facts(store)) for store in (baseline, moved, missing, connection)]
-        payload += [sample(with_identity_facts(store)) for store in (baseline, moved, missing, connection)]
-        legacy = deepcopy(payload[2])
-        legacy["envelope"]["result"].pop("contractVersion")
-        payload.append(legacy)
-        fixture = sample(case([node("parent"), node("attribute", native_type="property")]))
-        fixture["envelope"] = json.loads((SERVICES / "analytical-feedback/examples/containment-role.json").read_text(encoding="utf-8"))
-        payload.append(fixture)
-        result = subprocess.run(["node", "-e", CHECK], input=json.dumps(payload),
-                                cwd=ROOT, text=True, capture_output=True, check=False)
+    def test_current_projection_and_stored_legacy_revisions(self):
+        nodes = [node("a", label="A"), node("b", label="B"), node("child", label="Child")]
+        links = nodes + [node("e", "connection", directed=True), node("parallel", "connection", directed=True)]
+        payload = [sample(store) for store in (
+            case(nodes, reference_edges=[contains("child", "a")]),
+            case(nodes, reference_edges=[contains("child", "a")], submission_edges=[contains("child", "b")]),
+            case(nodes, nodes[:2], [contains("child", "a")], [], pairs=[]),
+            case(links, reference_edges=endpoints("e", "a", "b") + endpoints("parallel", "a", "b"),
+                 submission_edges=endpoints("e", "b", "a") + endpoints("parallel", "a", "b")),
+        )]
+        legacy_v2 = deepcopy(payload[0])
+        report = legacy_v2["envelope"]["result"]
+        report["schema"] = "analysis-feedback/v2"
+        for item in report["annotations"]:
+            item["category"] = "nodes"
+        report["recognition"] = {"basis": "uniquely_supported", "overall": report["recognition"]["overall"],
+            "categories": {category: {"recognized": 3 if category == "nodes" else 0, "expected": 3 if category == "nodes" else 0,
+                "percent": 100.0 if category == "nodes" else None, "evaluationStatus": "evaluated" if category == "nodes" else "not_applicable"}
+                for category in ("nodes", "attributes", "connections", "other")}, "unmatchedSubmission": []}
+        rehash(report)
+        legacy_v2["envelope"]["analysisKey"] = report["analysisKey"]
+        validate_analysis(report)
+        payload.append(legacy_v2)
+        for fixture in json.loads((SERVICES / "analytical-feedback/tests/fixtures/legacy-analysis.json").read_text()):
+            payload.append({"envelope": {"result": fixture["report"]}, "context": {
+                "evaluationId": "evaluation", "referenceKey": "ref", "modelId": "model",
+                "submissionObjects": fixture["objects"], "referenceObjects": fixture["objects"]}})
+        result = subprocess.run(["node", "-e", CHECK], input=json.dumps(payload), cwd=ROOT,
+                                text=True, capture_output=True, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 

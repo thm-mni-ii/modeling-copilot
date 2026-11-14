@@ -2,10 +2,15 @@
 
 import hashlib
 import json
+from workflow_io import identifier
 
 
-SCHEMA = "analysis-feedback/v1"
+SCHEMA = "analysis-feedback/v3"
+LEGACY_SCHEMA = "analysis-feedback/v1"
 CATEGORIES = ("nodes", "attributes", "connections", "other")
+FACT_STATUSES = ("satisfied", "violated", "unresolved", "not_evaluated", "not_applicable")
+IDENTITY_STATUSES = ("uniquely_supported", "supported", "unresolved")
+RECOGNITION_STATUSES = ("evaluated", "partial", "not_evaluated", "not_applicable")
 STATUSES = ("provisional", "different", "ambiguous", "unresolved", "not_evaluated", "not_applicable")
 KINDS = ("modelElement", "structuralElement", "connection", "connectionLabel", None)
 HINT_DEFINITIONS = {
@@ -87,7 +92,7 @@ def category_for(bundle, node):
     return "other"
 
 
-def category_summary(bundle, nodes, mapped_reference_ids, comparison=None):
+def legacy_category_summary(bundle, nodes, mapped_reference_ids, comparison=None):
     nodes = list(nodes)
     connection_rows = (comparison or {}).get("metrics", {}).get("provisionalRecognition", {}).get("categoryTypes", [])
     summary = {}
@@ -113,6 +118,80 @@ def category_summary(bundle, nodes, mapped_reference_ids, comparison=None):
     return summary
 
 
+def recognized_reference_ids(comparison):
+    """Count only selected, uniquely supported identities; never infer anchors."""
+    rows = [row for field in ("provisionalElements", "provisionalConnections") for row in comparison["mapping"][field]]
+    selected = {(row["referenceId"], row["studentId"]): row for row in rows}
+    require(len(selected) == len(rows) and len({ref for ref, _ in selected}) == len(rows)
+            and len({sub for _, sub in selected}) == len(rows), "recognition requires one-to-one correspondences")
+    pending = {pair: {(dep["referenceId"], dep["studentId"]) for dep in row.get("dependsOn", [])} for pair, row in selected.items()}
+    require(all(dependencies <= selected.keys() for dependencies in pending.values()), "unknown identity dependency")
+    resolved = set()
+    while True:
+        ready = {pair for pair, dependencies in pending.items() if dependencies <= resolved} - resolved
+        if not ready:
+            break
+        resolved.update(ready)
+    require(len(resolved) == len(selected), "cyclic identity dependencies")
+    recognized = set()
+    for fact in comparison.get("propertyFacts", {}).get("items", []):
+        if not fact["code"].startswith("identity.") or fact["evidence"].get("identityStatus") != "uniquely_supported":
+            continue
+        require(len(fact["referenceIds"]) == len(fact["submissionIds"]) == 1, "invalid selected identity fact")
+        pair = fact["referenceIds"][0], fact["submissionIds"][0]
+        require(pair in selected and fact["status"] == "satisfied" and any(
+            criterion["role"] == "identity_anchor" and criterion["result"] == "satisfied"
+            and criterion["method"] != "type_compatibility" for criterion in fact["evidence"]["criteria"]), "identity lacks sufficient evidence")
+        require(pair[0] not in recognized, "duplicate recognized identity")
+        recognized.add(pair[0])
+    return recognized
+
+
+def recognition_bucket(bundle, node):
+    """Use the parser's unambiguous group, scoped by language and object kind."""
+    if node["kind"] == "structuralElement" or node.get("comparisonRole") == "structural":
+        return None
+    language = node.get("language") or {}
+    group_id = node.get("comparisonGroup")
+    native_type = node.get("type")
+    key = {"language": language, "kind": node["kind"], "groupId": group_id, "type": None if group_id else native_type}
+    name = group_id or native_type or "Unbekannter Typ"
+    if group_id:
+        for definition in bundle["languages"]:
+            if all(definition[field] == language.get(field) for field in ("languageId", "versionId")):
+                name = next((group["name"] for group in definition["data"].get("evaluation", {}).get("comparisonGroups", [])
+                             if group["id"] == group_id), name)
+    return {"id": content_hash(key), "label": name, "kind": node["kind"], "grouped": bool(group_id)}
+
+
+def recognition_summary(bundle, indices, comparison):
+    """The authoritative recognition report, based on matcher identity facts."""
+    recognized = recognized_reference_ids(comparison)
+    identities = {ref: fact for fact in comparison["propertyFacts"]["items"] if fact["code"].startswith("identity.")
+                  for ref in fact["referenceIds"]}
+    groups, descriptors = {}, {}
+    for identity, node in indices["reference"].nodes.items():
+        bucket = recognition_bucket(bundle, node)
+        if bucket is not None:
+            groups.setdefault(bucket["id"], []).append(identity)
+            descriptors[bucket["id"]] = bucket
+
+    def counts(ids):
+        expected = len(ids)
+        count = sum(identity in recognized for identity in ids)
+        evaluated = sum(identities.get(identity, {}).get("evidence", {}).get("evaluationStatus") == "evaluated" for identity in ids)
+        status = ("not_applicable" if not expected else "not_evaluated" if not evaluated else "partial"
+                  if evaluated < expected or comparison.get("completeness", {}).get("interpretation") == "partial" else "evaluated")
+        return {"recognized": count, "expected": expected, "percent": 100 * count / expected if expected and evaluated else None,
+                "evaluationStatus": status}
+
+    selected = {row["studentId"] for field in ("provisionalElements", "provisionalConnections") for row in comparison["mapping"][field]}
+    unmatched = [{"id": identity, "kind": node["kind"]}
+                 for identity, node in sorted(indices["student"].nodes.items()) if identity not in selected and recognition_bucket(bundle, node) is not None]
+    return {"basis": "uniquely_supported", "buckets": [{**descriptors[key], **counts(groups[key])} for key in sorted(groups, key=lambda key: (descriptors[key]["label"], key))],
+            "overall": counts([identity for ids in groups.values() for identity in ids]), "unmatchedSubmission": unmatched}
+
+
 def content_hash(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                     separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
@@ -132,7 +211,9 @@ def analysis_path(report):
 
 
 def validate_analysis(report, store=None):
-    require(isinstance(report, dict) and report.get("schema") == SCHEMA, "expected analysis-feedback/v1")
+    if isinstance(report, dict) and report.get("schema") in (SCHEMA, "analysis-feedback/v2"):
+        return validate_current_analysis(report, store)
+    require(isinstance(report, dict) and report.get("schema") == LEGACY_SCHEMA, "expected supported analytical feedback")
     require(report.get("status") == "provisional" and report.get("assessmentAvailable") is False,
             "analysis must remain provisional")
     require(report.get("contractVersion") in (None, "1.1", "1.2", "1.3"), "unsupported analysis contract version")
@@ -277,7 +358,7 @@ def validate_analysis(report, store=None):
         expected = set(comparison["unresolvedReferenceIds"]) | set(comparison["unresolvedReferenceConnectionIds"])
         if structured:
             expected = set(reference_nodes) - set(pairs.values())
-            require(report["summary"] == category_summary(store.snapshot(), reference_nodes.values(), set(pairs.values()), comparison),
+            require(report["summary"] == legacy_category_summary(store.snapshot(), reference_nodes.values(), set(pairs.values()), comparison),
                     "category summary does not match frozen metadata and mapping")
         require(len(hints) == len(expected) and {hint["referenceId"] for hint in hints} == expected,
                 "unresolved reference hints do not match comparison")
@@ -344,6 +425,186 @@ def validate_analysis(report, store=None):
             for hint in report.get("limitations", []):
                 hint_targets(hint)
     return report
+
+
+def compact_identity(fact):
+    if fact is None:
+        return None
+    fields = ("method", "role", "result", "matched", "expected", "observed", "complete", "referenceChildIds", "submissionChildIds")
+    criteria = [{**{key: criterion[key] for key in fields if key in criterion},
+                 **({"dependsOn": criterion["dependsOn"]} if criterion.get("dependsOn") else {})}
+                for criterion in fact["evidence"]["criteria"] if criterion["result"] not in ("not_evaluated", "not_applicable")]
+    return {"status": fact["evidence"]["identityStatus"], "criteria": criteria}
+
+
+def compact_fact(fact):
+    """Keep source identity and property evidence without repeated descriptors."""
+    duplicated = {"referenceObservation", "submissionObservation", "criteria", "dependsOn", "referenceEndpoints", "submissionEndpoints"}
+    return {"id": fact["id"], "code": fact["code"], "status": fact["status"],
+            "referenceIds": fact["referenceIds"], "submissionIds": fact["submissionIds"],
+            "evidence": {key: value for key, value in fact["evidence"].items() if key not in duplicated}}
+
+
+def validate_recognition(recognition):
+    grouped = isinstance(recognition, dict) and "buckets" in recognition
+    if grouped:
+        rows = recognition["buckets"]
+        require(isinstance(rows, list) and all(isinstance(row, dict) and set(row) == {"id", "label", "kind", "grouped", "recognized", "expected", "percent", "evaluationStatus"}
+                and isinstance(row["id"], str) and isinstance(row["label"], str) and row["kind"] in KINDS and type(row["grouped"]) is bool
+                and type(row["expected"]) is int and row["expected"] > 0 for row in rows)
+                and len({row["id"] for row in rows}) == len(rows), "invalid recognition buckets")
+        counts = [{key: row[key] for key in ("recognized", "expected", "percent", "evaluationStatus")} for row in rows]
+    else:
+        counts = list(recognition.get("categories", {}).values()) if isinstance(recognition, dict) else []
+    require(isinstance(recognition, dict) and recognition.get("basis") == "uniquely_supported"
+            and (grouped or isinstance(recognition.get("categories"), dict) and set(recognition["categories"]) == set(CATEGORIES))
+            and isinstance(recognition.get("unmatchedSubmission"), list), "invalid recognition overview")
+    for row in [recognition.get("overall"), *counts]:
+        require(isinstance(row, dict) and set(row) == {"recognized", "expected", "percent", "evaluationStatus"}
+                and all(type(row.get(key)) is int and row[key] >= 0 for key in ("recognized", "expected"))
+                and row["recognized"] <= row["expected"]
+                and row.get("evaluationStatus") in RECOGNITION_STATUSES, "invalid recognition counts")
+        percent = row["percent"]
+        require(percent is None or type(percent) in (int, float) and row["expected"] > 0
+                and abs(percent - 100 * row["recognized"] / row["expected"]) < 0.000001, "invalid recognition percentage")
+        require((percent is None) == (row["evaluationStatus"] in ("not_evaluated", "not_applicable")), "invalid recognition evaluability")
+    require(all(recognition["overall"][key] == sum(row[key] for row in counts)
+                for key in ("recognized", "expected")), "recognition totals differ from categories")
+    unmatched = recognition["unmatchedSubmission"]
+    require(all(isinstance(row, dict) and isinstance(row.get("id"), str) and row.get("kind") in KINDS
+                and (grouped or row.get("category") in CATEGORIES) for row in unmatched)
+            and len({row["id"] for row in unmatched}) == len(unmatched), "invalid unmatched submission objects")
+    return recognition
+
+
+def validate_current_analysis(report, store=None):
+    require(report.get("schema") in (SCHEMA, "analysis-feedback/v2") and report.get("assessmentAvailable") is False
+            and report.get("status") == "provisional", "invalid analytical feedback")
+    require(report.get("analysisKey") == analysis_key(report), "analysis key mismatch")
+    require(report.get("analysisHash") == content_hash({key: value for key, value in report.items() if key != "analysisHash"}), "analysis hash mismatch")
+    validate_recognition(report.get("recognition"))
+    annotations, hints = report.get("annotations"), report.get("referenceHints")
+    require(isinstance(annotations, list) and isinstance(hints, list), "invalid annotation lists")
+
+    def facts_valid(facts):
+        require(isinstance(facts, list), "missing compact facts")
+        for fact in facts:
+            require(isinstance(fact, dict) and set(fact) == {"id", "code", "status", "referenceIds", "submissionIds", "evidence"}
+                    and isinstance(fact["id"], str) and len(fact["id"]) == 64 and isinstance(fact["code"], str)
+                    and fact["status"] in FACT_STATUSES and all(isinstance(fact[key], list) and all(isinstance(identity, str) for identity in fact[key]) for key in ("referenceIds", "submissionIds"))
+                    and isinstance(fact["evidence"], dict) and fact["evidence"].get("basis") in ("direct_observation", "independent_evidence", "conditional_mapping")
+                    and isinstance(fact["evidence"].get("reason"), str)
+                    and not {"criteria", "referenceObservation", "submissionObservation"} & fact["evidence"].keys(), "invalid compact fact")
+
+    seen, references = set(), set()
+    for item in annotations:
+        target = item["target"]
+        require(target.get("side") == "submission" and target.get("kind") in KINDS
+                and isinstance(target.get("id"), str) and target["id"] not in seen, "invalid annotation target")
+        seen.add(target["id"])
+        if "referenceId" in item:
+            require(isinstance(item["referenceId"], str) and item["referenceId"] not in references, "duplicate reference identity")
+            references.add(item["referenceId"])
+        identity = item.get("identity")
+        if target["kind"] in ("modelElement", "connection"):
+            require(isinstance(identity, dict) and identity.get("status") in IDENTITY_STATUSES
+                    and isinstance(identity.get("criteria"), list), "invalid identity profile")
+            require(all(criterion.get("role") in ("compatibility", "support", "identity_anchor") and criterion.get("result") in FACT_STATUSES
+                        and isinstance(criterion.get("method"), str) for criterion in identity["criteria"]), "invalid identity criterion")
+        require(not {"status", "checks", "consistency", "match"} & item.keys(), "redundant annotation status fields")
+        facts_valid(item.get("facts"))
+        require(isinstance(item.get("hints"), list) and all(hint.get("code") in HINT_DEFINITIONS and hint.get("scope") in ("element", "relation", "group", "model")
+                and isinstance(hint.get("targets"), list) and hint.get("factId") in {fact["id"] for fact in item["facts"]} for hint in item["hints"]), "invalid compact hints")
+    for hint in hints:
+        facts_valid(hint.get("facts"))
+        require(hint.get("code") in HINT_DEFINITIONS and isinstance(hint.get("targets"), list), "invalid reference hint")
+    require(isinstance(report.get("connectionGroups"), list), "missing connection groups")
+    for group in report["connectionGroups"]:
+        facts_valid(group.get("facts"))
+    if store is not None:
+        bundle = store.snapshot()
+        catalogs = {"submission": {node["id"]: node for node in store.read("graphs/submission.json")["result"]["graph"]["nodes"]},
+                    "reference": {node["id"]: node for node in store.read(f"graphs/{report['pair']['referenceKey']}.json")["result"]["graph"]["nodes"]}}
+        require(seen == set(catalogs["submission"]), "annotations must cover submission objects")
+        comparison = store.read(f"comparisons/{report['pair']['referenceKey']}.json")["result"]
+        require(report["comparisonHash"] == comparison["comparisonHash"] and report["pair"] == comparison["pair"], "analysis comparison mismatch")
+        source = comparison["propertyFacts"]["items"]
+
+        def target_valid(target):
+            if target.get("kind") == "model":
+                model = next(row["source"]["modelId"] for row in bundle["models"] if row["source"]["key"] == "submission")
+                return target.get("side") == "submission" and target.get("id") == model
+            return target.get("side") in catalogs and target.get("id") in catalogs[target["side"]] and catalogs[target["side"]][target["id"]]["kind"] == target.get("kind")
+
+        pairs = {row["studentId"]: row["referenceId"] for field in ("provisionalElements", "provisionalConnections") for row in comparison["mapping"][field]}
+        for item in annotations:
+            target = item["target"]
+            require(target["kind"] == catalogs["submission"][target["id"]]["kind"] and item.get("referenceId") == pairs.get(target["id"]), "annotation differs from original mapping")
+            if report["schema"] == "analysis-feedback/v2":
+                require(item.get("category") == category_for(bundle, catalogs["submission"][target["id"]]), "annotation category mismatch")
+            selected = [fact for fact in comparison["propertyFacts"]["items"] if target["id"] in fact["submissionIds"]]
+            require(item["facts"] == [compact_fact(fact) for fact in selected if not fact["code"].startswith(("identity.", "connection_group."))], "annotation facts differ from matcher")
+            identity_fact = next((fact for fact in selected if fact["code"].startswith("identity.")), None)
+            if identity_fact:
+                require(item["identity"] == compact_identity(identity_fact), "identity differs from matcher")
+            for hint in item["hints"]:
+                fact = next(fact for fact in selected if fact["id"] == hint["factId"])
+                require(hint["targets"] == fact["targets"] and all(target_valid(target) for target in hint["targets"]), "hint targets differ from matcher")
+        require(len(hints) == len(set(catalogs["reference"]) - references)
+                and {hint["referenceId"] for hint in hints} == set(catalogs["reference"]) - references, "reference hints do not cover unmatched originals")
+        for hint in hints:
+            require(target_valid(hint["target"]) and all(target_valid(target) for target in hint["targets"]), "unknown reference display target")
+            require(hint["facts"] == [compact_fact(fact) for fact in source if hint["referenceId"] in fact["referenceIds"]
+                    and not fact["code"].startswith(("identity.", "connection_group."))], "reference facts differ from matcher")
+        for group in report["connectionGroups"]:
+            require(group["facts"] == [compact_fact(fact) for fact in source if fact["code"].startswith("connection_group.")
+                    and fact["referenceIds"] == group["referenceIds"] and fact["submissionIds"] == group["submissionIds"]], "group facts differ from matcher")
+        if report["schema"] == SCHEMA:
+            from types import SimpleNamespace
+            indices = {"reference": SimpleNamespace(nodes=catalogs["reference"]), "student": SimpleNamespace(nodes=catalogs["submission"])}
+            require(report["recognition"] == recognition_summary(bundle, indices, comparison), "recognition differs from matcher and reference buckets")
+        else:
+            recognized = recognized_reference_ids(comparison)
+            for category, row in report["recognition"]["categories"].items():
+                require(row["recognized"] == sum(category_for(bundle, catalogs["reference"][ref]) == category for ref in recognized), "recognition disagrees with identities")
+                require(row["expected"] == sum(category_for(bundle, node) == category for node in catalogs["reference"].values()), "recognition denominator differs from reference")
+            require(report["recognition"]["unmatchedSubmission"] == [
+                {"id": identity, "kind": node["kind"], "category": category_for(bundle, node)}
+                for identity, node in sorted(catalogs["submission"].items())
+                if identity not in pairs and category_for(bundle, node) is not None], "unmatched submission differs from original mapping")
+    return report
+
+
+def read_comparison(store, reference_key: str) -> dict:
+    reference_key = identifier(reference_key)
+    if reference_key == "submission":
+        raise ValueError("REFERENCE_KEY must select a reference model")
+    bundle = store.snapshot()
+    models = {}
+    for role, key in (("student", "submission"), ("reference", reference_key)):
+        selected = [model["source"] for model in bundle["models"] if model["source"]["key"] == key]
+        expected = "submission" if role == "student" else "reference"
+        if len(selected) != 1 or selected[0]["role"] != expected:
+            raise ValueError("comparison pair does not match the frozen models")
+        models[role] = selected[0]
+    envelope = store.read(f"comparisons/{reference_key}.json")
+    result = envelope.get("result")
+    if (envelope.get("schema") != "workflow-result/v1" or envelope.get("schemaVersion") != 1
+            or envelope.get("status") != "ok" or envelope.get("capability") != "one-to-one-graph-matching"
+            or not isinstance(result, dict) or result.get("schema") not in ("reference-comparison/v1", "reference-comparison/v2")
+            or result.get("status") != "partial" or result.get("assessmentAvailable") is not False):
+        raise ValueError("expected a successful reference-comparison/v1 or v2 artifact")
+    if (result.get("evaluationId") != bundle["evaluationId"] or result.get("inputHash") != bundle["inputHash"]
+            or result.get("pair") != {"studentKey": "submission", "referenceKey": reference_key}
+            or result.get("sources") != models):
+        raise ValueError("comparison provenance does not match the frozen pair")
+    if result.get("comparisonHash") != content_hash({key: value for key, value in result.items()
+                                                      if key != "comparisonHash"}):
+        raise ValueError("comparison hash mismatch")
+    if (result["completeness"]["matching"] != "provisional"
+            or result["completeness"]["structuralComparison"] != "provisional_owner_and_connections"):
+        raise ValueError("unsupported comparison completeness")
+    return result
 
 
 def read_analysis(store, path, reference_key, comparison):
