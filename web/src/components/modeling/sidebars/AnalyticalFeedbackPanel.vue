@@ -17,6 +17,7 @@
       <v-select v-model="selectedId" :items="objectOptions" item-title="label" item-value="id" label="Element oder Verbindung" density="compact" variant="outlined" hide-details class="my-3" @update:model-value="focusObject" />
       <template v-if="selected">
         <p class="d-flex align-center ga-1"><v-icon :color="display.color" size="18">{{ display.icon }}</v-icon>{{ display.label }}</p>
+        <p v-if="selected.identity" class="text-body-2 font-weight-medium my-2">{{ analysisIdentityLabel(selected.identity.status) }}</p>
         <dl class="object-details">
           <dt>Original-ID</dt><dd>{{ selected.target.id }}</dd>
           <dt>Zuordnung</dt><dd>{{ analysisValueLabel(selected.match.status) }}</dd>
@@ -27,6 +28,24 @@
           <template v-if="selected.containment"><dt>Direkte Parents (Referenz / Abgabe)</dt><dd>{{ parentText(selected.containment.referenceParents) }} / {{ parentText(selected.containment.submissionParents) }}</dd></template>
           <template v-if="!selected.facts"><template v-for="(status, check) in selected.checks" :key="check"><dt>{{ checkLabels[check] ?? check }}{{ groupCheck(check) ? ' (Gruppe)' : '' }}</dt><dd>{{ analysisValueLabel(status) }}</dd></template></template>
         </dl>
+        <strong v-if="selected.identity?.criteria.length">Identitätsevidenz</strong>
+        <dl v-if="selected.identity?.criteria.length" class="object-details my-2" aria-label="Identitätsevidenz">
+          <template v-for="criterion in selected.identity.criteria" :key="criterion.method">
+            <dt>{{ analysisIdentityMethodLabel(criterion.method) }}</dt>
+            <dd>{{ criterion.result === 'violated' ? 'Nicht erfüllt' : analysisValueLabel(criterion.result) }}<template v-if="criterion.expected !== undefined"> · {{ criterion.matched ?? 0 }} / {{ criterion.expected }}</template><br />
+              <span class="text-medium-emphasis">{{ analysisIdentityRoleLabel(criterion.role) }}</span>
+            </dd>
+          </template>
+        </dl>
+        <div v-if="selectedChildren" class="my-2" aria-label="Kinderbefunde">
+          <strong>{{ selectedChildren.matched }} / {{ selectedChildren.expected }} erwartete Kinder korrekt enthalten</strong>
+          <div v-if="selectedChildren.moved.length">{{ selectedChildren.moved.length }} erkannt, unter anderem Parent: {{ selectedChildren.moved.map(referenceLabel).join(', ') }}</div>
+          <div v-if="selectedChildren.absent.length">{{ selectedChildren.absent.length }} nachweisbar nicht realisiert: {{ selectedChildren.absent.map(referenceLabel).join(', ') }}</div>
+          <div v-if="selectedChildren.unresolvedReference.length">{{ selectedChildren.unresolvedReference.length }} erwartete Kinder nicht zuordenbar: {{ selectedChildren.unresolvedReference.map(referenceLabel).join(', ') }}</div>
+          <div v-if="selectedChildren.unresolvedSubmission.length">{{ selectedChildren.unresolvedSubmission.length }} zusätzliche, nicht zuordenbare Kinder: {{ selectedChildren.unresolvedSubmission.join(', ') }}</div>
+          <div v-if="selectedChildren.foreign.length">{{ selectedChildren.foreign.length }} einem anderen Referenzkontext zugeordnete Kinder: {{ selectedChildren.foreign.join(', ') }}</div>
+          <div v-if="selectedChildren.roleDifferences.length">Abweichende Relationsrollen: {{ selectedChildren.roleDifferences.map(referenceLabel).join(', ') }}</div>
+        </div>
         <p v-if="selected.consistency" class="my-2">{{ analysisValueLabel(selected.consistency) }}</p>
         <dl v-if="selected.facts?.length" class="object-details my-2" aria-label="Einzelbefunde">
           <template v-for="fact in selected.facts" :key="fact.code">
@@ -95,7 +114,7 @@ import { GraphDataModel, InternalEvent, type Cell, type Graph } from '@maxgraph/
 import type { EvaluationDetail } from '@/services/api/types/evaluation'
 import { useGraphContextOptional } from '@/composables/useGraphContext'
 import { createModelSerializer, importModelFromXml } from '@/utils/modelPersistence'
-import { analysisCategories, analysisDisplay, analysisFactEvidence, analysisFactLabel, analysisFromEvaluation, analysisHintParameters, analysisHintText, analysisReasonLabel, analysisStatus, analysisValueLabel, categoryLabels, checkLabels, type AdaptedAnalysis, type LocalCounts, type ParentRelation, type RecognitionCount } from '@/utils/analysisFeedback'
+import { analysisCategories, analysisChildChecklist, analysisDisplay, analysisFactEvidence, analysisFactLabel, analysisFromEvaluation, analysisHintParameters, analysisHintText, analysisIdentityLabel, analysisIdentityMethodLabel, analysisIdentityRoleLabel, analysisReasonLabel, analysisStatus, analysisValueLabel, categoryLabels, checkLabels, type AdaptedAnalysis, type LocalCounts, type ParentRelation, type RecognitionCount } from '@/utils/analysisFeedback'
 import { analysisTargetCell, installAnalysisOverlays, referenceHintTarget } from '@/utils/analysisFeedbackGraph'
 
 const props = defineProps<{ detail: EvaluationDetail }>()
@@ -143,6 +162,7 @@ const parentText = (parents: ParentRelation[] | null) => parents === null ? 'nic
 const selectedRelations = computed(() => analysis.value?.report.containmentRelations?.filter(relation => selected.value?.relationIds?.includes(relation.id)) ?? [])
 const selectedGroups = computed(() => analysis.value?.report.connectionGroups?.filter(group => selected.value?.groupIds?.includes(group.id) || !!selectedId.value && group.submissionEndpointIds.includes(selectedId.value)) ?? [])
 const groupCheck = (check: string) => selected.value?.checks.connectionScope === 'endpoint_group' && ['direction', 'connectionType'].includes(check)
+const selectedChildren = computed(() => analysisChildChecklist(selected.value?.facts))
 const visibleReferenceHints = computed(() => analysis.value?.report.referenceHints.filter(hint => {
   const graph = graphContext?.graph.value
   const target = graph && !stale.value ? referenceHintTarget(graph, hint) : null

@@ -1,10 +1,21 @@
 # analytical-feedback
 
-Serviceversion `1.2.0`, Vertragsrevision `1.2` mit Matcher-Fakten, Image `v5`.
-Vergleiche ohne Fakten werden weiterhin als Revision `1.1` projiziert;
-gespeicherte Revisionen ohne Vertragsversion und mit `1.1` bleiben lesbar.
+Serviceversion `1.3.0`, Vertragsrevision `1.3` mit Identitäts- und Positionsfakten,
+Image `v6`. Vergleiche mit Matcher-Fakten `1.1` verwenden den reinen Faktenpfad;
+Fakten `1.0` werden weiterhin als Revision `1.2`, Vergleiche ohne Fakten als
+Revision `1.1` projiziert. Gespeicherte frühere Revisionen bleiben lesbar.
 
-Revision `1.2` übernimmt `propertyFacts` des Matchers unverändert als `facts`
+`annotations[].identity` zeigt `uniquely_supported`, `supported` oder `unresolved`
+mit den positiven, negativen und offenen Evidenzmethoden. Erkennung und
+Eigenschaftskorrektheit werden getrennt dargestellt. Die Kindcheckliste zeigt
+korrekt enthaltene Kinder als `matched/expected`, erkannte verschobene Kinder,
+offene Gegenstücke und nachgewiesene Abwesenheit ohne doppelte Zählung.
+Der neue Pfad übernimmt auch Beobachtungen und Relationsziele aus den
+Matcher-Fakten; er führt keine eigenen Eigenschafts- oder Relationsprüfungen aus.
+`targets` adressiert Child und beide beteiligten Parents. Eine gemeinsame
+`findingId` verhindert doppelte Positionshinweise und Parent-Overlays.
+
+Die Faktenrevisionen übernehmen `propertyFacts` des Matchers unverändert als `facts`
 in `annotations`, `referenceHints` und Verbindungsgruppen. Jeder Fakt nennt seine
 Original-IDs, Status und Beweisgrundlage. Der Feedbackdienst entscheidet keine
 dieser Eigenschaften erneut. `checks` und kurze `fact.*`-Hinweise dienen als
@@ -13,14 +24,16 @@ Die Validierung prüft die Fakten gegen den ursprünglichen Vergleich.
 
 `consistency: "fully_consistent"` gilt ausschließlich für implementierte lokale
 Eigenschaften unter einer vorläufigen Zuordnung: sämtliche zugehörigen Fakten
-müssen `satisfied` oder `not_applicable` sein. Offene oder nicht durchgeführte
+müssen `satisfied` oder `not_applicable` sein; Revision `1.3` verlangt zusätzlich
+eine eindeutig gestützte Identität. Die Identitätsmethoden sind alternative
+Begründungen, keine gemeinsam zu erfüllende Checkliste. Offene oder nicht durchgeführte
 Prüfungen verhindern die Aussage. Sie bestätigt weder endgültige Identität noch
 rekursive Korrektheit aller Kindbeschriftungen. Erfüllte Teilprüfungen bleiben
 auch bei abweichendem oder ungeklärtem Gesamtstatus sichtbar.
 Nachgewiesene Abwesenheit wird mit `reference.missing` und ihrer Beweisgrundlage
 am bisherigen Anzeigeziel ausgegeben. Unmatched allein bleibt `reference.unresolved`.
 
-Zwei kompakte, aus aktuellen Matcher-Fakten erzeugte Annotation-Ausschnitte
+Zwei gespeicherte, weiterhin lesbare Annotation-Ausschnitte der Revision `1.2`
 (keine vollständigen Workflow-Envelopes):
 [vollständig konsistente lokale Eigenschaften](examples/fully-consistent-local.json)
 und [nachgewiesene Abweichungen bei gleichem Namen und Typ](examples/proven-deviations.json).
@@ -133,7 +146,7 @@ seine bisherigen Matcher-Kategorien und ergänzt `analyticalSummary`.
 python -m unittest discover -s dagu/workflow-services/analytical-feedback/tests -q
 ```
 
-24 gezielte Tests prüfen Kategorien, unabhängige/abhängige Containmentbelege,
+27 gezielte Tests prüfen Kategorien, unabhängige/abhängige Containmentbelege,
 verschobene Attribute, fehlende Kinder, offene Gegenstücke, Rollenwechsel,
 Source/Target/Richtung/Typ, Parallelverbindungen, ungerichtete Schleifen,
 Original-IDs, Codes, Determinismus sowie stdout und den Feedbackverbraucher.
@@ -149,6 +162,21 @@ die tatsächliche Korrespondenzbildung mit vollständigen generischen
 Kompatibilitätskandidaten und projiziert ihre Matcher-Fakten. Dabei werden keine
 Embeddings oder Synonymscores neu berechnet. Das rekonstruiert keine historische
 eingefrorene Sprach-/Hash-/Kandidatenkette. Ohne gelieferte Matcher-Fakten bleibt
-der bisherige Beobachtungspfad unverändert konservativ. Weitere 12 Fakten- und
-8 Matcher-Serviceprüfungen liegen im Matcher-Verzeichnis. Vollständige Pipeline
+der bisherige Beobachtungspfad unverändert konservativ. Insgesamt 138 betroffene
+Matcher-Regressionen sind einschließlich Fakten-, Identitäts-, Positions- und
+Verbindungsfällen geprüft. Vollständige Pipeline
 und Kubernetes-Jobs werden für diese Prüfungen nicht gestartet.
+
+## Umsetzungsschritte der Evidenzrevision
+
+| Schritt | Geänderte Dateien (Servicepfade gekürzt) | Lokales Ergebnis |
+| --- | --- | --- |
+| 1. Identitätsevidenz | Matcher: `identity_evidence.py`, `assignment_capacity.py` | Exakter Anker, Typ allein und Zyklus geprüft; bestanden |
+| 2. Identität / Position | Matcher: `correspondence_state.py`, `facts.py`, `main.py` | Falscher und ungeklärter Parent; Identität bleibt erhalten; bestanden |
+| 3. Gemeinsame Kinder | Matcher: `structural_evidence.py`, `matching.py`, `identity_evidence.py` | Unterscheidende Kombination, 2/3-Teilmenge, symmetrische Parents, globale Konkurrenz; bestanden |
+| 4. Einzelbefunde | Matcher: `facts.py` | Kinderlisten, Rollen, Platzierung, Abwesenheit und Anzeigeziele; bestanden |
+| 5. Verbindungen | Matcher: `initial_recognition.py`, `initial_evaluation.py` | Eindeutige Endpunkte mit falschem Typ / Richtung, veränderte Endpunkte mit Textanker, mehrdeutige Parallelverbindungen; bestanden |
+| 6. Feedbackcheckliste | Analyse: `fact_projection.py`, `analysis.py`, `analysis_contract.py`, Schema; Frontend: `analysisFeedback.ts`, `analysisFeedbackGraph.ts`, `AnalyticalFeedbackPanel.vue` | Exakte Projektion, Identitätsstatus, 2/3 plus verschobenes Child, deduplizierte Ziele, Schema, echter Adapter, Lint und Typprüfung; bestanden |
+| 7. Sprachunabhängigkeit | Matcher-Regeln und generische Evidenzfixtures | Ausgetauschte Typ-, Sprach- und Rollennamen; unvollständige Graphen ohne Vollständigkeitsbehauptung; bestanden |
+| 8. Regression | Matcher-/Analysetests, gespeicherte Modellfixtures | 138 Matcher- und 27 Analyse-/Vertragsprüfungen; alle 165 bestanden |
+| 9. Bereitstellung | Serviceversionen, Compose, Workflow und READMEs | MCP-Preview gültig; Matcher `v3`, Analyse / Feedback `v6` gebaut, importiert und Digests abgeglichen; keine Jobs gestartet |

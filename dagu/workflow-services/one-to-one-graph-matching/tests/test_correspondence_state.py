@@ -193,7 +193,7 @@ class CorrespondenceStateTests(unittest.TestCase):
             if item["referenceId"] == "r-owner":
                 self.assertEqual(len(item["conflictingChildren"]), 1)
 
-    def test_identical_unmapped_children_do_not_prove_owners(self):
+    def test_complete_child_composition_identifies_owner_without_forcing_children(self):
         indices, candidates = make_inputs(
             {"r-owner": "Old", "r1": "Name", "r2": "Name"},
             {"s-owner": "New", "s1": "Name", "s2": "Name"},
@@ -202,7 +202,8 @@ class CorrespondenceStateTests(unittest.TestCase):
             [{"kind": "contains", "role": "content", "source": sub, "target": "s-owner"} for sub in ("s1", "s2")],
         )
         state = correspondence_state.build_provisional_state(indices, candidates)
-        self.assertEqual(state["proposals"], [])
+        self.assertEqual(state["proposals"], [{"referenceId": "r-owner", "studentId": "s-owner",
+                                             "reason": "combined_child_structure", "dependsOn": []}])
         evidence = next(item for item in state["childOwnerEvidence"] if item["referenceId"] == "r-owner")
         self.assertEqual(evidence["supportingChildren"], [])
         self.assertTrue(evidence["unresolvedChildren"])

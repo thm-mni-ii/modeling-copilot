@@ -4,7 +4,7 @@ from collections import defaultdict
 import unicodedata
 
 from analysis_contract import canonical_status, category_for, category_summary, content_hash, require, structure_hints
-from fact_projection import project_facts
+from fact_projection import build_evidence_report, project_facts
 
 
 def _normalized(value):
@@ -58,6 +58,8 @@ def _parents(index, identity):
 
 
 def build(store, bundle, indices, candidates, comparison, compact):
+    if comparison.get("propertyFacts", {}).get("version") == "1.1":
+        return build_evidence_report(bundle, indices, comparison)
     reference, submission = indices["reference"], indices["student"]
     elements = comparison["mapping"]["provisionalElements"]
     connections = comparison["mapping"]["provisionalConnections"]
@@ -424,7 +426,7 @@ def build(store, bundle, indices, candidates, comparison, compact):
     for hint in reference_hints:
         hint["targets"].append(hint["target"])
     return {"schema": "analysis-feedback/v1", "contractVersion": "1.2" if has_facts else "1.1",
-            "producer": {"service": "analytical-feedback", "version": "1.2.0"}, "evaluationId": bundle["evaluationId"],
+            "producer": {"service": "analytical-feedback", "version": "1.3.0"}, "evaluationId": bundle["evaluationId"],
             "pair": comparison["pair"], "comparisonHash": comparison["comparisonHash"],
             "status": "provisional", "assessmentAvailable": False, "summary": summary,
             "structuralContainers": {"referenceCount": sum(category_for(bundle, node) is None for node in reference.nodes.values()),

@@ -4,11 +4,10 @@ from collections import defaultdict, deque
 from copy import deepcopy
 import unicodedata
 
-from artifacts import _key
-from assignment_capacity import analyze_proposal_feasibility
+from assignment_capacity import analyze_proposal_feasibility, necessary_pairs
 from decision_diagnostics import record
 from matching import propose_containment_anchors, propose_exact_anchors
-from structural_evidence import _containment, analyze_child_owner_evidence, analyze_containment
+from structural_evidence import analyze_child_owner_evidence, analyze_combined_children, analyze_containment
 
 
 def _candidate_graph(indices, candidates):
@@ -65,7 +64,7 @@ def _candidate_graph(indices, candidates):
     }
 
 
-def build_provisional_state(indices, candidates):
+def build_provisional_state(indices, candidates, *, graphs=None):
     """Combine the existing one-pass proposals and all candidate graph edges."""
     events = []
     anchors, unresolved = propose_exact_anchors(indices, candidates, events)
@@ -163,22 +162,11 @@ def build_provisional_state(indices, candidates):
     remaining = propose_exact_anchors(indices, {"synonymMatrix": rows})[0] if unresolved else []
     labels = {row["referenceElementId"]: " ".join(unicodedata.normalize("NFC", row["referenceLabel"]).split())
               for row in candidates["synonymMatrix"]}
-    candidate_pairs = {(item["referenceId"], item["studentId"]) for item in state["candidatePairs"]}
     residual = []
     for item in remaining:
         ref, sub = item["referenceId"], item["studentId"]
-        ref_info, sub_info = _containment(indices["reference"], ref), _containment(indices["student"], sub)
-        owner_ref, owner_sub = ref_info[1], sub_info[1]
-        if (ref in used_ref or sub in used_sub or not ref_info[3] or not sub_info[3]
-                or owner_ref is None or owner_sub is None
-                or owner_ref in used_ref or owner_sub in used_sub or (owner_ref, owner_sub) not in candidate_pairs
-                or _key(indices["reference"].nodes[owner_ref]) is None
-                or _key(indices["reference"].nodes[owner_ref]) != _key(indices["student"].nodes[owner_sub])):
-            reason = ("one_to_one_reservation" if ref in used_ref or sub in used_sub else
-                      "ambiguous_containment_path" if not ref_info[3] or not sub_info[3] else
-                      "owner_unresolved" if owner_ref is None or owner_sub is None else
-                      "owner_already_reserved" if owner_ref in used_ref or owner_sub in used_sub else "incompatible_owner_context")
-            record(events, "residual_exact", "unique_exact_after_reservations", ref, sub, "deferred", [reason])
+        if ref in used_ref or sub in used_sub:
+            record(events, "residual_exact", "unique_exact_after_reservations", ref, sub, "deferred", ["one_to_one_reservation"])
             continue
         blockers = {}
         for pair in unresolved:
@@ -198,7 +186,7 @@ def build_provisional_state(indices, candidates):
     child_evidence = analyze_child_owner_evidence(indices, candidates, state["proposals"])
     used_ref, used_sub = available_ids()
     supported = [item for item in child_evidence
-                 if item["supportingChildren"] and not item["conflictingChildren"]
+                 if item["supportingChildren"]
                  and item["referenceId"] not in used_ref and item["studentId"] not in used_sub]
     refs, subs = defaultdict(set), defaultdict(set)
     for item in supported:
@@ -237,7 +225,21 @@ def build_provisional_state(indices, candidates):
                depends_on=[{"referenceId": child["referenceId"], "studentId": child["studentId"]}
                            for child in item["supportingChildren"]], proposalStatus=item["proposalStatus"])
 
-    new_owners = [item for item in state["proposals"] if item["reason"] == "independent_child_evidence"]
+    complete_graphs = graphs is None or all(graph["completeness"]["interpretation"] == "complete" for graph in graphs.values())
+    combined = analyze_combined_children(indices, candidates, state["proposals"], complete=complete_graphs)
+    used_ref, used_sub = available_ids()
+    uncertain_ref = {item["referenceId"] for item in state["conflictingProposals"] + state["blockedProposals"]}
+    uncertain_sub = {item["studentId"] for item in state["conflictingProposals"] + state["blockedProposals"]}
+    complete_pairs = {(item["referenceId"], item["studentId"]) for item in combined if item["complete"]
+                      and item["referenceId"] not in used_ref and item["studentId"] not in used_sub
+                      and not set(item["referenceChildIds"]) & uncertain_ref
+                      and not set(item["studentChildIds"]) & uncertain_sub}
+    forced = necessary_pairs(complete_pairs)
+    accept([{"referenceId": item["referenceId"], "studentId": item["studentId"],
+             "reason": "combined_child_structure", "dependsOn": item["dependsOn"]}
+            for item in combined if (item["referenceId"], item["studentId"]) in forced])
+    state["combinedChildEvidence"] = combined
+    new_owners = [item for item in state["proposals"] if item["reason"] in ("independent_child_evidence", "combined_child_structure")]
     if new_owners:
         owner_anchors = [item for item in state["proposals"] if item["reason"] == "unique_exact_label"] + new_owners
         owner_evidence = analyze_containment(indices, candidates, owner_anchors)

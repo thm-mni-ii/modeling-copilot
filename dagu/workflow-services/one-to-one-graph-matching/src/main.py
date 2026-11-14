@@ -8,6 +8,7 @@ from artifacts import content_hash, read_artifacts
 from assignment_capacity import analyze_proposal_feasibility
 from correspondence_state import build_provisional_state
 from facts import evaluate_facts
+from identity_evidence import evaluate_identity
 from initial_evaluation import evaluate_initial_coverage, evaluate_type_comparison
 from initial_recognition import evaluate_connections, propose_connections, recognition_metrics
 from initial_structure import evaluate_containment_relations, evaluate_provisional_owners
@@ -20,7 +21,7 @@ SERVICE = "one-to-one-graph-matching"
 
 def run(store: Workspace, reference_key: str | None) -> dict:
     bundle, graphs, indices, candidates = read_artifacts(store, reference_key)
-    state = build_provisional_state(indices, candidates)
+    state = build_provisional_state(indices, candidates, graphs=graphs)
     evaluation = evaluate_initial_coverage(indices, state)
     evaluation["childOwnerEvidence"] = state["childOwnerEvidence"]
     graph_matching = bundle["comparisonConfig"].get("graphMatching", {})
@@ -51,7 +52,7 @@ def run(store: Workspace, reference_key: str | None) -> dict:
         "coverage": len(semantic_proposals) / reference_count if reference_count else None,
     }
     evaluation["semanticRefinement"] = semantics
-    connections = propose_connections(indices, evaluation["mapping"]["provisionalElements"])
+    connections = propose_connections(indices, evaluation["mapping"]["provisionalElements"], candidates)
     evaluation["mapping"]["provisionalConnections"] = connections["proposals"]
     evaluation["decisionEvents"] = sorted(
         state["decisionEvents"] + semantics["decisionEvents"] + connections["decisionEvents"],
@@ -75,6 +76,12 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     containment = evaluate_containment_relations(indices, evaluation["mapping"]["provisionalElements"])
     evaluation["metrics"]["provisionalContainment"] = containment["metrics"]
     evaluation["provisionalContainmentEvidence"] = containment["relations"]
+    evaluation["identityEvidence"] = evaluate_identity(
+        indices, candidates, evaluation["mapping"]["provisionalElements"],
+        combined=state["combinedChildEvidence"],
+        connection_pairs=connections["proposals"],
+        connection_candidates=connections["candidateEvidence"],
+    )
     evaluation["propertyFacts"] = evaluate_facts(indices, evaluation, graphs, candidates, {
         side: store.read(candidates["inventoryPaths"][side])["result"] for side in indices
     })
@@ -85,7 +92,7 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     })
     producer = {
         "service": SERVICE,
-        "version": "1.1.0",
+        "version": "1.2.0",
         "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()}),
     }
     incomplete = (candidates["completeness"]["interpretation"] == "partial"

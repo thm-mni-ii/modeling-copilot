@@ -349,14 +349,15 @@ class LaboratoryContainmentRegressionTests(unittest.TestCase):
 
     def test_m05_swapped_containers_do_not_confirm_dependent_matches(self):
         reference, old, result, types = self.evaluate_model("m05", include_type_comparison=True)
-        self.assertEqual((old["metrics"]["satisfied"], old["metrics"]["expected"]), (36, 36))
+        self.assertEqual((old["metrics"]["satisfied"], old["metrics"]["expected"], old["metrics"]["violated"]), (36, 38, 2))
         self.assertLess(result["metrics"]["agreement"]["lower"], 1)
         moved = [row for row in result["relations"] if any(
             name in reference.nodes[row["referenceSourceId"]].get("label", "")
             for name in ("GebäudeNr.", "GeräteNr."))
-            and row["decisionBasis"] == "source_mapping_missing"]
+            and row["sourceMappingBasis"] == "unique_exact_after_reservations"]
         self.assertEqual(len(moved), 2)
         self.assertTrue(all(row["status"] == "unresolved" for row in moved))
+        self.assertTrue(all(row["studentSourceId"] is not None for row in moved))
         self.assertEqual({reference.nodes[reference.owner(row["referenceSourceId"])]["label"] for row in moved},
                          {"Gebäude", "Geräte"})
         names = [row for row in result["relations"]
@@ -372,15 +373,16 @@ class LaboratoryContainmentRegressionTests(unittest.TestCase):
         self.assertEqual(changed["status"], "compatible_type_difference")
         self.assertEqual(changed["mappingStatus"], "provisional")
 
-    def test_m08_unresolved_moved_attribute_is_in_denominator(self):
+    def test_m08_recognized_moved_attribute_remains_in_denominator(self):
         reference, old, result = self.evaluate_model("m08")
-        self.assertEqual((old["metrics"]["satisfied"], old["metrics"]["expected"]), (35, 36))
+        self.assertEqual((old["metrics"]["satisfied"], old["metrics"]["expected"]), (35, 37))
         project_numbers = [row for row in result["relations"]
                            if "ProjektNr." in reference.nodes[row["referenceSourceId"]].get("label", "")
                            and reference.nodes[reference.owner(row["referenceSourceId"])]["label"]
                            == "Forschungs\nprojekt"]
         self.assertTrue(any(row["status"] == "unresolved"
-                            and row["decisionBasis"] == "source_mapping_missing" for row in project_numbers))
+                            and row["sourceMappingBasis"] == "unique_exact_after_reservations"
+                            and row["studentSourceId"] is not None for row in project_numbers))
 
     def test_m02_renamed_owners_are_supported_by_children(self):
         reference, old, result = self.evaluate_model("m02")

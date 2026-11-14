@@ -4,6 +4,7 @@ from collections import defaultdict
 import unicodedata
 
 from decision_diagnostics import record
+from assignment_capacity import necessary_pairs
 
 
 def propose_exact_anchors(indices, candidates, events=None, phase="exact_label"):
@@ -26,14 +27,15 @@ def propose_exact_anchors(indices, candidates, events=None, phase="exact_label")
     for pairs in pairs_by_label.values():
         references = {reference_id for reference_id, _ in pairs}
         students = {student_id for _, student_id in pairs}
-        if len(references) == len(students) == 1:
-            reference_id, student_id = pairs[0]
+        forced = necessary_pairs(pairs)
+        for reference_id, student_id in sorted(forced):
             anchors.append({"referenceId": reference_id, "studentId": student_id, "reason": "unique_exact_label"})
             record(events, phase, "unique_exact_label", reference_id, student_id, "proposed", ["unique_exact_label"])
-        else:
+        remaining = sorted(set(pairs) - forced)
+        if remaining:
             unresolved.extend({"referenceId": reference_id, "studentId": student_id}
-                              for reference_id, student_id in pairs)
-            for reference_id, student_id in sorted(pairs):
+                              for reference_id, student_id in remaining)
+            for reference_id, student_id in remaining:
                 record(events, phase, "unique_exact_label", reference_id, student_id, "deferred",
                        ["ambiguous_candidates"], referenceAlternatives=sorted(references),
                        studentAlternatives=sorted(students))

@@ -51,7 +51,7 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(service.main(), 0)
         envelope = json.loads(output.getvalue())
         self.assertEqual(output.getvalue().count("\n"), 1)
-        self.assertEqual(envelope["result"]["contractVersion"], "1.2")
+        self.assertEqual(envelope["result"]["contractVersion"], "1.3")
         result = comparison_report.run(store, "ref", envelope["analysisPath"])["result"]
         self.assertEqual(result["analysisHash"], envelope["result"]["analysisHash"])
         self.assertEqual(result["analyticalSummary"], envelope["result"]["summary"])

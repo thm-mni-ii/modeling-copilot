@@ -1,7 +1,8 @@
 # feedback-generation
 
-Serviceversion `1.0.2`, Image `v5`. Der eingebettete Analysevalidator akzeptiert
-Revision `1.2` und prüft übernommene Matcher-Fakten gegen den Vergleich.
+Serviceversion `1.0.3`, Image `v6`. Der eingebettete Analysevalidator akzeptiert
+Revision `1.3` und frühere Revisionen und prüft übernommene Matcher-Fakten,
+Identitätsprofile und Anzeigeziele gegen den Vergleich.
 
 Der Dienst liest mit `WORKFLOW_EVALUATION_ID` und `REFERENCE_KEY` den
 eingefrorenen Snapshot und das Vergleichsartefakt `comparisons/<referenceKey>.json`.

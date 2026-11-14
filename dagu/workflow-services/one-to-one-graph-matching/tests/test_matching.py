@@ -50,15 +50,15 @@ class ExactAnchorTests(unittest.TestCase):
                     for reference_id, student_id in sorted(pairs)
                 ])
 
-    def test_duplicate_label_in_disjoint_candidate_groups_is_still_ambiguous(self):
+    def test_duplicate_label_in_disjoint_candidate_groups_has_no_global_competition(self):
         indices, candidates = make_inputs(
             {"r1": "Name", "r2": "Name"}, {"s1": "Name", "s2": "Name"},
             [("r1", "s1"), ("r2", "s2")],
         )
-        self.assertEqual(propose_exact_anchors(indices, candidates), ([], [
-            {"referenceId": "r1", "studentId": "s1"},
-            {"referenceId": "r2", "studentId": "s2"},
-        ]))
+        self.assertEqual(propose_exact_anchors(indices, candidates), ([
+            {"referenceId": "r1", "studentId": "s1", "reason": "unique_exact_label"},
+            {"referenceId": "r2", "studentId": "s2", "reason": "unique_exact_label"},
+        ], []))
 
     def test_different_and_empty_labels_do_not_create_exact_pairs(self):
         indices, candidates = make_inputs(
@@ -114,12 +114,12 @@ class ExactAnchorTests(unittest.TestCase):
         anchors, unresolved = first
         self.assertEqual(anchors, [
             {"referenceId": "r0", "studentId": "s0", "reason": "unique_exact_label"},
+            {"referenceId": "r1", "studentId": "s2", "reason": "unique_exact_label"},
+            {"referenceId": "r2", "studentId": "s1", "reason": "unique_exact_label"},
             {"referenceId": "r3", "studentId": "s3", "reason": "unique_exact_label"},
         ])
         self.assertEqual(unresolved, [
             {"referenceId": "r1", "studentId": "s1"},
-            {"referenceId": "r1", "studentId": "s2"},
-            {"referenceId": "r2", "studentId": "s1"},
         ])
         self.assertEqual(len({pair["referenceId"] for pair in anchors}), len(anchors))
         self.assertEqual(len({pair["studentId"] for pair in anchors}), len(anchors))

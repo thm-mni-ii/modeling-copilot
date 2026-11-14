@@ -11,6 +11,7 @@ from artifacts import _key
 from correspondence_state import build_provisional_state
 from initial_structure import evaluate_containment_relations
 from test_facts import with_facts
+from test_identity_feedback import with_identity_facts
 
 sys.path.insert(0, str(SERVICES / "graph-parser/src"))
 from parser import parse_model
@@ -58,6 +59,11 @@ class SavedSnapshotTests(unittest.TestCase):
                 equal_labels = [fact for item in report["annotations"] for fact in item["facts"] if fact["code"] == "label.equal"]
                 self.assertTrue(any(fact["status"] == "satisfied" for fact in equal_labels))
                 self.assertEqual(report, build(store))
+                with_identity_facts(store)
+                report = build(store)
+                validate_analysis(report, store)
+                self.assertEqual(report["contractVersion"], "1.3")
+                self.assertTrue(any(item.get("identity", {}).get("status") == "uniquely_supported" for item in report["annotations"]))
 
     def test_baseline_m03_m05_m06b_preserve_ids_and_unchecked_observations(self):
         reference, language = snapshot_graph("v12_laboratory_management/sample_solution.json", "ref")

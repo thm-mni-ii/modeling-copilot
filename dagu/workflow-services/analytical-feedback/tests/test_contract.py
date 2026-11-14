@@ -9,6 +9,7 @@ import unittest
 
 from test_analysis import SERVICES, build, case, contains, containment_evidence, endpoints, node
 from test_facts import with_facts
+from test_identity_feedback import with_identity_facts
 
 ROOT = Path(__file__).resolve().parents[4]
 CHECK = r"""
@@ -33,7 +34,7 @@ const {adaptAnalysisFeedback, analysisStatus, analysisHintText} = compiled.expor
 for (const sample of input) {
   const adapted = adaptAnalysisFeedback(sample.envelope, sample.context);
   assert.equal(adapted.report.annotations.length, sample.context.submissionObjects.length);
-  if (sample.envelope.result.contractVersion === '1.2') {
+  if (['1.2', '1.3'].includes(sample.envelope.result.contractVersion)) {
     const invalidFact = structuredClone(sample.envelope);
     invalidFact.result.annotations[0].facts[0].status = 'incorrect';
     assert.equal(validate(invalidFact), false);
@@ -83,6 +84,7 @@ class SchemaAndFrontendTests(unittest.TestCase):
                           reference_edges=endpoints("e", "a", "b"), submission_edges=endpoints("e", "b", "a"))
         payload = [sample(store) for store in (baseline, moved, missing, connection)]
         payload += [sample(with_facts(store)) for store in (baseline, moved, missing, connection)]
+        payload += [sample(with_identity_facts(store)) for store in (baseline, moved, missing, connection)]
         legacy = deepcopy(payload[2])
         legacy["envelope"]["result"].pop("contractVersion")
         payload.append(legacy)

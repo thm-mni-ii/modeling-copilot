@@ -42,7 +42,7 @@ def indices_with_connections(reference, student):
 
 
 class ConnectionStructureTests(unittest.TestCase):
-    def test_type_comparison_uses_only_compatible_connection_proposals(self):
+    def test_legacy_type_view_preserves_endpoint_identity_despite_incompatible_type(self):
         indices, _mapping = indices_with_connections(
             [("r1", "a", "b", {"connection_type": "first"}),
              ("r2", "a", "c", {"connection_type": "first"})],
@@ -55,7 +55,7 @@ class ConnectionStructureTests(unittest.TestCase):
                      "dependsOn": [], "status": "provisional"} for name in ("a", "b", "c")]
         connections = propose_connections(indices, elements)
         data = evaluate_type_comparison(indices, elements, connections["proposals"])["connections"]
-        self.assertEqual((data["referenceCount"], data["mappedCount"], data["evaluatedCount"]), (2, 1, 1))
+        self.assertEqual((data["referenceCount"], data["mappedCount"], data["evaluatedCount"]), (2, 2, 1))
         self.assertEqual((data["sameTypeCount"], data["compatibleTypeDifferenceCount"], data["unresolvedCount"]),
                          (0, 1, 1))
         self.assertEqual(data["compatibleTypeDifferencePercentage"], 100)
@@ -66,6 +66,40 @@ class ConnectionStructureTests(unittest.TestCase):
         self.assertEqual(first["dependsOn"], [{"referenceId": "a", "studentId": "a"},
                                               {"referenceId": "b", "studentId": "b"}])
         self.assertEqual(second["status"], "unresolved")
+        self.assertEqual(second["studentId"], "s2")
+
+    def test_unique_endpoints_keep_connection_identity_with_wrong_direction_and_type(self):
+        from facts import evaluate_facts
+        from identity_evidence import evaluate_identity
+        indices, _ = indices_with_connections([("r", "a", "b", {"connection_type": "first"})],
+                                               [("s", "b", "a", {"connection_type": "second"})])
+        elements = [{"referenceId": name, "studentId": name, "reason": "unique_exact_label", "dependsOn": []}
+                    for name in ("a", "b", "c")]
+        connections = propose_connections(indices, elements)
+        self.assertEqual(connections["proposals"][0]["reason"], "unique_mapped_endpoints")
+        candidates = {"synonymMatrix": [{"referenceElementId": name, "referenceLabel": name,
+            "matches": [{"submissionElementId": name, "submissionLabel": name}]} for name in ("a", "b", "c")]}
+        identity = evaluate_identity(indices, candidates, elements, connection_pairs=connections["proposals"],
+                                     connection_candidates=connections["candidateEvidence"])
+        self.assertEqual(next(row for row in identity["pairs"] if row["referenceId"] == "r")["status"], "uniquely_supported")
+        facts = evaluate_facts(indices, {"mapping": {"provisionalElements": elements, "provisionalConnections": connections["proposals"]},
+            "identityEvidence": identity}, {side: {"completeness": {"interpretation": "complete"}} for side in indices}, candidates)["items"]
+        self.assertEqual(next(item for item in facts if item["referenceIds"] == ["r"] and item["code"] == "type.different")["status"], "violated")
+        self.assertEqual(next(item for item in facts if item["referenceIds"] == ["r"] and item["code"] == "connection.direction")["status"], "violated")
+
+    def test_unique_connection_label_preserves_identity_with_changed_endpoint(self):
+        indices, elements = indices_with_connections([("r", "a", "b", {})], [("s", "a", "c", {})])
+        indices["reference"].nodes["r"]["label"] = indices["student"].nodes["s"]["label"] = "Specific relation"
+        result = propose_connections(indices, elements)
+        self.assertEqual([(row["referenceId"], row["studentId"], row["reason"]) for row in result["proposals"]],
+                         [("r", "s", "unique_exact_connection_label")])
+
+    def test_identical_parallel_connections_remain_ambiguous_after_endpoint_fallback(self):
+        indices, elements = indices_with_connections([("r1", "a", "b", {}), ("r2", "a", "b", {})],
+                                                     [("s1", "b", "a", {}), ("s2", "b", "a", {})])
+        result = propose_connections(indices, elements)
+        self.assertEqual(result["proposals"], [])
+        self.assertEqual(len(result["candidateEvidence"]), 4)
 
     def test_ambiguous_parallel_connections_have_no_invented_type_differences(self):
         indices, _mapping = indices_with_connections(

@@ -1,14 +1,50 @@
 # one-to-one-graph-matching
 
-Serviceversion `1.1.0`, Image `v2`. Nach Abschluss der bestehenden
-Korrespondenz- und Strukturprüfungen ergänzt `propertyFacts` (Version `1.0`)
-konkrete Einzelbefunde. Matching, Synonymverfahren und Parameter bleiben gleich.
+Serviceversion `1.2.0`, Image `v3`. Nach Abschluss der Korrespondenz- und
+Strukturprüfungen ergänzt `propertyFacts` (Version `1.1`) konkrete Einzelbefunde.
+Synonymverfahren und Parameter bleiben gleich. Die Identitätsregeln ergänzen
+globale Konkurrenzprüfung, gemeinsame Kinderstruktur und robuste Verbindungsanker.
 Jeder Befund enthält `code`, `referenceIds`, `submissionIds`, einen der Status
 `satisfied`, `violated`, `unresolved`, `not_evaluated`, `not_applicable` und
 `evidence` mit `basis`, `reason` sowie den nötigen Beobachtungen/Abhängigkeiten.
 `direct_observation` belegt sichtbare Eigenschaften oder globale Abwesenheit;
 `conditional_mapping` gilt unter den vorhandenen vorläufigen Zuordnungen;
 `independent_evidence` kennzeichnet unabhängig verankerte Besitzerbeziehungen.
+
+`identityEvidence` (Version `1.0`) enthält pro zulässigem Paar kompakte Kriterien
+mit Methode, Ergebnis, Original-IDs und Abhängigkeiten. Ihre Rolle ist
+`compatibility`, `support` oder `identity_anchor`. `uniquely_supported` erfordert
+eine nicht zirkuläre Begründung und globale 1:1-Eindeutigkeit innerhalb der
+hinreichend belegten Alternativen. Dazu werden notwendige Kanten maximaler
+Zuordnungen mit dem vorhandenen Kapazitätsalgorithmus geprüft; bloße
+Typkompatibilität ist kein Identitätsbeweis. `supported` bewahrt positive,
+noch nicht hinreichende Evidenz; konkurrierende hinreichende Alternativen bleiben
+`unresolved`. Unabhängige exakte Anker haben Vorrang vor Positionsbefunden.
+
+Ein zuvor mehrdeutiger exakter Text kann nach belegten Reservierungen eindeutig
+werden, auch unter einem falschen Besitzer. Gemeinsam passende Kinder verwenden
+kompatible Typen, Namen, Relationsrollen, Strukturpfade und die globale Konkurrenz.
+2/3 ist positive Evidenz; nur eine vollständige lokale Kombination ohne relevante
+Zusatzkinder und ohne ungeklärte Pfade kann selbst einen Parent verankern.
+Dabei werden keine einzelnen Child-Identitäten aus einer beliebigen lokalen
+Zuordnung erfunden. Der Parent darf anschließend Kinder stützen, ohne von diesen
+abhängigen Identitäten rückwirkend bestätigt zu werden.
+
+Die Fakten trennen `correct_placement`, `wrong_placement`, `placement_unresolved`,
+`unmatched_submission`, `unmatched_reference` und `proven_absent`.
+`matched/expected`, erkannte, verschobene, nicht zuordenbare und nachweisbar
+abwesende Kinder stehen getrennt in der Kindstruktur. Ein verschobenes Child
+zählt nicht als korrekt enthalten. `id` identifiziert den Fakt; strukturierte
+`targets` adressieren Child, tatsächlichen und erwarteten Parent. Gemeinsame
+`findingId` verhindert doppelte Positionshinweise. Auch eine eindeutige Identität
+beweist eine Relation nicht unabhängig, wenn diese Relation die Identität selbst
+gestützt hat: Der Relationsfakt bleibt dann `conditional_mapping`.
+
+Verbindungen können über eine eindeutige eigene Beschriftung oder Endpunkte
+erkannt werden. Richtung und konkreter Typ werden separat geprüft. Gleichartige
+Parallelverbindungen bleiben mehrdeutig. Bei sprachlich inkompatiblen konkreten
+Typen bleibt die bisherige kompatibilitätsbezogene Typübersicht offen, während
+der konkrete `type.different`-Fakt die beobachtete Abweichung ausdrücklich ausgibt.
 
 Beschriftung, konkreter Typ, fachlicher Besitzer, unmittelbarer Container,
 fachliche und direkte Kinder sowie lokale Verbindungen werden getrennt berichtet.
@@ -62,9 +98,10 @@ führt für diese Kandidaten unterstützende, widersprechende und ungeklärte
 Kinder mit IDs, Pfaden und Zuordnungsabhängigkeiten auf. Der
 `proposalStatus` unterscheidet vorgeschlagene, bereits belegte, widersprüchliche,
 nicht unabhängig gestützte, konkurrierende und kapazitätsunverträgliche Paare.
-Nur beidseitig eindeutige Vorschläge ohne widersprechende Kindevidenz, die
-gemeinsam die globale Zuordnungskapazität erhalten, werden aufgenommen.
-Fehlende oder mehrdeutige Kinder bleiben ungeklärt.
+Nur global eindeutige positive Vorschläge, die gemeinsam die globale
+Zuordnungskapazität erhalten, werden aufgenommen. Widersprechende Positionen
+werden separat berichtet und löschen einen anderweitigen Identitätsanker nicht.
+Fehlende oder mehrdeutige Kinder bleiben entsprechend ihrer eigenen Evidenz offen.
 
 Nach bereits aktiven 1:1-Zuordnungen kann ein zuvor mehrdeutiges exaktes
 Kindpaar eindeutig werden (`unique_exact_after_reservations`); seine
@@ -76,9 +113,9 @@ unterstützenden Kindern ab; anschließend können weitere Kinder vom Besitzer
 abhängen. Alle Vorschläge bleiben vorläufig. Die Containment-Prüfung behandelt
 die neuen abhängigen Vorschläge weiterhin nicht als unabhängigen Beweis.
 
-Mit Parsergraphen und vollständiger synthetischer Kandidatenmatrix, ohne
-Synonymverfahren oder vollständigen Pipeline-Lauf, ergeben sich folgende
-Elementzuordnungen (vorher → nachher):
+Der historische Stand vor Version `1.2.0` ergab mit Parsergraphen und
+vollständiger synthetischer Kandidatenmatrix, ohne Synonymverfahren oder
+vollständigen Pipeline-Lauf, folgende Elementzuordnungen (vorher → nachher):
 
 | Modell | Vorschläge | Offene Referenzen | Neue Besitzer |
 | --- | --- | --- | --- |
@@ -94,6 +131,11 @@ bleibt ungeklärt. Die vollständige referenzbezogene Containment-Auswertung
 bleibt für M02 bei 5/0/43, M03 bei 5/1/42, M05 bei 7/0/41 und M08 bei
 6/0/42 (erfüllt/verletzt/offen). Die synthetische Matrix ersetzt keine
 Regression mit den ursprünglichen semantischen Kandidaten.
+
+Diese Zahlen dokumentieren den früheren Stand. Aktuell bleiben die beiden
+verschobenen Nummernattribute in M05 sowie das verschobene `ProjektNr.` in M08
+nach den vorhandenen Reservierungen erkannt. Positions- und Identitätsaussagen
+werden im neuen Faktenpfad getrennt ausgewiesen.
 
 Optionale Mindestähnlichkeiten werden im eingefrorenen `comparisonConfig` als
 `graphMatching.minimumSimilarity` angegeben: ein Objekt mit Methodennamen und

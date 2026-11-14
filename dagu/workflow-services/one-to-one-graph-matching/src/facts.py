@@ -2,7 +2,7 @@
 
 import unicodedata
 
-from artifacts import _key
+from artifacts import _key, content_hash
 from structural_evidence import _containment
 
 
@@ -45,6 +45,37 @@ def _structure_facts(indices, evaluation, graphs):
     mapping = {row["referenceId"]: row["studentId"] for row in rows}
     independent = {row["referenceId"] for row in rows
                    if row.get("reason") == "unique_exact_label" and not row.get("dependsOn")}
+    if "identityEvidence" in evaluation:
+        independent = {row["referenceId"] for row in evaluation["identityEvidence"]["pairs"]
+                       if row["status"] == "uniquely_supported"}
+    reverse = {sub: ref for ref, sub in mapping.items()}
+    identities = {row["referenceId"]: row for row in evaluation.get("identityEvidence", {}).get("pairs", [])
+                  if mapping.get(row["referenceId"]) == row["studentId"]}
+    proposals = {row["referenceId"]: row for row in rows}
+
+    def independent_of_relation(subject, parents):
+        if subject not in independent or not set(parents) <= independent:
+            return False
+        if not identities:
+            return True
+        anchors = [item for item in identities[subject]["criteria"] if item["role"] == "identity_anchor"]
+        if not any(item["method"] != "identified_owner" for item in anchors):
+            return False
+        for parent in parents:
+            pending = [parent]
+            seen = set()
+            while pending:
+                current = pending.pop()
+                if current == subject:
+                    return False
+                if current in seen:
+                    continue
+                seen.add(current)
+                if any(item["role"] == "identity_anchor" and subject in item.get("referenceChildIds", [])
+                       for item in identities.get(current, {}).get("criteria", [])):
+                    return False
+                pending.extend(item["referenceId"] for item in proposals.get(current, {}).get("dependsOn", []))
+        return True
     # Structural context is reused from the existing containment check.
     contexts = {}
     for row in evaluation.get("provisionalContainmentEvidence", []):
@@ -63,7 +94,8 @@ def _structure_facts(indices, evaluation, graphs):
              [sub_owner] if sub_owner is not None else [], mapping),
             ("containment", ref_parents, sub_parents, direct_mapping),
         ):
-            basis = ("independent_evidence" if ref in independent and set(expected) <= independent
+            actual_references = {reverse.get(identity) for identity in observed}
+            basis = ("independent_evidence" if independent_of_relation(ref, set(expected) | actual_references)
                      else "conditional_mapping")
             status = "unresolved"
             if ref_unique and sub_unique:
@@ -73,12 +105,20 @@ def _structure_facts(indices, evaluation, graphs):
                     mapped = sorted(available[identity] for identity in expected)
                     status = "satisfied" if mapped == sorted(observed) else "violated" if complete else "unresolved"
                     if name == "containment" and status == "satisfied":
-                        ref_roles = sorted(edge["role"] or "" for edge in reference.parents.get(ref, ()))
-                        sub_roles = sorted(edge["role"] or "" for edge in student.parents.get(sub, ()))
-                        status = "satisfied" if ref_roles == sub_roles else "violated"
+                        ref_roles = [edge["role"] for edge in reference.parents.get(ref, ())]
+                        sub_roles = [edge["role"] for edge in student.parents.get(sub, ())]
+                        status = "unresolved" if None in ref_roles + sub_roles else "satisfied" if sorted(ref_roles) == sorted(sub_roles) else "violated"
+                if (ref in independent and observed and actual_references <= independent
+                        and actual_references != set(expected)):
+                    status = "violated"
+                    basis = "independent_evidence" if independent_of_relation(ref, actual_references) else "conditional_mapping"
             result.append(fact(name + "." + status, status, [ref], [sub], basis=basis,
                                reason="compared_" + name, referenceParentIds=expected,
                                submissionParentIds=observed,
+                               **({"placementStatus": {"satisfied": "correct_placement", "violated": "wrong_placement"}.get(status, "placement_unresolved")}
+                                  if status != "not_applicable" else {}),
+                               actualParentReferenceIds=sorted(identity for identity in actual_references if identity is not None),
+                               expectedSubmissionParentIds=sorted(available[identity] for identity in expected if identity in available),
                                dependsOn=[{"referenceId": identity, "studentId": available[identity]}
                                           for identity in expected if identity in available]))
 
@@ -96,16 +136,39 @@ def _structure_facts(indices, evaluation, graphs):
                               for index, values in ((reference, {ref} | expected), (student, {sub} | observed))
                               for identity in values)
             roles_equal = True
-            if name == "direct_children":
-                for identity in expected & set(available):
+            correct = set()
+            role_differences = []
+            for identity in expected & set(available):
+                mapped_child = available[identity]
+                if mapped_child not in observed:
+                    continue
+                if name == "children":
+                    def roles(index, child, parent):
+                        _, _, paths, unique = _containment(index, child)
+                        if not unique or parent not in paths[0]:
+                            return None
+                        path = paths[0][:paths[0].index(parent)]
+                        return [index.parents[current][0]["role"] for current in path]
+                    left = roles(reference, identity, ref)
+                    right = roles(student, mapped_child, sub)
+                else:
                     left = [edge["role"] for edge in reference.parents[identity] if edge["target"] == ref]
-                    right = [edge["role"] for edge in student.parents[available[identity]] if edge["target"] == sub]
-                    roles_equal &= left == right
+                    right = [edge["role"] for edge in student.parents[mapped_child] if edge["target"] == sub]
+                if left is not None and right is not None and left == right and None not in left:
+                    correct.add(identity)
+                elif left is not None and right is not None and None not in left + right and left != right:
+                    role_differences.append(identity)
+            roles_equal = not role_differences
             status = ("unresolved" if not paths_known else
                       "violated" if outside or foreign or not roles_equal or len(observed) != len(expected) and complete else
-                      "satisfied" if complete and not open_ids and not additional else "unresolved")
+                      "satisfied" if complete and not open_ids and not additional and len(correct) == len(expected) else "unresolved")
             result.append(fact(name + ".complete", status, [ref], [sub], basis="conditional_mapping",
                                reason="local_children_under_mapping", expected=len(expected), observed=len(observed),
+                               matched=len(correct), recognized=len(expected & set(available)),
+                               expectedReferenceIds=sorted(expected), correctlyContainedReferenceIds=sorted(correct),
+                               movedReferenceIds=outside, unmatchedReferenceIds=open_ids,
+                               unmatchedSubmissionIds=sorted(identity for identity in additional if identity not in set(available.values())),
+                               roleDifferenceReferenceIds=sorted(role_differences),
                                outsideReferenceIds=outside, additionalSubmissionIds=additional,
                                mappedFromOtherTargets=foreign,
                                unresolvedReferenceIds=open_ids, rolesEqual=roles_equal, pathsUnambiguous=paths_known,
@@ -125,7 +188,21 @@ def _presence_facts(indices, evaluation, graphs, candidates):
     student_connections = set(student.by_kind["connection"])
     ambiguous = {event.get("referenceId") for event in evaluation.get("decisionEvents", [])
                  if "ambiguous_candidates" in event.get("reasonCodes", [])}
+    identities = {row["referenceId"]: row["status"] for row in evaluation.get("identityEvidence", {}).get("pairs", [])
+                  if (row["referenceId"], row["studentId"]) in set(mapping.items())}
     result = []
+    def observation(index, identity):
+        if identity is None:
+            return None
+        node = index.nodes[identity]
+        value = {"ownerId": _containment(index, identity)[1],
+                 "parents": [{"parentId": edge["target"], "role": edge["role"]}
+                             for edge in sorted(index.parents.get(identity, ()), key=lambda edge: (edge["target"], edge["role"] or ""))]}
+        if node["kind"] == "connection":
+            endpoints = index.endpoints.get(identity, {})
+            value["connection"] = {"id": identity, "sourceId": endpoints.get("source"), "targetId": endpoints.get("target"),
+                                   "directed": node.get("directed"), "type": node["type"]}
+        return value
     for ref, node in sorted(reference.nodes.items()):
         if node["kind"] not in ("modelElement", "connection"):
             continue
@@ -148,7 +225,10 @@ def _presence_facts(indices, evaluation, graphs, candidates):
             candidate_alternatives = [match["submissionElementId"] for row in candidates.get("synonymMatrix", [])
                                       if row["referenceElementId"] == ref for match in row["matches"]
                                       if match["submissionElementId"] not in reverse]
-            if unique and owner in mapping and no_alternative and not candidate_alternatives:
+            owner_identified = "identityEvidence" not in evaluation or identities.get(owner) == "uniquely_supported"
+            reservations_identified = "identityEvidence" not in evaluation or all(identities.get(identity) == "uniquely_supported"
+                for identity in mapping if reference.nodes[identity]["kind"] == "modelElement" and _key(reference.nodes[identity]) == key)
+            if unique and owner in mapping and owner_identified and reservations_identified and no_alternative and not candidate_alternatives:
                 # The fixed mapping consumes all other compatible identities. A
                 # count deficit alone with several remaining peers cannot do this.
                 status, reason, basis = "violated", "unique_unassigned_child_class_absent", "conditional_mapping"
@@ -156,10 +236,14 @@ def _presence_facts(indices, evaluation, graphs, candidates):
                                 for identity, mapped in sorted(mapping.items())]
         code = "counterpart.missing" if status == "violated" else "counterpart.present" if sub else "counterpart.unresolved"
         result.append(fact(code, status, [ref], [sub] if sub else [], basis=basis, reason=reason,
+                           referenceObservation=observation(reference, ref), submissionObservation=observation(student, sub),
+                           **({"placementStatus": "proven_absent" if status == "violated" else "unmatched_reference"} if sub is None else {}),
                            dependsOn=dependencies))
     for sub, node in sorted(student.nodes.items()):
         if sub not in reverse and node["kind"] in ("modelElement", "connection"):
-            result.append(fact("counterpart.unresolved", "unresolved", [], [sub], reason="identity_unresolved"))
+            result.append(fact("counterpart.unresolved", "unresolved", [], [sub], reason="identity_unresolved",
+                               submissionObservation=observation(student, sub), referenceObservation=None,
+                               placementStatus="unmatched_submission"))
 
     for row in evaluation["mapping"]["provisionalElements"]:
         ref, sub = row["referenceId"], row["studentId"]
@@ -184,6 +268,44 @@ def _presence_facts(indices, evaluation, graphs, candidates):
                                [item["id"] for item in group["studentConnections"]], basis="conditional_mapping",
                                reason="endpoint_group_count_deficit", minimumMissing=group["referenceOnlyCount"] if closed_connections else None,
                                referenceEndpointIds=group["referenceEndpointIds"], submissionEndpointIds=group["studentEndpointIds"]))
+    return result
+
+
+def _identity_facts(indices, evaluation):
+    if "identityEvidence" not in evaluation:
+        return []
+    pairs = evaluation["identityEvidence"]["pairs"]
+    mapping = {row["referenceId"]: row["studentId"] for field in ("provisionalElements", "provisionalConnections")
+               for row in evaluation["mapping"][field]}
+    result = []
+    for side, index in indices.items():
+        for identity, node in sorted(index.nodes.items()):
+            if node["kind"] not in ("modelElement", "connection"):
+                continue
+            key = "referenceId" if side == "reference" else "studentId"
+            candidates = [row for row in pairs if row[key] == identity]
+            selected = next((row for row in candidates if mapping.get(row["referenceId"]) == row["studentId"]), None)
+            if selected and side == "student":
+                continue
+            status = selected["status"] if selected else "supported" if any(row["status"] == "supported" for row in candidates) else "unresolved"
+            criteria = selected["criteria"] if selected else []
+            if not selected:
+                methods = sorted({item["method"] for row in candidates for item in row["criteria"]})
+                for method in methods:
+                    values = [item for row in candidates for item in row["criteria"] if item["method"] == method]
+                    results = {item["result"] for item in values}
+                    criteria.append({"method": method, "role": "compatibility" if method == "type_compatibility" else "support",
+                                     "result": "satisfied" if "satisfied" in results else "unresolved" if "unresolved" in results else
+                                               "violated" if results == {"violated"} else "not_evaluated",
+                                     "referenceIds": [identity] if side == "reference" else [],
+                                     "submissionIds": [identity] if side == "student" else [], "dependsOn": []})
+            refs = [selected["referenceId"]] if selected else [identity] if side == "reference" else []
+            subs = [selected["studentId"]] if selected else [identity] if side == "student" else []
+            result.append(fact("identity." + status, "satisfied" if status == "uniquely_supported" else "unresolved", refs, subs,
+                               basis="independent_evidence" if status == "uniquely_supported" else "conditional_mapping",
+                               reason="evaluated_identity_evidence", identityStatus=status, criteria=criteria,
+                               supportingCandidateCount=sum(any(item["result"] == "satisfied" and item["role"] != "compatibility"
+                                                                for item in row["criteria"]) for row in candidates)))
     return result
 
 
@@ -295,5 +417,20 @@ def evaluate_facts(indices, evaluation, graphs, candidates, inventories=None):
     result.extend(_connection_facts(indices, evaluation))
     result.extend(_presence_facts(indices, evaluation, graphs, candidates))
     result.extend(_local_connection_facts(indices, evaluation, graphs, result))
-    return {"version": "1.0", "items": sorted(result, key=lambda item: (
+    result.extend(_identity_facts(indices, evaluation))
+    missing = {ref for item in result if item["code"] == "counterpart.missing" for ref in item["referenceIds"]}
+    for item in result:
+        evidence = item["evidence"]
+        targets = {("reference", identity) for identity in item["referenceIds"]} | {("submission", identity) for identity in item["submissionIds"]}
+        if item["code"].startswith(("owner.", "containment.")):
+            targets.update(("reference", identity) for identity in evidence["referenceParentIds"])
+            targets.update(("submission", identity) for identity in evidence["submissionParentIds"] + evidence["expectedSubmissionParentIds"])
+            if item["status"] == "violated":
+                evidence["findingId"] = content_hash({"kind": "placement", "referenceIds": item["referenceIds"], "submissionIds": item["submissionIds"]})
+        if item["code"] in ("children.complete", "direct_children.complete"):
+            evidence["provenAbsentReferenceIds"] = sorted(set(evidence["expectedReferenceIds"]) & missing)
+        item["targets"] = [{"side": side, "id": identity, "kind": indices["student" if side == "submission" else side].nodes[identity]["kind"]}
+                           for side, identity in sorted(targets)]
+        item["id"] = content_hash(item)
+    return {"version": "1.1" if "identityEvidence" in evaluation else "1.0", "items": sorted(result, key=lambda item: (
         item["referenceIds"], item["submissionIds"], item["code"]))}

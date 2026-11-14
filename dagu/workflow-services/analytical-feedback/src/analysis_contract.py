@@ -46,8 +46,8 @@ def structure_hints(hints, targets, indices):
         scope, status = HINT_DEFINITIONS[code]
         if hint.get("reason") == "ambiguous_candidates":
             status = "ambiguous"
-        parameters = {key: value for key, value in hint.items() if key not in ("code", "target", "status", "facts")}
-        addressed = {(target["side"], target["id"]): target for target in targets}
+        parameters = {key: value for key, value in hint.items() if key not in ("code", "target", "status", "facts", "targets")}
+        addressed = {(target["side"], target["id"]): target for target in list(targets) + hint.get("targets", [])}
         for side in ("reference", "submission"):
             index = indices["student" if side == "submission" else side]
             for key, value in parameters.items():
@@ -135,9 +135,9 @@ def validate_analysis(report, store=None):
     require(isinstance(report, dict) and report.get("schema") == SCHEMA, "expected analysis-feedback/v1")
     require(report.get("status") == "provisional" and report.get("assessmentAvailable") is False,
             "analysis must remain provisional")
-    require(report.get("contractVersion") in (None, "1.1", "1.2"), "unsupported analysis contract version")
-    structured = report.get("contractVersion") in ("1.1", "1.2")
-    factual = report.get("contractVersion") == "1.2"
+    require(report.get("contractVersion") in (None, "1.1", "1.2", "1.3"), "unsupported analysis contract version")
+    structured = report.get("contractVersion") in ("1.1", "1.2", "1.3")
+    factual = report.get("contractVersion") in ("1.2", "1.3")
     require(report.get("analysisKey") == analysis_key(report), "analysis key mismatch")
     require(report.get("analysisHash") == content_hash({key: value for key, value in report.items()
                                                         if key != "analysisHash"}), "analysis hash mismatch")
@@ -162,7 +162,7 @@ def validate_analysis(report, store=None):
             require(item.get("status") in STATUSES and item.get("category") in (*CATEGORIES, None),
                     "invalid annotation status or category")
             require(all(key in ("label", "type", "owner", "containment", "source", "target", "endpoints", "direction", "connectionType",
-                               "counterpart", "children", "directChildren", "connections", "incoming", "outgoing", "undirected")
+                               "identity", "counterpart", "children", "directChildren", "connections", "incoming", "outgoing", "undirected")
                         and canonical_status(value) in STATUSES for key, value in item["checks"].items()), "invalid check status")
     require(set(report["summary"]) == {"nodes", "attributes", "connections", "other"},
             "invalid recognition categories")
@@ -219,12 +219,25 @@ def validate_analysis(report, store=None):
                         and isinstance(item["evidence"].get("reason"), str), "invalid matcher fact")
         for item in annotations:
             validate_facts(item.get("facts"))
+            if report.get("contractVersion") == "1.3":
+                identity_fact = next((fact for fact in item["facts"] if fact["code"].startswith("identity.")), None)
+                if item["target"]["kind"] in ("modelElement", "connection"):
+                    require(identity_fact is not None and item.get("identity") == {
+                        "status": identity_fact["evidence"]["identityStatus"],
+                        "criteria": identity_fact["evidence"]["criteria"],
+                        "supportingCandidateCount": identity_fact["evidence"]["supportingCandidateCount"]}, "identity differs from matcher fact")
+                    require(item["identity"]["status"] in ("uniquely_supported", "supported", "unresolved"), "invalid identity status")
+                for fact in item["facts"]:
+                    require(fact.get("id") == content_hash({key: value for key, value in fact.items() if key != "id"})
+                            and isinstance(fact.get("targets"), list), "invalid fact identity or display targets")
             require(item.get("consistency") in ("fully_consistent", "partial", "different", "unresolved", "not_evaluated"),
                     "invalid factual consistency")
             if item["consistency"] == "fully_consistent":
                 require(item["match"]["status"] == "provisional" and item["facts"]
                         and all(fact["status"] in ("satisfied", "not_applicable") for fact in item["facts"])
                         and any(fact["status"] == "satisfied" for fact in item["facts"]), "unsupported full consistency")
+                if report.get("contractVersion") == "1.3":
+                    require(item.get("identity", {}).get("status") == "uniquely_supported", "full consistency requires identified object")
         for hint in hints:
             validate_facts(hint.get("facts"))
         for group in report["connectionGroups"]:
@@ -239,10 +252,14 @@ def validate_analysis(report, store=None):
         comparison = store.read(f"comparisons/{reference_key}.json")["result"]
         if factual:
             source = comparison.get("propertyFacts", {})
-            require(source.get("version") == "1.0" and isinstance(source.get("items"), list), "missing matcher fact source")
+            require(source.get("version") in ("1.0", "1.1") and isinstance(source.get("items"), list), "missing matcher fact source")
             for fact in source["items"]:
                 require(set(fact["referenceIds"]) <= set(reference_nodes)
                         and set(fact["submissionIds"]) <= set(student_nodes), "fact has unknown original ID")
+                catalogs = {"reference": reference_nodes, "submission": student_nodes}
+                for target in fact.get("targets", []):
+                    require(target.get("side") in catalogs and target.get("id") in catalogs[target["side"]]
+                            and catalogs[target["side"]][target["id"]]["kind"] == target.get("kind"), "fact has unknown display target")
             for item in annotations:
                 require(item["facts"] == [fact for fact in source["items"] if item["target"]["id"] in fact["submissionIds"]],
                         "annotation facts differ from matcher")

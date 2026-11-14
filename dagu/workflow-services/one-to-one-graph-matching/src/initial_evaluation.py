@@ -158,20 +158,17 @@ def evaluate_type_comparison(indices, elements, connections):
                                      and node["languageResolution"] == "resolved"
                                      and _key(node) is not None
                                      for node in (reference, student))
-                if metadata_known and ref_key != sub_key:
+                if metadata_known and ref_key != sub_key and kind != "connection":
                     raise ValueError("incompatible provisional type mapping")
-                if metadata_known and reference["type"] and student["type"]:
+                if metadata_known and ref_key == sub_key and reference["type"] and student["type"]:
                     status = ("same_type" if reference["type"] == student["type"]
                               else "compatible_type_difference")
             dependencies = deepcopy(item.get("dependsOn", [])) if item else []
             if item and kind == "connection":
                 endpoints = indices["reference"].endpoints.get(ref, {})
-                if (set(endpoints) != {"source", "target"}
-                        or any(identity not in element_mapping for identity in endpoints.values())):
-                    raise ValueError("connection type mapping requires mapped endpoints")
                 dependencies = [
                     {"referenceId": identity, "studentId": element_mapping[identity]["studentId"]}
-                    for identity in sorted(set(endpoints.values()))
+                    for identity in sorted(set(endpoints.values()) & set(element_mapping))
                 ]
             rows.append({
                 "referenceId": ref, "studentId": item["studentId"] if item else None,

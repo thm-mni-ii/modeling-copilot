@@ -3,11 +3,13 @@
 from collections import Counter, defaultdict
 
 from artifacts import _key
+from assignment_capacity import necessary_pairs
 from decision_diagnostics import record
+from identity_evidence import normalized
 from initial_evaluation import _class_key, _language_value, _sort_key, _type_key
 
 
-def propose_connections(indices, elements):
+def propose_connections(indices, elements, candidates=None):
     events = []
     pairs = [(item["referenceId"], item["studentId"]) for item in elements]
     if len(set(pairs)) != len(pairs) or len({r for r, _ in pairs}) != len(pairs) or len({s for _, s in pairs}) != len(pairs):
@@ -18,7 +20,7 @@ def propose_connections(indices, elements):
         for side, index in indices.items()
     }
 
-    def signature(index, identity, node, endpoint_mapping=None):
+    def signature(index, identity, node, endpoint_mapping=None, *, broad=False):
         key = _key(node)
         direction = node.get("directed")
         endpoints = index.endpoints.get(identity, {})
@@ -30,6 +32,8 @@ def propose_connections(indices, elements):
             source, target = endpoint_mapping.get(source), endpoint_mapping.get(target)
             if source is None or target is None:
                 return None
+        if broad:
+            return (node["language"]["languageId"], node["language"]["versionId"]), tuple(sorted((source, target)))
         terminals = (source, target) if direction else tuple(sorted((source, target)))
         return key, direction, terminals
 
@@ -53,31 +57,57 @@ def propose_connections(indices, elements):
                 record(events, "connections", "compatible_type_and_mapped_endpoints",
                        identity if side == "reference" else None, identity if side == "student" else None,
                        "deferred", reasons)
+    strict = {(ref, sub) for key, refs in grouped["reference"].items() for ref in refs for sub in grouped["student"].get(key, [])}
+    broad = set()
+    labels = set()
+    for ref, left in connections["reference"].items():
+        for sub, right in connections["student"].items():
+            same_language = left["language"] is not None and left["language"] == right["language"]
+            resolved = all(node["languageResolution"] == "resolved" and node["comparisonRole"] == "semantic" for node in (left, right))
+            if not same_language or not resolved:
+                continue
+            first = signature(indices["reference"], ref, left, mapping, broad=True)
+            second = signature(indices["student"], sub, right, broad=True)
+            if first is not None and first == second:
+                broad.add((ref, sub))
+            if normalized(left.get("label")) and normalized(left.get("label")) == normalized(right.get("label")):
+                labels.add((ref, sub))
+    for text in (candidates or {}).get("connectionTextMatrix", []):
+        if text["kind"] == "self" and normalized(text["referenceLabel"]) and normalized(text["referenceLabel"]) == normalized(text["submissionLabel"]):
+            pair = text["referenceOwnerConnectionId"], text["submissionOwnerConnectionId"]
+            if all(pair[i] in connections[side] for i, side in enumerate(("reference", "student"))):
+                left, right = connections["reference"][pair[0]], connections["student"][pair[1]]
+                if (left["language"] and left["language"] == right["language"]
+                        and all(node["languageResolution"] == "resolved" and node["comparisonRole"] == "semantic" for node in (left, right))):
+                    labels.add(pair)
     proposals = []
-    for signature_key, references in grouped["reference"].items():
-        students = grouped["student"].get(signature_key, [])
-        if len(references) == len(students) == 1:
-            proposals.append({"referenceId": references[0], "studentId": students[0],
-                              "reason": "compatible_type_and_mapped_endpoints", "status": "provisional"})
-            record(events, "connections", "compatible_type_and_mapped_endpoints", references[0], students[0],
-                   "proposed", ["compatible_type_and_mapped_endpoints"])
-        else:
-            for identity in sorted(references):
-                record(events, "connections", "compatible_type_and_mapped_endpoints", identity, None,
-                       "deferred", ["ambiguous_candidates" if students else "no_compatible_connection"],
-                       studentAlternatives=sorted(students), referenceAlternatives=sorted(references))
-    for signature_key, students in grouped["student"].items():
-        references = grouped["reference"].get(signature_key, [])
-        if len(references) != 1 or len(students) != 1:
-            for identity in sorted(students):
-                record(events, "connections", "compatible_type_and_mapped_endpoints", None, identity,
-                       "deferred", ["ambiguous_candidates" if references else "no_compatible_connection"],
-                       studentAlternatives=sorted(students), referenceAlternatives=sorted(references))
+    all_candidates = strict | broad | labels
+    for rule, eligible in (("unique_exact_connection_label", labels),
+                           ("compatible_type_and_mapped_endpoints", strict), ("unique_mapped_endpoints", broad)):
+        reserved_refs = {row["referenceId"] for row in proposals}
+        reserved_subs = {row["studentId"] for row in proposals}
+        available = {pair for pair in eligible if pair[0] not in reserved_refs and pair[1] not in reserved_subs}
+        for ref, sub in sorted(necessary_pairs(available)):
+            endpoints = indices["reference"].endpoints.get(ref, {})
+            dependencies = [] if rule == "unique_exact_connection_label" else [
+                {"referenceId": identity, "studentId": mapping[identity]}
+                for identity in sorted(set(endpoints.values()) & set(mapping))]
+            proposals.append({"referenceId": ref, "studentId": sub, "reason": rule,
+                              "status": "provisional", "dependsOn": dependencies})
+            record(events, "connections", rule, ref, sub, "proposed", [rule], depends_on=dependencies)
+    selected = {(row["referenceId"], row["studentId"]) for row in proposals}
+    for ref, sub in sorted(all_candidates - selected):
+        record(events, "connections", "connection_identity", ref, sub, "deferred", ["ambiguous_candidates"])
     proposals.sort(key=lambda item: (item["referenceId"], item["studentId"]))
     return {
         "proposals": proposals,
         "evaluableReferenceIds": sorted(identity for identities in grouped["reference"].values()
-                                        for identity in identities),
+                                        for identity in identities) + sorted({ref for ref, _ in selected} -
+                                            {identity for identities in grouped["reference"].values() for identity in identities}),
+        "candidateEvidence": [{"referenceId": ref, "studentId": sub, "exactLabel": (ref, sub) in labels,
+                               "sameEndpoints": (ref, sub) in broad, "sameConfiguration": (ref, sub) in strict,
+                               "uniquenessVerified": (ref, sub) in selected}
+                              for ref, sub in sorted(all_candidates)],
         "unresolvedReferenceIds": sorted(set(connections["reference"]) - {p["referenceId"] for p in proposals}),
         "unresolvedStudentIds": sorted(set(connections["student"]) - {p["studentId"] for p in proposals}),
         "decisionEvents": sorted(events, key=lambda item: item["id"]),

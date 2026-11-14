@@ -48,6 +48,19 @@ def maximum_assignment_for_references(candidate_pairs, reference_ids):
     })
 
 
+def necessary_pairs(pairs):
+    """Edges present in every maximum assignment of this evidence graph."""
+    pairs = set(pairs)
+    adjacent = defaultdict(list)
+    for reference, student in sorted(pairs):
+        adjacent[reference].append(student)
+    baseline = _maximum_matching(sorted(adjacent), adjacent)
+    return {pair for pair in pairs if _maximum_matching(sorted(adjacent), {
+        reference: [student for student in students if (reference, student) != pair]
+        for reference, students in adjacent.items()
+    }) < baseline}
+
+
 def analyze_assignment_capacity(state):
     """Return matching cardinalities, not a particular matching."""
     reference_components, student_components = {}, {}

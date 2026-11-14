@@ -38,6 +38,20 @@ export function installAnalysisOverlays(graph: Graph, analysis: AdaptedAnalysis,
     return false
   })
   const hintsByCell = new Map<Cell, ReferenceHint[]>()
+  const placementsByCell = new Map<Cell, Map<string, { text: string; subjectId: string }>>()
+  for (const item of analysis.report.annotations) {
+    for (const hint of item.hints) {
+      if (typeof hint.findingId !== 'string') continue
+      for (const target of hint.targets ?? []) {
+        if (target.side !== 'submission' || target.id === item.target.id) continue
+        const cell = analysisTargetCell(graph, { ...target, side: 'submission' })
+        if (!cell) continue
+        if (!placementsByCell.has(cell)) placementsByCell.set(cell, new Map())
+        placementsByCell.get(cell)!.set(hint.findingId, { text: `${analysisHintText(hint)} (${item.target.id})`, subjectId: item.target.id })
+      }
+    }
+  }
+  for (const [cell, findings] of placementsByCell) add(cell, 'warning', [...findings.values()].map(item => item.text).join('\n'), true, findings.values().next().value!.subjectId)
   const modelHints: ReferenceHint[] = []
   for (const hint of analysis.report.referenceHints) {
     const cell = referenceHintTarget(graph, hint)
