@@ -139,49 +139,49 @@ services:
     restart: unless-stopped
 
   workflow-synonym-matching:
-    image: modeling-copilot/synonym-matching:v1
+    image: modeling-copilot/synonym-matching:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: synonym-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-graph-parser:
-    image: modeling-copilot/graph-parser:v1
+    image: modeling-copilot/graph-parser:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: graph-parser/Dockerfile
     profiles: [workflow-services]
 
   workflow-model-label-extraction:
-    image: modeling-copilot/model-label-extraction:v1
+    image: modeling-copilot/model-label-extraction:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: model-label-extraction/Dockerfile
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:
-    image: modeling-copilot/one-to-one-graph-matching:v1
+    image: modeling-copilot/one-to-one-graph-matching:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: one-to-one-graph-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-feedback-generation:
-    image: modeling-copilot/feedback-generation:v1
+    image: modeling-copilot/feedback-generation:v2
     build:
       context: ./dagu/workflow-services
       dockerfile: feedback-generation/Dockerfile
     profiles: [workflow-services]
 
   workflow-analytical-feedback:
-    image: modeling-copilot/analytical-feedback:v1
+    image: modeling-copilot/analytical-feedback:v2
     build:
       context: ./dagu/workflow-services
       dockerfile: analytical-feedback/Dockerfile
     profiles: [workflow-services]
 
   workflow-data:
-    image: modeling-copilot/workflow-data:v1
+    image: modeling-copilot/workflow-data:latest
     build:
       context: ./dagu/workflow-services
       dockerfile: workflow-data/Dockerfile

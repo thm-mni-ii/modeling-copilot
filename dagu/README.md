@@ -66,8 +66,22 @@ Inventare unter `labels/<modelKey>.json` und semantische Kandidaten unter
 `analysis/<referenceKey>/<analysisKey>.json`. Die Abgabe wird nur einmal vorbereitet.
 Alle benötigten Modell- und Paarabläufe sind intern in derselben Datei eingebettet.
 Dagu registriert ausschließlich `model-evaluation-graph-matching`. Die Workflowversion
-ist `v1`, alle Workflow-Serviceversionen sind `1.0.0`, alle Artefaktverträge verwenden
-`/v1` und alle zugehörigen Image-Tags sind `v1`.
+ist `v3` (ebenso der interne Analyse-/Feedbackablauf), alle Workflow-Serviceversionen sind `1.0.0`, alle Artefaktverträge verwenden
+`/v1`. Analyse und Feedback verwenden die Image-Tags `v2`, die übrigen Schritte `v1`.
+
+Der Analyse-/Feedbackablauf liest `analysisPath` und `analysisKey` aus dem vollständigen
+Analyse-stdout und veröffentlicht sie über `stdout.outputs`. Der Filter prüft Status,
+Pfadformat und die Übereinstimmung des Schlüssels mit dem Dateinamen, bevor der
+Feedback-Service startet. Die früher lokal gecachten `v1`-Analyse-Images lieferten
+stattdessen nur `{status, path, sizeBytes}`; die neuen `v2`-Tags stellen die bereits
+im Quellcode vorhandene vollständige JSON-Ausgabe bereit. Beide JSON-stdout-Artefakte
+bleiben für das Frontend erhalten; Matching und Feedbackformat sind unverändert.
+
+Lokal am 14.11.2026 geprüft: gespeichertes Analyseartefakt erfolgreich übergeben;
+fehlende Metadaten, `<nil>` und widersprüchliche Schlüssel blockieren den Verbraucher.
+Anschließend ausschließlich `analytical-feedback-pair` für `reference_1` der Auswertung
+`5be758db-59e8-4e0d-93ba-309a4e4eab3a` erfolgreich ausgeführt
+(Lauf `034xSoJWjr7s9XNA7LIxaH`), mit vollständigen Analyse- und Feedbackausgaben.
 
 `WORKFLOW_EVALUATION_ID` wählt den Laufordner, `MODEL_KEY` das Parsermodell.
 `WORKFLOW_INPUT_PATH` und `WORKFLOW_OUTPUT_PATH` wählen relative JSON-Dateipfade;
@@ -118,12 +132,12 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v1 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v1 modeling-copilot/one-to-one-graph-matching:v1 modeling-copilot/analytical-feedback:v1 modeling-copilot/feedback-generation:v1 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v1 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v1 modeling-copilot/one-to-one-graph-matching:v1 modeling-copilot/analytical-feedback:v2 modeling-copilot/feedback-generation:v2 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre
 Image-Daten beim Weiterreichen als Text beschädigen. Nach jedem lokalen Build
-müssen die `v1`-Images erneut in den Kubernetes-Knoten importiert werden.
+müssen die betroffenen Image-Tags erneut in den Kubernetes-Knoten importiert werden.
 Bei einer anderen lokalen Kubernetes-Installation stattdessen deren Image-Import
 oder eine erreichbare Registry verwenden. Keine produktiven Cluster hierfür
 verändern. Die Images werden mit `IfNotPresent` gestartet; ein bereits

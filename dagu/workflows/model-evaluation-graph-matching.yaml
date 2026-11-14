@@ -13,7 +13,7 @@ labels:
   purpose: evaluation
   domain: generic
   visibility: frontend
-  version: v1
+  version: v3
   phase: '6'
 params:
   schema:
@@ -402,7 +402,7 @@ name: analytical-feedback-pair
 description: Erzeugt analytische Profile und die kompakte Feedbackprojektion je Musterlösung.
 tags:
   - visibility=internal
-  - version=v1
+  - version=v3
 artifacts:
   enabled: true
 kubernetes:
@@ -432,7 +432,7 @@ steps:
       artifact: analysis-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/analytical-feedback:v1
+      image: modeling-copilot/analytical-feedback:v2
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -447,16 +447,24 @@ steps:
     action: jq.filter
     with:
       input: ${context.paths.artifacts_dir}/analysis-result.json
-      filter: '(.analysisPath // .path) as $path | if .status != "ok" or ($path | type) != "string" then error("invalid analytical feedback output: missing analysis path") elif ($path | test("^analysis/[A-Za-z0-9_-]{1,100}/[a-f0-9]{64}\\.json$") | not) then error("invalid analytical feedback output: invalid analysis path") else {analysisPath: $path, analysisKey: ($path | split("/") | last | rtrimstr(".json"))} end'
-    output:
-      analysisPath:
-        from: stdout
-        decode: json
-        select: .analysisPath
-      analysisKey:
-        from: stdout
-        decode: json
-        select: .analysisKey
+      filter: >-
+        if .status != "ok" or (.analysisPath | type) != "string" or (.analysisKey | type) != "string"
+        then error("invalid analytical feedback output: missing analysis metadata")
+        elif (.analysisPath | test("^analysis/[A-Za-z0-9_-]{1,100}/[a-f0-9]{64}\\.json$") | not)
+        or (.analysisKey | test("^[a-f0-9]{64}$") | not)
+        then error("invalid analytical feedback output: invalid analysis metadata")
+        elif (.analysisPath | split("/") | last) != (.analysisKey + ".json")
+        then error("invalid analytical feedback output: analysis key does not match path")
+        else {analysisPath, analysisKey} end
+    stdout:
+      outputs:
+        fields:
+          analysisPath:
+            decode: json
+            select: .analysisPath
+          analysisKey:
+            decode: json
+            select: .analysisKey
 
   - name: generate_feedback
     description: Projiziert den konkret veröffentlichten Analysebericht in den kompakten Feedbackvertrag.
@@ -465,7 +473,7 @@ steps:
       artifact: feedback-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/feedback-generation:v1
+      image: modeling-copilot/feedback-generation:v2
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -473,7 +481,7 @@ steps:
         - name: REFERENCE_KEY
           value: ${REFERENCE_KEY}
         - name: ANALYSIS_INPUT_PATH
-          value: ${read_analysis_metadata.output.analysisPath}
+          value: ${steps.read_analysis_metadata.outputs.analysisPath}
         - name: WORKFLOW_OUTPUT_PATH
           value: feedback/${REFERENCE_KEY}.json
 
@@ -485,6 +493,6 @@ steps:
       values:
         evaluationId: ${EVALUATION_ID}
         referenceKey: ${REFERENCE_KEY}
-        analysisPath: ${read_analysis_metadata.output.analysisPath}
-        analysisKey: ${read_analysis_metadata.output.analysisKey}
+        analysisPath: ${steps.read_analysis_metadata.outputs.analysisPath}
+        analysisKey: ${steps.read_analysis_metadata.outputs.analysisKey}
         artifactPath: analysis-result.json
