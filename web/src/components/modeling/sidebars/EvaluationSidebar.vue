@@ -96,7 +96,9 @@
           <p class="text-caption text-medium-emphasis mb-0">{{ studentResultMessage }}</p>
         </section>
 
-        <v-timeline v-else density="compact" side="end" truncate-line="both" class="evaluation-timeline">
+        <AnalyticalFeedbackPanel v-if="showServiceView" :detail="detail" />
+
+        <v-timeline v-if="showServiceView" density="compact" side="end" truncate-line="both" class="evaluation-timeline">
           <v-timeline-item v-for="entry in timelineEntries" :key="entry.id" :dot-color="entry.color" size="x-small">
             <template #icon
               ><v-icon size="12" color="white">{{ entry.icon }}</v-icon></template
@@ -141,6 +143,7 @@ import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import { useUserStore } from '@/stores/userStore'
 import JsonResultViewer from './JsonResultViewer.vue'
 import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
+import AnalyticalFeedbackPanel from './AnalyticalFeedbackPanel.vue'
 import { semanticComparisonResult } from '@/utils/semanticComparison'
 
 const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null; evaluationPerspective?: 'service' | 'student' }>()

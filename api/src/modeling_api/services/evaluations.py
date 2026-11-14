@@ -16,6 +16,7 @@ from modeling_api.db.store import Document, insert, list_page, to_api, utcnow
 from modeling_api.services import dagu, languages
 from modeling_api.services.models import get_version, ensure_task_questionnaire_completed
 from modeling_api.services.tasks import ensure_release_reference, get_sample_solution
+from modeling_api.services.evaluation_categories import element_categories
 
 
 _EVALUATION_FIELDS = frozenset({
@@ -108,6 +109,15 @@ def _enrich_step_output(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for step in steps:
         raw = step.get("resultSummary")
         output = _structured_output(raw)
+        if step["id"].startswith("generate_analytical_feedback") and output:
+            if (output.get("schema") != "workflow-result/v1" or type(output.get("schemaVersion")) is not int
+                    or output.get("schemaVersion") != 1
+                    or output.get("status") != "ok" or output.get("capability") != "analytical-feedback"
+                    or not isinstance(output.get("result"), dict)
+                    or output["result"].get("schema") != "analysis-feedback/v1"):
+                step["resultSummary"] = "Das analytische Ergebnis hat ein ungültiges Format."
+                step["result"] = None
+                continue
         if output.get("summary"):
             step["resultSummary"] = str(output["summary"])
         if isinstance(output.get("result"), dict):
@@ -165,9 +175,15 @@ async def _evaluation_input(
     definitions = [{"languageId": key[0], "versionId": key[1], "data": version["data"],
                     "includedLanguageVersions": version.get("includedLanguageVersions", [])}
                    for key, version in sorted(cache.items())]
+    config = deepcopy(comparison_config) if comparison_config is not None else {}
+    graph_matching = config.setdefault("graphMatching", {})
+    if not isinstance(graph_matching, dict):
+        raise ApiError(422, "INVALID_COMPARISON_CONFIG", "graphMatching must be a JSON object.")
+    if "elementCategories" not in graph_matching:
+        graph_matching["elementCategories"] = element_categories(definitions)
     return {"schemaVersion": 1, "schema": "evaluation-input/v1", "evaluationId": evaluation_id,
             "task": task, "models": models, "languages": definitions,
-            "comparisonConfig": deepcopy(comparison_config) if comparison_config is not None else {}}, descriptors
+            "comparisonConfig": config}, descriptors
 
 
 async def start(model_id: UUID, user: User) -> Document:

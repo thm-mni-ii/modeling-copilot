@@ -11,6 +11,10 @@ export const evaluationConfigErrors = (value: unknown, elementTypes: string[], c
   if (value === undefined) return []
   if (!isObject(value) || !Array.isArray(value.comparisonGroups)) return ['Evaluation must contain a list of comparison groups.']
   const errors: string[] = []
+  if (value.elementCategories !== undefined && (!isObject(value.elementCategories) || Object.entries(value.elementCategories).some(([type, category]) =>
+    !elementTypes.includes(type) || !['nodes', 'attributes', 'other'].includes(String(category))))) {
+    errors.push('Recognition categories must assign known element types to nodes, attributes or other.')
+  }
   const ids = new Set<string>()
   for (const [index, group] of value.comparisonGroups.entries()) {
     const label = isObject(group) && isName(group.name) ? group.name : `Group ${index + 1}`

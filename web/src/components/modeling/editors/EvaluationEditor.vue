@@ -1,5 +1,15 @@
 <template>
   <v-container fluid class="pa-2">
+    <v-card variant="outlined" class="mb-3">
+      <v-card-title class="text-h6">Recognition categories</v-card-title>
+      <v-card-text>
+        <p class="text-body-2 text-medium-emphasis">Classify element types for separate recognition rates. Unclassified types remain other. Structural containers are not counted as attributes. Categories apply to future evaluations.</p>
+        <div v-for="type in elementTypes" :key="type" class="d-flex align-center ga-3 mb-2">
+          <span class="text-body-2 flex-grow-1">{{ type }}</span>
+          <v-select :model-value="categoryFor(type)" :items="categoryOptions" :aria-label="`Recognition category for ${type}`" density="compact" variant="outlined" hide-details :disabled="disabled" class="recognition-category" @update:model-value="setCategory(type, $event)" />
+        </div>
+      </v-card-text>
+    </v-card>
     <v-card variant="outlined">
       <v-card-title class="d-flex flex-wrap align-center ga-2 py-2">
         <v-icon color="primary" size="24">mdi-compare</v-icon>
@@ -90,6 +100,14 @@ const types = computed(() => typeField.value === 'elementTypes' ? elementTypes.v
 const previewConnections = computed(() => new Map(store.definition?.connections.map((connection) => [connection.type, connection])))
 const errors = computed(() => evaluationConfigErrors(store.definition?.evaluation, elementTypes.value, connectionTypes.value))
 const disabled = computed(() => !store.definition || store.loading || store.saving)
+const categoryOptions = [{ title: 'Nodes', value: 'nodes' }, { title: 'Attributes', value: 'attributes' }, { title: 'Other', value: 'other' }]
+const categoryFor = (type: string) => store.definition?.evaluation?.elementCategories?.[type] ?? 'other'
+const setCategory = (type: string, category: 'nodes' | 'attributes' | 'other') => {
+  if (!store.definition) return
+  store.definition.evaluation ??= { comparisonGroups: [] }
+  store.definition.evaluation.elementCategories ??= {}
+  store.definition.evaluation.elementCategories[type] = category
+}
 const previewElements = computed(() => {
   const result = new Map<string, DiagramElement>()
   const collect = (element: DiagramElement | ChildElement) => {
@@ -128,5 +146,6 @@ const removeGroup = (id: string) => {
 .comparison-matrix :deep(thead .group-column) { z-index: 3; }
 .comparison-matrix :deep(.type-column) { text-align: center; }
 .group-name { min-width: 160px; }
+.recognition-category { max-width: 180px; }
 .matrix-button { width: 38px; min-width: 38px; height: 30px; }
 </style>
