@@ -135,8 +135,8 @@ const lastSavedIndex = computed(() => {
 })
 const timelineTicks = computed(() => Object.fromEntries(timelineSteps.value.flatMap((position, index) => {
   const step = modelSteps.value[position.modelIndex]
-  // Ein Release trägt immer eine volle Zahl; ohne ".0" bleibt das Label kurz.
-  const label = !position.taskStep && step?.kind === 'release' ? `v${step.versionNumber.replace(/\.0$/, '')}` : ''
+  // Ein Release trägt immer eine volle Zahl; ohne ".0" bleibt das Label kurz. Ein Release-Name steht dahinter.
+  const label = !position.taskStep && step?.kind === 'release' ? [`v${step.versionNumber.replace(/\.0$/, '')}`, step.releaseName].filter(Boolean).join(' · ') : ''
   return label || index === lastSavedIndex.value ? [[index, [label, index === lastSavedIndex.value ? 'Last save' : ''].filter(Boolean).join(' · ')]] : []
 })))
 
