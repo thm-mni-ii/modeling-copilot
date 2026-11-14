@@ -210,7 +210,7 @@ def build_report(comparison: dict) -> dict:
                            "types": [evaluated(row, category) for row in items]})
     resource_paths = {"src/workflow_io.py": Path(workflow_io.__file__),
                       "src/main.py": Path(__file__)}
-    producer = {"service": SERVICE, "version": "1.0.0",
+    producer = {"service": SERVICE, "version": "1.0.2",
                 "resourceHash": content_hash({name: path.read_text(encoding="utf-8")
                                               for name, path in resource_paths.items()})}
     report = {
@@ -248,16 +248,13 @@ def run(store: Workspace, reference_key: str, analysis_path: str | None = None) 
 
     analysis = read_analysis(store, analysis_path, reference_key, comparison)
     report = build_report(comparison)["result"]
-    for row in report["categories"]:
-        summary = analysis["summary"][row["category"]]
-        if (summary["recognized"] != row["provisionalRecognizedCount"]
-                or summary["expected"] != row["referenceCount"] or summary["percent"] != row["percentage"]
-                or summary["evaluationStatus"] != row["evaluationStatus"]):
-            raise ValueError("analysis recognition does not match comparison")
+    # Legacy matcher categories remain intact. The analysis classifies all objects
+    # from frozen language metadata, including unsupported objects separately.
+    report["analyticalSummary"] = analysis["summary"]
     report.update({"analysisHash": analysis["analysisHash"], "analysisPath": analysis_path})
     resources = {"src/main.py": Path(__file__), "src/workflow_io.py": Path(workflow_io.__file__),
                  "src/analysis_contract.py": Path(sys.modules["analysis_contract"].__file__)}
-    report["producer"] = {"service": SERVICE, "version": "1.0.0",
+    report["producer"] = {"service": SERVICE, "version": "1.0.2",
                           "resourceHash": content_hash({name: path.read_text(encoding="utf-8")
                                                         for name, path in resources.items()})}
     report["feedbackHash"] = content_hash({key: value for key, value in report.items() if key != "feedbackHash"})

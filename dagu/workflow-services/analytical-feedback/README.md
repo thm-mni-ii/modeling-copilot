@@ -1,5 +1,30 @@
 # analytical-feedback
 
+Serviceversion `1.2.0`, Vertragsrevision `1.2` mit Matcher-Fakten, Image `v5`.
+Vergleiche ohne Fakten werden weiterhin als Revision `1.1` projiziert;
+gespeicherte Revisionen ohne Vertragsversion und mit `1.1` bleiben lesbar.
+
+Revision `1.2` übernimmt `propertyFacts` des Matchers unverändert als `facts`
+in `annotations`, `referenceHints` und Verbindungsgruppen. Jeder Fakt nennt seine
+Original-IDs, Status und Beweisgrundlage. Der Feedbackdienst entscheidet keine
+dieser Eigenschaften erneut. `checks` und kurze `fact.*`-Hinweise dienen als
+Anzeigeprojektion; Gruppenbefunde behaupten keinen individuellen Fehler.
+Die Validierung prüft die Fakten gegen den ursprünglichen Vergleich.
+
+`consistency: "fully_consistent"` gilt ausschließlich für implementierte lokale
+Eigenschaften unter einer vorläufigen Zuordnung: sämtliche zugehörigen Fakten
+müssen `satisfied` oder `not_applicable` sein. Offene oder nicht durchgeführte
+Prüfungen verhindern die Aussage. Sie bestätigt weder endgültige Identität noch
+rekursive Korrektheit aller Kindbeschriftungen. Erfüllte Teilprüfungen bleiben
+auch bei abweichendem oder ungeklärtem Gesamtstatus sichtbar.
+Nachgewiesene Abwesenheit wird mit `reference.missing` und ihrer Beweisgrundlage
+am bisherigen Anzeigeziel ausgegeben. Unmatched allein bleibt `reference.unresolved`.
+
+Zwei kompakte, aus aktuellen Matcher-Fakten erzeugte Annotation-Ausschnitte
+(keine vollständigen Workflow-Envelopes):
+[vollständig konsistente lokale Eigenschaften](examples/fully-consistent-local.json)
+und [nachgewiesene Abweichungen bei gleichem Namen und Typ](examples/proven-deviations.json).
+
 Der Dienst fasst einen vorhandenen Graphvergleich elementbezogen zusammen; er
 trifft keine neuen Zuordnungen. Er validiert Snapshot, Graphen, Inventare,
 Kandidaten, Vergleich und deren Hashketten. Eingabeauswahl und Ergebnisvertrag
@@ -10,7 +35,7 @@ unter `analysis/<referenceKey>/<analysisKey>.json` im Evaluation-Workspace.
 Der inhaltsbasierte Schlüssel und `analysisHash` sichern eine unveränderliche,
 bei identischem Inhalt wiederholbare Veröffentlichung.
 
-`annotations` enthält höchstens einen Eintrag je Abgabeobjekt mit Original-ID,
+`annotations` enthält genau einen Eintrag je Abgabeobjekt mit Original-ID,
 vorläufigem Gegenstück, Entscheidungsregel, notwendigen Abhängigkeiten,
 Prüfstatus und kurzen Hinweisen. Lokale Zähler unterscheiden erwartete,
 erkannte und ungeklärte Kinder und Verbindungen. `referenceHints` adressiert
@@ -33,3 +58,97 @@ als `analysis-result.json` und übergibt den Workspace-Pfad an
 ein fehlender oder ungültiger Pfad lässt den Übergabeschritt fehlschlagen.
 Die API gibt die Analyse nur an Moderatoren und
 Administratoren aus; die bestehende Besitzerprüfung der Auswertung gilt weiter.
+
+## Gemeinsamer JSON-Vertrag und frühere Revision 1.1
+
+Schema und Envelope bleiben `analysis-feedback/v1` beziehungsweise
+`workflow-result/v1`; `contractVersion: "1.1"` kennzeichnet die Erweiterung.
+Die Frontend- und Serviceadapter lesen weiterhin ältere v1-Artefakte.
+Das [Ausgabeschema](schemas/output.schema.json) beschreibt die aktuelle Ausgabe.
+Das [kompakte Beispiel](examples/containment-role.json) zeigt einen unabhängig
+belegten Unterschied der Relationsrolle bei vorläufig zugeordneten Objekten.
+Es ist eine Vertragsfixture, kein historisches Auswertungsergebnis.
+
+| Feld | Bedeutung |
+| --- | --- |
+| `annotations[].target` | Original-ID, Objektart und Seite des Abgabeobjekts; keine Ersatz- oder Render-ID |
+| `match` / `referenceId` | Ausschließlich die bestehende vorläufige Matcher-Zuordnung einschließlich Abhängigkeiten |
+| `category` / `summary` | Kategorie sowie erkannte Referenzobjekte, Referenznenner, Prozent und Auswertungsstatus |
+| `structuralContainers` | Separate Referenz-/Abgabezahlen und abgeleitete Kontexte; keine fachlichen Knoten |
+| `owner` / `containment` | Nächster fachlicher Besitzer getrennt von unmittelbaren Parents mit Relationsrollen |
+| `connection` | Beobachtete und zugeordnete Referenzverbindung: Original-ID, Source, Target, Richtung, konkreter Typ |
+| `connectionGroups` / `groupIds` | Eigenständige Gruppenbefunde und Verweise; keine Übertragung auf individuelle Verbindungsprüfungen |
+| `containmentRelations` / `relationIds` | Referenzkind, Referenzparent, Abgabekind, erwarteter Abgabeparent, beobachtete Parents/Rollen, Status und Begründung |
+| `local` | Fachliche und direkte Kinder, angrenzende/eingehende/ausgehende/ungerichtete Verbindungen, ungeklärte Richtung sowie Containment-Prüfungen pro Relationsrolle |
+| `referenceHints` | Ein separater Hinweis für jedes nicht individuell zugeordnete Referenzobjekt; Struktur-/Labelobjekte bleiben `not_evaluated` |
+| `limitations` | Fehlende Kategoriendeklarationen beziehungsweise fehlende Besitzer-, Containment- oder Verbindungsgruppenprüfung |
+
+Kategorien stammen aus `LanguageVersion.data.evaluation.elementCategories`, bei
+älteren Snapshots ersatzweise aus den dort eingefrorenen
+`comparisonConfig.graphMatching.elementCategories`. Der Sprach-/Versionsbezug
+muss stimmen. Graphobjekte der deklarierten Art `connection` gehören zu
+`connections`; strukturelle Objekte stehen separat. Unbekannte Objekte und
+unaufgelöste Elementtypen bleiben `other`. Verschachtelung und Typnamen sind
+keine Klassifikationsregeln. Die Nenner beziehen sich auf die gesamte jeweilige
+Referenzkategorie; Prozentwerte bleiben ohne auswertbaren Eingang `null`.
+
+`status` an Annotationen, Gruppen, Beziehungen und Hinweisen verwendet
+`provisional`, `different`, `ambiguous`, `unresolved`, `not_evaluated` oder
+`not_applicable`. `different` beschreibt den ausgewiesenen Befund, keine
+endgültige Gesamtkorrektheit. Die kompatiblen `checks` behalten ihre bestehenden
+Werte wie `equal`, `satisfied` und `violated`; `match.status` bleibt unverändert.
+Hinweise enthalten immer `code`, `status`, `scope`, `parameters` und `targets`.
+`targets` verwendet `{side: "reference" | "submission", id, kind}`. Die bisherigen
+flachen Parameter und das Anzeigeziel `target` bleiben erhalten. Die Codes sind
+im Schema geschlossen aufgezählt; Geltungsbereiche sind `element`, `relation`,
+`group` und `model`. Codes für Identität, Beschriftung, Typ, Besitzer,
+Containment, Verbindungsdimensionen, lokale Vollständigkeit und fehlende
+Eingänge sind unabhängig vom Darstellungstext.
+
+Lokales `recognized` zählt vorläufige Identitäten, `recognizedAtTarget` deren
+Vorkommen am jeweiligen Parent/Endpunkt. Das bestätigt keine unabhängige
+Beziehungsprüfung. `local.containmentRelations` und `childRoles` zählen diese
+Prüfung gesondert. `unresolvedSubmission` zählt offene Identitäten,
+`unresolvedChecks` Verbindungen mit noch ungeklärten Einzelprüfungen;
+`deviating` zählt nachgewiesene individuelle Abweichungen.
+Die bisherigen unabhängigen Containmentbelege bleiben bei Abhängigkeiten
+ungeklärt. Revision 1.2 kann daneben einen erfüllten oder verletzten Fakt
+unter vorläufiger Zuordnung ausweisen; dessen `basis` bleibt ausdrücklich
+`conditional_mapping`. Bei anderen Endpunkten ist
+die Orientierung ungeklärt, sofern nicht bereits die Gerichtetheit abweicht.
+Ohne individuelle Verbindungszuordnung werden keine Gegenstücke aus einer
+Gruppe gewählt; Parallelverbindungen bleiben entsprechend offen.
+
+Unbekannte IDs oder Objektarten verletzen den Vertrag und werden kontrolliert
+abgelehnt. Für unterstützte, unsichtbare Container verwendet die Anzeige den
+nächsten sichtbaren Parent; die Annotation behält ihre Original-ID. Fehlt ein
+darstellbares Ziel, bleiben die Befunde in der Sidebar verfügbar. Gruppenicons
+adressieren die Endpunkte der Gruppe. Das Frontend liest Status und Codes und
+führt keinen Graphvergleich aus. Der nachgelagerte Feedbackbericht bewahrt
+seine bisherigen Matcher-Kategorien und ergänzt `analyticalSummary`.
+
+## Lokale Regression
+
+```powershell
+python -m unittest discover -s dagu/workflow-services/analytical-feedback/tests -q
+```
+
+24 gezielte Tests prüfen Kategorien, unabhängige/abhängige Containmentbelege,
+verschobene Attribute, fehlende Kinder, offene Gegenstücke, Rollenwechsel,
+Source/Target/Richtung/Typ, Parallelverbindungen, ungerichtete Schleifen,
+Original-IDs, Codes, Determinismus sowie stdout und den Feedbackverbraucher.
+Schema und echter Frontendadapter werden mit dem bereits installierten
+TypeScript/AJV aus `web/node_modules` geprüft; ohne diese Werkzeuge wird nur
+dieser Test explizit übersprungen. Die verwendeten Schemaschlüssel gehören zur
+gemeinsamen Teilmenge von Draft 7 und 2020-12.
+
+Zusätzlich werden die gespeicherten Modell-Snapshots Baseline, M03, M05 und
+M06b mit dem bestehenden Parser und der vorhandenen Repository-Sprachdefinition
+auf unveränderte IDs und Beobachtungen geprüft. Eine weitere Prüfung verwendet
+die tatsächliche Korrespondenzbildung mit vollständigen generischen
+Kompatibilitätskandidaten und projiziert ihre Matcher-Fakten. Dabei werden keine
+Embeddings oder Synonymscores neu berechnet. Das rekonstruiert keine historische
+eingefrorene Sprach-/Hash-/Kandidatenkette. Ohne gelieferte Matcher-Fakten bleibt
+der bisherige Beobachtungspfad unverändert konservativ. Weitere 12 Fakten- und
+8 Matcher-Serviceprüfungen liegen im Matcher-Verzeichnis. Vollständige Pipeline
+und Kubernetes-Jobs werden für diese Prüfungen nicht gestartet.

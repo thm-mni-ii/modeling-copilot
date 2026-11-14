@@ -7,6 +7,7 @@ import sys
 from artifacts import content_hash, read_artifacts
 from assignment_capacity import analyze_proposal_feasibility
 from correspondence_state import build_provisional_state
+from facts import evaluate_facts
 from initial_evaluation import evaluate_initial_coverage, evaluate_type_comparison
 from initial_recognition import evaluate_connections, propose_connections, recognition_metrics
 from initial_structure import evaluate_containment_relations, evaluate_provisional_owners
@@ -74,6 +75,9 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     containment = evaluate_containment_relations(indices, evaluation["mapping"]["provisionalElements"])
     evaluation["metrics"]["provisionalContainment"] = containment["metrics"]
     evaluation["provisionalContainmentEvidence"] = containment["relations"]
+    evaluation["propertyFacts"] = evaluate_facts(indices, evaluation, graphs, candidates, {
+        side: store.read(candidates["inventoryPaths"][side])["result"] for side in indices
+    })
     source_dir = Path(__file__).parent
     resources = {"src/workflow_io.py": Path(workflow_io.__file__)}
     resources.update({
@@ -81,7 +85,7 @@ def run(store: Workspace, reference_key: str | None) -> dict:
     })
     producer = {
         "service": SERVICE,
-        "version": "1.0.0",
+        "version": "1.1.0",
         "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()}),
     }
     incomplete = (candidates["completeness"]["interpretation"] == "partial"

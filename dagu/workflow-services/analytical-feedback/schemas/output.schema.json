@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "analysis-feedback/v1",
-  "title": "Compact analytical feedback artifact",
+  "title": "Compact analytical feedback artifact (contracts 1.1 and 1.2)",
   "type": "object",
   "required": ["schemaVersion", "schema", "status", "mode", "capability", "analysisPath", "analysisKey", "metadata", "result"],
   "properties": {
@@ -23,6 +23,20 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "factStatus": {"enum": ["satisfied", "violated", "unresolved", "not_evaluated", "not_applicable"]},
+    "facts": {"type": "array", "items": {"$ref": "#/$defs/fact"}},
+    "fact": {
+      "type": "object", "required": ["code", "status", "referenceIds", "submissionIds", "evidence"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1}, "status": {"$ref": "#/$defs/factStatus"},
+        "referenceIds": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "submissionIds": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "evidence": {
+          "type": "object", "required": ["basis", "reason"],
+          "properties": {"basis": {"enum": ["direct_observation", "conditional_mapping", "independent_evidence"]}, "reason": {"type": "string", "minLength": 1}}
+        }
+      }, "additionalProperties": false
+    },
     "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "target": {
       "type": "object",
@@ -36,12 +50,54 @@
     },
     "hint": {
       "type": "object",
-      "required": ["code"],
-      "properties": {"code": {"type": "string", "minLength": 1}}
+      "required": ["code", "scope", "status", "parameters", "targets"],
+      "properties": {
+        "code": {
+          "enum": [
+            "fact.violated",
+            "fact.unresolved",
+            "fact.group_violated",
+            "fact.group_unresolved",
+            "reference.missing",
+            "children.mapped_from_other_target",
+            "children.outside_target",
+            "children.unresolved_reference",
+            "children.unresolved_submission",
+            "connection.connectionType_different",
+            "connection.direction_different",
+            "connection.endpoints_different",
+            "connection.group_difference",
+            "connection.source_different",
+            "connection.target_different",
+            "connections.mapped_from_other_target",
+            "connections.outside_target",
+            "connections.unresolved_reference",
+            "connections.unresolved_submission",
+            "containment.violated",
+            "identity.ambiguous",
+            "identity.unresolved",
+            "input.category_metadata_unavailable",
+            "input.connection_structure_unavailable",
+            "input.containment_evidence_unavailable",
+            "input.owner_evidence_unavailable",
+            "label.different",
+            "owner.different",
+            "owner.unresolved",
+            "owner.violated",
+            "reference.not_evaluated",
+            "reference.unresolved",
+            "type.compatible_difference"
+          ]
+        },
+        "scope": {"enum": ["element", "relation", "group", "model"]},
+        "status": {"enum": ["provisional", "different", "ambiguous", "unresolved", "not_evaluated", "not_applicable"]},
+        "parameters": {"type": "object"},
+        "targets": {"type": "array", "items": {"$ref": "#/$defs/objectReference"}}
+      }
     },
     "annotation": {
       "type": "object",
-      "required": ["target", "match", "checks", "hints"],
+      "required": ["target", "match", "checks", "hints", "category", "status", "owner", "containment"],
       "properties": {
         "target": {"$ref": "#/$defs/target"},
         "referenceId": {"type": "string"},
@@ -67,16 +123,215 @@
         "context": {
           "type": "object",
           "required": ["referenceId", "basis", "status"],
-          "properties": {
-            "referenceId": {"type": "string"},
-            "basis": {"const": "structural_child_of_mapped_parent"},
-            "status": {"const": "derived_context"}
-          },
+          "properties": {"referenceId": {"type": "string"}, "basis": {"const": "structural_child_of_mapped_parent"}, "status": {"const": "derived_context"}},
           "additionalProperties": false
         },
-        "checks": {"type": "object", "additionalProperties": {"type": "string"}},
+        "checks": {
+          "type": "object",
+          "properties": {
+            "counterpart": {"$ref": "#/$defs/factStatus"},
+            "children": {"$ref": "#/$defs/factStatus"},
+            "directChildren": {"$ref": "#/$defs/factStatus"},
+            "connections": {"$ref": "#/$defs/factStatus"},
+            "incoming": {"$ref": "#/$defs/factStatus"},
+            "outgoing": {"$ref": "#/$defs/factStatus"},
+            "undirected": {"$ref": "#/$defs/factStatus"},
+            "label": {
+              "enum": [
+                "provisional",
+                "different",
+                "ambiguous",
+                "unresolved",
+                "not_evaluated",
+                "not_applicable",
+                "exact",
+                "equal",
+                "same_type",
+                "compatible_type_difference",
+                "satisfied",
+                "violated"
+              ]
+            },
+            "type": {
+              "enum": [
+                "provisional",
+                "different",
+                "ambiguous",
+                "unresolved",
+                "not_evaluated",
+                "not_applicable",
+                "exact",
+                "equal",
+                "same_type",
+                "compatible_type_difference",
+                "satisfied",
+                "violated"
+              ]
+            },
+            "owner": {
+              "enum": [
+                "provisional",
+                "different",
+                "ambiguous",
+                "unresolved",
+                "not_evaluated",
+                "not_applicable",
+                "exact",
+                "equal",
+                "same_type",
+                "compatible_type_difference",
+                "satisfied",
+                "violated"
+              ]
+            },
+            "containment": {
+              "enum": [
+                "provisional",
+                "different",
+                "ambiguous",
+                "unresolved",
+                "not_evaluated",
+                "not_applicable",
+                "exact",
+                "equal",
+                "same_type",
+                "compatible_type_difference",
+                "satisfied",
+                "violated"
+              ]
+            },
+            "source": {
+              "enum": [
+                "provisional",
+                "different",
+                "ambiguous",
+                "unresolved",
+                "not_evaluated",
+                "not_applicable",
+                "exact",
+                "equal",
+                "same_type",
+                "compatible_type_difference",
+                "satisfied",
+                "violated"
+              ]
+            },
+            "target": {
+              "enum": [
+                "provisional",
+                "different",
+                "ambiguous",
+                "unresolved",
+                "not_evaluated",
+                "not_applicable",
+                "exact",
+                "equal",
+                "same_type",
+                "compatible_type_difference",
+                "satisfied",
+                "violated"
+              ]
+            },
+            "endpoints": {
+              "enum": [
+                "provisional",
+                "different",
+                "ambiguous",
+                "unresolved",
+                "not_evaluated",
+                "not_applicable",
+                "exact",
+                "equal",
+                "same_type",
+                "compatible_type_difference",
+                "satisfied",
+                "violated"
+              ]
+            },
+            "direction": {
+              "enum": [
+                "provisional",
+                "different",
+                "ambiguous",
+                "unresolved",
+                "not_evaluated",
+                "not_applicable",
+                "exact",
+                "equal",
+                "same_type",
+                "compatible_type_difference",
+                "satisfied",
+                "violated"
+              ]
+            },
+            "connectionType": {
+              "enum": [
+                "provisional",
+                "different",
+                "ambiguous",
+                "unresolved",
+                "not_evaluated",
+                "not_applicable",
+                "exact",
+                "equal",
+                "same_type",
+                "compatible_type_difference",
+                "satisfied",
+                "violated"
+              ]
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
         "hints": {"type": "array", "items": {"$ref": "#/$defs/hint"}},
-        "local": {"type": "object"}
+        "facts": {"$ref": "#/$defs/facts"},
+        "consistency": {"enum": ["fully_consistent", "partial", "different", "unresolved", "not_evaluated"]},
+        "local": {
+          "type": "object",
+          "properties": {
+            "children": {"$ref": "#/$defs/counts"},
+            "directChildren": {"$ref": "#/$defs/counts"},
+            "connections": {"$ref": "#/$defs/counts"},
+            "incoming": {"$ref": "#/$defs/counts"},
+            "outgoing": {"$ref": "#/$defs/counts"},
+            "undirected": {"$ref": "#/$defs/counts"},
+            "unresolved": {"$ref": "#/$defs/counts"},
+            "containmentRelations": {"$ref": "#/$defs/relationCounts"},
+            "childRoles": {"type": "array", "items": {"$ref": "#/$defs/roleCounts"}}
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "category": {"enum": ["nodes", "attributes", "connections", "other", null]},
+        "status": {"enum": ["provisional", "different", "ambiguous", "unresolved", "not_evaluated", "not_applicable"]},
+        "owner": {
+          "type": "object",
+          "properties": {
+            "referenceOwnerId": {"type": ["string", "null"]},
+            "submissionOwnerId": {"type": ["string", "null"]},
+            "status": {"enum": ["satisfied", "violated", "different", "unresolved", "not_evaluated", "not_applicable"]}
+          },
+          "required": ["referenceOwnerId", "submissionOwnerId", "status"],
+          "additionalProperties": false
+        },
+        "containment": {
+          "type": "object",
+          "properties": {
+            "referenceParents": {"type": ["array", "null"], "items": {"$ref": "#/$defs/parent"}},
+            "submissionParents": {"type": "array", "items": {"$ref": "#/$defs/parent"}}
+          },
+          "required": ["referenceParents", "submissionParents"],
+          "additionalProperties": false
+        },
+        "connection": {
+          "type": "object",
+          "properties": {"reference": {"anyOf": [{"$ref": "#/$defs/connectionValue"}, {"type": "null"}]}, "submission": {"$ref": "#/$defs/connectionValue"}},
+          "required": ["reference", "submission"],
+          "additionalProperties": false
+        },
+        "groupIds": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "relationIds": {"type": "array", "items": {"type": "string", "minLength": 1}}
       },
       "additionalProperties": false
     },
@@ -87,18 +342,40 @@
         "recognized": {"type": "integer", "minimum": 0},
         "expected": {"type": "integer", "minimum": 0},
         "percent": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
-        "evaluationStatus": {"type": "string"}
+        "evaluationStatus": {"enum": ["provisional", "partial", "not_evaluated", "not_applicable"]}
       },
       "additionalProperties": false
     },
     "report": {
       "type": "object",
-      "required": ["schema", "evaluationId", "pair", "comparisonHash", "status", "assessmentAvailable",
-                   "summary", "annotations", "referenceHints", "analysisKey", "analysisHash"],
+      "required": [
+        "schema",
+        "evaluationId",
+        "pair",
+        "comparisonHash",
+        "status",
+        "assessmentAvailable",
+        "summary",
+        "annotations",
+        "referenceHints",
+        "analysisKey",
+        "analysisHash",
+        "contractVersion",
+        "connectionGroups",
+        "containmentRelations",
+        "structuralContainers",
+        "limitations",
+        "producer"
+      ],
       "properties": {
         "schema": {"const": "analysis-feedback/v1"},
         "evaluationId": {"type": "string"},
-        "pair": {"type": "object", "required": ["studentKey", "referenceKey"]},
+        "pair": {
+          "type": "object",
+          "properties": {"studentKey": {"const": "submission"}, "referenceKey": {"type": "string", "minLength": 1}},
+          "required": ["studentKey", "referenceKey"],
+          "additionalProperties": false
+        },
         "comparisonHash": {"$ref": "#/$defs/hash"},
         "status": {"const": "provisional"},
         "assessmentAvailable": {"const": false},
@@ -106,8 +383,10 @@
           "type": "object",
           "required": ["nodes", "attributes", "connections", "other"],
           "properties": {
-            "nodes": {"$ref": "#/$defs/category"}, "attributes": {"$ref": "#/$defs/category"},
-            "connections": {"$ref": "#/$defs/category"}, "other": {"$ref": "#/$defs/category"}
+            "nodes": {"$ref": "#/$defs/category"},
+            "attributes": {"$ref": "#/$defs/category"},
+            "connections": {"$ref": "#/$defs/category"},
+            "other": {"$ref": "#/$defs/category"}
           },
           "additionalProperties": false
         },
@@ -116,22 +395,188 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["target", "code", "referenceId", "kind"],
+            "required": ["target", "code", "referenceId", "kind", "scope", "status", "parameters", "targets"],
             "properties": {
               "target": {"$ref": "#/$defs/target"},
-              "code": {"const": "reference.unresolved"},
+              "code": {"enum": ["reference.unresolved", "reference.not_evaluated", "reference.missing"]},
+              "facts": {"$ref": "#/$defs/facts"},
               "referenceId": {"type": "string"},
-              "kind": {"enum": ["modelElement", "connection"]},
+              "kind": {"enum": ["modelElement", "structuralElement", "connection", "connectionLabel", null]},
               "referenceType": {"type": "string"},
               "label": {"type": "string"},
-              "reason": {"const": "ambiguous_candidates"}
+              "reason": {"const": "ambiguous_candidates"},
+              "scope": {"enum": ["element", "relation", "group", "model"]},
+              "status": {"enum": ["provisional", "different", "ambiguous", "unresolved", "not_evaluated", "not_applicable"]},
+              "parameters": {"type": "object"},
+              "targets": {"type": "array", "items": {"$ref": "#/$defs/objectReference"}}
             },
             "additionalProperties": false
           }
         },
         "analysisKey": {"$ref": "#/$defs/hash"},
-        "analysisHash": {"$ref": "#/$defs/hash"}
+        "analysisHash": {"$ref": "#/$defs/hash"},
+        "contractVersion": {"enum": ["1.1", "1.2"]},
+        "connectionGroups": {"type": "array", "items": {"$ref": "#/$defs/group"}},
+        "containmentRelations": {"type": "array", "items": {"$ref": "#/$defs/relation"}},
+        "structuralContainers": {
+          "type": "object",
+          "properties": {
+            "referenceCount": {"type": "integer", "minimum": 0},
+            "submissionCount": {"type": "integer", "minimum": 0},
+            "contextCount": {"type": "integer", "minimum": 0},
+            "evaluationStatus": {"const": "not_evaluated"}
+          },
+          "required": ["referenceCount", "submissionCount", "contextCount", "evaluationStatus"],
+          "additionalProperties": false
+        },
+        "limitations": {"type": "array", "items": {"$ref": "#/$defs/hint"}},
+        "producer": {
+          "type": "object",
+          "required": ["service", "version"],
+          "properties": {"service": {"const": "analytical-feedback"}, "version": {"enum": ["1.1.0", "1.2.0"]}},
+          "additionalProperties": false
+        }
       },
+      "additionalProperties": false
+    },
+    "objectReference": {
+      "type": "object",
+      "properties": {
+        "side": {"enum": ["reference", "submission"]},
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["modelElement", "structuralElement", "connection", "connectionLabel", null, "model"]}
+      },
+      "required": ["side", "id", "kind"],
+      "additionalProperties": false
+    },
+    "parent": {
+      "type": "object",
+      "properties": {"parentId": {"type": "string", "minLength": 1}, "role": {"type": ["string", "null"]}},
+      "required": ["parentId", "role"],
+      "additionalProperties": false
+    },
+    "connectionValue": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "sourceId": {"type": ["string", "null"]},
+        "targetId": {"type": ["string", "null"]},
+        "directed": {"type": ["boolean", "null"]},
+        "type": {"type": ["string", "null"]}
+      },
+      "required": ["id", "sourceId", "targetId", "directed", "type"],
+      "additionalProperties": false
+    },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "evaluationStatus": {"$ref": "#/$defs/factStatus"},
+        "complete": {"type": "boolean"},
+        "expected": {"type": ["integer", "null"], "minimum": 0},
+        "recognized": {"type": ["integer", "null"], "minimum": 0},
+        "recognizedAtTarget": {"type": ["integer", "null"], "minimum": 0},
+        "unresolvedReference": {"type": ["integer", "null"], "minimum": 0},
+        "mappedFromOtherTargets": {"type": ["integer", "null"], "minimum": 0},
+        "observed": {"type": "integer", "minimum": 0},
+        "unresolvedSubmission": {"type": "integer", "minimum": 0},
+        "deviating": {"type": "integer", "minimum": 0},
+        "unresolvedChecks": {"type": "integer", "minimum": 0}
+      },
+      "required": ["expected", "observed", "recognized", "recognizedAtTarget", "unresolvedReference", "unresolvedSubmission", "mappedFromOtherTargets"],
+      "additionalProperties": false
+    },
+    "relationCounts": {
+      "type": "object",
+      "properties": {
+        "expected": {"type": ["integer", "null"], "minimum": 0},
+        "observed": {"type": "integer", "minimum": 0},
+        "recognized": {"type": "integer", "minimum": 0},
+        "deviating": {"type": "integer", "minimum": 0},
+        "unresolvedReference": {"type": ["integer", "null"], "minimum": 0},
+        "evaluationStatus": {"enum": ["provisional", "not_evaluated"]}
+      },
+      "required": ["expected", "observed", "recognized", "deviating", "unresolvedReference", "evaluationStatus"],
+      "additionalProperties": false
+    },
+    "roleCounts": {
+      "type": "object",
+      "properties": {
+        "role": {"type": ["string", "null"]},
+        "expected": {"type": ["integer", "null"], "minimum": 0},
+        "observed": {"type": "integer", "minimum": 0},
+        "recognized": {"type": "integer", "minimum": 0},
+        "deviating": {"type": "integer", "minimum": 0},
+        "unresolvedReference": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "required": ["role", "expected", "observed", "recognized", "deviating", "unresolvedReference"],
+      "additionalProperties": false
+    },
+    "group": {
+      "type": "object",
+      "properties": {
+        "facts": {"$ref": "#/$defs/facts"},
+        "id": {"$ref": "#/$defs/hash"},
+        "referenceIds": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "submissionIds": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "referenceEndpointIds": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "submissionEndpointIds": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "checks": {
+          "type": "object",
+          "properties": {
+            "configuration": {"enum": ["equal", "different", "not_evaluated"]},
+            "direction": {"enum": ["equal", "different", "not_evaluated"]},
+            "connectionType": {"enum": ["equal", "different", "not_evaluated"]}
+          },
+          "required": ["configuration", "direction", "connectionType"],
+          "additionalProperties": false
+        },
+        "referenceOnlyCount": {"type": "integer", "minimum": 0},
+        "submissionOnlyCount": {"type": "integer", "minimum": 0},
+        "hints": {"type": "array", "items": {"$ref": "#/$defs/hint"}},
+        "status": {"enum": ["provisional", "different", "ambiguous", "unresolved", "not_evaluated", "not_applicable"]}
+      },
+      "required": [
+        "id",
+        "referenceIds",
+        "submissionIds",
+        "referenceEndpointIds",
+        "submissionEndpointIds",
+        "checks",
+        "referenceOnlyCount",
+        "submissionOnlyCount",
+        "hints",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "relation": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/$defs/hash"},
+        "referenceChildId": {"type": "string", "minLength": 1},
+        "referenceParentId": {"type": "string", "minLength": 1},
+        "referenceRole": {"type": ["string", "null"]},
+        "submissionChildId": {"type": ["string", "null"]},
+        "submissionParentId": {"type": ["string", "null"]},
+        "observedParents": {"type": "array", "items": {"$ref": "#/$defs/parent"}},
+        "status": {"enum": ["provisional", "different", "ambiguous", "unresolved", "not_evaluated", "not_applicable"]},
+        "roleStatus": {"enum": ["equal", "different", "unresolved", "not_evaluated"]},
+        "basis": {"type": "string", "minLength": 1},
+        "scope": {"const": "relation"}
+      },
+      "required": [
+        "id",
+        "referenceChildId",
+        "referenceParentId",
+        "referenceRole",
+        "submissionChildId",
+        "submissionParentId",
+        "observedParents",
+        "status",
+        "roleStatus",
+        "basis",
+        "scope"
+      ],
       "additionalProperties": false
     }
   }

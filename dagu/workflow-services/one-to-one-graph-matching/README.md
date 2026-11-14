@@ -1,5 +1,30 @@
 # one-to-one-graph-matching
 
+Serviceversion `1.1.0`, Image `v2`. Nach Abschluss der bestehenden
+Korrespondenz- und Strukturprüfungen ergänzt `propertyFacts` (Version `1.0`)
+konkrete Einzelbefunde. Matching, Synonymverfahren und Parameter bleiben gleich.
+Jeder Befund enthält `code`, `referenceIds`, `submissionIds`, einen der Status
+`satisfied`, `violated`, `unresolved`, `not_evaluated`, `not_applicable` und
+`evidence` mit `basis`, `reason` sowie den nötigen Beobachtungen/Abhängigkeiten.
+`direct_observation` belegt sichtbare Eigenschaften oder globale Abwesenheit;
+`conditional_mapping` gilt unter den vorhandenen vorläufigen Zuordnungen;
+`independent_evidence` kennzeichnet unabhängig verankerte Besitzerbeziehungen.
+
+Beschriftung, konkreter Typ, fachlicher Besitzer, unmittelbarer Container,
+fachliche und direkte Kinder sowie lokale Verbindungen werden getrennt berichtet.
+Verbindungen behalten getrennte Endpunkt-, Source-, Target- und Richtungsbefunde;
+Typabweichungen bleiben konkrete Eigenschaften innerhalb der Vergleichsgruppe.
+Ohne Verbindungskorrespondenz werden keine individuellen Endpunktfehler erfunden:
+Richtungs-/Typbefunde an Endpunktgruppen bleiben ausdrücklich Gruppenbefunde.
+
+`counterpart.missing` erfordert eine vollständige Abgabe ohne Verbindungen oder
+eine eindeutige verbleibende Kinderklasse ohne freies kompatibles Gegenstück
+unter der festgehaltenen Parent-/Elementzuordnung. Mehrdeutige Kandidaten sperren
+die zweite Regel. `connections.outgoing_missing` beschreibt lokale Abwesenheit
+unter einer Parent-Zuordnung. `minimumMissing` in Kinder-/Gruppenbefunden ist
+eine Mindestfehlmenge, keine Auswahl fehlender Identitäten. Offene Endpunkte und
+unvollständige Graphinterpretation verhindern entsprechende Abwesenheitsbeweise.
+
 Neue Vergleiche enthalten zusätzlich `decisionEvents`: deterministische
 Entscheidungsereignisse direkt aus exakter Auswahl, Besitzer- und Kindevidenz,
 semantischer Verfeinerung, Kapazitätsprüfung und Verbindungsauswahl. Jedes Ereignis

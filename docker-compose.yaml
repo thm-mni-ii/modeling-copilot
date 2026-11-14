@@ -160,21 +160,21 @@ services:
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:
-    image: modeling-copilot/one-to-one-graph-matching:latest
+    image: modeling-copilot/one-to-one-graph-matching:v2
     build:
       context: ./dagu/workflow-services
       dockerfile: one-to-one-graph-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-feedback-generation:
-    image: modeling-copilot/feedback-generation:v2
+    image: modeling-copilot/feedback-generation:v5
     build:
       context: ./dagu/workflow-services
       dockerfile: feedback-generation/Dockerfile
     profiles: [workflow-services]
 
   workflow-analytical-feedback:
-    image: modeling-copilot/analytical-feedback:v2
+    image: modeling-copilot/analytical-feedback:v5
     build:
       context: ./dagu/workflow-services
       dockerfile: analytical-feedback/Dockerfile

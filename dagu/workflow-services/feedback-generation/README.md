@@ -1,5 +1,8 @@
 # feedback-generation
 
+Serviceversion `1.0.2`, Image `v5`. Der eingebettete Analysevalidator akzeptiert
+Revision `1.2` und prüft übernommene Matcher-Fakten gegen den Vergleich.
+
 Der Dienst liest mit `WORKFLOW_EVALUATION_ID` und `REFERENCE_KEY` den
 eingefrorenen Snapshot und das Vergleichsartefakt `comparisons/<referenceKey>.json`.
 Er validiert Herkunft, Schema, Hash und Konsistenz der vorläufigen Zähler.
@@ -44,8 +47,11 @@ Im aktuellen Auswertungsworkflow erhält der Dienst zusätzlich
 veröffentlichte `analysis-feedback/v1`. Herkunft, Analysehash, adressierter Pfad,
 Vergleichsidentität und interne Konsistenz werden geprüft. Der Bericht aggregiert
 seine bisherigen fachlichen Felder aus dem ursprünglichen Vergleich und ergänzt
-`analysisHash` und `analysisPath`. Seine Erkennungszahlen werden mit der Analyse
-abgeglichen. Es findet keine erneute Zuordnungsentscheidung statt.
+`analysisHash` und `analysisPath` sowie `analyticalSummary`. Die Analyse validiert
+ihre Kategorien gegen eingefrorene Sprachmetadaten, Graphobjekte und bestehende
+Zuordnungen. Die bisherigen Matcher-Zähler bleiben erhalten, auch wenn die
+Analyse zusätzlich unbekannte Objekte einbezieht. Es findet keine erneute
+Zuordnungsentscheidung statt.
 
 Ohne `ANALYSIS_INPUT_PATH` bleibt die direkte Aggregation eines bestehenden
 Vergleichs verfügbar. Gespeicherte frühere Berichte bleiben lesbar.

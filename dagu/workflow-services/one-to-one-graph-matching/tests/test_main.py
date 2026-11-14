@@ -157,6 +157,9 @@ class MainTests(unittest.TestCase):
         type_comparison = comparison["result"]["provisionalTypeComparison"]
         self.assertEqual(type_comparison["connections"]["compatibleTypeDifferenceCount"], 1)
         self.assertEqual(type_comparison["connections"]["pairs"][0]["status"], "compatible_type_difference")
+        type_fact = next(item for item in comparison["result"]["propertyFacts"]["items"]
+                         if item["code"] == "type.different" and item["referenceIds"] == ["r1-link"])
+        self.assertEqual(type_fact["status"], "violated")
         store.files["comparisons/ref.json"] = comparison
         feedback_path = Path(__file__).resolve().parents[2] / "feedback-generation" / "src" / "main.py"
         spec = importlib.util.spec_from_file_location("feedback_generation", feedback_path)

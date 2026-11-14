@@ -66,22 +66,38 @@ Inventare unter `labels/<modelKey>.json` und semantische Kandidaten unter
 `analysis/<referenceKey>/<analysisKey>.json`. Die Abgabe wird nur einmal vorbereitet.
 Alle benötigten Modell- und Paarabläufe sind intern in derselben Datei eingebettet.
 Dagu registriert ausschließlich `model-evaluation-graph-matching`. Die Workflowversion
-ist `v3` (ebenso der interne Analyse-/Feedbackablauf), alle Workflow-Serviceversionen sind `1.0.0`, alle Artefaktverträge verwenden
-`/v1`. Analyse und Feedback verwenden die Image-Tags `v2`, die übrigen Schritte `v1`.
+ist `v5` (ebenso der interne Analyse-/Feedbackablauf), der Graphvergleich verwendet
+intern `v2`. Graph Matching verwendet Serviceversion `1.1.0`, Analytical Feedback
+`1.2.0`, Feedback Generation `1.0.2`, die übrigen Dienste `1.0.0`.
+Alle Artefaktverträge verwenden `/v1`; Matcher-Fakten ergänzen Version `1.0`,
+die Analyse `contractVersion: "1.2"`. Analyse und Feedback verwenden Image-Tags
+`v5`, Graph Matching `v2`, die übrigen Schritte `v1`.
 
 Der Analyse-/Feedbackablauf liest `analysisPath` und `analysisKey` aus dem vollständigen
 Analyse-stdout und veröffentlicht sie über `stdout.outputs`. Der Filter prüft Status,
 Pfadformat und die Übereinstimmung des Schlüssels mit dem Dateinamen, bevor der
 Feedback-Service startet. Die früher lokal gecachten `v1`-Analyse-Images lieferten
-stattdessen nur `{status, path, sizeBytes}`; die neuen `v2`-Tags stellen die bereits
-im Quellcode vorhandene vollständige JSON-Ausgabe bereit. Beide JSON-stdout-Artefakte
-bleiben für das Frontend erhalten; Matching und Feedbackformat sind unverändert.
+stattdessen nur `{status, path, sizeBytes}`; mit `v2` wurde die vollständige
+JSON-Ausgabe bereitgestellt. Die früheren `v4`-Tags ergänzten den analytischen
+Vertrag 1.1; `v5` ergänzt die unveränderte Projektion der Matcher-Fakten.
+Beide JSON-stdout-Artefakte bleiben für das Frontend erhalten;
+Zuordnungsregeln und Synonym Matching sind unverändert.
 
 Lokal am 14.11.2026 geprüft: gespeichertes Analyseartefakt erfolgreich übergeben;
 fehlende Metadaten, `<nil>` und widersprüchliche Schlüssel blockieren den Verbraucher.
 Anschließend ausschließlich `analytical-feedback-pair` für `reference_1` der Auswertung
 `5be758db-59e8-4e0d-93ba-309a4e4eab3a` erfolgreich ausgeführt
 (Lauf `034xSoJWjr7s9XNA7LIxaH`), mit vollständigen Analyse- und Feedbackausgaben.
+Diese Laufprüfung betrifft den früheren stdout-Fix. Die Faktenrevision ist mit
+44 gezielten lokalen Tests einschließlich gespeicherter Modelle Baseline, M03,
+M05 und M06b, Schema-/Frontendadapterprüfung, Lint und Typprüfung verifiziert.
+Die drei betroffenen Images (`one-to-one-graph-matching:v2`,
+`analytical-feedback:v5`, `feedback-generation:v5`) wurden gebaut und mit
+identischen Digests in Docker und im lokalen Kubernetes-Image-Speicher geprüft;
+die Workflow-Spezifikation wurde per MCP validiert. Für diese Änderung wurden
+keine Pipeline, Embeddingberechnung oder Kubernetes-Jobs gestartet.
+Die Modellprüfungen verwenden vollständige generische Kompatibilitätskandidaten,
+keine neu berechneten Synonymscores oder historische eingefrorene Kandidatenketten.
 
 `WORKFLOW_EVALUATION_ID` wählt den Laufordner, `MODEL_KEY` das Parsermodell.
 `WORKFLOW_INPUT_PATH` und `WORKFLOW_OUTPUT_PATH` wählen relative JSON-Dateipfade;
@@ -132,7 +148,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v1 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v1 modeling-copilot/one-to-one-graph-matching:v1 modeling-copilot/analytical-feedback:v2 modeling-copilot/feedback-generation:v2 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v1 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v1 modeling-copilot/one-to-one-graph-matching:v2 modeling-copilot/analytical-feedback:v5 modeling-copilot/feedback-generation:v5 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre
