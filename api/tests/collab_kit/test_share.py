@@ -37,7 +37,25 @@ def sharing() -> dict:
 
 
 @pytest.fixture
-def ck(monkeypatch, tasks, presence, deleted, sharing):
+def archiving() -> dict:
+    """Was der Bereich archive der Collab-Einstellungen in CK enthält; leer ist alles aus."""
+    return {}
+
+
+@pytest.fixture
+def archived() -> list[dict]:
+    """Was CK archiviert hat, wie ein Eintrag im Archiv: Werkstück, Grund und die Räume, in denen es lag."""
+    return []
+
+
+@pytest.fixture
+def archive_answers() -> dict:
+    """Was CK beim Archivieren eines Werkstücks statt Erfolg antwortet, als Status; None heißt, CK ist nicht erreichbar."""
+    return {}
+
+
+@pytest.fixture
+def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, archive_answers):
     """A small in-memory CK: creates, reads and changes the settings, remembers grants and workpieces."""
     rooms: dict[str, dict] = {}
     groups: dict[str, dict] = {}
@@ -80,6 +98,16 @@ def ck(monkeypatch, tasks, presence, deleted, sharing):
             return httpx.Response(200, json=rooms[room_id])
         if (method, path) == ("GET", "/settings/sharing"):
             return httpx.Response(200, json=sharing)
+        if (method, path) == ("GET", "/settings/archive"):
+            return httpx.Response(200, json=archiving)
+        if method == "POST" and path.endswith("/archive"):
+            workpiece_id = path.split("/")[2]
+            if workpiece_id in archive_answers:
+                if archive_answers[workpiece_id] is None:
+                    raise httpx.ConnectError("Collab-Kit is down.")
+                return httpx.Response(archive_answers[workpiece_id], json={"error": "refused"})
+            archived.append({"_id": workpiece_id, "reason": body.get("reason"), "rooms": [r for r, room in rooms.items() if workpiece_id in room["workpieces"]]})
+            return httpx.Response(200, json={"_id": workpiece_id, "kind": "workpiece"})
         if method == "GET" and path.endswith("/presence"):
             return httpx.Response(200, json=presence)
         if (method, path) == ("GET", "/groups"):
@@ -336,6 +364,62 @@ def test_closing_again_changes_nothing_and_a_new_share_reuses_the_room(ck):
     asyncio.run(share.close("42"))
     asyncio.run(share.close("42"))
     assert start() == "R0" and len(rooms) == 1
+
+
+# Beide Schalter des Bereichs archive an.
+ARCHIVE_ON = dict(enabled=True, archiveOnShareClose=True)
+
+
+def test_closing_archives_model_and_task_once_they_are_out_of_the_room_when_the_collab_settings_say_so(ck, archiving, archived):
+    rooms, _, _, _ = ck
+    archiving.update(ARCHIVE_ON)
+    asyncio.run(share.share("42", anonymous=False, edit=True, comment=True, task=TASK, **ARGS))
+
+    asyncio.run(share.close("42"))
+
+    # W1 ist das Modell, W0 die Aufgabe; ohne Raum archiviert, kommen sie zurückgeholt nicht in den Raum des Hosts.
+    assert archived == [{"_id": workpiece_id, "reason": "share closed", "rooms": []} for workpiece_id in ("W1", "W0")]
+    assert rooms["R0"]["workpieces"] == [] and rooms["R0"]["settings"]["share"]["workpieceId"] is None
+
+
+def test_closing_archives_nothing_by_default_or_with_only_one_switch(ck, archiving, archived):
+    # Nie gesetzt, nur einer der beiden Schalter, ein Text statt eines Wahrheitswerts.
+    for values in ({}, dict(enabled=True), dict(archiveOnShareClose=True), dict(enabled="true", archiveOnShareClose=True)):
+        archiving.clear()
+        archiving.update(values)
+        start()
+        asyncio.run(share.close("42"))
+    assert archived == []
+
+
+@pytest.mark.parametrize("answer", [409, 500, None])
+def test_closing_ends_the_share_even_when_collab_kit_refuses_fails_or_is_down_while_archiving(ck, archiving, archived, archive_answers, answer):
+    rooms, groups, _, _ = ck
+    archiving.update(ARCHIVE_ON)
+    room_id = asyncio.run(share.share("42", anonymous=False, edit=True, comment=True, task=TASK, **ARGS))[0]
+    asyncio.run(share.join("99", room_id))
+    # 409, solange CK das Modell verschiebt, 500 für einen Fehler in CK, None für ein CK, das nicht antwortet.
+    archive_answers["W1"] = answer
+
+    asyncio.run(share.close("42"))
+
+    shared = rooms[room_id]["settings"]["share"]
+    assert (shared["open"], shared["workpieceId"], shared["taskWorkpieceId"]) == (False, None, None)
+    assert rooms[room_id]["workpieces"] == [] and members_of(groups, "visitors") == []
+    # Das Modell bleibt ohne Raum liegen, die Aufgabe geht trotzdem ins Archiv.
+    assert [entry["_id"] for entry in archived] == ["W0"]
+
+
+def test_unreadable_archive_settings_count_as_off(ck, monkeypatch, archiving, archived):
+    archiving.update(ARCHIVE_ON)
+    start()
+
+    async def failing(key):
+        raise ApiError(503, "CK_UNAVAILABLE", "Collab-Kit is currently unavailable.")
+
+    monkeypatch.setattr(client, "get_settings", failing)
+    asyncio.run(share.close("42"))
+    assert archived == []
 
 
 def test_only_the_host_may_lock_open_or_close(ck):

@@ -8,7 +8,7 @@ from typing import Any
 
 from modeling_api.core.errors import ApiError, not_found
 from modeling_api.services import models
-from modeling_api.services.collab_kit import client, store
+from modeling_api.services.collab_kit import archive, client, store
 
 # The host may do everything in the room.
 HOST_RIGHTS = ["see", "speak", "edit", "plan", "decide", "manage"]
@@ -237,7 +237,7 @@ async def set_joinable(host_id: str, joinable: bool) -> None:
 
 
 async def close(host_id: str) -> None:
-    """Ends sharing: visitors out, workpieces out of the room; the room and groups stay.
+    """Ends sharing: visitors out, workpieces out of the room and, if the collab settings say so, into the archive; the room and groups stay.
 
     Every step can be repeated, an aborted call is finished by a new one.
     """
@@ -263,4 +263,6 @@ async def close(host_id: str) -> None:
         await models.delete_room_models(room_id, host_id)
     else:
         await models.delete_room_models(room_id, except_owners=here - {host_id})
+    # Vor dem Vergessen der IDs, so holt ein wiederholter Aufruf auch das Archivieren nach.
+    await archive.archive_closed_share([current["workpieceId"], current["taskWorkpieceId"]])
     await store.save(room_id, workpieceId=None, taskWorkpieceId=None, before=None, autoLocked=False)

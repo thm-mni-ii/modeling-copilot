@@ -2,7 +2,7 @@
   <v-container fluid class="pa-3">
     <!-- Properties of the element, set as they are named there; a hyphen would name another one. -->
     <!-- eslint-disable-next-line vue/attribute-hyphenation -->
-    <ck-management v-if="ck" ref="management" lang="en" theme="light" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" .extraTabs="extraTabs" @ck-open="open">
+    <ck-management v-if="ck" ref="management" lang="en" theme="light" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" .tabs="tabs" .extraTabs="extraTabs" @ck-open="open">
       <!-- Der Reiter „Group work“ zeigt diesen Slot; der Inhalt bleibt im Light DOM, also mit Vuetify. -->
       <!-- Der native Slot der Web Component, nicht der alte Slot von Vue 2. -->
       <!-- eslint-disable-next-line vue/no-deprecated-slot-attribute -->
@@ -17,12 +17,13 @@
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
-import type { CollabKitApi, ManagementElement, ManagementOpen, ManagementTab, Room } from '@/collab/kit/collabKitV1'
+import type { CollabKitApi, ManagementElement, ManagementOpen, ManagementOwnTab, ManagementTab, Room } from '@/collab/kit/collabKitV1'
 import GroupWork from '@/collab/groups/GroupWork.vue'
 import CollabSettings from './CollabSettings.vue'
 import { newWorkpiece, UML_CLASS_DIAGRAM } from '@/collab/storage/workpiece'
 import { TASK_FORMAT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
+import { collabSettings, loadCollabSettings } from '@/collab/connection/collabSettings'
 
 const ck = shallowRef<CollabKitApi>()
 const management = shallowRef<ManagementElement>()
@@ -32,6 +33,8 @@ const { openFromRoom } = useCollabConnection()
 const manager = ref(false)
 /** Reiter des Copilots nach denen von collab-kit, jeder zeigt den Slot seiner ID. */
 const extraTabs = computed<ManagementTab[]>(() => [{ id: 'group-work', label: 'Group work' }, ...(manager.value ? [{ id: 'collab-settings', label: 'Collab settings' }] : [])])
+/** Die eigenen Reiter von collab-kit; ohne Archiv in den Collab-Einstellungen fehlt der Reiter „Archive“, undefined zeigt alle. */
+const tabs = computed<readonly ManagementOwnTab[] | undefined>(() => (collabSettings.archive.enabled ? undefined : ['rooms', 'groups', 'workpieces']))
 /** Räume, die das Backend angelegt hat, kennt das Element erst nach dem Neuladen. */
 const reload = () => void management.value?.reload()
 
@@ -58,6 +61,8 @@ onMounted(async () => {
       (rights) => rights.includes('manage'),
       () => false
     )
+    // Ebenso vor dem Element, damit der Reiter „Archive“ nicht kurz erscheint; ohne Antwort gilt der Standard, also aus.
+    await loadCollabSettings(api, 'archive').catch(() => undefined)
     ck.value = api
   } catch (error) {
     notifyError(`collab-kit could not be loaded: ${collabErrorMessage(error)}`)

@@ -45,6 +45,12 @@ export const COLLAB_LIMITS = {
     // Sechzehn Farben, gemessen auf gute Unterscheidbarkeit (CIEDE2000, auch bei Rot-Grün-Schwäche), keine rot wie der Host.
     // Die ersten liegen am weitesten auseinander, so bekommen die ersten Personen im Raum die deutlichsten Farben.
     palette: { default: ['#c29ed7', '#214b25', '#ee9813', '#0e26dc', '#12c19f', '#652f55', '#715c00', '#6e83b7', '#1d8a85', '#8f4ef1', '#6f5d8d', '#f657f2', '#194b78', '#8605a8', '#41a8ba', '#2da0fb'], minItems: 8, maxItems: 24 }
+  },
+  archive: {
+    // Das Archiv von collab-kit im Copilot; aus fehlt der Reiter „Archive“, die Knöpfe zum Archivieren zeigt collab-kit weiter.
+    enabled: { default: false },
+    // Ob eine beendete Share ihre Werkstücke (Modell und Aufgabe) archiviert, statt sie ohne Raum liegen zu lassen; nur mit enabled. Das Backend liest beide in api/src/modeling_api/services/collab_kit/archive.py.
+    archiveOnShareClose: { default: false }
   }
 } as const satisfies Record<string, Record<string, CollabLimit>>
 
@@ -58,7 +64,7 @@ const copyOf = (value: unknown) => (Array.isArray(value) ? [...value] : value)
 const defaultsOf = <A extends CollabArea>(area: A) => Object.fromEntries(Object.entries(COLLAB_LIMITS[area]).map(([key, limit]) => [key, copyOf(limit.default)])) as AreaValues<A>
 
 /** Die geltenden Werte; wer sie bei jeder Verwendung liest, bekommt eine Änderung sofort. */
-export const collabSettings = reactive({ sharing: defaultsOf('sharing'), presence: defaultsOf('presence'), shareDefaults: defaultsOf('shareDefaults'), colors: defaultsOf('colors') })
+export const collabSettings = reactive({ sharing: defaultsOf('sharing'), presence: defaultsOf('presence'), shareDefaults: defaultsOf('shareDefaults'), colors: defaultsOf('colors'), archive: defaultsOf('archive') })
 
 /** Ob ein Name aus settingsChanged ein Bereich des Copilots ist. */
 export const isCollabArea = (key: string): key is CollabArea => COLLAB_AREAS.includes(key as CollabArea)

@@ -114,6 +114,15 @@ const SECTIONS: readonly Section[] = [
       { key: 'hostColor', label: 'Host', hint: 'Only the host wears it, so keep it apart from the colors of the others.' },
       { key: 'palette', label: 'Everyone else', hint: 'Handed out in this order, so the first ones should differ the most.' }
     ]
+  },
+  {
+    area: 'archive',
+    title: 'Archive',
+    about: 'Archived workpieces, rooms and groups can be restored or deleted for good. Turned off, the Archive tab is hidden, but collab-kit still offers to archive rooms, groups and workpieces.',
+    fields: [
+      { key: 'enabled', label: 'Archive', hint: 'Shows the Archive tab here.' },
+      { key: 'archiveOnShareClose', label: 'Archive ended shares', hint: 'The model and the task of a share go to the archive when the host ends it, instead of staying in collab-kit without a room. Only while the archive is on.' }
+    ]
   }
 ]
 

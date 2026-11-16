@@ -133,6 +133,11 @@ async def remove_workpiece_from_room(room_id: str, workpiece_id: str) -> dict:
     return await _request("DELETE", f"/rooms/{room_id}/workpieces/{workpiece_id}")
 
 
+async def archive_workpiece(workpiece_id: str, reason: str) -> dict:
+    """Verschiebt das Werkstück samt Abzweigen ins Archiv von CK; offene Verbindungen enden mit 4403."""
+    return await _request("POST", f"/workpieces/{workpiece_id}/archive", {"reason": reason})
+
+
 async def get_settings(key: str) -> dict[str, Any]:
     """Die Werte eines Bereichs der Collab-Einstellungen; einen nie gesetzten gibt CK als {} zurück."""
     return await _request("GET", f"/settings/{key}")
