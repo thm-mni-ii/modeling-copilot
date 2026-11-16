@@ -90,33 +90,37 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
                       dependencies, uniquenessVerified=source["uniquenessVerified"])]}
 
     exact_pairs = {pair for pair, row in rows.items() if any(item["method"] == "exact_label" and item["result"] == "satisfied" for item in row["criteria"])}
-    unique = necessary_pairs(exact_pairs) & selected.keys()
-    for pair in unique:
-        if dependency_pairs(selected[pair]):
-            continue
-        rows[pair]["status"] = "uniquely_supported"
-        rows[pair]["criteria"][0]["role"] = "identity_anchor"
-    unique = {pair for pair in unique if rows[pair]["status"] == "uniquely_supported"}
+    unique = set()
     while True:
         used_ref, used_sub = {r for r, _ in unique}, {s for _, s in unique}
+        exact_anchors = necessary_pairs({pair for pair in exact_pairs
+                                        if pair[0] not in used_ref and pair[1] not in used_sub})
         eligible = {}
         for pair, row in rows.items():
             if pair[0] in used_ref or pair[1] in used_sub:
+                continue
+            if indices["reference"].nodes[pair[0]]["kind"] == "connection" and any(
+                other != pair and (other[0] == pair[0] or other[1] == pair[1])
+                and any(item["method"] == "connection_structure" and item["result"] == "satisfied"
+                        and item.get("uniquenessVerified") and not dependency_pairs(item) <= unique
+                        for item in alternative["criteria"])
+                for other, alternative in rows.items()
+            ):
+                # Check independently supported endpoint alternatives before a text anchor.
                 continue
             for item in row["criteria"]:
                 dependencies = dependency_pairs(item)
                 full_combination = item["method"] != "combined_children" or item.get("complete") is True
                 unique_connection = item["method"] != "connection_structure" or item.get("uniquenessVerified") is True
                 owner_discriminates = item["method"] != "identified_owner" or any(criterion["method"] == "exact_label" and criterion["result"] == "satisfied" for criterion in row["criteria"])
+                exact_discriminates = item["method"] != "exact_label" or pair in exact_anchors
                 if (item["method"] not in ("type_compatibility", "semantic_proposal") and item["result"] == "satisfied" and full_combination
-                        and unique_connection and owner_discriminates
+                        and unique_connection and owner_discriminates and exact_discriminates
                         and pair not in dependencies and dependencies <= unique
                         and not any(r == pair[0] or s == pair[1] for r, s in dependencies)):
-                    eligible.setdefault(item["method"], {})[pair] = item
-        supported = {}
-        for method_pairs in eligible.values():
-            for pair in necessary_pairs(method_pairs) & selected.keys():
-                supported.setdefault(pair, []).append(method_pairs[pair])
+                    eligible.setdefault(pair, []).append(item)
+        # All independent evidence sources compete in the same one-to-one graph.
+        supported = {pair: eligible[pair] for pair in necessary_pairs(eligible) & selected.keys()}
         promoted = set(supported)
         # Dependency edges may only point to identities established earlier.
         promoted = {pair for pair in promoted if dependency_pairs(selected[pair]) <= unique}

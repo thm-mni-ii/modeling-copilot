@@ -185,3 +185,28 @@ def analyze_proposal_feasibility(state):
         "conflictingProposals": pair_ids(conflicting),
         "blockedProposals": pair_ids(blocked),
     }
+
+
+def capacity_preserving_proposals(state, proposals):
+    """Assess competition per candidate component, without choosing a tie winner."""
+    individually_feasible, accepted = [], []
+    candidate_pairs = {(row["referenceId"], row["studentId"]) for row in state["candidatePairs"]}
+    if any((row["referenceId"], row["studentId"]) not in candidate_pairs for row in proposals):
+        raise ValueError("proposal is not a candidate pair")
+    for component in state["candidateComponents"]:
+        references = set(component["referenceIds"])
+        extra = [row for row in proposals if row["referenceId"] in references]
+        if not extra:
+            continue
+        local = {key: [row for row in state[key] if row["referenceId"] in references]
+                 for key in ("candidatePairs", "proposals", "conflictingProposals", "blockedProposals")}
+
+        def preserves(rows):
+            return analyze_proposal_feasibility({**local, "proposals": local["proposals"] + rows})["joint"]["status"] == "preserved"
+
+        feasible = [row for row in extra if preserves([row])]
+        individually_feasible.extend(feasible)
+        if preserves(feasible):
+            accepted.extend(feasible)
+    order = lambda row: (row["referenceId"], row["studentId"])
+    return sorted(individually_feasible, key=order), sorted(accepted, key=order)

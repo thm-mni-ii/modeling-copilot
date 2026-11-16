@@ -61,6 +61,23 @@ def score_method_registry(compute=score_ones):
     }
 
 
+class RealLexicalTests(unittest.TestCase):
+    def test_real_methods_keep_exact_competing_and_missing_text_evidence_separate(self):
+        result = service.compare_pair(inventories([element("r", "item", None, "Alpha")],
+            [element("same", "item", None, "Alpha"), element("other", "item", None, "Omega"),
+             element("empty", "item", None)]),
+            resolve_config({"semantics": {"methods": ["levenshtein", "jaro_winkler", "char_trigram"]}}))
+        matches = {row["submissionElementId"]: row for row in result["synonymMatrix"][0]["matches"]}
+        self.assertEqual(set(matches), {"same", "other", "empty"})
+        self.assertTrue(all(score == 1 for score in matches["same"]["scores"].values()))
+        self.assertTrue(all(score < 1 for score in matches["other"]["scores"].values()))
+        self.assertEqual(matches["empty"]["scoreStatus"], "unavailable")
+        self.assertIsNone(matches["empty"]["scores"])
+        self.assertEqual(result["candidatePairCount"], 3)
+        self.assertEqual(result["scoredPairCount"], 2)
+        self.assertNotIn("mapping", result)
+
+
 class ComparePairTests(unittest.TestCase):
     def setUp(self):
         self.registry_patch = patch.dict(METHOD_REGISTRY, score_method_registry())

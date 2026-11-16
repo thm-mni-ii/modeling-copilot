@@ -18,12 +18,26 @@ const Ajv = require('./web/node_modules/ajv');
 const schema = JSON.parse(fs.readFileSync('dagu/workflow-services/analytical-feedback/schemas/output.schema.json'));
 const ajv = new Ajv({validateSchema:false, meta:false, allErrors:true});
 const validate = ajv.compile(schema);
+const candidateSchema = JSON.parse(fs.readFileSync('dagu/workflow-services/synonym-matching/schemas/output.schema.json'));
+const validateCandidates = ajv.compile(candidateSchema);
 const validateFeedback = ajv.getSchema('analysis-feedback/v3#/$defs/feedbackReportV3');
 const ts = require('./web/node_modules/typescript'), Module = require('node:module');
 const file = require('node:path').resolve('web/src/utils/analysisFeedback.ts'), compiled = new Module(file, module);
 compiled._compile(ts.transpileModule(fs.readFileSync(file,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText, file);
-const {adaptAnalysisFeedback, adaptRecognition, recognitionReportsFromEvaluation, analysisStatus, analysisHintText} = compiled.exports;
+const {adaptAnalysisFeedback, adaptRecognition, recognitionReportsFromEvaluation, analysisStatus, analysisHintText, analysisFactEvidence} = compiled.exports;
 for (const sample of input) {
+  if (sample.candidates) {
+    assert.equal(validateCandidates(sample.candidates), true, JSON.stringify(validateCandidates.errors));
+    if (sample.candidates.result.candidatePairCount) {
+      const deferred = structuredClone(sample.candidates);
+      const pair = deferred.result.synonymMatrix.find(row => row.matches.length).matches[0];
+      pair.scoreStatus = 'not_scored'; pair.scores = null; pair.notScoredReason = 'deferred_computation';
+      deferred.result.scoredPairCount--; deferred.result.notScoredPairCount = 1;
+      assert.equal(validateCandidates(deferred), true, JSON.stringify(validateCandidates.errors));
+      pair.scores = {test:0};
+      assert.equal(validateCandidates(deferred), false);
+    }
+  }
   if (sample.feedback) {
     assert.equal(validateFeedback(sample.feedback), true, JSON.stringify(validateFeedback.errors));
     assert.deepEqual(sample.feedback.recognition, sample.envelope.result.recognition);
@@ -53,6 +67,8 @@ assert.equal(analysisStatus({identity:{status:'supported'}, facts:[]}), 'unresol
 assert.equal(analysisStatus({identity:{status:'uniquely_supported'}, facts:[{code:'owner.different',status:'violated'}]}), 'warning');
 assert.equal(analysisStatus({identity:{status:'uniquely_supported'}, facts:[{code:'label.equal',status:'satisfied'}]}), 'recognized');
 assert.match(analysisHintText({code:'future.unknown'}), /future.unknown/);
+assert.match(analysisFactEvidence({evidence:{basis:'direct_observation',reason:'text_unavailable',unavailableReason:'missing_text'}}), /Beschriftung fehlt/);
+assert.match(analysisFactEvidence({evidence:{basis:'direct_observation',reason:'text_unavailable',unavailableReason:'unsupported_text'}}), /Format|format/);
 """
 
 

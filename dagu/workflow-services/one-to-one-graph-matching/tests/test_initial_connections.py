@@ -42,6 +42,24 @@ def indices_with_connections(reference, student):
 
 
 class ConnectionStructureTests(unittest.TestCase):
+    def test_connection_labels_do_not_preempt_independent_endpoint_alternatives(self):
+        from identity_evidence import evaluate_identity
+        from test_matching import make_inputs
+        indices, mapping = indices_with_connections(
+            [("r1", "a", "b", {}), ("r2", "b", "c", {})],
+            [("s1", "a", "b", {}), ("s2", "b", "c", {})])
+        for side, labels in (("reference", {"r1": "First", "r2": "Second"}),
+                             ("student", {"s1": "Second", "s2": "First"})):
+            for identity, label in labels.items():
+                indices[side].nodes[identity]["label"] = label
+        elements = [{**row, "reason": "unique_exact_label", "dependsOn": []} for row in mapping]
+        _, candidates = make_inputs({name: name for name in ("a", "b", "c")},
+                                    {name: name for name in ("a", "b", "c")}, [(name, name) for name in ("a", "b", "c")])
+        result = propose_connections(indices, elements, candidates)
+        identity = evaluate_identity(indices, candidates, elements, connection_pairs=result["proposals"],
+                                     connection_candidates=result["candidateEvidence"])
+        self.assertEqual({row["referenceId"] for row in identity["pairs"] if row["status"] == "uniquely_supported"}, {"a", "b", "c"})
+
     def test_legacy_type_view_preserves_endpoint_identity_despite_incompatible_type(self):
         indices, _mapping = indices_with_connections(
             [("r1", "a", "b", {"connection_type": "first"}),

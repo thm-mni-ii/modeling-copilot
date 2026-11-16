@@ -431,7 +431,7 @@ export const analysisFactEvidence = (fact: AnalysisFact) => {
   const evidence = fact.evidence
   const reasons: Record<string, string> = {
     evaluated_identity_evidence: 'Identität anhand der ausgewiesenen Evidenzmethoden geprüft',
-    compared_labels: 'Beschriftungen verglichen', compared_concrete_types: 'Konkrete Typen verglichen',
+    compared_labels: 'Beschriftungen verglichen', text_unavailable: 'Beschriftungsvergleich nicht auswertbar', compared_concrete_types: 'Konkrete Typen verglichen',
     compared_owner: 'Fachliche Besitzer verglichen', compared_containment: 'Unmittelbare Container und Rollen verglichen',
     local_children_under_mapping: 'Lokale Kindstruktur geprüft', local_connections_under_mapping: 'Lokale Verbindungen geprüft',
     existing_correspondence: 'Vorhandenes Gegenstück', identity_unresolved: 'Gegenstück nicht eindeutig identifiziert',
@@ -445,7 +445,8 @@ export const analysisFactEvidence = (fact: AnalysisFact) => {
   const counts = typeof evidence.expected === 'number' ? ` · ${evidence.observed} / ${evidence.expected} vorhanden` : ''
   const missing = typeof evidence.minimumMissing === 'number' && evidence.minimumMissing > 0 ? ` · mindestens ${evidence.minimumMissing} lokal nicht realisiert` : ''
   const placement = evidence.placementStatus ? ` · ${analysisPlacementLabel(evidence.placementStatus)}` : ''
-  return `${analysisValueLabel(evidence.basis)} · ${reason}${counts}${missing}${placement}`
+  const unavailable = evidence.unavailableReason === 'missing_text' ? ' · Beschriftung fehlt' : evidence.unavailableReason === 'unsupported_text' ? ' · Beschriftungsformat nicht unterstützt' : ''
+  return `${analysisValueLabel(evidence.basis)} · ${reason}${counts}${missing}${placement}${unavailable}`
 }
 export const analysisChildChecklist = (facts: AnalysisFact[] | undefined) => {
   const evidence = facts?.find(fact => fact.code === 'children.complete')?.evidence

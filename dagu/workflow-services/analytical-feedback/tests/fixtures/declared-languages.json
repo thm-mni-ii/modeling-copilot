@@ -1,0 +1,22 @@
+[
+  {
+    "languageId": "records",
+    "versionId": "1",
+    "includedLanguageVersions": [],
+    "data": {
+      "elements": [{"type": "record"}, {"type": "field"}],
+      "connections": [{"type": "association", "undirected": false}],
+      "evaluation": {"comparisonGroups": []}
+    }
+  },
+  {
+    "languageId": "processes",
+    "versionId": "1",
+    "includedLanguageVersions": [],
+    "data": {
+      "elements": [{"type": "activity"}, {"type": "parameter"}],
+      "connections": [{"type": "flow", "undirected": false}],
+      "evaluation": {"comparisonGroups": []}
+    }
+  }
+]

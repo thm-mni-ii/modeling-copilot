@@ -1,9 +1,12 @@
 # analytical-feedback
 
-Serviceversion `2.1.0`, Image `v8`, Ausgabe `analysis-feedback/v3` in
+Serviceversion `2.2.1`, Image `v10`, Ausgabe `analysis-feedback/v3` in
 `workflow-result/v1`. Der Dienst projiziert ausschließlich Matcher-Fakten und
 berechnet die verbindliche `recognition`-Übersicht. Er entscheidet keine
 Zuordnungen oder Eigenschaften erneut.
+
+Verbindungsbeschriftungen ohne eigene Identitätsprüfung bleiben Annotationen und
+gehören nicht in den Erkennungsnenner. Historische Kategorieverträge bleiben lesbar.
 
 Erkannt sind ausgewählte 1:1-Paare mit `identity.status = uniquely_supported`,
 hinreichendem Identitätsanker und nicht zirkulären Abhängigkeiten. `supported`,

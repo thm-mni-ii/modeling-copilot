@@ -13,7 +13,7 @@ labels:
   purpose: evaluation
   domain: generic
   visibility: frontend
-  version: v8
+  version: v11
   phase: '6'
 params:
   schema:
@@ -277,7 +277,7 @@ name: synonym-matching-pair
 description: Berechnet semantische Kandidaten für die Abgabe und genau eine Musterlösung.
 tags:
   - visibility=internal
-  - version=v1
+  - version=v2
 artifacts:
   enabled: true
 kubernetes:
@@ -317,7 +317,7 @@ steps:
       artifact: candidates-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/synonym-matching:v1
+      image: modeling-copilot/synonym-matching:v2
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -343,7 +343,7 @@ name: one-to-one-graph-matching-pair
 description: Vergleicht die Abgabe vorläufig mit genau einer Musterlösung.
 tags:
   - visibility=internal
-  - version=v4
+  - version=v5
 artifacts:
   enabled: true
 kubernetes:
@@ -376,7 +376,7 @@ steps:
       artifact: comparison-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/one-to-one-graph-matching:v4
+      image: modeling-copilot/one-to-one-graph-matching:v5
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -402,7 +402,7 @@ name: analytical-feedback-pair
 description: Erzeugt analytische Profile und die kompakte Feedbackprojektion je Musterlösung.
 tags:
   - visibility=internal
-  - version=v8
+  - version=v11
 artifacts:
   enabled: true
 kubernetes:
@@ -432,7 +432,7 @@ steps:
       artifact: analysis-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/analytical-feedback:v8
+      image: modeling-copilot/analytical-feedback:v10
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
@@ -473,7 +473,7 @@ steps:
       artifact: feedback-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/feedback-generation:v8
+      image: modeling-copilot/feedback-generation:v9
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID

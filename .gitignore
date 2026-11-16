@@ -32,3 +32,7 @@ AGENTS.md
 AGENTS.override.md
 SKILL.md
 /tmp/
+/CLAUDE.md
+/CLAUDE.local.md
+/.claude/
+/.mcp.json

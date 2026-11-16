@@ -31,6 +31,22 @@ def find(items, prefix, ref):
 
 
 class PropertyFactsTests(unittest.TestCase):
+    def test_missing_and_unsupported_labels_are_not_evaluated(self):
+        for reference_label, submission_label, statuses in (
+            ("", "", {"reference": "missing", "student": "missing"}),
+            ("Name", "", {"reference": "present", "student": "missing"}),
+            (None, "Name", {"reference": "missing", "student": "present"}),
+            ({"unexpected": "value"}, "Name", {"reference": "unsupported", "student": "present"}),
+        ):
+            with self.subTest(statuses=statuses):
+                items = evaluate([{**node("r"), "label": reference_label}],
+                                 [{**node("s"), "label": submission_label}], pairs=[("r", "s")])
+                label = find(items, "label.", "r")
+                self.assertEqual(label["status"], "not_evaluated")
+                self.assertEqual(label["evidence"]["labelStatus"], statuses)
+                self.assertEqual(label["code"], "label.unavailable")
+                self.assertEqual(find(items, "type.", "r")["status"], "satisfied")
+
     def test_renamed_parent_keeps_child_supported_identity_and_label_difference(self):
         from correspondence_state import build_provisional_state
         from test_matching import make_inputs
@@ -52,7 +68,13 @@ class PropertyFactsTests(unittest.TestCase):
         right["languageResolution"] = "unresolved"
         items = evaluate([left], [right], pairs=[("r", "s")])
         self.assertEqual(find(items, "label.", "r")["status"], "satisfied")
-        self.assertEqual(find(items, "type.", "r")["status"], "unresolved")
+        self.assertEqual(find(items, "type.", "r")["status"], "not_evaluated")
+
+    def test_unknown_containment_role_does_not_claim_owner_correctness(self):
+        edges = [{"kind": "contains", "source": "child", "target": "parent", "role": None}]
+        items = evaluate([node("parent"), node("child")], reference_edges=edges)
+        self.assertEqual(find(items, "owner.", "child")["status"], "not_evaluated")
+        self.assertEqual(find(items, "containment.", "child")["status"], "not_evaluated")
 
     def test_equal_concrete_type_and_different_label_do_not_reject_identity(self):
         left, right = {**node("r"), "label": "Old"}, {**node("s"), "label": "New"}

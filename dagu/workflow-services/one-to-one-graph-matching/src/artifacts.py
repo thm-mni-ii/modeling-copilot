@@ -153,6 +153,9 @@ def _validate_candidates(data, indices, inventories):
                 raise ValueError(f"{side} inventory element does not match graph metadata")
             if not isinstance(item["matchText"], str):
                 raise ValueError("inventory matchText must be a string")
+            if (item.get("labelStatus") not in ("present", "missing", "unsupported")
+                    or (item["labelStatus"] == "present") != bool(item["matchText"].strip())):
+                raise ValueError("inventory text status does not match its text")
     methods = data["methods"]
     ranges = {}
     for method in methods:
@@ -170,7 +173,7 @@ def _validate_candidates(data, indices, inventories):
         for ref_id, reference in elements["reference"].items() if _key(reference) is not None
         for student_id, student in elements["student"].items() if _key(reference) == _key(student)
     }
-    seen_rows, seen_pairs, scored = set(), set(), 0
+    seen_rows, seen_pairs, scored, not_scored = set(), set(), 0, 0
     for row in data["synonymMatrix"]:
         ref_id = row["referenceElementId"]
         if (ref_id not in elements["reference"] or ref_id in seen_rows
@@ -188,6 +191,13 @@ def _validate_candidates(data, indices, inventories):
             if status == "unavailable":
                 if scores is not None or candidate.get("unavailableReason") not in ("missing_text", "unsupported_text"):
                     raise ValueError("invalid unavailable candidate")
+            elif status == "not_scored":
+                if (scores is not None or not isinstance(candidate.get("notScoredReason"), str)
+                        or not candidate["notScoredReason"].strip()
+                        or any(inventory_elements[side][identity]["labelStatus"] != "present"
+                               for side, identity in (("reference", ref_id), ("student", pair[1])))):
+                    raise ValueError("invalid not_scored candidate")
+                not_scored += 1
             elif status == "scored":
                 if not isinstance(scores, dict) or set(scores) != set(ranges):
                     raise ValueError("candidate scores do not match methods")
@@ -201,7 +211,8 @@ def _validate_candidates(data, indices, inventories):
     if seen_rows != set(elements["reference"]) or seen_pairs != set(expected):
         raise ValueError("candidate matrix is incomplete")
     if (data["candidatePairCount"] != len(expected) or data["scoredPairCount"] != scored
-            or data["unavailablePairCount"] != len(expected) - scored):
+            or data.get("notScoredPairCount", 0) != not_scored
+            or data["unavailablePairCount"] != len(expected) - scored - not_scored):
         raise ValueError("candidate counts do not match the complete matrix")
     seen_connections = set()
     for pair in data["connectionTextMatrix"]:

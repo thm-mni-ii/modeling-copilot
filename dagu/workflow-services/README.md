@@ -10,12 +10,13 @@
 - `analytical-feedback` erstellt kompakte elementbezogene Hinweise.
 - `feedback-generation` erzeugt die kompakte Feedbackprojektion.
 
-Graph Matching verwendet Serviceversion `1.2.0` und Image `v3`, Analytical
-Feedback `1.3.0` und Feedback Generation `1.0.3` mit Image-Tags `v6`.
-Die übrigen Dienste bleiben bei `1.0.0` und `v1`.
-Alle Artefaktverträge verwenden `/v1`; Matcher-Fakten tragen Version `1.1`,
-Identitätsevidenzen `1.0`. Die Analyse ergänzt Vertragsrevision `1.3` und liest
-frühere Revisionen weiter.
+Graph Matching verwendet Serviceversion `2.1.0` und Image `v5`, Analytical
+Feedback `2.2.1` und Image `v10`, Synonym Matching `1.1.0` und Image `v2`.
+Feedback Generation verwendet `2.2.0`/`v9`, die übrigen Dienste `1.0.0`/`v1`.
+Der Hauptworkflow ist `v11`. Graphvergleich verwendet `reference-comparison/v2`,
+Analyse und Feedback `/v3`; übrige Artefakte und stdout-Envelopes bleiben `/v1`.
+Matcher-Fakten tragen Version `1.1`, Identitätsevidenzen `1.0`.
+Historische Analyserevisionen bleiben lesbar.
 Die benötigten Modell- und Paarabläufe sind
 intern in der einzigen Workflowdatei eingebettet.
 

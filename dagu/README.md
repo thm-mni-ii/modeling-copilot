@@ -66,12 +66,14 @@ Inventare unter `labels/<modelKey>.json` und semantische Kandidaten unter
 `analysis/<referenceKey>/<analysisKey>.json`. Die Abgabe wird nur einmal vorbereitet.
 Alle benötigten Modell- und Paarabläufe sind intern in derselben Datei eingebettet.
 Dagu registriert ausschließlich `model-evaluation-graph-matching`. Die Workflowversion
-ist `v6` (ebenso der interne Analyse-/Feedbackablauf), der Graphvergleich verwendet
-intern `v3`. Graph Matching verwendet Serviceversion `1.2.0`, Analytical Feedback
-`1.3.0`, Feedback Generation `1.0.3`, die übrigen Dienste `1.0.0`.
-Alle Artefaktverträge verwenden `/v1`; Matcher-Fakten ergänzen Version `1.1`,
-Identitätsevidenzen `1.0`, die Analyse `contractVersion: "1.3"`. Analyse und
-Feedback verwenden Image-Tags `v6`, Graph Matching `v3`, die übrigen Schritte `v1`.
+ist `v11` (ebenso der interne Analyse-/Feedbackablauf), der Graphvergleich verwendet
+intern `v5`, Synonym Matching `v2`. Graph Matching verwendet Serviceversion
+`2.1.0`, Analytical Feedback `2.2.1`, Synonym Matching `1.1.0`, Feedback Generation
+`2.2.0`, die übrigen Dienste `1.0.0`. Graphvergleich verwendet
+`reference-comparison/v2`, Analyse/Feedback `/v3`, übrige Artefakte und vollständige
+stdout-Envelopes `/v1`; Matcher-Fakten `1.1`, Identitätsevidenzen `1.0`.
+Image-Tags: Analyse `v10`, Feedback `v9`, Matcher `v5`, Synonym `v2`, übrige `v1`.
+Lokale Nachweise vom 16.11.2026: [Graph-Evaluation](../docs/graph-evaluation/RUNLOG.md).
 
 Der Analyse-/Feedbackablauf liest `analysisPath` und `analysisKey` aus dem vollständigen
 Analyse-stdout und veröffentlicht sie über `stdout.outputs`. Der Filter prüft Status,
@@ -151,7 +153,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v1 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v1 modeling-copilot/one-to-one-graph-matching:v4 modeling-copilot/analytical-feedback:v8 modeling-copilot/feedback-generation:v8 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v1 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v2 modeling-copilot/one-to-one-graph-matching:v5 modeling-copilot/analytical-feedback:v10 modeling-copilot/feedback-generation:v9 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre

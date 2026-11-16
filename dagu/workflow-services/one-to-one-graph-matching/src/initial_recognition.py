@@ -96,6 +96,7 @@ def propose_connections(indices, elements, candidates=None):
                               "status": "provisional", "dependsOn": dependencies})
             record(events, "connections", rule, ref, sub, "proposed", [rule], depends_on=dependencies)
     selected = {(row["referenceId"], row["studentId"]) for row in proposals}
+    endpoint_anchors = necessary_pairs(strict) | necessary_pairs(broad)
     for ref, sub in sorted(all_candidates - selected):
         record(events, "connections", "connection_identity", ref, sub, "deferred", ["ambiguous_candidates"])
     proposals.sort(key=lambda item: (item["referenceId"], item["studentId"]))
@@ -106,7 +107,7 @@ def propose_connections(indices, elements, candidates=None):
                                             {identity for identities in grouped["reference"].values() for identity in identities}),
         "candidateEvidence": [{"referenceId": ref, "studentId": sub, "exactLabel": (ref, sub) in labels,
                                "sameEndpoints": (ref, sub) in broad, "sameConfiguration": (ref, sub) in strict,
-                               "uniquenessVerified": (ref, sub) in selected}
+                               "uniquenessVerified": (ref, sub) in endpoint_anchors}
                               for ref, sub in sorted(all_candidates)],
         "unresolvedReferenceIds": sorted(set(connections["reference"]) - {p["referenceId"] for p in proposals}),
         "unresolvedStudentIds": sorted(set(connections["student"]) - {p["studentId"] for p in proposals}),

@@ -82,6 +82,28 @@ class Store:
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_inventory_text_status_is_validated_even_with_recomputed_hashes(self):
+        store = Store()
+        inventory = store.files["labels/ref.json"]["result"]
+        inventory["elements"][0]["labelStatus"] = "missing"
+        inventory["inventoryHash"] = content_hash({key: value for key, value in inventory.items() if key != "inventoryHash"})
+        store.candidates["inventoryHashes"]["reference"] = inventory["inventoryHash"]
+        store.publish_candidates()
+        with self.assertRaisesRegex(ValueError, "text status"):
+            read_artifacts(store, "ref")
+
+    def test_not_scored_is_preserved_and_cannot_carry_a_fabricated_score(self):
+        store = Store()
+        match = store.candidates["synonymMatrix"][0]["matches"][0]
+        match.update(scoreStatus="not_scored", scores=None, notScoredReason="deferred_computation")
+        store.candidates.update(scoredPairCount=0, notScoredPairCount=1)
+        store.publish_candidates()
+        self.assertEqual(read_artifacts(store, "ref")[3]["synonymMatrix"][0]["matches"][0]["scoreStatus"], "not_scored")
+        match["scores"] = {"test": 0}
+        store.publish_candidates()
+        with self.assertRaisesRegex(ValueError, "not.scored"):
+            read_artifacts(store, "ref")
+
     def test_complete_candidate_matrix_and_matching_provenance(self):
         bundle, graphs, indices, candidates = read_artifacts(Store(), "ref")
         self.assertEqual(bundle["evaluationId"], "evaluation")

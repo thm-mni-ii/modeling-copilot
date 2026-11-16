@@ -25,6 +25,33 @@ def composition_fixture(symmetric=False):
 
 
 class IdentityEvidenceTests(unittest.TestCase):
+    def test_exact_parents_compete_with_independent_child_combinations(self):
+        indices, candidates = composition_fixture()
+        labels = {"sp0": "r-parent-1", "sp1": "r-parent-0", "sp2": "r-parent-2"}
+        for identity, label in labels.items():
+            indices["student"].nodes[identity]["label"] = label
+        for row in candidates["synonymMatrix"]:
+            for match in row["matches"]:
+                if match["submissionElementId"] in labels:
+                    match["submissionLabel"] = labels[match["submissionElementId"]]
+        results = []
+        for reverse in (False, True):
+            if reverse:
+                candidates["synonymMatrix"].reverse()
+                for row in candidates["synonymMatrix"]:
+                    row["matches"].reverse()
+            state = build_provisional_state(indices, candidates)
+            result = evaluate_identity(indices, candidates, state["proposals"], combined=state["combinedChildEvidence"])
+            parents = [row for row in result["pairs"] if row["referenceId"].startswith("rp")]
+            unique = {(row["referenceId"], row["studentId"]) for row in parents if row["status"] == "uniquely_supported"}
+            self.assertEqual(unique, {("rp2", "sp2")})
+            for pair in (("rp0", "sp0"), ("rp1", "sp1")):
+                alternative = next(row for row in parents if (row["referenceId"], row["studentId"]) == pair)
+                self.assertTrue(any(item["method"] == "combined_children" and item.get("complete")
+                                    and not item["dependsOn"] for item in alternative["criteria"]))
+            results.append(result)
+        self.assertEqual(*results)
+
     def test_incomplete_graph_cannot_prove_closed_combination(self):
         indices, candidates = composition_fixture()
         state = build_provisional_state(indices, candidates, graphs={side: {"completeness": {"interpretation": "partial"}} for side in indices})
@@ -116,6 +143,23 @@ class IdentityEvidenceTests(unittest.TestCase):
         row = evaluate_identity(indices, candidates, [])["pairs"][0]
         self.assertEqual(row["status"], "unresolved")
         self.assertEqual(next(item for item in row["criteria"] if item["method"] == "type_compatibility")["role"], "compatibility")
+
+    def test_supported_owner_does_not_make_placement_independent(self):
+        indices, candidates = make_inputs({"rp": "Old", "rc": "Child"}, {"sp": "New", "sc": "Child"},
+            [("rp", "sp"), ("rc", "sc")], [contains("rc", "rp")], [contains("sc", "sp")])
+        proposals = [{"referenceId": "rp", "studentId": "sp", "reason": "supported_semantic_evidence", "dependsOn": []},
+                     {"referenceId": "rc", "studentId": "sc", "reason": "unique_exact_label", "dependsOn": []}]
+        # Evaluate without promoting the owner from the very child being checked.
+        identity = {"pairs": [
+            {"referenceId": "rp", "studentId": "sp", "status": "supported", "criteria": []},
+            {"referenceId": "rc", "studentId": "sc", "status": "uniquely_supported",
+             "criteria": [{"method": "exact_label", "role": "identity_anchor", "result": "satisfied"}]},
+        ]}
+        evaluation = {"mapping": {"provisionalElements": proposals, "provisionalConnections": []}, "identityEvidence": identity}
+        items = evaluate_facts(indices, evaluation, {side: {"completeness": {"interpretation": "complete"}} for side in indices}, candidates)["items"]
+        placement = next(item for item in items if item["code"].startswith("owner.") and item["referenceIds"] == ["rc"])
+        self.assertEqual(placement["evidence"]["basis"], "conditional_mapping")
+        self.assertEqual(placement["status"], "satisfied")
 
     def test_circular_owner_child_proposals_are_not_identity_anchors(self):
         indices, candidates = make_inputs({"rp": "Old", "rc": "Same"}, {"sp": "New", "sc": "Same"},

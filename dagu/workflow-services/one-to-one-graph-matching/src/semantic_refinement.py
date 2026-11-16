@@ -4,7 +4,7 @@ from collections import defaultdict
 from copy import deepcopy
 import math
 
-from assignment_capacity import analyze_proposal_feasibility
+from assignment_capacity import capacity_preserving_proposals
 from decision_diagnostics import record
 from structural_evidence import analyze_containment
 
@@ -55,6 +55,7 @@ def refine_semantic_proposals(indices, candidates, state, thresholds):
                       "below_threshold" if thresholds and len(available) == len(thresholds) else "unavailable")
             pairs[pair] = {
                 "referenceId": pair[0], "studentId": pair[1], "status": status,
+                "scoreStatus": match.get("scoreStatus", "unavailable"),
                 "supportingMethods": supported, "ownerAnchorRelation": owners[pair]["ownerAnchorRelation"],
                 "_scores": available,
             }
@@ -118,19 +119,14 @@ def refine_semantic_proposals(indices, candidates, state, thresholds):
                          "status": "provisional"})
     proposed.sort(key=lambda item: (item["referenceId"], item["studentId"]))
 
-    def preserves_capacity(extra):
-        check = {**state, "proposals": state["proposals"] + extra}
-        return analyze_proposal_feasibility(check)["joint"]["status"] == "preserved"
-
-    individually_feasible = [item for item in proposed if preserves_capacity([item])]
-    proposals = individually_feasible if preserves_capacity(individually_feasible) else []
+    individually_feasible, proposals = capacity_preserving_proposals(state, proposed)
     for item in proposed:
         accepted = item in proposals
         record(events, "semantic_capacity", "supported_semantic_evidence", item["referenceId"],
                item["studentId"], "proposed" if accepted else "blocked",
                ["supported_semantic_evidence" if accepted else "capacity_conflict"],
                depends_on=item["dependsOn"], individuallyFeasible=item in individually_feasible,
-               jointlyFeasible=bool(proposals))
+               jointlyFeasible=accepted)
     proposed_references = {item["referenceId"] for item in proposals}
     reference_ids = {identity for identity, node in indices["reference"].nodes.items()
                      if node["kind"] == "modelElement"}

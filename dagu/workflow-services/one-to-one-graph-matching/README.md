@@ -1,7 +1,14 @@
 # one-to-one-graph-matching
 
-Serviceversion `2.0.0`, Image `v4`, Ausgabeschema `reference-comparison/v2`.
-Die Zuordnungsheuristiken und Schwellen sind gegenueber v3 unveraendert.
+Serviceversion `2.1.0`, Image `v5`, Ausgabeschema `reference-comparison/v2`.
+Identitätskriterien konkurrieren gemeinsam; vollständige unabhängige
+Kinderkombinationen und Endpunktalternativen werden neben Textankern geprüft.
+Kapazitätskonflikte bleiben auf ihre Kandidatenkomponente begrenzt.
+Fehlende/nicht unterstützte Beschriftungen und fehlende Typ-/Relationssemantik
+werden als `not_evaluated` ausgewiesen. `not_scored` bleibt von fehlender
+Ausführbarkeit und niedrigen Scores getrennt; Score-Trimming ist nicht aktiviert.
+Semantische Schwellen sind unverändert und ohne Kalibrierung keine Identitätsanker.
+Die historischen Methodennachweise unten beziehen sich auf ihre jeweiligen Versionen.
 Regulaer werden ausgewaehlte Zuordnungen, `propertyFacts`, offene Original-IDs,
 Konfiguration und Herkunft gespeichert. Identitaetsfakten nennen zusaetzlich ihre
 Auswertbarkeit. Die vollstaendige kompakte JSON-Ausgabe bleibt auf stdout erhalten.
@@ -18,6 +25,14 @@ Diagnostik identisch. Die verbindliche Erkennungsuebersicht berechnet
 Die folgende Methodendokumentation beschreibt Berechnung und optionale Diagnosen;
 fruehere Top-Level-Diagnosepfade liegen in v2 unter `diagnostics`.
 Gespeicherte v1-Vergleiche bleiben unveraendert lesbar.
+
+`scripts/evaluate_corpus.py <corpus.json>` vergleicht reguläre Matcherfakten mit
+deklarierten Goldpaaren. Eingabe ist eine JSON-Liste mit `id`, `expectedPairs`
+(`[[referenceId, submissionId], ...]`), optional `ambiguousReferenceIds` und
+`comparison` (regulärer Vergleich oder vollständiges Envelope). Der Bericht zählt
+korrekte/falsche eindeutige und ungeklärte erwartete Identitäten. Ohne eine
+ausdrücklich gesetzte `--maximum-false-unique`-Grenze bleibt die Abnahme
+`not_configured`; dies ist kein Werkzeug zur automatischen Schwellenerfindung.
 
  Nach Abschluss der Korrespondenz- und
 Strukturprüfungen ergänzt `propertyFacts` (Version `1.1`) konkrete Einzelbefunde.

@@ -87,8 +87,8 @@ def _structure_facts(indices, evaluation, graphs):
     complete = all(graphs[side]["completeness"]["interpretation"] == "complete" for side in indices)
     for row in rows:
         ref, sub = row["referenceId"], row["studentId"]
-        ref_parents, ref_owner, _, ref_unique = _containment(reference, ref)
-        sub_parents, sub_owner, _, sub_unique = _containment(student, sub)
+        ref_parents, ref_owner, ref_paths, ref_unique = _containment(reference, ref)
+        sub_parents, sub_owner, sub_paths, sub_unique = _containment(student, sub)
         for name, expected, observed, available in (
             ("owner", [ref_owner] if ref_owner is not None else [],
              [sub_owner] if sub_owner is not None else [], mapping),
@@ -98,7 +98,11 @@ def _structure_facts(indices, evaluation, graphs):
             basis = ("independent_evidence" if independent_of_relation(ref, set(expected) | actual_references)
                      else "conditional_mapping")
             status = "unresolved"
-            if ref_unique and sub_unique:
+            roles_known = all(edge["role"] is not None for index, paths in ((reference, ref_paths), (student, sub_paths))
+                              for path in paths for identity in path for edge in index.parents.get(identity, ()))
+            if not roles_known:
+                status = "not_evaluated"
+            elif ref_unique and sub_unique:
                 if not expected and not observed:
                     status = "not_applicable"
                 elif all(identity in available for identity in expected):
@@ -391,25 +395,40 @@ def evaluate_facts(indices, evaluation, graphs, candidates, inventories=None):
     labels = {(row["referenceElementId"], match["submissionElementId"]):
               (row["referenceLabel"], match["submissionLabel"])
               for row in candidates.get("synonymMatrix", []) for match in row["matches"]}
+    inventory_labels = {side: {item["id"]: item for item in data["elements"]}
+                        for side, data in (inventories or {}).items()}
+
+    def text_status(value):
+        return "missing" if value is None or isinstance(value, str) and not value.strip() else "present" if isinstance(value, str) else "unsupported"
+
     result = []
     for row in rows:
         ref, sub = row["referenceId"], row["studentId"]
         left, right = reference.nodes[ref], student.nodes[sub]
         values = labels.get((ref, sub), (left.get("label"), right.get("label")))
-        values = tuple(normalized(value) for value in values)
+        statuses = {side: inventory_labels.get(side, {}).get(identity, {}).get("labelStatus", text_status(value))
+                    for side, identity, value in (("reference", ref, values[0]), ("student", sub, values[1]))}
+        values = tuple(normalized(value) if isinstance(value, str) else "" for value in values)
         if left["kind"] == "connection" and inventories is not None:
             values = tuple(sorted(normalized(text["matchText"]) for text in inventories[side]["connectionTexts"]
                                   if text["ownerConnectionId"] == identity and normalized(text["matchText"]))
                            for side, identity in (("reference", ref), ("student", sub)))
-        label_status = ("not_applicable" if not any(values) else
+            statuses = {side: "unsupported" if any(text["labelStatus"] == "unsupported" for text in inventories[side]["connectionTexts"]
+                                                   if text["ownerConnectionId"] == identity) else "present" if values[i] else "missing"
+                        for i, (side, identity) in enumerate((("reference", ref), ("student", sub)))}
+        unavailable = any(status != "present" for status in statuses.values())
+        label_status = ("not_evaluated" if unavailable else
                         "satisfied" if values[0] == values[1] else "violated")
-        result.append(fact("label.different" if label_status == "violated" else "label.equal",
-                           label_status, [ref], [sub], reason="compared_labels",
-                           referenceValue=values[0], submissionValue=values[1]))
-        known = all(node.get("languageResolution") == "resolved" and node.get("type")
+        result.append(fact("label.unavailable" if unavailable else "label.different" if label_status == "violated" else "label.equal",
+                           label_status, [ref], [sub], reason="text_unavailable" if unavailable else "compared_labels",
+                           referenceValue=values[0], submissionValue=values[1],
+                           **({"labelStatus": statuses, "availability": "unavailable",
+                               "unavailableReason": "unsupported_text" if "unsupported" in statuses.values() else "missing_text"}
+                              if unavailable else {})))
+        known = all(node.get("languageResolution") == "resolved" and node.get("comparisonRole") == "semantic" and node.get("type")
                     and node.get("language") for node in (left, right))
         same_language = left["language"] == right["language"]
-        status = ("unresolved" if not known or not same_language else
+        status = ("not_evaluated" if not known else "unresolved" if not same_language else
                   "satisfied" if left["type"] == right["type"] else "violated")
         result.append(fact("type.equal" if status != "violated" else "type.different", status,
                            [ref], [sub], reason="compared_concrete_types",

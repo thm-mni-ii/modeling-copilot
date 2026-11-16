@@ -4,7 +4,7 @@ from collections import defaultdict, deque
 from copy import deepcopy
 import unicodedata
 
-from assignment_capacity import analyze_proposal_feasibility, necessary_pairs
+from assignment_capacity import capacity_preserving_proposals, necessary_pairs
 from decision_diagnostics import record
 from matching import propose_containment_anchors, propose_exact_anchors
 from structural_evidence import analyze_child_owner_evidence, analyze_combined_children, analyze_containment
@@ -135,21 +135,15 @@ def build_provisional_state(indices, candidates, *, graphs=None):
     def accept(extra):
         if not extra:
             return
-        feasible = [item for item in extra if analyze_proposal_feasibility({
-            **state, "proposals": state["proposals"] + [item],
-        })["joint"]["status"] == "preserved"]
-        joint_preserved = bool(feasible) and analyze_proposal_feasibility({
-            **state, "proposals": state["proposals"] + feasible,
-        })["joint"]["status"] == "preserved"
+        feasible, accepted_proposals = capacity_preserving_proposals(state, extra)
         for item in extra:
-            accepted = item in feasible and joint_preserved
+            accepted = item in accepted_proposals
             record(events, "capacity", item["reason"], item["referenceId"], item["studentId"],
                    "proposed" if accepted else "blocked",
                    ["capacity_preserved" if accepted else "capacity_conflict"],
                    depends_on=item["dependsOn"], individuallyFeasible=item in feasible,
-                   jointlyFeasible=joint_preserved)
-        if joint_preserved:
-            state["proposals"].extend(feasible)
+                   jointlyFeasible=accepted)
+        state["proposals"].extend(accepted_proposals)
 
     # Reuse the exact matcher after active one-to-one reservations. Preserve
     # every reservation that removed an exact-label alternative as evidence.
@@ -238,7 +232,12 @@ def build_provisional_state(indices, candidates, *, graphs=None):
     accept([{"referenceId": item["referenceId"], "studentId": item["studentId"],
              "reason": "combined_child_structure", "dependsOn": item["dependsOn"]}
             for item in combined if (item["referenceId"], item["studentId"]) in forced])
-    state["combinedChildEvidence"] = combined
+    # Reservations must not erase independent alternatives to an exact proposal.
+    independent = analyze_combined_children(indices, candidates, [], complete=complete_graphs)
+    combined_by_pair = {(item["referenceId"], item["studentId"]): item for item in combined}
+    combined_by_pair.update({(item["referenceId"], item["studentId"]): item
+                             for item in independent if item["complete"]})
+    state["combinedChildEvidence"] = [combined_by_pair[pair] for pair in sorted(combined_by_pair)]
     new_owners = [item for item in state["proposals"] if item["reason"] in ("independent_child_evidence", "combined_child_structure")]
     if new_owners:
         owner_anchors = [item for item in state["proposals"] if item["reason"] == "unique_exact_label"] + new_owners

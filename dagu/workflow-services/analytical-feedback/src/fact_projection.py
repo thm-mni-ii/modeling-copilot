@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 
-from analysis_contract import recognition_bucket, compact_fact, compact_identity, content_hash, recognition_summary
+from analysis_contract import compact_fact, compact_identity, content_hash, recognition_summary
 
 
 def build_evidence_report(bundle, indices, comparison):
@@ -94,10 +94,10 @@ def build_evidence_report(bundle, indices, comparison):
         groups.append(group)
         for sub in subs:
             annotations[sub].setdefault("groupIds", []).append(group["id"])
-    return {"schema": "analysis-feedback/v3", "producer": {"service": "analytical-feedback", "version": "2.1.0"},
+    return {"schema": "analysis-feedback/v3", "producer": {"service": "analytical-feedback", "version": "2.2.1"},
             "evaluationId": bundle["evaluationId"], "pair": comparison["pair"], "comparisonHash": comparison["comparisonHash"],
             "status": "provisional", "assessmentAvailable": False, "recognition": recognition_summary(bundle, indices, comparison),
             "annotations": list(annotations.values()), "referenceHints": hints, "connectionGroups": groups,
             "limitations": [],
-            "structuralContainers": {"referenceCount": sum(recognition_bucket(bundle, node) is None for node in reference.nodes.values()),
-                                     "submissionCount": sum(recognition_bucket(bundle, node) is None for node in submission.nodes.values())}}
+            "structuralContainers": {"referenceCount": sum(node["kind"] == "structuralElement" for node in reference.nodes.values()),
+                                     "submissionCount": sum(node["kind"] == "structuralElement" for node in submission.nodes.values())}}

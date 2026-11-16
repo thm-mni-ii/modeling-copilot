@@ -8,6 +8,18 @@ from analysis_contract import recognized_reference_ids, recognition_summary
 
 
 class RecognitionDefinitionTests(unittest.TestCase):
+    def test_connection_labels_are_annotations_without_own_identity_denominator(self):
+        from test_analysis import build, contains, endpoints
+        nodes = [node("a", label="A"), node("b", label="B"),
+                 node("link", "connection", directed=True), node("caption", "connectionLabel", label="Role")]
+        store = with_identity_facts(case(nodes, reference_edges=endpoints("link", "a", "b") + [contains("caption", "link")]))
+        result = recognition_summary(store.bundle, store.indices, store.comparison)
+        self.assertEqual(result["overall"]["expected"], 3)
+        self.assertEqual(result["overall"]["recognized"], 3)
+        self.assertNotIn("connectionLabel", {row["kind"] for row in result["buckets"]})
+        self.assertNotIn("caption", {row["id"] for row in result["unmatchedSubmission"]})
+        self.assertEqual(build(store)["structuralContainers"], {"referenceCount": 0, "submissionCount": 0})
+
     def test_duplicate_selected_correspondences_are_rejected(self):
         store = with_identity_facts(case([node("known", label="Known")]))
         store.comparison["mapping"]["provisionalElements"] *= 2

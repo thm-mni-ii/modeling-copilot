@@ -149,7 +149,7 @@ def recognized_reference_ids(comparison):
 
 def recognition_bucket(bundle, node):
     """Use the parser's unambiguous group, scoped by language and object kind."""
-    if node["kind"] == "structuralElement" or node.get("comparisonRole") == "structural":
+    if node["kind"] in ("structuralElement", "connectionLabel") or node.get("comparisonRole") == "structural":
         return None
     language = node.get("language") or {}
     group_id = node.get("comparisonGroup")
