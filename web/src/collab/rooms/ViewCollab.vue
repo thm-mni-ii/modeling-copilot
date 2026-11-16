@@ -7,16 +7,19 @@
       <!-- Der native Slot der Web Component, nicht der alte Slot von Vue 2. -->
       <!-- eslint-disable-next-line vue/no-deprecated-slot-attribute -->
       <GroupWork slot="group-work" @created="reload" />
+      <!-- eslint-disable-next-line vue/no-deprecated-slot-attribute -->
+      <CollabSettings v-if="manager" slot="collab-settings" :ck="ck" />
     </ck-management>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { onMounted, shallowRef } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabKitApi, ManagementElement, ManagementOpen, ManagementTab, Room } from '@/collab/kit/collabKitV1'
 import GroupWork from '@/collab/groups/GroupWork.vue'
+import CollabSettings from './CollabSettings.vue'
 import { newWorkpiece, UML_CLASS_DIAGRAM } from '@/collab/storage/workpiece'
 import { TASK_FORMAT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
@@ -25,8 +28,10 @@ const ck = shallowRef<CollabKitApi>()
 const management = shallowRef<ManagementElement>()
 const { openFromRoom } = useCollabConnection()
 
+/** Ob die Person überall manage hat; nur dann lässt collab-kit sie die Collab-Einstellungen schreiben. */
+const manager = ref(false)
 /** Reiter des Copilots nach denen von collab-kit, jeder zeigt den Slot seiner ID. */
-const extraTabs: ManagementTab[] = [{ id: 'group-work', label: 'Group work' }]
+const extraTabs = computed<ManagementTab[]>(() => [{ id: 'group-work', label: 'Group work' }, ...(manager.value ? [{ id: 'collab-settings', label: 'Collab settings' }] : [])])
 /** Räume, die das Backend angelegt hat, kennt das Element erst nach dem Neuladen. */
 const reload = () => void management.value?.reload()
 
@@ -47,7 +52,13 @@ const open = async ({ detail }: CustomEvent<ManagementOpen>) => {
 // The element is defined once collab-kit is loaded, and shows nothing before ck; what each one may do there, collab-kit decides.
 onMounted(async () => {
   try {
-    ck.value = await loadCollabKit()
+    const api = await loadCollabKit()
+    // Vor dem Element gefragt, damit der Reiter von Anfang an dabei ist; ohne Antwort bleibt er weg.
+    manager.value = await api.me.rights().then(
+      (rights) => rights.includes('manage'),
+      () => false
+    )
+    ck.value = api
   } catch (error) {
     notifyError(`collab-kit could not be loaded: ${collabErrorMessage(error)}`)
   }

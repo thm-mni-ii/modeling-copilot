@@ -7,6 +7,7 @@ import type { Session } from '@/collab/kit/collabKitV1'
 import { liveSession } from '@/collab/kit/liveSession'
 import { announcedRights, currentShare, hostPresenting, personColors, presenting, settingsLoaded, shareSettings } from '@/collab/sharing/shareModel'
 import { startCursors } from './cursors'
+import { collabSettings } from '@/collab/connection/collabSettings'
 
 /** One person at the workpiece, once however many tabs they have open. */
 export interface Person {
@@ -39,9 +40,6 @@ const HOST_COLOR = '#cf5c58'
 // Sixteen colors measured to tell apart well (CIEDE2000, also for red-green color blindness), none of them red, which is the host's.
 // The first ones lie farthest apart, so the first people in a room get the most distinct colors.
 const PALETTE = ['#c29ed7', '#214b25', '#ee9813', '#0e26dc', '#12c19f', '#652f55', '#715c00', '#6e83b7', '#1d8a85', '#8f4ef1', '#6f5d8d', '#f657f2', '#194b78', '#8605a8', '#41a8ba', '#2da0fb']
-
-/** After this long without input a client gives up its selection, and with it the locks. */
-const IDLE_MS = 90_000
 
 /** Der Host der Share, nur wenn sie zu dem Werkstück gehört, das der Editor offen hat; eine alte Share im Browser machte sonst einen anderen zum Host. */
 const hostId = () => {
@@ -385,7 +383,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     sendSelection()
   }
   const idleCheck = setInterval(() => {
-    if (idle || Date.now() - lastActive < IDLE_MS) return
+    if (idle || Date.now() - lastActive < collabSettings.presence.idleMs) return
     idle = true
     sendSelection()
   }, 5000)

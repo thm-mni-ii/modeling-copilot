@@ -131,3 +131,8 @@ async def add_workpiece_to_room(room_id: str, workpiece_id: str) -> dict:
 
 async def remove_workpiece_from_room(room_id: str, workpiece_id: str) -> dict:
     return await _request("DELETE", f"/rooms/{room_id}/workpieces/{workpiece_id}")
+
+
+async def get_settings(key: str) -> dict[str, Any]:
+    """Die Werte eines Bereichs der Collab-Einstellungen; einen nie gesetzten gibt CK als {} zurück."""
+    return await _request("GET", f"/settings/{key}")

@@ -31,7 +31,13 @@ def deleted() -> list[tuple]:
 
 
 @pytest.fixture
-def ck(monkeypatch, tasks, presence, deleted):
+def sharing() -> dict:
+    """Was der Bereich sharing der Collab-Einstellungen in CK enthält; leer gelten die Standards."""
+    return {}
+
+
+@pytest.fixture
+def ck(monkeypatch, tasks, presence, deleted, sharing):
     """A small in-memory CK: creates, reads and changes the settings, remembers grants and workpieces."""
     rooms: dict[str, dict] = {}
     groups: dict[str, dict] = {}
@@ -72,6 +78,8 @@ def ck(monkeypatch, tasks, presence, deleted):
             _, _, room_id, _, workpiece_id = path.split("/")
             rooms[room_id]["workpieces"].remove(workpiece_id)
             return httpx.Response(200, json=rooms[room_id])
+        if (method, path) == ("GET", "/settings/sharing"):
+            return httpx.Response(200, json=sharing)
         if method == "GET" and path.endswith("/presence"):
             return httpx.Response(200, json=presence)
         if (method, path) == ("GET", "/groups"):
@@ -417,6 +425,33 @@ def test_a_visitor_who_stays_away_is_taken_out_after_the_grace_period_and_one_wh
     assert members_of(groups, "visitors") == ["98"] and members_of(groups, "hosts") == ["42"]
 
 
+def test_the_grace_period_of_a_visitor_comes_from_the_collab_settings(ck, presence, sharing):
+    _, groups, _, _ = ck
+    room_id = start()
+    asyncio.run(share.join("99", room_id))
+    # Nur der Host ist da; 99 bleibt weg und fliegt nach 60 s statt nach dem Standard von 120 s.
+    presence[:] = [{"workpieceId": "W0", "actorId": "42", "connections": 1}]
+    sharing["visitorGraceSeconds"] = 60
+    asyncio.run(sweep.sweep_once(now=0))
+    asyncio.run(sweep.sweep_once(now=59))
+    assert members_of(groups, "visitors") == ["99"]
+    asyncio.run(sweep.sweep_once(now=60))
+    assert members_of(groups, "visitors") == []
+
+
+def test_a_time_out_of_bounds_of_another_type_or_unreadable_counts_as_its_default(ck, monkeypatch, sharing):
+    defaults = {"visitorGraceSeconds": 120, "hostGraceSeconds": 120, "hostEndSeconds": 300}
+    # Zu kurz, ein Wahrheitswert statt einer Zahl und eine Zahl als Text.
+    sharing.update(visitorGraceSeconds=5, hostGraceSeconds=True, hostEndSeconds="600")
+    assert asyncio.run(sweep._times()) == defaults
+
+    async def failing(key):
+        raise ApiError(503, "CK_UNAVAILABLE", "Collab-Kit is currently unavailable.")
+
+    monkeypatch.setattr(client, "get_settings", failing)
+    assert asyncio.run(sweep._times()) == defaults
+
+
 def test_no_visitor_is_taken_out_while_collab_kit_does_not_answer_and_a_room_without_share_is_no_work(ck):
     _, groups, _, _ = ck
     assert asyncio.run(sweep.sweep_once(now=0)) == 0
@@ -525,9 +560,10 @@ def test_the_orderly_end_of_the_host_clears_every_mark_of_the_sweep_and_the_swee
     assert (shared()["workpieceId"], shared()["before"], shared()["autoLocked"]) == (None, None, False)
     assert asyncio.run(sweep.sweep_once(now=5000)) == 0
     presence.clear()
-    asyncio.run(sweep._sweep_host(stale, {"42"}, 6000))
-    asyncio.run(sweep._sweep_host(stale, set(), 6000))
-    asyncio.run(sweep._sweep_host(stale, set(), 6000 + sweep.HOST_GRACE_SECONDS))
+    times = asyncio.run(sweep._times())
+    asyncio.run(sweep._sweep_host(stale, {"42"}, 6000, times))
+    asyncio.run(sweep._sweep_host(stale, set(), 6000, times))
+    asyncio.run(sweep._sweep_host(stale, set(), 6000 + sweep.HOST_GRACE_SECONDS, times))
     assert (shared()["workpieceId"], shared()["before"], shared()["autoLocked"]) == (None, None, False)
     assert shared()["open"] is False
 

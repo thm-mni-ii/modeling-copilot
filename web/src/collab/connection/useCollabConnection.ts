@@ -18,6 +18,7 @@ import { watchShare } from '@/collab/sharing/watchShare'
 import { roleOf, roomRole, type RoomRole } from '@/collab/rooms/roomRole'
 import { openWorkpiece } from './openWorkpiece'
 import { startPresence, type Person } from '@/collab/presence/presence'
+import { COLLAB_AREAS, isCollabArea, loadCollabSettings, type CollabArea } from './collabSettings'
 
 const WORKPIECE_KEY = 'collabWorkpieceId'
 const LIVE_CLASS = 'collab-live'
@@ -217,6 +218,9 @@ const writeLanguages = (id: string | null, languages: WorkspaceLanguageReference
   session.units.update(languagesChange(languages), { undoable: false })
 }
 
+/** Liest einen Bereich der Collab-Einstellungen; scheitert das, bleibt es bei den bisherigen Werten. */
+const loadSettings = (ck: CollabKitApi, area: CollabArea) => loadCollabSettings(ck, area).catch((error) => log(`collab-kit · settings ${area}: ${collabErrorMessage(error)}`))
+
 const connect = async (id: string) => {
   if (connecting.value || isConnected.value) return
   if (!editorGraph.value) {
@@ -244,6 +248,8 @@ const connect = async (id: string) => {
     ck = await loadCollabKit()
     // Prüfen Anmeldung und Zugang zum Werkstück; scheitern sie, sagt es der Fehler unten.
     await ck.me.who()
+    // Die Collab-Einstellungen gelten für die ganze Instanz; die Verbindung wartet nicht auf sie.
+    for (const area of COLLAB_AREAS) void loadSettings(ck, area)
     const workpiece = await ck.workpieces.get(id)
     anonymousHere = await ck.me.anonymous({ kind: 'workpiece', id })
     if (anonymousHere) log('collab-kit · anonymous at this workpiece')
@@ -296,6 +302,10 @@ const connect = async (id: string) => {
   })
   // The library asks again on every reconnect and tells the new value only when it changed.
   opened.on('anonymityChanged', (value) => (anonymous.value = value))
+  // Im Reiter „Collab settings“ geändert oder zurückgesetzt: den Bereich neu lesen, er gilt bei der nächsten Verwendung.
+  opened.on('settingsChanged', (key) => {
+    if (isCollabArea(key)) void loadSettings(ck, key)
+  })
   opened.on('closed', ({ code, reason }) => {
     log(`closed by collab-kit · ${code} ${reason}`)
     away = true
