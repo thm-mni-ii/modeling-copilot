@@ -8,6 +8,28 @@
         <div v-for="field in section.fields" v-show="shown(section.area, field)" :key="field.key">
           <v-select v-if="field.items" v-model="form[section.area][field.key]" :items="field.items" item-title="title" item-value="value" :label="field.label" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
           <v-switch v-else-if="typeof limitOf(section.area, field.key).default === 'boolean'" v-model="form[section.area][field.key]" :label="field.label" color="primary" density="compact" inset :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
+          <div v-else-if="'color' in limitOf(section.area, field.key)" class="colors">
+            <div class="colors__label">{{ field.label }}</div>
+            <span class="swatch" :style="{ color: textOn(String(form[section.area][field.key])) }">
+              <input v-model="form[section.area][field.key]" type="color" :disabled="!loaded" :aria-label="field.label" />
+              <span class="swatch__text">H</span>
+            </span>
+            <div class="colors__hint">{{ hintOf(section.area, field) }}</div>
+          </div>
+          <div v-else-if="'minItems' in limitOf(section.area, field.key)" class="colors">
+            <div class="colors__label">{{ field.label }}</div>
+            <div class="d-flex flex-wrap align-center ga-1">
+              <span v-for="(color, at) in listOf(section.area, field.key)" :key="at" class="swatch" :style="{ color: textOn(color) }">
+                <input :value="color" type="color" :disabled="!loaded" :aria-label="`${field.label} ${at + 1}`" @input="setColor(section.area, field.key, at, $event)" />
+                <span class="swatch__text">{{ at + 1 }}</span>
+                <v-btn icon="mdi-close" size="x-small" density="compact" variant="flat" class="swatch__remove" :disabled="!loaded" :aria-label="`Remove color ${at + 1}`" @click="listOf(section.area, field.key).splice(at, 1)" />
+              </span>
+              <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" class="ml-2" :disabled="!loaded" @click="listOf(section.area, field.key).push(randomColor())">Add color</v-btn>
+            </div>
+            <div v-if="problemOf(section.area, field.key)" class="colors__hint text-error">{{ problemOf(section.area, field.key) }}</div>
+            <div v-else-if="warningOf(section.area)" class="colors__hint text-warning">{{ warningOf(section.area) }}</div>
+            <div v-else class="colors__hint">{{ hintOf(section.area, field) }}</div>
+          </div>
           <v-text-field v-else v-model.number="form[section.area][field.key]" type="number" :label="field.label" :suffix="unitOf(field.key)" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint :error-messages="problemOf(section.area, field.key)" />
         </div>
       </div>
@@ -27,6 +49,7 @@ import { collabErrorMessage } from '@/collab/kit/collabKit'
 import type { CollabKitApi } from '@/collab/kit/collabKitV1'
 import { applyCollabSettings, COLLAB_AREAS, COLLAB_LIMITS, collabSettings, loadCollabSettings, type CollabArea, type CollabLimit } from '@/collab/connection/collabSettings'
 import { historyChoices } from '@/collab/sharing/shareModel'
+import { textOn } from '@/collab/presence/cursors'
 
 const props = defineProps<{ ck: CollabKitApi }>()
 
@@ -47,7 +70,7 @@ interface Section {
   readonly fields: readonly Field[]
 }
 
-type FormValue = number | string | boolean
+type FormValue = number | string | boolean | string[]
 
 /** Ein Abschnitt je Bereich in collab-kit; Grenzen und Standards stehen in collabSettings.ts. */
 const SECTIONS: readonly Section[] = [
@@ -82,6 +105,15 @@ const SECTIONS: readonly Section[] = [
       { key: 'edit', label: 'May edit', hint: 'Visitors change the model together with the host.' },
       { key: 'history', label: 'Share history', hint: 'How much of the private history goes into the shared model.', items: historyChoices }
     ]
+  },
+  {
+    area: 'colors',
+    title: 'Colors',
+    about: 'The colors of people in a shared model or group room: cursor, selection, locks and the marks of who made what. Everyone sees the same colors; a change reaches open models at once.',
+    fields: [
+      { key: 'hostColor', label: 'Host', hint: 'Only the host wears it, so keep it apart from the colors of the others.' },
+      { key: 'palette', label: 'Everyone else', hint: 'Handed out in this order, so the first ones should differ the most.' }
+    ]
   }
 ]
 
@@ -93,20 +125,37 @@ const limitOf = (area: CollabArea, key: string) => (COLLAB_LIMITS[area] as Recor
 const hintOf = (area: CollabArea, field: Field) => {
   const limit = limitOf(area, field.key)
   if ('options' in limit) return `${field.hint} Default: ${field.items?.find((item) => item.value === limit.default)?.title ?? limit.default}.`
+  if ('color' in limit) return `${field.hint} Default ${limit.default}.`
+  if ('minItems' in limit) return `${field.hint} Default ${limit.default.length} colors, allowed ${limit.minItems}–${limit.maxItems}.`
   if (!('min' in limit)) return `${field.hint} Default: ${limit.default ? 'on' : 'off'}.`
   const [factor, unit] = [factorOf(field.key), unitOf(field.key)]
   return `${field.hint} Default ${limit.default / factor} ${unit}, allowed ${limit.min / factor}–${limit.max / factor} ${unit}.`
 }
-const formOf = (area: CollabArea): Record<string, FormValue> => Object.fromEntries(Object.entries(collabSettings[area]).map(([key, value]) => [key, typeof value === 'number' ? value / factorOf(key) : value]))
+// Listen als Kopie: das Formular darf die geltenden Werte nicht vor dem Speichern ändern.
+const formOf = (area: CollabArea): Record<string, FormValue> => Object.fromEntries(Object.entries(collabSettings[area]).map(([key, value]) => [key, typeof value === 'number' ? value / factorOf(key) : Array.isArray(value) ? [...value] : value]))
 
 const form = reactive(Object.fromEntries(COLLAB_AREAS.map((area) => [area, formOf(area)])) as Record<CollabArea, Record<string, FormValue>>)
 const loaded = ref(false)
 const busy = ref<CollabArea | null>(null)
 const open = reactive<Partial<Record<CollabArea, boolean>>>({})
 
-/** Grenzen je Zahl und die Abhängigkeiten im Bereich sharing; Schalter und Auswahl können nichts Falsches enthalten. */
+const listOf = (area: CollabArea, key: string) => form[area][key] as string[]
+const setColor = (area: CollabArea, key: string, at: number, event: Event) => (listOf(area, key)[at] = (event.target as HTMLInputElement).value)
+const randomColor = () =>
+  `#${Math.floor(Math.random() * 0x1000000)
+    .toString(16)
+    .padStart(6, '0')}`
+
+/** Grenzen je Zahl und Farbliste und die Abhängigkeiten; Schalter, Auswahl und eine einzelne Farbe können nichts Falsches enthalten. */
 const problemOf = (area: CollabArea, key: string): string | undefined => {
   const limit = limitOf(area, key)
+  if ('minItems' in limit) {
+    const colors = listOf(area, key).map((color) => color.toLowerCase())
+    if (colors.length < limit.minItems || colors.length > limit.maxItems) return `Allowed are ${limit.minItems}–${limit.maxItems} colors.`
+    if (new Set(colors).size < colors.length) return 'Each color only once.'
+    if (colors.includes(String(form.colors.hostColor).toLowerCase())) return "The host's color must not be among them."
+    return undefined
+  }
   if (!('min' in limit)) return undefined
   const value = form[area][key]
   const factor = factorOf(key)
@@ -121,6 +170,20 @@ const problemOf = (area: CollabArea, key: string): string | undefined => {
   if (key === 'sweepSeconds' && typeof visitor === 'number' && value > Math.min(visitor, grace)) return 'At most as long as the shorter wait of a visitor or the host.'
   return undefined
 }
+/** Farbabstand in Lab (CIE76); die Standardfarben liegen mindestens 18 auseinander, unter 15 warnt der Reiter, ohne das Speichern zu sperren. */
+const labOf = (hex: string) => {
+  const [red, green, blue] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255).map((value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4))
+  const [x, y, z] = [(0.4124 * red + 0.3576 * green + 0.1805 * blue) / 0.95047, 0.2126 * red + 0.7152 * green + 0.0722 * blue, (0.0193 * red + 0.1192 * green + 0.9505 * blue) / 1.08883].map((value) => (value > 0.008856 ? Math.cbrt(value) : 7.787 * value + 16 / 116))
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)]
+}
+const warningOf = (area: CollabArea) => {
+  if (area !== 'colors') return undefined
+  const colors = [String(form.colors.hostColor), ...listOf('colors', 'palette')]
+  const nameOf = (at: number) => (at === 0 ? 'The host' : `Color ${at}`)
+  for (const [at, color] of colors.entries()) for (const [later, other] of colors.entries()) if (later > at && Math.hypot(...labOf(color).map((value, axis) => value - labOf(other)[axis])) < 15) return `${nameOf(at)} and ${nameOf(later).toLowerCase()} are hard to tell apart.`
+  return undefined
+}
+
 /** Technisches zeigt sich aufgeklappt, mit einem Fehler, der sonst unsichtbar das Speichern sperrte, und geändert bis zum Speichern. */
 const shown = (area: CollabArea, field: Field) => !field.advanced || open[area] || Boolean(problemOf(area, field.key)) || form[area][field.key] !== formOf(area)[field.key]
 const invalid = (section: Section) => section.fields.some((field) => problemOf(section.area, field.key))
@@ -180,6 +243,64 @@ onMounted(async () => {
   font-size: 13px;
   line-height: 1.55;
   color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.colors__label {
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.colors__hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+/* Ein Farbfeld: das native Feld in voller Größe, Nummer und Entfernen darüber. */
+.swatch {
+  position: relative;
+  display: inline-flex;
+  width: 40px;
+  height: 32px;
+}
+
+.swatch input {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.swatch input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.swatch input::-webkit-color-swatch {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.2);
+  border-radius: 6px;
+}
+
+.swatch__text {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.swatch__remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: none;
+}
+
+.swatch:hover .swatch__remove {
+  display: inline-flex;
 }
 
 .fields {

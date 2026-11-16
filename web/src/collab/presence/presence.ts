@@ -35,12 +35,6 @@ interface PresenceState {
   colors?: Record<string, string>
 }
 
-/** The host is the only one in red, so the presenter is known at a glance. */
-const HOST_COLOR = '#cf5c58'
-// Sixteen colors measured to tell apart well (CIEDE2000, also for red-green color blindness), none of them red, which is the host's.
-// The first ones lie farthest apart, so the first people in a room get the most distinct colors.
-const PALETTE = ['#c29ed7', '#214b25', '#ee9813', '#0e26dc', '#12c19f', '#652f55', '#715c00', '#6e83b7', '#1d8a85', '#8f4ef1', '#6f5d8d', '#f657f2', '#194b78', '#8605a8', '#41a8ba', '#2da0fb']
-
 /** Der Host der Share, nur wenn sie zu dem Werkstück gehört, das der Editor offen hat; eine alte Share im Browser machte sonst einen anderen zum Host. */
 const hostId = () => {
   const share = currentShare.value
@@ -48,13 +42,18 @@ const hostId = () => {
 }
 
 /** The host's color, else what the host handed out; without the host a hash, so a person still has the same color on every screen. */
-export const colorOf = (id: string) => (id !== '' && id === hostId() ? HOST_COLOR : personColors.value[id] ?? PALETTE[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length])
+export const colorOf = (id: string) => {
+  // Host-Farbe und Palette stehen in den Collab-Einstellungen und werden bei jedem Zeichnen gelesen.
+  const { hostColor, palette } = collabSettings.colors
+  return id !== '' && id === hostId() ? hostColor : personColors.value[id] ?? palette[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % palette.length]
+}
 
 /** The color worn by the fewest of those present; the first on a tie, so the choice is always the same. */
 const leastUsed = (assigned: Record<string, string>, present: Set<string>) => {
-  const counts = new Map(PALETTE.map((color) => [color, 0]))
+  const { palette } = collabSettings.colors
+  const counts = new Map(palette.map((color) => [color, 0]))
   for (const [id, color] of Object.entries(assigned)) if (present.has(id)) counts.set(color, (counts.get(color) ?? 0) + 1)
-  return PALETTE.reduce((best, color) => ((counts.get(color) ?? 0) < (counts.get(best) ?? 0) ? color : best))
+  return palette.reduce((best, color) => ((counts.get(color) ?? 0) < (counts.get(best) ?? 0) ? color : best))
 }
 
 /** The name collab-kit has from the token; a pseudonym shows as it is, a token without a name shows the ID. */
@@ -395,6 +394,18 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   sendHostState()
   const stopPresentingWatch = watch([presenting, settingsLoaded, () => ({ ...shareSettings })], sendHostState)
   const stopAnonymityWatch = session.on('anonymityChanged', sendHostState)
+  // Neue Farben in den Collab-Einstellungen: Der Host verteilt neu, wer eine Farbe trägt, die es nicht mehr gibt, und schickt das; alle zeichnen neu.
+  const stopColorsWatch = watch(
+    () => collabSettings.colors,
+    () => {
+      if (stopped) return
+      const { palette } = collabSettings.colors
+      if (currentShare.value?.privateModelId) personColors.value = Object.fromEntries(Object.entries(personColors.value).filter(([, color]) => palette.includes(color)))
+      shown = ''
+      onChange()
+    },
+    { deep: true }
+  )
 
   return () => {
     stopped = true
@@ -412,6 +423,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     stopRightsWatch()
     stopPresentingWatch()
     stopAnonymityWatch()
+    stopColorsWatch()
     announcedRights.value = null
     personColors.value = {}
     hostPresenting.value = false
