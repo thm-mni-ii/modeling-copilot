@@ -1,6 +1,7 @@
 import { InternalEvent, styleUtils, type Graph } from '@maxgraph/core'
 import { isPseudonym } from '@/collab/kit/collabKit'
 import type { Session } from '@/collab/kit/collabKitV1'
+import { collabSettings } from '@/collab/connection/collabSettings'
 
 /** A pointer in model coordinates, so it points at the same element whatever the zoom. */
 type Cursor = { x: number; y: number } | null
@@ -8,9 +9,6 @@ type Cursor = { x: number; y: number } | null
 interface CursorState {
   cursor?: Cursor
 }
-
-/** At most this often a moving pointer goes out; the last position always follows. */
-const SEND_EVERY_MS = 50
 
 const ARROW = '<svg width="14" height="18" viewBox="0 0 14 18" style="display:block"><path d="M1 1 L1 15 L5 11.5 L8 17 L10.5 16 L7.5 10.5 L13 10.5 Z" stroke="#fff" stroke-width="1" /></svg>'
 
@@ -41,7 +39,7 @@ export const startCursors = (graph: Graph, session: Session, colorOf: (id: strin
   }
   const send = (cursor: Cursor) => {
     latest = cursor
-    timer ??= setTimeout(flush, SEND_EVERY_MS)
+    timer ??= setTimeout(flush, collabSettings.presence.cursorSendMs)
   }
 
   const onMove = (event: PointerEvent) => {

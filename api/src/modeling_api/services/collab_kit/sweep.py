@@ -29,15 +29,18 @@ SWEEP_SECONDS = 30
 VISITOR_GRACE_SECONDS = 120
 HOST_GRACE_SECONDS = 120
 HOST_END_SECONDS = 300
-# Die Wartezeiten stellt der Reiter „Collab settings“ im Bereich sharing von CK ein: Standard, kleinster und größter
+# Die Zeiten stellt der Reiter „Collab settings“ im Bereich sharing von CK ein: Standard, kleinster und größter
 # Wert, dieselben Grenzen wie in web/src/collab/connection/collabSettings.ts.
 SHARING_LIMITS = {
+    "sweepSeconds": (SWEEP_SECONDS, 10, 120),
     "visitorGraceSeconds": (VISITOR_GRACE_SECONDS, 30, 3600),
     "hostGraceSeconds": (HOST_GRACE_SECONDS, 30, 3600),
     "hostEndSeconds": (HOST_END_SECONDS, 30, 7200),
 }
 
 _task: asyncio.Task | None = None
+# So lange schläft die Task bis zur nächsten Runde, wie die letzte Runde es aus den Einstellungen gelesen hat.
+_sleep_seconds = SWEEP_SECONDS
 # Set when a share starts while a sweep may already have missed it; the task then looks once more before it ends.
 _again = False
 # Since when a visitor is missing, as (room, actor) -> time.monotonic().
@@ -108,11 +111,13 @@ async def _sweep_room(room: dict, now: float, times: dict[str, int]) -> bool:
 
 async def sweep_once(now: float | None = None) -> int:
     """Looks at every open share once and gives back how many still need looking after."""
+    global _sleep_seconds
     now = time.monotonic() if now is None else now
     active = 0
     rooms = await store.open_rooms()
     # Einmal je Runde gelesen, so gilt eine Änderung im Reiter spätestens ab der nächsten.
     times = await _times() if rooms else {}
+    _sleep_seconds = times.get("sweepSeconds", _sleep_seconds)
     for room in rooms:
         try:
             active += await _sweep_room(room, now, times)
@@ -145,7 +150,7 @@ async def _run() -> None:
             _host_missing.clear()
             _task = None
             return
-        await asyncio.sleep(SWEEP_SECONDS)
+        await asyncio.sleep(_sleep_seconds)
 
 
 def ensure_running() -> None:

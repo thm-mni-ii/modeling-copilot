@@ -17,6 +17,7 @@ import { MARKS_MAP, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { CELLS_MAP, historyModeOf, linkOf } from '@/collab/storage/workpiece'
 import { versionsOf } from '@/collab/storage/workpieceVersions'
 import { sharedTaskEdit, sharedTaskReference } from '@/collab/worksheet/sharedTask'
+import { collabSettings } from '@/collab/connection/collabSettings'
 
 /** The state of the room as this browser holds it now. */
 export interface RoomState {
@@ -49,8 +50,6 @@ const NOTHING: RoomRead = { versions: [], rest: [], task: { steps: [], marks: {}
 
 /** States read at once from collab-kit. */
 const BATCH = 6
-/** How often a visitor reads what the room added, as nothing can be read any more once the room is closed. */
-const FOLLOW_MS = 30000
 
 const xmlAt = async (ck: CollabKitApi, workpieceId: string, at?: string) => (at ? xmlOf((await ck.workpieces.unitsAt<ModelUnit>(workpieceId, { at, map: CELLS_MAP })).units) : null) ?? EMPTY_MODEL_XML
 
@@ -236,7 +235,7 @@ export const followRoomHistory = (linked: Model, workpieceId: string) => {
   let stopped = false
   const round = async () => {
     await readMirror().catch(() => undefined)
-    if (!stopped) timer = setTimeout(() => void round(), FOLLOW_MS)
+    if (!stopped) timer = setTimeout(() => void round(), collabSettings.sharing.followMs)
   }
   const start = async () => {
     const workpiece = await (await loadCollabKit()).workpieces.get(workpieceId)

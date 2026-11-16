@@ -6,7 +6,7 @@ export type CollabLimit = { readonly default: number; readonly min: number; read
 
 /**
  * Die Collab-Einstellungen, ein Bereich je Dokument in collab-kit (ck.settings). collab-kit kennt
- * weder Bereiche noch Schlüssel; die Grenzen prüft nur der Copilot. Die drei Zeiten des Sweeps stehen mit
+ * weder Bereiche noch Schlüssel; die Grenzen prüft nur der Copilot. Die Zeiten des Sweeps stehen mit
  * denselben Grenzen auch in api/src/modeling_api/services/collab_kit/sweep.py (SHARING_LIMITS).
  */
 export const COLLAB_LIMITS = {
@@ -18,11 +18,17 @@ export const COLLAB_LIMITS = {
     // So lange darf der Host fehlen, bevor der Sweep alle Besucher hinausnimmt.
     hostEndSeconds: { default: 300, min: 30, max: 7200 },
     // So lange fehlt der Host, bevor ein Besucher davon erfährt; ein Neuladen des Hosts dauert kürzer.
-    hostAwayMs: { default: 30_000, min: 5_000, max: 600_000 }
+    hostAwayMs: { default: 30_000, min: 5_000, max: 600_000 },
+    // So oft sieht der Sweep nach; kürzer hält die Wartezeiten genauer ein und fragt collab-kit öfter.
+    sweepSeconds: { default: 30, min: 10, max: 120 },
+    // So oft liest ein Besucher nach, was der Raum dazubekommen hat; nach dem Schließen ist nichts mehr zu lesen.
+    followMs: { default: 30_000, min: 10_000, max: 300_000 }
   },
   presence: {
     // Nach so langer Untätigkeit gibt ein Client seine Auswahl ab und damit seine Sperren.
-    idleMs: { default: 90_000, min: 15_000, max: 3_600_000 }
+    idleMs: { default: 90_000, min: 15_000, max: 3_600_000 },
+    // Höchstens so oft geht ein bewegter Zeiger hinaus, der letzte Stand immer; kürzer ist flüssiger und mehr Verkehr.
+    cursorSendMs: { default: 50, min: 20, max: 500 }
   },
   shareDefaults: {
     // Die Vorauswahl im Teilen-Dialog; der Host ändert sie dort für seine Share.

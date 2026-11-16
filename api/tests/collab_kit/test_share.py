@@ -109,6 +109,7 @@ def ck(monkeypatch, tasks, presence, deleted, sharing):
     monkeypatch.setattr(models, "delete_room_models", delete_room_models)
     sweep._missing.clear()
     sweep._host_missing.clear()
+    monkeypatch.setattr(sweep, "_sleep_seconds", sweep.SWEEP_SECONDS)
     monkeypatch.setattr(settings, "service_actor", "service-modeling-copilot")
     return rooms, groups, grants, workpieces
 
@@ -440,9 +441,9 @@ def test_the_grace_period_of_a_visitor_comes_from_the_collab_settings(ck, presen
 
 
 def test_a_time_out_of_bounds_of_another_type_or_unreadable_counts_as_its_default(ck, monkeypatch, sharing):
-    defaults = {"visitorGraceSeconds": 120, "hostGraceSeconds": 120, "hostEndSeconds": 300}
-    # Zu kurz, ein Wahrheitswert statt einer Zahl und eine Zahl als Text.
-    sharing.update(visitorGraceSeconds=5, hostGraceSeconds=True, hostEndSeconds="600")
+    defaults = {"sweepSeconds": 30, "visitorGraceSeconds": 120, "hostGraceSeconds": 120, "hostEndSeconds": 300}
+    # Zu kurz, ein Wahrheitswert statt einer Zahl, eine Zahl als Text und zu lang.
+    sharing.update(visitorGraceSeconds=5, hostGraceSeconds=True, hostEndSeconds="600", sweepSeconds=500)
     assert asyncio.run(sweep._times()) == defaults
 
     async def failing(key):
@@ -450,6 +451,13 @@ def test_a_time_out_of_bounds_of_another_type_or_unreadable_counts_as_its_defaul
 
     monkeypatch.setattr(client, "get_settings", failing)
     assert asyncio.run(sweep._times()) == defaults
+
+
+def test_the_sweep_sleeps_between_two_rounds_as_long_as_the_collab_settings_say(ck, sharing):
+    asyncio.run(share.join("99", start()))
+    sharing["sweepSeconds"] = 15
+    asyncio.run(sweep.sweep_once(now=0))
+    assert sweep._sleep_seconds == 15
 
 
 def test_no_visitor_is_taken_out_while_collab_kit_does_not_answer_and_a_room_without_share_is_no_work(ck):

@@ -1,16 +1,17 @@
 <template>
   <div class="collab-settings">
-    <p class="about mb-4">These settings apply to every shared model and group room. A change reaches everyone connected at once; the backend takes it at its next look at the shares, at most 30 s later.</p>
+    <p class="about mb-4">These settings apply to every shared model and group room. A change reaches everyone connected at once, and the backend at its next look at the shares.</p>
     <v-sheet v-for="section in SECTIONS" :key="section.area" border rounded="lg" class="pa-4 mb-4">
       <h3 class="title">{{ section.title }}</h3>
       <p class="about mb-4">{{ section.about }}</p>
       <div class="fields">
-        <template v-for="field in section.fields" :key="field.key">
+        <div v-for="field in section.fields" v-show="shown(section.area, field)" :key="field.key">
           <v-select v-if="field.items" v-model="form[section.area][field.key]" :items="field.items" item-title="title" item-value="value" :label="field.label" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
           <v-switch v-else-if="typeof limitOf(section.area, field.key).default === 'boolean'" v-model="form[section.area][field.key]" :label="field.label" color="primary" density="compact" inset :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
-          <v-text-field v-else v-model.number="form[section.area][field.key]" type="number" :label="field.label" suffix="s" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint :error-messages="problemOf(section.area, field.key)" />
-        </template>
+          <v-text-field v-else v-model.number="form[section.area][field.key]" type="number" :label="field.label" :suffix="unitOf(field.key)" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint :error-messages="problemOf(section.area, field.key)" />
+        </div>
       </div>
+      <v-btn v-if="section.fields.some((field) => field.advanced)" variant="text" size="small" class="mt-2" :append-icon="open[section.area] ? 'mdi-chevron-up' : 'mdi-chevron-down'" @click="open[section.area] = !open[section.area]">Advanced</v-btn>
       <div class="d-flex ga-2 mt-4">
         <v-btn color="primary" variant="flat" :disabled="!loaded || !changed(section.area) || invalid(section) || busy !== null" :loading="busy === section.area" @click="save(section)">Save</v-btn>
         <v-btn variant="text" :disabled="!loaded || busy !== null" @click="reset(section)">Reset to defaults</v-btn>
@@ -29,12 +30,14 @@ import { historyChoices } from '@/collab/sharing/shareModel'
 
 const props = defineProps<{ ck: CollabKitApi }>()
 
-/** Ein Feld im Reiter; mit items eine Auswahl, sonst je nach Standard ein Schalter oder Sekunden. */
+/** Ein Feld im Reiter; mit items eine Auswahl, sonst je nach Standard ein Schalter oder eine Zahl in Sekunden, mit unit in ms. Technisches steht unter „Advanced“. */
 interface Field {
   readonly key: string
   readonly label: string
   readonly hint: string
   readonly items?: readonly { readonly value: string; readonly title: string }[]
+  readonly unit?: 'ms'
+  readonly advanced?: boolean
 }
 
 interface Section {
@@ -56,14 +59,19 @@ const SECTIONS: readonly Section[] = [
       { key: 'visitorGraceSeconds', label: 'Visitor away until they leave', hint: 'The visitor leaves the room, and their working copy is deleted.' },
       { key: 'hostGraceSeconds', label: 'Host away until the room locks', hint: 'Nobody can edit or join until the host is back.' },
       { key: 'hostEndSeconds', label: 'Host away until all visitors leave', hint: 'The model stays for the host.' },
-      { key: 'hostAwayMs', label: 'Host away until visitors are told', hint: 'Visitors see "The host is disconnected."' }
+      { key: 'hostAwayMs', label: 'Host away until visitors are told', hint: 'Visitors see "The host is disconnected."' },
+      { key: 'sweepSeconds', label: 'Backend checks every', hint: 'How often the backend looks who is away. Shorter keeps the times above more exact and asks collab-kit more often.', advanced: true },
+      { key: 'followMs', label: 'Visitors fetch the room history every', hint: 'What a visitor takes along on leaving is at most this old.', advanced: true }
     ]
   },
   {
     area: 'presence',
     title: 'Presence',
     about: 'Applies to everyone working on a model together, shared or in a group room.',
-    fields: [{ key: 'idleMs', label: 'Idle until the selection is released', hint: 'With the selection go the locks on its elements.' }]
+    fields: [
+      { key: 'idleMs', label: 'Idle until the selection is released', hint: 'With the selection go the locks on its elements.' },
+      { key: 'cursorSendMs', label: 'Cursor sent at most every', hint: 'Shorter moves pointers more smoothly and sends more.', unit: 'ms', advanced: true }
+    ]
   },
   {
     area: 'shareDefaults',
@@ -77,21 +85,24 @@ const SECTIONS: readonly Section[] = [
   }
 ]
 
-/** Im Formular stehen Sekunden; Schlüssel auf Ms speichert collab-kit in Millisekunden. */
-const factorOf = (key: string) => (key.endsWith('Ms') ? 1000 : 1)
+/** Im Formular stehen Sekunden, außer bei Feldern mit unit ms; Schlüssel auf Ms speichert collab-kit in Millisekunden. */
+const MS_KEYS = new Set(SECTIONS.flatMap((section) => section.fields.filter((field) => field.unit === 'ms').map((field) => field.key)))
+const unitOf = (key: string) => (MS_KEYS.has(key) ? 'ms' : 's')
+const factorOf = (key: string) => (key.endsWith('Ms') && !MS_KEYS.has(key) ? 1000 : 1)
 const limitOf = (area: CollabArea, key: string) => (COLLAB_LIMITS[area] as Record<string, CollabLimit>)[key]
 const hintOf = (area: CollabArea, field: Field) => {
   const limit = limitOf(area, field.key)
   if ('options' in limit) return `${field.hint} Default: ${field.items?.find((item) => item.value === limit.default)?.title ?? limit.default}.`
   if (!('min' in limit)) return `${field.hint} Default: ${limit.default ? 'on' : 'off'}.`
-  const factor = factorOf(field.key)
-  return `${field.hint} Default ${limit.default / factor} s, allowed ${limit.min / factor}–${limit.max / factor} s.`
+  const [factor, unit] = [factorOf(field.key), unitOf(field.key)]
+  return `${field.hint} Default ${limit.default / factor} ${unit}, allowed ${limit.min / factor}–${limit.max / factor} ${unit}.`
 }
 const formOf = (area: CollabArea): Record<string, FormValue> => Object.fromEntries(Object.entries(collabSettings[area]).map(([key, value]) => [key, typeof value === 'number' ? value / factorOf(key) : value]))
 
 const form = reactive(Object.fromEntries(COLLAB_AREAS.map((area) => [area, formOf(area)])) as Record<CollabArea, Record<string, FormValue>>)
 const loaded = ref(false)
 const busy = ref<CollabArea | null>(null)
+const open = reactive<Partial<Record<CollabArea, boolean>>>({})
 
 /** Grenzen je Zahl und die Abhängigkeiten im Bereich sharing; Schalter und Auswahl können nichts Falsches enthalten. */
 const problemOf = (area: CollabArea, key: string): string | undefined => {
@@ -100,14 +111,18 @@ const problemOf = (area: CollabArea, key: string): string | undefined => {
   const value = form[area][key]
   const factor = factorOf(key)
   const [min, max] = [limit.min / factor, limit.max / factor]
-  if (typeof value !== 'number' || !Number.isInteger(value)) return 'Enter whole seconds.'
-  if (value < min || value > max) return `Allowed are ${min}–${max} s.`
-  const grace = form.sharing.hostGraceSeconds
+  if (typeof value !== 'number' || !Number.isInteger(value)) return 'Enter a whole number.'
+  if (value < min || value > max) return `Allowed are ${min}–${max} ${unitOf(key)}.`
+  const { visitorGraceSeconds: visitor, hostGraceSeconds: grace } = form.sharing
   if (area !== 'sharing' || typeof grace !== 'number') return undefined
   if (key === 'hostEndSeconds' && value < grace) return 'At least as long as until the room locks.'
   if (key === 'hostAwayMs' && value >= grace) return 'Shorter than until the room locks.'
+  // Sieht der Sweep seltener nach, als jemand fehlen darf, verliert die Wartezeit ihre Wirkung.
+  if (key === 'sweepSeconds' && typeof visitor === 'number' && value > Math.min(visitor, grace)) return 'At most as long as the shorter wait of a visitor or the host.'
   return undefined
 }
+/** Technisches zeigt sich aufgeklappt, mit einem Fehler, der sonst unsichtbar das Speichern sperrte, und geändert bis zum Speichern. */
+const shown = (area: CollabArea, field: Field) => !field.advanced || open[area] || Boolean(problemOf(area, field.key)) || form[area][field.key] !== formOf(area)[field.key]
 const invalid = (section: Section) => section.fields.some((field) => problemOf(section.area, field.key))
 const changed = (area: CollabArea) => JSON.stringify(form[area]) !== JSON.stringify(formOf(area))
 
