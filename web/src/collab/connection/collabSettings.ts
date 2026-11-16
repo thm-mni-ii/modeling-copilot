@@ -50,7 +50,10 @@ export const COLLAB_LIMITS = {
     // Das Archiv von collab-kit im Copilot; aus fehlt der Reiter „Archive“, die Knöpfe zum Archivieren zeigt collab-kit weiter.
     enabled: { default: false },
     // Ob eine beendete Share ihre Werkstücke (Modell und Aufgabe) archiviert, statt sie ohne Raum liegen zu lassen; nur mit enabled. Das Backend liest beide in api/src/modeling_api/services/collab_kit/archive.py.
-    archiveOnShareClose: { default: false }
+    archiveOnShareClose: { default: false },
+    // Nach so vielen Tagen ohne Aktivität archiviert das Backend Werkstücke beendeter Shares, die ohne Raum liegen; 0 heißt nie, nur mit enabled.
+    // Dieselben Grenzen stehen in archive.py (UNUSED_DAYS).
+    archiveUnusedAfterDays: { default: 0, min: 0, max: 365 }
   }
 } as const satisfies Record<string, Record<string, CollabLimit>>
 

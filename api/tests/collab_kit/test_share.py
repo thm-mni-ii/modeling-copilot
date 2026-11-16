@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -7,7 +8,7 @@ import pytest
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
 from modeling_api.services import models
-from modeling_api.services.collab_kit import client, share, store, sweep
+from modeling_api.services.collab_kit import archive, client, share, store, sweep
 
 ARGS = dict(name="Model", contract={"tool": "x"}, units=[{"path": ["cells"]}])
 
@@ -55,7 +56,13 @@ def archive_answers() -> dict:
 
 
 @pytest.fixture
-def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, archive_answers):
+def activity() -> dict:
+    """Die Spuren je Werkstück, wie CK sie für die letzte Aktivität liefert; ohne Eintrag keine."""
+    return {}
+
+
+@pytest.fixture
+def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, archive_answers, activity):
     """A small in-memory CK: creates, reads and changes the settings, remembers grants and workpieces."""
     rooms: dict[str, dict] = {}
     groups: dict[str, dict] = {}
@@ -85,7 +92,7 @@ def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, arch
             at = request.url.params["scopeId"]
             return httpx.Response(200, json=[g for g in grants if g.get("scope", {}).get("id") == at])
         if (method, path) == ("POST", "/workpieces"):
-            workpieces.append({"_id": f"W{len(workpieces)}", **body})
+            workpieces.append({"_id": f"W{len(workpieces)}", "createdBy": "service-modeling-copilot", "createdAt": "2026-01-01T00:00:00Z", **body})
             rooms[body["roomId"]]["workpieces"].append(workpieces[-1]["_id"])
             return httpx.Response(201, json=workpieces[-1])
         if method == "DELETE" and "/members/" in path:
@@ -100,6 +107,14 @@ def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, arch
             return httpx.Response(200, json=sharing)
         if (method, path) == ("GET", "/settings/archive"):
             return httpx.Response(200, json=archiving)
+        if (method, path) == ("GET", "/me/rooms"):
+            return httpx.Response(200, json=list(rooms.values()))
+        if (method, path) == ("GET", "/workpieces"):
+            # Archiviertes ist nicht mehr live.
+            gone = {entry["_id"] for entry in archived}
+            return httpx.Response(200, json=[workpiece for workpiece in workpieces if workpiece["_id"] not in gone])
+        if method == "GET" and path.endswith("/activity"):
+            return httpx.Response(200, json=activity.get(path.split("/")[2], []))
         if method == "POST" and path.endswith("/archive"):
             workpiece_id = path.split("/")[2]
             if workpiece_id in archive_answers:
@@ -411,7 +426,7 @@ def test_closing_ends_the_share_even_when_collab_kit_refuses_fails_or_is_down_wh
 
 
 def test_unreadable_archive_settings_count_as_off(ck, monkeypatch, archiving, archived):
-    archiving.update(ARCHIVE_ON)
+    archiving.update(ARCHIVE_ON, archiveUnusedAfterDays=30)
     start()
 
     async def failing(key):
@@ -419,7 +434,63 @@ def test_unreadable_archive_settings_count_as_off(ck, monkeypatch, archiving, ar
 
     monkeypatch.setattr(client, "get_settings", failing)
     asyncio.run(share.close("42"))
+    assert asyncio.run(archive.archive_unused(now=LATER)) == 0
     assert archived == []
+
+
+# Archiv an, Frist 30 Tage; „jetzt“ liegt 40 Tage nach dem 1. Januar, an dem die CK im Speicher alles anlegt.
+UNUSED_ON = dict(enabled=True, archiveUnusedAfterDays=30)
+LATER = datetime(2026, 2, 10, tzinfo=timezone.utc)
+
+
+def test_unused_workpieces_of_ended_shares_go_to_the_archive_and_the_rest_stays(ck, archiving, archived, activity):
+    _, _, _, workpieces = ck
+    archiving.update(UNUSED_ON)
+    # W0 und W1 aus beendeten Shares ohne Raum, W1 vor zehn Tagen noch benutzt; W2 gehört zur laufenden Share im Raum.
+    for _ in range(2):
+        start()
+        asyncio.run(share.close("42"))
+    activity["W1"] = [{"actorId": "42", "at": "2026-01-31T12:00:00Z", "kind": "updated"}]
+    start()
+    # W3 hat eine Person ohne Raum angelegt.
+    workpieces.append({"_id": "W3", "createdBy": "42", "createdAt": "2026-01-01T00:00:00Z"})
+
+    assert asyncio.run(archive.archive_unused(now=LATER)) == 1
+    assert archived == [{"_id": "W0", "reason": "unused for 30 days", "rooms": []}]
+
+
+def test_nothing_unused_is_archived_by_default_without_the_archive_or_with_a_period_out_of_bounds(ck, archiving, archived):
+    start()
+    asyncio.run(share.close("42"))
+    # Nie gesetzt, ohne Archiv, ohne Frist, 0 für nie, zu lang, ein Wahrheitswert statt einer Zahl.
+    for values in ({}, dict(archiveUnusedAfterDays=30), dict(enabled=True), dict(enabled=True, archiveUnusedAfterDays=0), dict(enabled=True, archiveUnusedAfterDays=400), dict(enabled=True, archiveUnusedAfterDays=True)):
+        archiving.clear()
+        archiving.update(values)
+        assert asyncio.run(archive.archive_unused(now=LATER)) == 0
+    assert archived == []
+
+
+def test_a_refused_workpiece_waits_for_the_next_round_and_the_others_still_go(ck, archiving, archived, archive_answers):
+    archiving.update(UNUSED_ON)
+    for _ in range(2):
+        start()
+        asyncio.run(share.close("42"))
+    archive_answers["W0"] = 409
+
+    assert asyncio.run(archive.archive_unused(now=LATER)) == 1
+    del archive_answers["W0"]
+    # W1 ist schon im Archiv und kommt nicht noch einmal.
+    assert asyncio.run(archive.archive_unused(now=LATER)) == 1
+    assert [entry["_id"] for entry in archived] == ["W1", "W0"]
+
+
+def test_without_sharing_on_the_server_the_job_ends(monkeypatch):
+    async def disabled(key):
+        raise ApiError(503, "SHARING_DISABLED", "Sharing is not configured on this server.")
+
+    monkeypatch.setattr(client, "get_settings", disabled)
+    asyncio.run(archive._run())
+    assert archive._task is None
 
 
 def test_only_the_host_may_lock_open_or_close(ck):

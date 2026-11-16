@@ -53,13 +53,13 @@ import { textOn } from '@/collab/presence/cursors'
 
 const props = defineProps<{ ck: CollabKitApi }>()
 
-/** Ein Feld im Reiter; mit items eine Auswahl, sonst je nach Standard ein Schalter oder eine Zahl in Sekunden, mit unit in ms. Technisches steht unter „Advanced“. */
+/** Ein Feld im Reiter; mit items eine Auswahl, sonst je nach Standard ein Schalter oder eine Zahl in Sekunden, mit unit in ms oder Tagen. Technisches steht unter „Advanced“. */
 interface Field {
   readonly key: string
   readonly label: string
   readonly hint: string
   readonly items?: readonly { readonly value: string; readonly title: string }[]
-  readonly unit?: 'ms'
+  readonly unit?: 'ms' | 'days'
   readonly advanced?: boolean
 }
 
@@ -121,15 +121,16 @@ const SECTIONS: readonly Section[] = [
     about: 'Archived workpieces, rooms and groups can be restored or deleted for good. Turned off, the Archive tab is hidden, but collab-kit still offers to archive rooms, groups and workpieces.',
     fields: [
       { key: 'enabled', label: 'Archive', hint: 'Shows the Archive tab here.' },
-      { key: 'archiveOnShareClose', label: 'Archive ended shares', hint: 'The model and the task of a share go to the archive when the host ends it, instead of staying in collab-kit without a room. Only while the archive is on.' }
+      { key: 'archiveOnShareClose', label: 'Archive ended shares', hint: 'The model and the task of a share go to the archive when the host ends it, instead of staying in collab-kit without a room. Only while the archive is on.' },
+      { key: 'archiveUnusedAfterDays', label: 'Archive unused shared models after', hint: 'Models and tasks of ended shares that lie in no room and nobody has used for so long; the backend looks every hour. 0 never archives. Only while the archive is on.', unit: 'days' }
     ]
   }
 ]
 
-/** Im Formular stehen Sekunden, außer bei Feldern mit unit ms; Schlüssel auf Ms speichert collab-kit in Millisekunden. */
-const MS_KEYS = new Set(SECTIONS.flatMap((section) => section.fields.filter((field) => field.unit === 'ms').map((field) => field.key)))
-const unitOf = (key: string) => (MS_KEYS.has(key) ? 'ms' : 's')
-const factorOf = (key: string) => (key.endsWith('Ms') && !MS_KEYS.has(key) ? 1000 : 1)
+/** Im Formular stehen Sekunden, außer bei Feldern mit eigener unit; Schlüssel auf Ms ohne unit speichert collab-kit in Millisekunden. */
+const UNITS = new Map(SECTIONS.flatMap((section) => section.fields.flatMap((field) => (field.unit ? [[field.key, field.unit] as const] : []))))
+const unitOf = (key: string) => UNITS.get(key) ?? 's'
+const factorOf = (key: string) => (key.endsWith('Ms') && !UNITS.has(key) ? 1000 : 1)
 const limitOf = (area: CollabArea, key: string) => (COLLAB_LIMITS[area] as Record<string, CollabLimit>)[key]
 const hintOf = (area: CollabArea, field: Field) => {
   const limit = limitOf(area, field.key)

@@ -11,7 +11,7 @@ from modeling_api.core.config import settings
 from modeling_api.core.errors import ErrorResponse, register_error_handlers
 from modeling_api.db.client import client, create_indexes, db
 from modeling_api.db.migrations import require_current
-from modeling_api.services.collab_kit import sweep
+from modeling_api.services.collab_kit import archive, sweep
 from modeling_api.routes import (
     learning_paths,
     surveys,
@@ -34,8 +34,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await require_current()
     # Shares that were open before a restart still need someone to look after them; the task ends by itself if there are none.
     sweep.ensure_running()
+    # Archiviert stündlich, was nach Shares ohne Raum liegen blieb, wenn die Collab-Einstellungen es sagen.
+    archive.ensure_running()
     yield
     await sweep.stop()
+    await archive.stop()
     await client.close()
 
 

@@ -11,7 +11,7 @@ from modeling_api.services import models
 from modeling_api.services.collab_kit import group_work, share, store
 
 # Das CK im Speicher aus den Tests des Teilens.
-from test_share import archive_answers, archived, archiving, ck, deleted, presence, sharing, tasks  # noqa: F401
+from test_share import activity, archive_answers, archived, archiving, ck, deleted, presence, sharing, tasks  # noqa: F401
 
 TUTOR = User(id="1", global_role="ADMIN")
 COURSE = "Datenbanken WS 26/27"

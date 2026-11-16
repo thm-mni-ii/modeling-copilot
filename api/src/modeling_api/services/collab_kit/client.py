@@ -133,6 +133,11 @@ async def remove_workpiece_from_room(room_id: str, workpiece_id: str) -> dict:
     return await _request("DELETE", f"/rooms/{room_id}/workpieces/{workpiece_id}")
 
 
+async def workpiece_activity(workpiece_id: str) -> list[dict]:
+    """Die neueste Spur je Person am Werkstück (`actorId`, `at`, `kind`), neueste zuerst; ohne Spur leer."""
+    return await _request("GET", f"/workpieces/{workpiece_id}/activity")
+
+
 async def archive_workpiece(workpiece_id: str, reason: str) -> dict:
     """Verschiebt das Werkstück samt Abzweigen ins Archiv von CK; offene Verbindungen enden mit 4403."""
     return await _request("POST", f"/workpieces/{workpiece_id}/archive", {"reason": reason})
