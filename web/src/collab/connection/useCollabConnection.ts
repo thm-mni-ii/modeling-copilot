@@ -47,6 +47,9 @@ let lastPeople: Map<string, Person> | null = null
 const leaving = new Map<string, ReturnType<typeof setTimeout>>()
 // Ob die Verbindung weg ist, verloren oder getrennt; das nächste connected meldet sie dann wieder.
 let away = false
+// Das Werkstück, zu dem das Log gehört, und wie die Verbindungs-Einträge es nennen: Modell und Raum.
+let loggedWorkpiece = ''
+let place = 'the model'
 
 /** Die Art eines Eintrags im Log. */
 export type LogKind = 'failed' | 'joined' | 'left' | RemoteEdit['kind'] | 'saved' | 'release' | 'conflict' | 'connected' | 'offline' | 'closed' | 'rights' | 'undo'
@@ -227,6 +230,12 @@ const connect = async (id: string) => {
     return
   }
 
+  // Ein Log je Werkstück: Einträge eines anderen Modells, ihre Personen und Elemente gehören nicht hierher.
+  if (loggedWorkpiece !== id) {
+    logEntries.value = []
+    loggedWorkpiece = id
+    place = 'the model'
+  }
   let ck: CollabKitApi
   let anonymousHere = false
   let role: RoomRole | null = null
@@ -235,12 +244,13 @@ const connect = async (id: string) => {
     ck = await loadCollabKit()
     // Prüfen Anmeldung und Zugang zum Werkstück; scheitern sie, sagt es der Fehler unten.
     await ck.me.who()
-    await ck.workpieces.get(id)
+    const workpiece = await ck.workpieces.get(id)
     anonymousHere = await ck.me.anonymous({ kind: 'workpiece', id })
     if (anonymousHere) log('collab-kit · anonymous at this workpiece')
     // Ohne lesbaren Raum bleibt es beim Verhalten der Share; die Verbindung hängt nicht daran.
     const roomId = roomIdOf(id)
     role = roomId ? await ck.rooms.get(roomId).then(roleOf, () => null) : null
+    place = `"${workpiece.name}"${role ? ` in ${role.name}` : ''}`
     // A host who is back wakes the sweep of the backend, which then opens a room it had locked.
     // Im Gruppenraum gibt es keine Share, die das Backend wecken könnte.
     if (role?.kind !== 'group') void resumeShare()
@@ -278,7 +288,7 @@ const connect = async (id: string) => {
     if (!synced) return
     if (status === 'connected' && away) {
       away = false
-      log(`Connected · ${rightsText(opened.mayWrite)}`, 'connected')
+      log(`Connected to ${place} · ${rightsText(opened.mayWrite)}`, 'connected')
     } else if ((status === 'connecting' || status === 'disconnected') && before === 'connected' && !away) {
       away = true
       log('Connection lost · reconnecting…', 'offline')
@@ -289,7 +299,7 @@ const connect = async (id: string) => {
   opened.on('closed', ({ code, reason }) => {
     log(`closed by collab-kit · ${code} ${reason}`)
     away = true
-    log(`Disconnected · ${CLOSE_REASONS[code] ?? 'the connection was closed'} (${code})`, 'closed')
+    log(`Disconnected from ${place} · ${CLOSE_REASONS[code] ?? 'the connection was closed'} (${code})`, 'closed')
     // Before synced the doc never held the state of collab-kit, so the next connect starts afresh.
     if (synced) isConnected.value = false
     else closeSession()
@@ -302,7 +312,7 @@ const connect = async (id: string) => {
     () => {
       synced = true
       settledAt = Date.now() + SETTLE_MS
-      log(`Connected · ${rightsText(opened.mayWrite)}`, 'connected')
+      log(`Connected to ${place} · ${rightsText(opened.mayWrite)}`, 'connected')
     },
     () => undefined
   )
@@ -362,7 +372,7 @@ const toggleConnection = () => {
   if (isConnected.value) {
     // Only the connection goes; edits made meanwhile go out on connect.
     away = true
-    log('Disconnected', 'closed')
+    log(`Disconnected from ${place}`, 'closed')
     session?.disconnect()
     isConnected.value = false
     return
