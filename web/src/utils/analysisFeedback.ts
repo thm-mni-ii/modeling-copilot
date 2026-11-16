@@ -56,7 +56,7 @@ export interface ContainmentRelation { id: string; status: AnalysisStatus; scope
 export interface RecognitionCount { recognized: number | null; expected: number | null; percent: number | null; evaluationStatus: string }
 export interface RecognitionBucket extends RecognitionCount { id: string; label: string; kind: ObjectKind; grouped: boolean }
 export interface RecognitionReport { basis: 'uniquely_supported'; buckets?: RecognitionBucket[]; categories?: Record<AnalysisCategory, RecognitionCount>; overall: RecognitionCount; unmatchedSubmission: { id: string; kind: ObjectKind; category?: AnalysisCategory }[] }
-export interface ReferenceHint extends AnalysisHint { target: AnalysisTarget; referenceId: string; kind: ObjectKind; label?: string; facts?: AnalysisFact[] }
+export interface ReferenceHint extends AnalysisHint { target: AnalysisTarget; referenceId: string; kind: ObjectKind; label?: string; facts?: AnalysisFact[]; identity?: AnalysisIdentity }
 export interface AnalysisFeedback {
   schema: 'analysis-feedback/v1' | 'analysis-feedback/v2' | 'analysis-feedback/v3'; evaluationId: string; pair: { studentKey: 'submission'; referenceKey: string }
   contractVersion?: '1.1' | '1.2' | '1.3'
@@ -387,11 +387,14 @@ export function analysisFromEvaluation(detail: EvaluationDetail, referenceKey: s
   return adapted
 }
 
-export type DisplayStatus = 'recognized' | 'provisional' | 'warning' | 'unresolved' | 'not_evaluated'
+export type DisplayStatus = 'recognized' | 'supported' | 'provisional' | 'warning' | 'unresolved' | 'not_evaluated'
+/** Most severe first; used for list order and for merging several findings into one diagram marker. */
+export const displayStatusOrder: DisplayStatus[] = ['warning', 'unresolved', 'supported', 'recognized', 'provisional', 'not_evaluated']
+export const individualViolations = (item: { facts?: AnalysisFact[] }) => item.facts?.filter(fact => !fact.code.startsWith('connection_group.') && fact.status === 'violated') ?? []
 export const analysisStatus = (item: AnalysisAnnotation): DisplayStatus => {
   if (item.identity) {
-    if (item.facts?.some(fact => !fact.code.startsWith('connection_group.') && fact.status === 'violated')) return 'warning'
-    return item.identity.status === 'uniquely_supported' ? 'recognized' : 'unresolved'
+    if (individualViolations(item).length) return 'warning'
+    return item.identity.status === 'uniquely_supported' ? 'recognized' : item.identity.status === 'supported' ? 'supported' : 'unresolved'
   }
   if (item.status) return ({ provisional: 'provisional', different: 'warning', ambiguous: 'unresolved', unresolved: 'unresolved', not_evaluated: 'not_evaluated', not_applicable: 'not_evaluated' } as const)[item.status] ?? 'not_evaluated'
   const checks = item.checks ?? {}
@@ -406,12 +409,14 @@ export const analysisStatus = (item: AnalysisAnnotation): DisplayStatus => {
     /^(children|connections)\.(unresolved_reference|unresolved_submission|outside_target|mapped_from_other_target)$/.test(hint.code))) return 'unresolved'
   return item.match?.status === 'provisional' ? 'provisional' : 'not_evaluated'
 }
+// Recognition is not correctness, so "recognized" stays blue instead of success green.
 export const analysisDisplay = {
-  recognized: { icon: 'mdi-check', color: '#607D8B', label: 'Eindeutig erkannt; Einzelprüfungen beachten' },
-  provisional: { icon: 'mdi-information-outline', color: '#607D8B', label: 'Historische vorläufige Zuordnung' },
-  warning: { icon: 'mdi-alert-outline', color: '#B26A00', label: 'Abweichung festgestellt' },
-  unresolved: { icon: 'mdi-help-circle-outline', color: '#546E7A', label: 'Ungeklärt oder mehrdeutig' },
-  not_evaluated: { icon: 'mdi-information-outline', color: '#757575', label: 'Nicht ausgewertet' }
+  recognized: { icon: 'mdi-check-circle-outline', color: '#1E6FA8', label: 'Eindeutig erkannt' },
+  supported: { icon: 'mdi-circle-half-full', color: '#607D8B', label: 'Gestützt, nicht eindeutig' },
+  provisional: { icon: 'mdi-information-outline', color: '#607D8B', label: 'Vorläufige Zuordnung (älteres Format)' },
+  warning: { icon: 'mdi-alert-outline', color: '#B26A00', label: 'Abweichung' },
+  unresolved: { icon: 'mdi-help-circle-outline', color: '#6D4C9F', label: 'Ungeklärt' },
+  not_evaluated: { icon: 'mdi-minus-circle-outline', color: '#757575', label: 'Nicht ausgewertet' }
 } as const
 export const categoryLabels: Record<AnalysisCategory, string> = { nodes: 'Knoten', attributes: 'Attribute', connections: 'Verbindungen', other: 'Sonstige' }
 export const checkLabels: Record<string, string> = { label: 'Beschriftung', type: 'Konkreter Typ', owner: 'Besitzer', containment: 'Containment', source: 'Source', target: 'Target', endpoints: 'Endpunkte', direction: 'Richtung', connectionType: 'Verbindungstyp', connectionScope: 'Prüfumfang', configuration: 'Konfiguration', counterpart: 'Gegenstück', children: 'Fachliche Kinder', direct_children: 'Unmittelbare Kinder', directChildren: 'Unmittelbare Kinder', connections: 'Angrenzende Verbindungen', incoming: 'Eingehende Verbindungen', outgoing: 'Ausgehende Verbindungen', undirected: 'Ungerichtete Verbindungen', connection_group: 'Verbindungsgruppe' }
@@ -424,7 +429,7 @@ export const analysisFactLabel = (code: string) => {
   return checkLabels[prefix] ?? code
 }
 export const analysisIdentityLabel = (status: string) => ({ uniquely_supported: 'Eindeutig erkannt', supported: 'Identität gestützt; Eindeutigkeit offen', unresolved: 'Identität ungeklärt' })[status] ?? status
-export const analysisIdentityMethodLabel = (method: string) => ({ exact_label: 'Exakte Beschriftung', type_compatibility: 'Typkompatibilität', independent_children: 'Unabhängig erkannte Kinder', combined_children: 'Gemeinsame Kinderstruktur', identified_owner: 'Unabhängig erkannter Besitzer', connection_structure: 'Verbindungsstruktur', semantic_proposal: 'Vorhandene semantische Evidenz' })[method] ?? method
+export const analysisIdentityMethodLabel = (method: string) => ({ exact_label: 'Exakte Beschriftung', type_compatibility: 'Typkompatibilität', independent_children: 'Unabhängig erkannte Kinder', combined_children: 'Gemeinsame Kinderstruktur', identified_owner: 'Unabhängig erkannter Besitzer', connection_structure: 'Verbindungsstruktur', text_similarity: 'Textähnlichkeit über Schwelle', semantic_proposal: 'Vorhandene semantische Evidenz' })[method] ?? method
 export const analysisIdentityRoleLabel = (role: string) => ({ compatibility: 'Vergleich zulässig', support: 'Positive Evidenz', identity_anchor: 'Identitätsanker nach Konkurrenzprüfung' })[role] ?? role
 export const analysisPlacementLabel = (status: unknown) => typeof status === 'string' ? ({ correct_placement: 'Korrekt platziert', wrong_placement: 'Falsch platziert', placement_unresolved: 'Platzierung ungeklärt', unmatched_submission: 'Abgabegegenstück nicht zugeordnet', unmatched_reference: 'Referenzgegenstück nicht zugeordnet', proven_absent: 'Abwesenheit nachgewiesen' })[status] ?? status : ''
 export const analysisFactEvidence = (fact: AnalysisFact) => {
@@ -484,3 +489,113 @@ for (const [prefix, label] of [['children', 'Enthaltene Elemente'], ['connection
 }
 export const analysisHintText = (hint: AnalysisHint) => Object.prototype.hasOwnProperty.call(hintTexts, hint.code) ? hintTexts[hint.code] : `Technischer Hinweis: ${hint.code}`
 export const analysisHintParameters = (hint: AnalysisHint) => JSON.stringify(hint.parameters ?? Object.fromEntries(Object.entries(hint).filter(([key]) => !['code', 'target'].includes(key))))
+
+// --- Admin explanations: read-only views on artifacts the workflow already published ---
+
+export const objectKindLabel = (kind: string | null | undefined) =>
+  ({ modelElement: 'Element', structuralElement: 'Strukturcontainer', connection: 'Verbindung', connectionLabel: 'Verbindungsbeschriftung', model: 'Modell' } as Record<string, string>)[kind ?? ''] ?? 'Objekt'
+
+export interface GraphNode { id: string; kind: ObjectKind; label?: string; type?: string }
+export interface GraphDiagnostic { code: string; severity: string; message?: string; elementIds?: string[] }
+export interface GraphInfo { nodes: Map<string, GraphNode>; interpretation: 'complete' | 'partial' | null; diagnostics: GraphDiagnostic[] }
+
+/** Parser output of one model of this evaluation; null when absent or not bound to the evaluation. */
+export function graphInfo(detail: EvaluationDetail, key: string): GraphInfo | null {
+  const result = detail.steps.find(step => step.result?.schema === 'graph-result/v1' && object(step.result.source) && step.result.source.key === key)?.result
+  if (!result || result.evaluationId !== detail.id || !object(result.graph) || !Array.isArray(result.graph.nodes)) return null
+  const nodes = (result.graph.nodes as unknown[]).filter((node): node is GraphNode => object(node) && id(node.id))
+  const interpretation = object(result.completeness) ? result.completeness.interpretation : null
+  return {
+    nodes: new Map(nodes.map(node => [node.id, node])),
+    interpretation: interpretation === 'complete' || interpretation === 'partial' ? interpretation : null,
+    diagnostics: Array.isArray(result.diagnostics) ? (result.diagnostics as unknown[]).filter((item): item is GraphDiagnostic => object(item) && id(item.code)) : []
+  }
+}
+export const graphDiagnosticLabel = (diagnostic: GraphDiagnostic) => ({
+  AMBIGUOUS_COMPARISON_GROUP: 'Vergleichsgruppe nicht eindeutig', AMBIGUOUS_DEFINITION: 'Typdefinition mehrdeutig', AMBIGUOUS_LANGUAGE_ORIGIN: 'Sprachherkunft mehrdeutig',
+  CONTAINMENT_CYCLE: 'Zyklische Verschachtelung', INVALID_COMPARISON_ROLE: 'Ungültige Vergleichsrolle', INVALID_CONNECTION_LABEL_OWNER: 'Verbindungsbeschriftung ohne gültige Verbindung',
+  INVALID_LANGUAGE_REFERENCE: 'Ungültiger Sprachverweis', INVALID_OWNER: 'Ungültiger Besitzer', MULTIPLE_LANGUAGE_ORIGINS: 'Mehrere Sprachherkünfte',
+  OPEN_ENDPOINT: 'Verbindung mit offenem Endpunkt', UNRESOLVED_CHILD_DEFINITION: 'Kinddefinition nicht auflösbar', UNRESOLVED_DEFINITION: 'Typdefinition nicht auflösbar',
+  UNRESOLVED_DIRECTION: 'Verbindungsrichtung unbekannt', UNRESOLVED_LANGUAGE_ORIGIN: 'Sprachherkunft nicht auflösbar'
+} as Record<string, string>)[diagnostic.code] ?? diagnostic.message ?? diagnostic.code
+
+export interface SimilarityMethod { name: string; range: [number, number]; threshold: number | null }
+export interface CandidatePair { referenceId: string; submissionId: string; referenceLabel: string; submissionLabel: string; scores: Record<string, number> | null; unavailableReason: string | null }
+export interface CandidateEvidence { configured: boolean; methods: SimilarityMethod[]; pairs: CandidatePair[] }
+export const similarityMethodLabel = (name: string) => ({ levenshtein: 'Levenshtein', jaro_winkler: 'Jaro-Winkler', char_trigram: 'Zeichen-Trigramme', multilingual: 'Multilinguales Embedding' } as Record<string, string>)[name] ?? name
+export const unavailableTextLabel = (reason: string | null) => reason === 'missing_text' ? 'Beschriftung fehlt' : reason === 'unsupported_text' ? 'Beschriftungsformat nicht unterstützt' : 'Kein Wert berechnet'
+
+/** Candidate matrix plus the thresholds the matcher actually used; only returned when both artifacts are bound to each other. */
+export function candidateEvidence(detail: EvaluationDetail, referenceKey: string): CandidateEvidence | null {
+  const candidates = detail.steps.find(step => step.id === `match_synonyms_${referenceKey}`)?.result
+  const comparison = detail.steps.find(step => step.id === `match_graph_${referenceKey}`)?.result
+  if (candidates?.schema !== 'semantic-candidates/v1' || candidates.evaluationId !== detail.id || !object(candidates.pair) || candidates.pair.referenceKey !== referenceKey ||
+      !object(comparison) || !hash(candidates.candidateHash) || comparison.candidateHash !== candidates.candidateHash ||
+      !Array.isArray(candidates.methods) || !Array.isArray(candidates.synonymMatrix)) return null
+  const thresholds = object(comparison.semanticConfiguration) && object(comparison.semanticConfiguration.minimumSimilarity) ? comparison.semanticConfiguration.minimumSimilarity : {}
+  const methods: SimilarityMethod[] = []
+  for (const method of candidates.methods as unknown[]) {
+    if (!object(method) || !id(method.name) || !Array.isArray(method.scoreRange) || method.scoreRange.length !== 2 || !method.scoreRange.every(Number.isFinite)) return null
+    const threshold = thresholds[method.name]
+    methods.push({ name: method.name, range: method.scoreRange as [number, number], threshold: typeof threshold === 'number' && Number.isFinite(threshold) ? threshold : null })
+  }
+  const pairs: CandidatePair[] = []
+  for (const row of candidates.synonymMatrix as unknown[]) {
+    if (!object(row) || !id(row.referenceElementId) || !Array.isArray(row.matches)) return null
+    for (const match of row.matches as unknown[]) {
+      if (!object(match) || !id(match.submissionElementId)) return null
+      const scores = match.scoreStatus === 'scored' && object(match.scores)
+        ? Object.fromEntries(Object.entries(match.scores).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])))
+        : null
+      pairs.push({ referenceId: row.referenceElementId, submissionId: match.submissionElementId, referenceLabel: String(row.referenceLabel ?? ''),
+        submissionLabel: String(match.submissionLabel ?? ''), scores, unavailableReason: typeof match.unavailableReason === 'string' ? match.unavailableReason : null })
+    }
+  }
+  return { configured: methods.some(method => method.threshold !== null), methods, pairs }
+}
+/** GM-15: a pair is supported when any configured method reaches its own threshold; methods are never combined. */
+export const aboveThreshold = (pair: CandidatePair, methods: SimilarityMethod[]) =>
+  methods.some(method => method.threshold !== null && pair.scores?.[method.name] !== undefined && pair.scores[method.name] >= method.threshold)
+/** Same normalization as the matcher's exact text anchor (GM-04): NFC and collapsed whitespace, case preserved. */
+export const exactText = (pair: CandidatePair) => {
+  const normalize = (value: string) => value.normalize('NFC').split(/\s+/).filter(Boolean).join(' ')
+  return normalize(pair.referenceLabel) !== '' && normalize(pair.referenceLabel) === normalize(pair.submissionLabel)
+}
+
+const methodList = (criteria: IdentityCriterion[]) => criteria.map(criterion => analysisIdentityMethodLabel(criterion.method)).join(', ')
+/** Spells out the matcher's identity rule (GM-26 and the competitor downgrade at the end of evaluate_identity). */
+export function identityExplanation(item: { identity?: AnalysisIdentity; referenceId?: string; mappingReason?: string }) {
+  const identity = item.identity
+  if (!identity) return null
+  const anchors = identity.criteria.filter(criterion => criterion.role === 'identity_anchor' && criterion.result === 'satisfied')
+  const support = identity.criteria.filter(criterion => criterion.role === 'support' && criterion.result === 'satisfied')
+  if (identity.status === 'uniquely_supported') return `${methodList(anchors) || 'Ein Identitätsanker'} lässt unter allen zulässigen Kandidaten nur dieses Gegenstück zu.`
+  if (identity.status === 'supported') return `${methodList(support)} spricht für dieses Gegenstück, schließt konkurrierende Kandidaten aber nicht eindeutig aus. Zählt daher nicht als erkannt.`
+  if (support.length) return `Mehrdeutig: ${methodList(support)} spricht zwar dafür, aber mindestens ein konkurrierendes Paar mit demselben Referenz- oder Abgabeobjekt hat ebenfalls positive Evidenz.`
+  if (item.referenceId) return `Nur vorläufig zugeordnet${item.mappingReason ? ` (${analysisReasonLabel(item.mappingReason)})` : ''}. Keine Evidenz belegt dieses Gegenstück; Prüfungen gelten nur unter dieser Annahme.`
+  return 'Kein Gegenstück: Für dieses Objekt liegt keine tragfähige Identitätsevidenz vor.'
+}
+export function identityCriterionNote(criterion: IdentityCriterion, describe: (dependency: { referenceId: string; studentId: string }) => string) {
+  const counts = typeof criterion.expected === 'number' ? ` · ${criterion.matched ?? 0} / ${criterion.expected}` : ''
+  if (criterion.role === 'compatibility') return (criterion.result === 'satisfied' ? 'Vergleich zulässig, kein Identitätsbeleg' : 'Typen nicht vergleichbar') + counts
+  if (criterion.role === 'identity_anchor') return 'Entscheidend: schließt alle Konkurrenten aus' + counts
+  if (criterion.result === 'satisfied') return 'Spricht dafür, allein nicht eindeutig' + counts
+  if (criterion.result === 'unresolved' && criterion.dependsOn?.length) return `Offen: stützt sich auf ${criterion.dependsOn.map(describe).join(', ')}, selbst nicht eindeutig erkannt` + counts
+  if (criterion.result === 'unresolved') return 'Offen: Datenlage reicht nicht aus' + counts
+  return (criterion.result === 'violated' ? 'Nicht erfüllt' : analysisValueLabel(criterion.result)) + counts
+}
+
+/** Why a check stays open, derived from its own evidence and the parser's completeness flag. */
+export function factOpenReason(fact: AnalysisFact, graphsComplete: boolean | null) {
+  if (fact.status !== 'unresolved') return null
+  const evidence = fact.evidence
+  if (evidence.reason === 'identity_unresolved') return 'Gegenstück nicht eindeutig identifiziert.'
+  if (evidence.pathsUnambiguous === false) return 'Containerpfade sind nicht eindeutig bestimmbar.'
+  const listed = (key: string) => Array.isArray(evidence[key]) ? (evidence[key] as unknown[]).length : 0
+  const open = listed('unmatchedReferenceIds') + listed('unmatchedSubmissionIds') + listed('unresolvedReferenceIds')
+  if (open) return `${open} beteiligte Objekte sind nicht eindeutig zugeordnet.`
+  if (graphsComplete === false) return typeof evidence.expected === 'number' && evidence.expected === evidence.observed
+    ? `Anzahl stimmt überein (${evidence.observed} / ${evidence.expected}), Vollständigkeit ist aber nicht bestätigt, weil mindestens ein Graph nur teilweise interpretierbar ist (Überblick › Datenqualität).`
+    : 'Mindestens ein Graph ist nur teilweise interpretierbar; die Prüfung kann nicht abgeschlossen werden (Überblick › Datenqualität).'
+  return null
+}

@@ -80,9 +80,7 @@
           Vorläufiger Vergleich je Musterlösung. Eine vollständige strukturelle Bewertung liegt noch nicht vor.
         </v-alert>
 
-        <p v-if="showServiceView" class="text-caption text-medium-emphasis mb-2">Parameter: {{ parameterSummary }}</p>
-
-        <div class="evaluation-progress">
+        <div v-if="!showServiceView || !terminal(detail.state)" class="evaluation-progress mt-2">
           <div class="d-flex align-center justify-space-between text-caption text-medium-emphasis mb-1">
             <span>Durchlauffortschritt</span>
             <span v-if="showServiceView">{{ doneStepCount }} / {{ detail.steps.length }} Schritte</span>
@@ -91,18 +89,24 @@
           <v-progress-linear :model-value="progressPercent" height="6" rounded color="info" aria-label="Fortschritt des Auswertungsdurchlaufs" />
         </div>
 
-        <v-divider class="my-2" />
+        <v-select v-if="referenceOptions.length > 1" v-model="referenceKey" :items="referenceOptions" item-title="label" item-value="key" label="Musterlösung" density="compact" variant="outlined" hide-details class="mt-3" />
+
+        <v-tabs v-if="showServiceView" v-model="serviceTab" density="compact" grow color="primary" class="evaluation-tabs mt-2">
+          <v-tab value="overview">Überblick</v-tab>
+          <v-tab value="findings">Befunde</v-tab>
+          <v-tab value="technical">Technik</v-tab>
+        </v-tabs>
+        <v-divider v-else class="my-2" />
 
         <section v-if="!showServiceView" aria-label="Ergebnis der Auswertung" aria-live="polite">
           <h3 class="text-body-2 font-weight-medium mb-2">Dein Ergebnis</h3>
           <p class="text-caption text-medium-emphasis mb-0">{{ studentResultMessage }}</p>
         </section>
 
-        <section class="my-3" aria-label="Erkennungsübersicht" aria-live="polite">
+        <section v-if="!showServiceView || serviceTab === 'overview'" class="my-3" aria-label="Erkennungsübersicht" aria-live="polite">
           <h3 class="text-body-2 font-weight-medium mb-1">Erkennung</h3>
-          <p class="text-caption text-medium-emphasis">Eindeutig erkannte Gegenstücke. Die Erkennungsquote ist keine Korrektheitsquote oder Note.</p>
-          <p v-if="selectedRecognition?.recognition.buckets" class="text-caption text-medium-emphasis">Vergleichsgruppen sind zusammengefasst; nicht gruppierte Typen stehen einzeln. Angezeigt wird, was in der Musterlösung vorkommt.</p>
-          <v-select v-if="recognitionOptions.length > 1" v-model="referenceKey" :items="recognitionOptions" item-title="label" item-value="key" label="Musterlösung" density="compact" variant="outlined" hide-details class="mb-2" />
+          <p class="text-caption text-medium-emphasis">Anteil der Musterlösungsobjekte mit eindeutig erkanntem Gegenstück. Keine Korrektheitsquote oder Note.</p>
+          <p v-if="selectedRecognition?.recognition.buckets" class="text-caption text-medium-emphasis">Eine Zeile je Vergleichsgruppe bzw. nicht gruppiertem Typ der Musterlösung.</p>
           <v-alert v-if="recognitionState.error" type="warning" density="compact" variant="tonal">{{ recognitionState.error }}</v-alert>
           <template v-else-if="selectedRecognition">
             <div v-for="entry in recognitionRows" :key="entry.key" class="mb-3">
@@ -115,9 +119,10 @@
           <p v-else class="text-caption text-medium-emphasis">Für diese Auswertung und Musterlösung ist noch keine Erkennungsübersicht verfügbar.</p>
         </section>
 
-        <AnalyticalFeedbackPanel v-if="showServiceView" v-model:reference-key="referenceKey" :detail="detail" />
+        <AnalyticalFeedbackPanel v-if="showServiceView" v-model:reference-key="referenceKey" v-model:tab="serviceTab" :detail="detail" />
 
-        <details v-if="showServiceView" class="mt-3"><summary class="text-body-2">Technische Details</summary>
+        <div v-if="showServiceView && serviceTab === 'technical'" class="mt-3">
+        <p class="text-caption text-medium-emphasis mb-2">Auswertungsparameter: {{ parameterSummary }}</p>
         <v-timeline density="compact" side="end" truncate-line="both" class="evaluation-timeline">
           <v-timeline-item v-for="entry in timelineEntries" :key="entry.id" :dot-color="entry.color" size="x-small">
             <template #icon
@@ -149,7 +154,7 @@
             >Run als ZIP herunterladen</v-btn>
           </v-timeline-item>
         </v-timeline>
-        </details>
+        </div>
       </template>
     </div>
   </div>
@@ -169,7 +174,7 @@ import { semanticComparisonResult } from '@/utils/semanticComparison'
 import { analysisCategories, analysisValueLabel, categoryLabels, recognitionReportsFromEvaluation, type RecognitionCount } from '@/utils/analysisFeedback'
 
 const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null; evaluationPerspective?: 'service' | 'student' }>()
-const emit = defineEmits<{ 'evaluation-updated': [evaluation: EvaluationDetail] }>()
+const emit = defineEmits<{ 'evaluation-updated': [evaluation: EvaluationDetail]; 'service-detail-opened': [] }>()
 const userStore = useUserStore()
 const selectedPerspective = ref<'service' | 'student'>('service')
 const canViewService = computed(() => userStore.globalRole === 'ADMIN' || userStore.globalRole === 'MODERATOR')
@@ -183,9 +188,15 @@ const recognitionState = computed(() => {
   catch { return { reports: [], error: 'Die Erkennungsübersicht hat ein ungültiges Format.' } }
 })
 const recognitionOptions = computed(() => recognitionState.value.reports.map((report, index) => ({ key: report.referenceKey, label: `Musterlösung ${index + 1}` })))
-watch([recognitionOptions, () => detail.value?.id], ([options, evaluationId], [, previousId]) => {
-  if (evaluationId !== previousId || !referenceKey.value) referenceKey.value = options[0]?.key ?? ''
+// Reference model names are only shown to roles that may see analysis data.
+const analyticalOptions = computed(() => canViewService.value && detail.value ? detail.value.steps.filter(step => step.id.startsWith('generate_analytical_feedback_')).map(step => ({
+  key: step.id.slice('generate_analytical_feedback_'.length), label: step.label.replace(/^Analytisches Feedback:\s*/, '')
+})) : [])
+const referenceOptions = computed(() => analyticalOptions.value.length ? analyticalOptions.value : recognitionOptions.value)
+watch([referenceOptions, () => detail.value?.id], ([options, evaluationId], [, previousId]) => {
+  if (evaluationId !== previousId || !options.some(option => option.key === referenceKey.value)) referenceKey.value = options[0]?.key ?? ''
 }, { immediate: true })
+const serviceTab = ref<'overview' | 'findings' | 'technical'>('overview')
 const selectedRecognition = computed(() => recognitionState.value.reports.find(report => report.referenceKey === referenceKey.value))
 const recognitionRows = computed(() => selectedRecognition.value ? [
   { key: 'overall', label: 'Insgesamt', row: selectedRecognition.value.recognition.overall },
@@ -368,7 +379,10 @@ const poll = async (generation: number) => {
 
 const open = async (id: ApiId) => {
   stopPolling()
-  if (selectedId.value !== id) detail.value = null
+  if (selectedId.value !== id) {
+    detail.value = null
+    serviceTab.value = 'overview'
+  }
   selectedId.value = id
   detailLoading.value = true
   detailError.value = null
@@ -440,6 +454,8 @@ watch(
   },
   { immediate: true }
 )
+// Widen once per opened admin detail; the user may shrink it again afterwards.
+watch(() => view.value === 'detail' && showServiceView.value && selectedId.value, (opened) => { if (opened) emit('service-detail-opened') }, { immediate: true })
 onMounted(() => {
   void userStore.ensureGlobalRole()
   window.addEventListener('beforeunload', stopPolling)
@@ -456,6 +472,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* The sidebar frame disables selection; findings must stay copyable. */
+  user-select: text;
 }
 .evaluation-sidebar__toolbar {
   display: flex;

@@ -1,6 +1,6 @@
 import { InternalEvent, type Cell, type CellOverlay, type Graph } from '@maxgraph/core'
 import { createOverlayFromConfig } from './feedbackOverlays'
-import { analysisDisplay, analysisHintText, analysisStatus, type AdaptedAnalysis, type AnalysisTarget, type ReferenceHint } from './analysisFeedback'
+import { analysisDisplay, analysisHintText, analysisStatus, displayStatusOrder, type AdaptedAnalysis, type AnalysisTarget, type DisplayStatus, type ReferenceHint } from './analysisFeedback'
 
 /** Reference hints on invisible structural containers move to the nearest rendered parent. */
 export function analysisTargetCell(graph: Graph, target: AnalysisTarget): Cell | null {
@@ -18,23 +18,26 @@ export function analysisTargetCell(graph: Graph, target: AnalysisTarget): Cell |
 
 export const referenceHintTarget = (graph: Graph, hint: ReferenceHint) => analysisTargetCell(graph, hint.target)
 
-/** Runtime overlays only: no style/XML mutation and no removal of other feedback overlays. */
+/** Runtime overlays only: no style/XML mutation and no removal of other feedback overlays.
+ * All findings of one cell merge into a single marker (most severe status, every finding in the tooltip),
+ * so markers never stack on top of each other. */
 export function installAnalysisOverlays(graph: Graph, analysis: AdaptedAnalysis, select: (id: string) => void) {
-  const installed: { cell: Cell; overlay: CellOverlay }[] = []
-  const add = (cell: Cell, status: keyof typeof analysisDisplay, tooltip: string, bottom = false, selectedId = cell.getId()!) => {
-    const display = analysisDisplay[status]
-    const overlay = createOverlayFromConfig({ image: { src: '', width: 16, height: 16 }, icon: display.icon, color: display.color,
-      tooltip, align: 'right', verticalAlign: bottom ? 'bottom' : 'top', cursor: 'pointer', offset: { x: 8, y: bottom ? 8 : -8 } })
-    overlay.addListener(InternalEvent.CLICK, () => { graph.setSelectionCell(cell); select(selectedId) })
-    graph.addCellOverlay(cell, overlay)
-    installed.push({ cell, overlay })
+  const markers = new Map<Cell, { status: DisplayStatus; lines: string[]; selectedId: string }>()
+  // The first registration owns the click target; own annotations are registered first.
+  const add = (cell: Cell, status: DisplayStatus, tooltip: string, selectedId = cell.getId()!) => {
+    // Unevaluated objects carry no finding; they stay listed in the sidebar but get no diagram marker.
+    if (status === 'not_evaluated') return
+    const marker = markers.get(cell)
+    if (!marker) return void markers.set(cell, { status, lines: [tooltip], selectedId })
+    if (displayStatusOrder.indexOf(status) < displayStatusOrder.indexOf(marker.status)) marker.status = status
+    marker.lines.push(tooltip)
   }
   const undisplayedAnnotations = analysis.report.annotations.filter(item => {
     const cell = analysisTargetCell(graph, item.target)
     if (!cell) return true
     const status = analysisStatus(item)
     // Selection keeps the original annotated object even when an invisible container uses its parent.
-    add(cell, status, `${analysisDisplay[status].label} (${item.target.id})`, false, item.target.id)
+    add(cell, status, `${analysisDisplay[status].label} (${item.target.id})`, item.target.id)
     return false
   })
   const hintsByCell = new Map<Cell, ReferenceHint[]>()
@@ -51,22 +54,31 @@ export function installAnalysisOverlays(graph: Graph, analysis: AdaptedAnalysis,
       }
     }
   }
-  for (const [cell, findings] of placementsByCell) add(cell, 'warning', [...findings.values()].map(item => item.text).join('\n'), true, findings.values().next().value!.subjectId)
+  for (const [cell, findings] of placementsByCell) add(cell, 'warning', [...findings.values()].map(item => item.text).join('\n'), findings.values().next().value!.subjectId)
   const modelHints: ReferenceHint[] = []
   for (const hint of analysis.report.referenceHints) {
     const cell = referenceHintTarget(graph, hint)
     if (!cell) modelHints.push(hint)
     else hintsByCell.set(cell, [...(hintsByCell.get(cell) ?? []), hint])
   }
-  for (const [cell, hints] of hintsByCell) add(cell, hints.some(hint => hint.status !== 'not_evaluated') ? 'unresolved' : 'not_evaluated', hints.map(hint => `${analysisHintText(hint)} (${hint.label ?? hint.referenceId})`).join('\n'), true)
+  for (const [cell, hints] of hintsByCell) add(cell, hints.some(hint => hint.status !== 'not_evaluated') ? 'unresolved' : 'not_evaluated', hints.map(hint => `${analysisHintText(hint)} (${hint.label ?? hint.referenceId})`).join('\n'))
   for (const group of analysis.report.connectionGroups ?? []) {
     const hasIssue = group.facts?.some(fact => ['violated', 'unresolved'].includes(fact.status)) ?? !!group.hints?.length
     if (!hasIssue) continue
     for (const id of group.submissionEndpointIds) {
       const item = analysis.report.annotations.find(item => item.target.id === id)
       const cell = item && analysisTargetCell(graph, item.target)
-      if (cell) add(cell, group.facts?.some(fact => fact.status === 'violated') || group.status === 'different' ? 'warning' : 'unresolved', `Verbindungsgruppe: ${group.hints?.map(analysisHintText).join('\n') || 'Abweichende oder offene Gruppenprüfungen; kein individueller Verbindungsfehler.'}`, true, id)
+      if (cell) add(cell, group.facts?.some(fact => fact.status === 'violated') || group.status === 'different' ? 'warning' : 'unresolved', `Verbindungsgruppe: ${group.hints?.map(analysisHintText).join('\n') || 'Abweichende oder offene Gruppenprüfungen; kein individueller Verbindungsfehler.'}`, id)
     }
+  }
+  const installed: { cell: Cell; overlay: CellOverlay }[] = []
+  for (const [cell, marker] of markers) {
+    const display = analysisDisplay[marker.status]
+    const overlay = createOverlayFromConfig({ image: { src: '', width: 16, height: 16 }, icon: display.icon, color: display.color,
+      tooltip: [...new Set(marker.lines)].join('\n'), align: 'right', verticalAlign: 'top', cursor: 'pointer', offset: { x: 8, y: -8 } })
+    overlay.addListener(InternalEvent.CLICK, () => { graph.setSelectionCell(cell); select(marker.selectedId) })
+    graph.addCellOverlay(cell, overlay)
+    installed.push({ cell, overlay })
   }
   return { modelHints, undisplayedAnnotations, remove: () => installed.forEach(({ cell, overlay }) => graph.removeCellOverlay(cell, overlay)) }
 }

@@ -1,5 +1,5 @@
 <template>
-  <SidebarFrame v-model:width="sidebarWidth" side="right" :class="{ 'sidebar-help-active': helpFlowActive }" :show-tabs="!helpFlowActive" :collapsed="hasJourney ? false : collapsed" :min-width="hasJourney ? 280 : 105" :max-width="hasJourney ? 440 : 315">
+  <SidebarFrame v-model:width="sidebarWidth" side="right" :class="{ 'sidebar-help-active': helpFlowActive }" :show-tabs="!helpFlowActive" :collapsed="hasJourney ? false : collapsed" :min-width="hasJourney ? 280 : 105" :max-width="maxWidth">
     <template v-if="hasJourney" #top><slot name="top" /></template>
     <template #tabs>
       <SidebarTabs :inert="toolsDisabled || undefined" :model-value="activeTab" :tabs="tabs" icons-only aria-label="Model tools" @update:model-value="selectTab" />
@@ -11,7 +11,7 @@
         <SidebarPersistence v-else-if="activeTab === 'persistence'" :show-header="false" />
         <SidebarSync v-else-if="activeTab === 'sync'" :show-header="false" />
         <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" :selected-edit-ids="selectedTaskEditIds" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" />
-        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="evaluationModelId" :open-evaluation-id="openEvaluationId ?? null" :evaluation-perspective="evaluationPerspective" @evaluation-updated="emit('evaluation-updated', $event)" />
+        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="evaluationModelId" :open-evaluation-id="openEvaluationId ?? null" :evaluation-perspective="evaluationPerspective" @evaluation-updated="emit('evaluation-updated', $event)" @service-detail-opened="sidebarWidth = maxWidth" />
         <SidebarLibrary v-else ref="languageLibrary" />
       </div>
     </template>
@@ -85,6 +85,7 @@ const tabs = computed<SidebarTabItem[]>(() => (props.taskActive ? [{ value: 'tas
 
 const DEFAULT_WIDTH = 210
 const sidebarWidth = ref(DEFAULT_WIDTH)
+const maxWidth = computed(() => (props.hasJourney ? 484 : 347))
 const languageLibrary = ref<InstanceType<typeof SidebarLibrary> | null>(null)
 const openLanguages = async () => {
   activeTab.value = 'languages'
