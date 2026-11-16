@@ -5,21 +5,11 @@
       <h3 class="title">{{ section.title }}</h3>
       <p class="about mb-4">{{ section.about }}</p>
       <div class="fields">
-        <v-text-field
-          v-for="field in section.fields"
-          :key="field.key"
-          v-model.number="form[section.area][field.key]"
-          type="number"
-          :label="field.label"
-          suffix="s"
-          :min="boundsOf(section.area, field.key).min"
-          :max="boundsOf(section.area, field.key).max"
-          density="compact"
-          :disabled="!loaded"
-          :hint="`${field.hint} Default ${boundsOf(section.area, field.key).default} s, allowed ${boundsOf(section.area, field.key).min}–${boundsOf(section.area, field.key).max} s.`"
-          persistent-hint
-          :error-messages="problemOf(section.area, field.key)"
-        />
+        <template v-for="field in section.fields" :key="field.key">
+          <v-select v-if="field.items" v-model="form[section.area][field.key]" :items="field.items" item-title="title" item-value="value" :label="field.label" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
+          <v-switch v-else-if="typeof limitOf(section.area, field.key).default === 'boolean'" v-model="form[section.area][field.key]" :label="field.label" color="primary" density="compact" inset :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
+          <v-text-field v-else v-model.number="form[section.area][field.key]" type="number" :label="field.label" suffix="s" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint :error-messages="problemOf(section.area, field.key)" />
+        </template>
       </div>
       <div class="d-flex ga-2 mt-4">
         <v-btn color="primary" variant="flat" :disabled="!loaded || !changed(section.area) || invalid(section) || busy !== null" :loading="busy === section.area" @click="save(section)">Save</v-btn>
@@ -35,15 +25,26 @@ import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import { collabErrorMessage } from '@/collab/kit/collabKit'
 import type { CollabKitApi } from '@/collab/kit/collabKitV1'
 import { applyCollabSettings, COLLAB_AREAS, COLLAB_LIMITS, collabSettings, loadCollabSettings, type CollabArea, type CollabLimit } from '@/collab/connection/collabSettings'
+import { historyChoices } from '@/collab/sharing/shareModel'
 
 const props = defineProps<{ ck: CollabKitApi }>()
+
+/** Ein Feld im Reiter; mit items eine Auswahl, sonst je nach Standard ein Schalter oder Sekunden. */
+interface Field {
+  readonly key: string
+  readonly label: string
+  readonly hint: string
+  readonly items?: readonly { readonly value: string; readonly title: string }[]
+}
 
 interface Section {
   readonly area: CollabArea
   readonly title: string
   readonly about: string
-  readonly fields: readonly { readonly key: string; readonly label: string; readonly hint: string }[]
+  readonly fields: readonly Field[]
 }
+
+type FormValue = number | string | boolean
 
 /** Ein Abschnitt je Bereich in collab-kit; Grenzen und Standards stehen in collabSettings.ts. */
 const SECTIONS: readonly Section[] = [
@@ -63,26 +64,42 @@ const SECTIONS: readonly Section[] = [
     title: 'Presence',
     about: 'Applies to everyone working on a model together, shared or in a group room.',
     fields: [{ key: 'idleMs', label: 'Idle until the selection is released', hint: 'With the selection go the locks on its elements.' }]
+  },
+  {
+    area: 'shareDefaults',
+    title: 'Share defaults',
+    about: 'What the dialog has chosen when someone shares a model. The host can still change it there for each share.',
+    fields: [
+      { key: 'anonymous', label: 'Anonymous', hint: 'Others see a pseudonym instead of the name.' },
+      { key: 'edit', label: 'May edit', hint: 'Visitors change the model together with the host.' },
+      { key: 'history', label: 'Share history', hint: 'How much of the private history goes into the shared model.', items: historyChoices }
+    ]
   }
 ]
 
 /** Im Formular stehen Sekunden; Schlüssel auf Ms speichert collab-kit in Millisekunden. */
 const factorOf = (key: string) => (key.endsWith('Ms') ? 1000 : 1)
-const boundsOf = (area: CollabArea, key: string) => {
-  const limit = (COLLAB_LIMITS[area] as Record<string, CollabLimit>)[key]
-  const factor = factorOf(key)
-  return { default: limit.default / factor, min: limit.min / factor, max: limit.max / factor }
+const limitOf = (area: CollabArea, key: string) => (COLLAB_LIMITS[area] as Record<string, CollabLimit>)[key]
+const hintOf = (area: CollabArea, field: Field) => {
+  const limit = limitOf(area, field.key)
+  if ('options' in limit) return `${field.hint} Default: ${field.items?.find((item) => item.value === limit.default)?.title ?? limit.default}.`
+  if (!('min' in limit)) return `${field.hint} Default: ${limit.default ? 'on' : 'off'}.`
+  const factor = factorOf(field.key)
+  return `${field.hint} Default ${limit.default / factor} s, allowed ${limit.min / factor}–${limit.max / factor} s.`
 }
-const formOf = (area: CollabArea): Record<string, number | string> => Object.fromEntries(Object.entries(collabSettings[area]).map(([key, value]) => [key, value / factorOf(key)]))
+const formOf = (area: CollabArea): Record<string, FormValue> => Object.fromEntries(Object.entries(collabSettings[area]).map(([key, value]) => [key, typeof value === 'number' ? value / factorOf(key) : value]))
 
-const form = reactive<Record<CollabArea, Record<string, number | string>>>({ sharing: formOf('sharing'), presence: formOf('presence') })
+const form = reactive(Object.fromEntries(COLLAB_AREAS.map((area) => [area, formOf(area)])) as Record<CollabArea, Record<string, FormValue>>)
 const loaded = ref(false)
 const busy = ref<CollabArea | null>(null)
 
-/** Grenzen je Wert und die Abhängigkeiten im Bereich sharing; Sweep und Browser prüfen nur die Grenzen. */
+/** Grenzen je Zahl und die Abhängigkeiten im Bereich sharing; Schalter und Auswahl können nichts Falsches enthalten. */
 const problemOf = (area: CollabArea, key: string): string | undefined => {
+  const limit = limitOf(area, key)
+  if (!('min' in limit)) return undefined
   const value = form[area][key]
-  const { min, max } = boundsOf(area, key)
+  const factor = factorOf(key)
+  const [min, max] = [limit.min / factor, limit.max / factor]
   if (typeof value !== 'number' || !Number.isInteger(value)) return 'Enter whole seconds.'
   if (value < min || value > max) return `Allowed are ${min}–${max} s.`
   const grace = form.sharing.hostGraceSeconds
@@ -98,7 +115,7 @@ const save = async (section: Section) => {
   busy.value = section.area
   try {
     // PUT ersetzt den ganzen Bereich, also gehen immer alle seine Werte mit.
-    const values = Object.fromEntries(Object.entries(form[section.area]).map(([key, value]) => [key, Number(value) * factorOf(key)]))
+    const values = Object.fromEntries(Object.entries(form[section.area]).map(([key, value]) => [key, 'min' in limitOf(section.area, key) ? Number(value) * factorOf(key) : value]))
     applyCollabSettings(section.area, await props.ck.settings.set(section.area, values))
     form[section.area] = formOf(section.area)
     notifySuccess(`${section.title} saved.`)

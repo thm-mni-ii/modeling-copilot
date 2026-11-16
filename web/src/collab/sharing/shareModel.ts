@@ -14,6 +14,7 @@ import type { HistoryMode } from '@/collab/converters/model/modelHistory'
 import { forgetRoomHistory, keepRoomAsOwnModel, saveRoomAsNewModel, writeRoomToPrivateModel } from '@/collab/historyBuilder/fromRoom'
 import { buildRoomHistory, roomHistoryStart } from '@/collab/historyBuilder/toRoom'
 import { newWorkpiece } from '@/collab/storage/workpiece'
+import { collabSettings, loadCollabSettings } from '@/collab/connection/collabSettings'
 
 /** What the host answers in the dialog before the link; visitors always see. */
 export interface ShareOptions {
@@ -23,7 +24,8 @@ export interface ShareOptions {
 }
 
 /** What the host picks in the dialog before the link, and what the dialog with the link shows afterwards. It lives here and not in a component, as the editor is rebuilt while sharing. */
-const defaultChoice = () => ({ anonymous: false, edit: true, comment: true, task: true, history: 'none' as HistoryMode })
+// Anonym, Bearbeiten und Historie stehen in den Collab-Einstellungen; Kommentare und Aufgabe haben im Dialog keinen Schalter.
+const defaultChoice = () => ({ ...collabSettings.shareDefaults, comment: true, task: true })
 export const shareChoice = reactive(defaultChoice())
 
 // Kommentare von collab-kit nutzt der Editor noch nicht; bis dahin ist der Schalter ausgeblendet, Besucher behalten `speak`.
@@ -257,6 +259,15 @@ export const hostToggles = computed<HostToggle[]>(() => {
 
 /** Which dialog is open; it lives here and not in a component, as the editor and its sidebar are rebuilt while sharing and leaving. */
 export const shareDialog = ref<'ask' | 'link' | 'quit' | 'leave' | null>(null)
+
+// Jedes Teilen beginnt mit der Vorauswahl aus den Collab-Einstellungen; wer noch nicht verbunden war, hat sie hier zum ersten Mal.
+watch(shareDialog, async (dialog) => {
+  if (dialog !== 'ask') return
+  await loadCollabKit()
+    .then((ck) => loadCollabSettings(ck, 'shareDefaults'))
+    .catch(() => undefined)
+  if (shareDialog.value === 'ask') Object.assign(shareChoice, defaultChoice())
+})
 
 /** The link of a room; the router builds it, as the app keeps its routes behind a hash. */
 export const shareLink = (router: Router, roomId: string) => new URL(router.resolve({ name: 'Join', params: { roomId } }).href, window.location.origin).href
