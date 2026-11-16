@@ -80,6 +80,8 @@
           Vorläufiger Vergleich je Musterlösung. Eine vollständige strukturelle Bewertung liegt noch nicht vor.
         </v-alert>
 
+        <p v-if="showServiceView" class="text-caption text-medium-emphasis mb-2">Parameter: {{ parameterSummary }}</p>
+
         <div class="evaluation-progress">
           <div class="d-flex align-center justify-space-between text-caption text-medium-emphasis mb-1">
             <span>Durchlauffortschritt</span>
@@ -216,6 +218,11 @@ const relativeTime = (iso: string) => {
 }
 const absoluteTime = (iso: string) => new Date(iso).toLocaleString()
 
+const parameterSummary = computed(() => {
+  const threshold = detail.value?.parameters?.levenshteinThreshold
+  if (threshold === undefined) return 'nicht erfasst'
+  return threshold === null ? 'Textähnlichkeit aus' : `Levenshtein-Mindestähnlichkeit ${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 }).format(threshold)}`
+})
 const doneStepCount = computed(() => (detail.value ? detail.value.steps.filter((step) => step.status === 'succeeded' || step.status === 'failed').length : 0))
 const progressPercent = computed(() => {
   if (!showServiceView.value && detail.value?.state === 'succeeded') return 100

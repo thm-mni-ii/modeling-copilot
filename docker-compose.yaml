@@ -160,7 +160,7 @@ services:
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:
-    image: modeling-copilot/one-to-one-graph-matching:v5
+    image: modeling-copilot/one-to-one-graph-matching:v6
     build:
       context: ./dagu/workflow-services
       dockerfile: one-to-one-graph-matching/Dockerfile
@@ -181,7 +181,7 @@ services:
     profiles: [workflow-services]
 
   workflow-data:
-    image: modeling-copilot/workflow-data:latest
+    image: modeling-copilot/workflow-data:v2
     build:
       context: ./dagu/workflow-services
       dockerfile: workflow-data/Dockerfile

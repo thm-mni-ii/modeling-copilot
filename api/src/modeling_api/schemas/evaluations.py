@@ -37,6 +37,7 @@ class Evaluation(ApiSchema):
     started_at: datetime
     state: EvaluationState = "queued"
     workflow: EvaluationWorkflow
+    parameters: JsonObject = Field(default_factory=dict)
 
 
 class EvaluationDetail(Evaluation):
@@ -48,4 +49,7 @@ class EvaluationDetail(Evaluation):
 
 
 class StartEvaluation(ApiSchema):
-    """Intentionally empty: the task's admin-selected workflow is authoritative."""
+    """The task's admin-selected workflow is authoritative; administrators may tune its parameters."""
+
+    levenshtein_threshold: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False,
+                                                description="Minimum Levenshtein similarity; null keeps the workflow default.")

@@ -27,7 +27,7 @@ Snapshot + zwei Graphen + zwei Inventare + semantic-candidates/v1
 | `graphs/submission.json`, `graphs/<referenceKey>.json` | Knoten, konkrete Typen, Sprachversion, `contains`-Hierarchie, Verbindungsendpunkte, Richtung |
 | `labels/submission.json`, `labels/<referenceKey>.json` | Verlässliche Text-/Labelstatus für Eigenschaftsfakten |
 | `candidates/<referenceKey>.json` | **Vollständiger zulässiger Kandidatenraum** plus methodenspezifische Textscores |
-| `comparisonConfig.graphMatching.minimumSimilarity` | Optional aktivierte semantische Methoden-Schwellen; Standard `{}` = keine semantische Vorschlagsaktivierung |
+| `comparisonConfig.graphMatching.minimumSimilarity` | Optional aktivierte Methoden-Schwellen; Standard `{}` = keine semantischen Vorschläge und keine Textähnlichkeitsanker. Der Workflowparameter `levenshtein_threshold` setzt sie über `workflow-data` als `{levenshtein: x}` (zusammen mit `semantics.methods: [levenshtein]`) |
 
 **GM-01 · Integrität:** Vollständige `workflow-result/v1`-Hüllen, Snapshot-/Quellen-/Sprach-/Graph-/Inventar-/Kandidatenhashes werden geprüft. Die Kandidatenmatrix muss **alle und nur** die kompatiblen Fachobjektpaare abbilden; keine stillschweigend fehlenden Konkurrenzpaare. Fehler → kein Erfolgsergebnis.
 
@@ -74,7 +74,9 @@ Aktivierte minimumSimilarity-Schwellen?
 | **GM-17 · Strukturbedingung** | Bekannter Ownerkonflikt verhindert den **semantischen Vorschlag**; bei enthaltenen Objekten mit ungeklärter Besitzerlage wird er ebenfalls zurückgestellt. Wurzelobjekte ohne Besitzer können ohne Owneranker vorgeschlagen werden. |
 | **GM-18 · Kapazität** | Semantische Vorschläge durchlaufen dieselbe kapazitätserhaltende Vorschlagsprüfung. |
 
-**Kritische Unterscheidung:** `supported_semantic_evidence` kann aktuell ein **provisional mapping** erzeugen, **ist aber in `identity_evidence.py` allein kein zulässiger `identity_anchor`**. Ein solches Paar kann deshalb `supported` bleiben und zählt dann **nicht** als eindeutig erkannt. Semantik wird also **noch nicht vollständig zur Identitätsbestätigung genutzt**.
+**Adapter:** `text_similarity.py` liest die Kandidatenmatrix und klassifiziert jedes zulässige Paar als `supported`, `below_threshold` oder `unavailable`. `semantic_refinement.py` (Vorschläge) und `identity_evidence.py` (Anker) nutzen denselben Adapter.
+
+**Identität:** Ein semantischer Vorschlag ist erst dann eindeutig erkannt, wenn das Kriterium `text_similarity` unter allen offenen Paaren über der Schwelle **notwendig** ist (GM-26). Ein Vorschlag, der nur seine Konkurrenten dominiert, aber nicht eindeutig über der Schwelle steht, bleibt `supported`/`unresolved` und zählt **nicht**. Eine einzelne Schwelle ist eine harte Kante: Konkurrenten knapp darunter werden nicht berücksichtigt.
 
 ## Ebene D · Verbindungsvorschläge (nach Elementmapping)
 
@@ -105,7 +107,7 @@ Aktivierte minimumSimilarity-Schwellen?
 | `combined_children` | **Nur** bei vollständiger geschlossener Kombination und eindeutiger Konkurrenz |
 | `identified_owner` | Bedingt; muss diskriminieren, unabhängig sein und zulässige Stützung besitzen |
 | `connection_structure` | Ja, wenn individuell eindeutig und die benötigten Endpunktidentitäten abgesichert sind |
-| `semantic_proposal` | **Derzeit nein** als alleiniger Anker (nur unterstützende Evidenz) |
+| `text_similarity` | **Ja, wenn** Score ≥ Schwelle und das Paar unter allen offenen Paaren über der Schwelle notwendig/eindeutig ist; wird für alle zulässigen Paare berechnet, damit Konkurrenz sichtbar bleibt. Ohne Schwelle nicht vorhanden. Ersetzt das frühere `semantic_proposal` (Identitätsevidenz `1.1`). |
 
 **GM-26 · Status:** `uniquely_supported` = eindeutige, nicht zirkuläre Identitätsevidenz für das ausgewählte Paar; `supported` = positive, aber nicht hinreichende Evidenz; `unresolved` = kein hinreichend gestützter, eindeutiger Vorschlag. Ein `provisional`-Paar ist **nicht automatisch** `uniquely_supported`.
 
@@ -168,7 +170,7 @@ nur bei GRAPH_MATCHING_DIAGNOSTICS=1 zusätzlich:
 ## Noch offene fachliche/architektonische Grenzen (nicht als implementiert ausgeben)
 
 1. **Konkurrenzentscheidung:** Ein gemeinsam konflikthafter Vorschlagssatz kann in derselben Komponente noch konfliktunabhängige zulässige Vorschläge verlieren (GM-12).
-2. **Semantische Identität:** Ein semantisch ausgewähltes Paar wird ohne zusätzliche Ankerevidenz noch nicht `uniquely_supported` (GM-18/26).
+2. **Semantische Identität:** Nur Levenshtein ist angebunden; die Schwelle ist noch nicht an einem Gold-Korpus kalibriert, Groß-/Kleinschreibung wird nicht normalisiert, Verbindungstexte nutzen keine Ähnlichkeit.
 3. **Zentrale Entscheidung:** Text-/Owner-/Kinder-/Semantik-/Verbindungsphasen sind noch nicht durch eine vollständig gemeinsame, evidenzgetriebene Auswahl ersetzt (GM-27).
 4. **Selektive Semantik:** Der vorgelagerte Synonymdienst liefert weiterhin die **vollständige** zulässige Kandidatenmatrix; keine produktive aggressive Textanker-Trimmung.
 5. **Ressourcen:** Diagnosedaten werden vielfach noch berechnet, auch wenn sie nicht ausgegeben werden.

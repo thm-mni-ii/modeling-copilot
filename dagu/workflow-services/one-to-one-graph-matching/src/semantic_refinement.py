@@ -2,31 +2,16 @@
 
 from collections import defaultdict
 from copy import deepcopy
-import math
 
 from assignment_capacity import capacity_preserving_proposals
 from decision_diagnostics import record
 from structural_evidence import analyze_containment
-
-
-def _thresholds(candidates, thresholds):
-    if not isinstance(thresholds, dict):
-        raise ValueError("graphMatching.minimumSimilarity must be an object")
-    methods = {method["name"]: method["scoreRange"] for method in candidates["methods"]}
-    for name, value in thresholds.items():
-        if name not in methods:
-            raise ValueError(f"minimum similarity references unknown method: {name}")
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-            raise ValueError(f"minimum similarity must be finite: {name}")
-        lower, upper = methods[name]
-        if not lower <= value <= upper:
-            raise ValueError(f"minimum similarity outside score range: {name}")
-    return dict(sorted(thresholds.items()))
+from text_similarity import pair_similarity
 
 
 def refine_semantic_proposals(indices, candidates, state, thresholds):
     """Assess candidate evidence and propose only mutually unambiguous pairs."""
-    thresholds = _thresholds(candidates, thresholds)
+    thresholds, similarity = pair_similarity(candidates, thresholds)
     events = []
     excluded = {(item["referenceId"], item["studentId"])
                 for field in ("conflictingProposals", "blockedProposals") for item in state[field]}
@@ -35,30 +20,12 @@ def refine_semantic_proposals(indices, candidates, state, thresholds):
                and (item["referenceId"], item["studentId"]) not in excluded]
     containment = analyze_containment(deepcopy(indices), candidates, anchors)
     owners = {(item["referenceId"], item["studentId"]): item for item in containment}
-    ranges = {method["name"]: method["scoreRange"] for method in candidates["methods"]}
-    pairs = {}
-    for row in candidates["synonymMatrix"]:
-        for match in row["matches"]:
-            pair = (row["referenceElementId"], match["submissionElementId"])
-            scores = match.get("scores") if match.get("scoreStatus") == "scored" else None
-            available = {}
-            for name in thresholds:
-                score = scores.get(name) if isinstance(scores, dict) else None
-                if score is None:
-                    continue
-                if (isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score)
-                        or not ranges[name][0] <= score <= ranges[name][1]):
-                    raise ValueError(f"invalid candidate score: {name}")
-                available[name] = score
-            supported = sorted(name for name, score in available.items() if score >= thresholds[name])
-            status = ("supported" if supported else
-                      "below_threshold" if thresholds and len(available) == len(thresholds) else "unavailable")
-            pairs[pair] = {
-                "referenceId": pair[0], "studentId": pair[1], "status": status,
-                "scoreStatus": match.get("scoreStatus", "unavailable"),
-                "supportingMethods": supported, "ownerAnchorRelation": owners[pair]["ownerAnchorRelation"],
-                "_scores": available,
-            }
+    pairs = {
+        pair: {"referenceId": pair[0], "studentId": pair[1], "status": item["status"],
+               "scoreStatus": item["scoreStatus"], "supportingMethods": item["supportingMethods"],
+               "ownerAnchorRelation": owners[pair]["ownerAnchorRelation"], "_scores": item["scores"]}
+        for pair, item in similarity.items()
+    }
 
     reserved = state["proposals"] + state["conflictingProposals"] + state["blockedProposals"]
     used_references = {item["referenceId"] for item in reserved}

@@ -91,20 +91,21 @@
             :help-text-ranges="helpTextRanges"
             @mark-help-text="markHelpText"
             @pop-out="taskWindowOpen = true"
-            @start-evaluation="startEvaluation"
+            @start-evaluation="evaluationDialog = true"
             @select-connection="selectTaskConnection"
             @select-task-edits="selectTaskEdits"
             @update:task-edit-document="workspace.updateTaskEditDocument"
           />
         </div>
         <!-- Modell eines Raums: die mitgeteilte Aufgabe, sofern der Host eine geteilt hat. -->
-        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="task-area" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" @start-evaluation="startEvaluation" />
+        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="task-area" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" @start-evaluation="evaluationDialog = true" />
       </template>
       <template #window-content="{ definition }">
         <TaskEditEditor v-if="definition.role === 'task'" :key="workspace.taskReference?.versionId" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :base-document="workspace.taskVersion?.data.contentDocument" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" @update:model-value="workspace.updateTaskEditDocument" />
       </template>
     </DrawingCanvas>
 
+    <DialogEvaluationParameters v-model="evaluationDialog" :busy="evaluationStarting" @confirm="startServiceEvaluation" />
     <v-dialog v-model="recoveryDialog" max-width="1000" persistent
       ><v-card
         ><v-card-title>Unsaved changes found</v-card-title
@@ -139,7 +140,8 @@ import paths, { laboratoryCompletionBlockedStepId, laboratoryCompletionUnavailab
 import modelService from '@/services/model/model.service'
 import type { ModelVersion } from '@/services/api/types/model'
 import evaluationService from '@/services/evaluation/evaluation.service'
-import type { EvaluationDetail } from '@/services/api/types/evaluation'
+import type { EvaluationDetail, EvaluationParameters } from '@/services/api/types/evaluation'
+import DialogEvaluationParameters from '@/components/dialog/DialogEvaluationParameters.vue'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import ChallengeOverlay from '@/components/learningPaths/ChallengeOverlay.vue'
 import LearningJourneyDock from '@/components/learningPaths/LearningJourneyDock.vue'
@@ -324,6 +326,7 @@ const returnToPath = async (complete: boolean, evaluationId?: string) => {
 const startedEvaluationId = ref<string | null>(null)
 const evaluationPerspective = ref<'service' | 'student'>('service')
 const evaluationStarting = ref(false)
+const evaluationDialog = ref(false)
 const taskWindowOpen = ref(false)
 const taskWindows = computed<CanvasWindowDefinition[]>(() => (taskWindowOpen.value && workspace.diagramTask ? [{ id: 'task-description', title: workspace.diagramTask.title, x: 260, y: 120, width: 520, height: 360, role: 'task' }] : []))
 const connections = computed(() => workspace.editorLanguages.flatMap((language) => language.connections))
@@ -469,7 +472,7 @@ const focusTaskEdit = (target: TaskEditFocus) => {
   selectTaskEdits([target.id])
 }
 
-const startEvaluation = async (perspective: 'service' | 'student' = 'service') => {
+const startEvaluation = async (perspective: 'service' | 'student' = 'service', parameters: Partial<EvaluationParameters> = {}) => {
   // In a room only the host evaluates, on the private model that has the task; the state of the room goes in as its newest version.
   const room = !workspace.taskVersion && sharedTaskSettings.value
   if (evaluationStarting.value || !room && (!workspace.model || !workspace.taskVersion)) return null
@@ -488,7 +491,7 @@ const startEvaluation = async (perspective: 'service' | 'student' = 'service') =
       if (workspace.dirty || workspace.taskEditDirty) await workspace.save('checkpoint')
       modelId = workspace.model!.id
     }
-    const evaluation = (await evaluationService.start(modelId)).data
+    const evaluation = (await evaluationService.start(modelId, parameters)).data
     evaluationPerspective.value = perspective
     startedEvaluationId.value = evaluation.id
     if (evaluation.state === 'failed') notifyError('The evaluation start was rejected. See the evaluation details.')
@@ -500,6 +503,9 @@ const startEvaluation = async (perspective: 'service' | 'student' = 'service') =
   } finally {
     evaluationStarting.value = false
   }
+}
+const startServiceEvaluation = async (parameters: EvaluationParameters) => {
+  if (await startEvaluation('service', parameters)) evaluationDialog.value = false
 }
 const requestAutomaticFeedback = async () => {
   const evaluation = await startEvaluation('student')

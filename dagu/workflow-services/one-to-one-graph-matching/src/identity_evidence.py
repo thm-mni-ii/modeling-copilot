@@ -5,9 +5,11 @@ import unicodedata
 from artifacts import _key
 from assignment_capacity import necessary_pairs
 from structural_evidence import analyze_child_owner_evidence, analyze_containment
+from text_similarity import pair_similarity
 
 
-METHODS = ("exact_label", "type_compatibility", "independent_children", "combined_children", "identified_owner", "connection_structure")
+METHODS = ("exact_label", "text_similarity", "type_compatibility", "independent_children", "combined_children", "identified_owner", "connection_structure")
+SIMILARITY_RESULTS = {"supported": "satisfied", "below_threshold": "violated", "unavailable": "not_evaluated"}
 
 
 def normalized(value):
@@ -18,12 +20,16 @@ def dependency_pairs(row):
     return {(item["referenceId"], item["studentId"]) for item in row.get("dependsOn", [])}
 
 
-def evaluate_identity(indices, candidates, proposals, *, combined=(), connection_pairs=(), connection_candidates=()):
+def evaluate_identity(indices, candidates, proposals, *, combined=(), connection_pairs=(), connection_candidates=(),
+                      minimum_similarity=None):
     """No new correspondence selection: explain the supplied one-to-one pairs.
 
     Unique means forced among evidence-backed alternatives after independent
     anchors, rather than unique among mere type-compatible alternatives.
+    Text similarity is assessed for every admissible pair, so competing
+    above-threshold alternatives remain visible to the uniqueness check.
     """
+    thresholds, similarity = pair_similarity(candidates, minimum_similarity) if minimum_similarity else ({}, {})
     proposals = list(proposals) + list(connection_pairs)
     selected = {(row["referenceId"], row["studentId"]): row for row in proposals}
     if (len(selected) != len(proposals) or len({r for r, _ in selected}) != len(selected)
@@ -69,8 +75,10 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
                           [ref], [sub], [(owner["referenceOwnerId"], owner["studentOwnerId"])] if owner["ownerAnchorRelation"] == "consistent" else []),
                 criterion("connection_structure", "not_evaluated", [ref], [sub]),
             ]
-            if selected.get(pair, {}).get("reason") == "supported_semantic_evidence":
-                evidence.append(criterion("semantic_proposal", "satisfied", [ref], [sub], dependency_pairs(selected[pair])))
+            if thresholds:
+                text = similarity[pair]
+                evidence.append(criterion("text_similarity", SIMILARITY_RESULTS[text["status"]], [ref], [sub],
+                                          scores=text["scores"], minimumSimilarity=thresholds))
             rows[pair] = {"referenceId": ref, "studentId": sub, "status": "unresolved", "criteria": evidence}
 
     element_mapping = {r: s for r, s in selected if indices["reference"].nodes[r]["kind"] == "modelElement"}
@@ -89,12 +97,19 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
             criterion("connection_structure", "satisfied" if source["sameEndpoints"] else "violated", [pair[0]], [pair[1]],
                       dependencies, uniquenessVerified=source["uniquenessVerified"])]}
 
-    exact_pairs = {pair for pair, row in rows.items() if any(item["method"] == "exact_label" and item["result"] == "satisfied" for item in row["criteria"])}
+    def satisfied_pairs(method):
+        return {pair for pair, row in rows.items()
+                if any(item["method"] == method and item["result"] == "satisfied" for item in row["criteria"])}
+
+    exact_pairs, similar_pairs = satisfied_pairs("exact_label"), satisfied_pairs("text_similarity")
     unique = set()
     while True:
         used_ref, used_sub = {r for r, _ in unique}, {s for _, s in unique}
         exact_anchors = necessary_pairs({pair for pair in exact_pairs
                                         if pair[0] not in used_ref and pair[1] not in used_sub})
+        # Like exact text: an above-threshold pair anchors only if no open above-threshold alternative remains.
+        similarity_anchors = necessary_pairs({pair for pair in similar_pairs
+                                             if pair[0] not in used_ref and pair[1] not in used_sub})
         eligible = {}
         for pair, row in rows.items():
             if pair[0] in used_ref or pair[1] in used_sub:
@@ -114,8 +129,9 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
                 unique_connection = item["method"] != "connection_structure" or item.get("uniquenessVerified") is True
                 owner_discriminates = item["method"] != "identified_owner" or any(criterion["method"] == "exact_label" and criterion["result"] == "satisfied" for criterion in row["criteria"])
                 exact_discriminates = item["method"] != "exact_label" or pair in exact_anchors
-                if (item["method"] not in ("type_compatibility", "semantic_proposal") and item["result"] == "satisfied" and full_combination
-                        and unique_connection and owner_discriminates and exact_discriminates
+                similarity_discriminates = item["method"] != "text_similarity" or pair in similarity_anchors
+                if (item["method"] != "type_compatibility" and item["result"] == "satisfied" and full_combination
+                        and unique_connection and owner_discriminates and exact_discriminates and similarity_discriminates
                         and pair not in dependencies and dependencies <= unique
                         and not any(r == pair[0] or s == pair[1] for r, s in dependencies)):
                     eligible.setdefault(pair, []).append(item)
@@ -131,7 +147,7 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
             for item in supported[pair]:
                 item["role"] = "identity_anchor"
         unique.update(promoted)
-    strong = {pair for pair, row in rows.items() if any(item["role"] != "compatibility" and item["method"] != "semantic_proposal" and item["result"] == "satisfied"
+    strong = {pair for pair, row in rows.items() if any(item["role"] != "compatibility" and item["result"] == "satisfied"
               and (item["method"] != "combined_children" or item.get("complete")) for item in row["criteria"])}
     for pair, row in rows.items():
         for item in row["criteria"]:
@@ -141,4 +157,4 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
         if row["status"] != "uniquely_supported" and positive:
             competitors = {other for other in strong if other != pair and (other[0] == pair[0] or other[1] == pair[1])}
             row["status"] = "unresolved" if pair in strong and competitors else "supported"
-    return {"version": "1.0", "pairs": [rows[pair] for pair in sorted(rows)]}
+    return {"version": "1.1", "pairs": [rows[pair] for pair in sorted(rows)]}

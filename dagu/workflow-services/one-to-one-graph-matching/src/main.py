@@ -83,6 +83,7 @@ def run(store: Workspace, reference_key: str | None, *, include_diagnostics=Fals
         combined=state["combinedChildEvidence"],
         connection_pairs=connections["proposals"],
         connection_candidates=connections["candidateEvidence"],
+        minimum_similarity=semantics["minimumSimilarity"],
     )
     evaluation["propertyFacts"] = evaluate_facts(indices, evaluation, graphs, candidates, {
         side: store.read(candidates["inventoryPaths"][side])["result"] for side in indices
@@ -99,7 +100,7 @@ def run(store: Workspace, reference_key: str | None, *, include_diagnostics=Fals
     })
     producer = {
         "service": SERVICE,
-        "version": "2.1.0",
+        "version": "2.2.0",
         "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()}),
     }
     incomplete = (candidates["completeness"]["interpretation"] == "partial"

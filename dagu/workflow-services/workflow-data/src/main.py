@@ -3,6 +3,7 @@
 import base64
 import gzip
 import json
+import math
 import os
 import sys
 from typing import Literal, NotRequired, TypedDict
@@ -21,7 +22,28 @@ class EvaluationInput(TypedDict):
     inputHash: NotRequired[str]
 
 
-def prepare(store: Workspace, bundle: EvaluationInput) -> dict:
+def apply_levenshtein_threshold(config: dict, raw: str | None) -> dict:
+    """Freeze the workflow's optional Levenshtein threshold into comparisonConfig before hashing."""
+    if raw is None or not raw.strip():
+        return config
+    try:
+        threshold = float(raw)
+    except ValueError:
+        raise ValueError("levenshtein_threshold must be a number") from None
+    if not math.isfinite(threshold) or not 0 <= threshold <= 1:
+        raise ValueError("levenshtein_threshold must be between 0 and 1")
+    graph_matching, semantics = config.get("graphMatching", {}), config.get("semantics", {})
+    if not isinstance(graph_matching, dict) or not isinstance(semantics, dict):
+        raise ValueError("comparisonConfig.graphMatching and semantics must be JSON objects")
+    expected = ({"levenshtein": threshold}, ["levenshtein"])
+    present = (graph_matching.get("minimumSimilarity"), semantics.get("methods"))
+    if any(value not in (None, {}, want) for value, want in zip(present, expected)):
+        raise ValueError("levenshtein_threshold conflicts with the configured comparison methods")
+    return {**config, "graphMatching": {**graph_matching, "minimumSimilarity": expected[0]},
+            "semantics": {**semantics, "methods": expected[1]}}
+
+
+def prepare(store: Workspace, bundle: EvaluationInput, levenshtein_threshold: str | None = None) -> dict:
     if bundle.get("schemaVersion") != VERSION or bundle.get("schema") != INPUT_SCHEMA:
         raise ValueError("unsupported evaluation input schema")
     if bundle.get("evaluationId") != store.evaluation_id:
@@ -34,6 +56,7 @@ def prepare(store: Workspace, bundle: EvaluationInput) -> dict:
     bundle = {**bundle, "comparisonConfig": bundle.get("comparisonConfig", {})}
     if not isinstance(bundle["comparisonConfig"], dict):
         raise ValueError("comparisonConfig must be a JSON object")
+    bundle["comparisonConfig"] = apply_levenshtein_threshold(bundle["comparisonConfig"], levenshtein_threshold)
     models, definitions = bundle.get("models"), bundle.get("languages")
     if not isinstance(models, list) or not models or not isinstance(definitions, list):
         raise ValueError("complete models and language definitions are required")
@@ -105,7 +128,7 @@ def prepare(store: Workspace, bundle: EvaluationInput) -> dict:
             "capability": "workflow-input", "summary": f"{len(models)} vollständige Modell-Snapshots bereitgestellt",
             "result": {"evaluationId": store.evaluation_id, "inputHash": digest, "inputSnapshot": reference,
                        "modelKeys": keys, "referenceKeys": [key for key in keys if key != "submission"],
-                       "modelCount": len(models)}}
+                       "modelCount": len(models), "comparisonConfig": bundle["comparisonConfig"]}}
 
 
 def main() -> int:
@@ -114,7 +137,7 @@ def main() -> int:
         bundle = json.loads(gzip.decompress(base64.b64decode(encoded, validate=True)).decode("utf-8"))
         if not isinstance(bundle, dict):
             raise ValueError("evaluation input must be a JSON object")
-        result = prepare(workspace(), bundle)
+        result = prepare(workspace(), bundle, os.environ.get("LEVENSHTEIN_THRESHOLD"))
         write_output(result)
         return 0
     except (ValueError, TypeError, KeyError, OSError, EOFError) as error:

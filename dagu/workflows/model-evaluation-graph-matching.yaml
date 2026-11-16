@@ -13,7 +13,7 @@ labels:
   purpose: evaluation
   domain: generic
   visibility: frontend
-  version: v11
+  version: v12
   phase: '6'
 params:
   schema:
@@ -36,6 +36,9 @@ params:
         type: integer
       reference_count:
         type: integer
+      levenshtein_threshold:
+        type: string
+        description: Optionale Levenshtein-Mindestähnlichkeit zwischen 0 und 1; leer deaktiviert den Textähnlichkeitsvergleich.
   # Dagu-Laufzeitparameter sind skalare Werte. Das Backend serialisiert die
   # strukturierten Werte als JSON und überschreibt diese neutralen Defaults.
   values:
@@ -45,6 +48,7 @@ params:
     reference_models: '[]'
     model_count: 0
     reference_count: 0
+    levenshtein_threshold: ''
 steps:
   - name: prepare_input
     description: Validiert und speichert den vollständigen Snapshot einmalig.
@@ -52,13 +56,15 @@ steps:
       artifact: initialization.json
     action: k8s.run
     with:
-      image: modeling-copilot/workflow-data:v1
+      image: modeling-copilot/workflow-data:v2
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID
           value: ${evaluation_id}
         - name: EVALUATION_INPUT_GZIP_BASE64
           value: ${evaluation_input}
+        - name: LEVENSHTEIN_THRESHOLD
+          value: ${levenshtein_threshold}
 
   - name: parse_models
     description: Ein eigener Parserlauf für das aktuelle Modell und jede Musterlösung.
@@ -141,6 +147,7 @@ steps:
         completedPhase: 6
         modelCount: ${model_count}
         referenceCount: ${reference_count}
+        levenshteinThreshold: ${levenshtein_threshold}
         inputSnapshot: inputs/evaluation-input.json
         parsedModels: graphs/
         modelLabels: labels/
@@ -343,7 +350,7 @@ name: one-to-one-graph-matching-pair
 description: Vergleicht die Abgabe vorläufig mit genau einer Musterlösung.
 tags:
   - visibility=internal
-  - version=v5
+  - version=v6
 artifacts:
   enabled: true
 kubernetes:
@@ -376,7 +383,7 @@ steps:
       artifact: comparison-result.json
     action: k8s.run
     with:
-      image: modeling-copilot/one-to-one-graph-matching:v5
+      image: modeling-copilot/one-to-one-graph-matching:v6
       image_pull_policy: IfNotPresent
       env:
         - name: WORKFLOW_EVALUATION_ID

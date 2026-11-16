@@ -25,7 +25,7 @@ async def list_workflows(user: CurrentUser) -> list[EvaluationWorkflow]:
 
 @router.post("/models/{model_id}/evaluations", status_code=201, response_model=Evaluation)
 async def start_evaluation(model_id: UUID, body: StartEvaluation, user: CurrentUser) -> Evaluation:
-    return Evaluation.model_validate(await service.start(model_id, user))
+    return Evaluation.model_validate(await service.start(model_id, user, levenshtein_threshold=body.levenshtein_threshold))
 
 
 @router.get("/models/{model_id}/evaluations", response_model=Page[Evaluation])

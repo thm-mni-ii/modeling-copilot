@@ -19,7 +19,7 @@ from modeling_api.services.tasks import ensure_release_reference, get_sample_sol
 
 
 _EVALUATION_FIELDS = frozenset({
-    "id", "ownerId", "task", "submission", "dagName", "dagRunId", "startedAt", "state", "workflow",
+    "id", "ownerId", "task", "submission", "dagName", "dagRunId", "startedAt", "state", "workflow", "parameters",
 })
 _EVALUATION_DETAIL_FIELDS = _EVALUATION_FIELDS | {"submissionSnapshot", "steps", "finalResult", "scorePercent"}
 
@@ -215,7 +215,9 @@ async def _evaluation_input(
             "comparisonConfig": config}, descriptors
 
 
-async def start(model_id: UUID, user: User) -> Document:
+async def start(model_id: UUID, user: User, *, levenshtein_threshold: float | None = None) -> Document:
+    if levenshtein_threshold is not None and not user.is_admin:
+        raise ApiError(403, "FORBIDDEN", "Evaluation parameters require administrator access.")
     model = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
     if model is None or not model.get("taskVersion"):
         raise not_found()
@@ -263,6 +265,9 @@ async def start(model_id: UUID, user: User) -> Document:
               "parser_models": [{"key": source["key"]} for source in parser_models],
               "reference_models": [{"key": source["key"]} for source in parser_models if source["role"] == "reference"],
               "model_count": len(parser_models), "reference_count": len(reference_snapshots)}
+    if levenshtein_threshold is not None:
+        # Dagu declares the parameter as a string; workflow-data validates and freezes it.
+        params["levenshtein_threshold"] = str(levenshtein_threshold)
     evaluation = await insert(db.evaluations, {
         "_id": evaluation_id,
         "ownerId": user.id, "taskId": task_ref["taskId"], "taskVersionId": task_ref["versionId"],
@@ -270,6 +275,7 @@ async def start(model_id: UUID, user: User) -> Document:
         "task": task_ref, "submission": {"modelId": str(model_id), "versionId": str(version_id)},
         "submissionSnapshot": snapshot, "parserModels": parser_models, "dagName": workflow_name, "dagRunId": evaluation_id,
         "startedAt": utcnow(), "state": "unknown", "startStatus": "starting", "workflow": workflow,
+        "parameters": {"levenshteinThreshold": levenshtein_threshold},
     })
     try:
         dag_run_id = await dagu.start_workflow(workflow_name, params, run_id=evaluation_id)

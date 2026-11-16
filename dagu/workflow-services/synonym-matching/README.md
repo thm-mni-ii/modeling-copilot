@@ -53,6 +53,24 @@ Referenzstands nachvollziehbar; der laufende Service liest diese Dateien nicht:
 | `preprocessing.py` | `f3f9f00d3dd78c4d71477c7210827faf93fb96f3` |
 | `config.py` | `51b0d734bec8dfe159b2ac611aa2ddc4c650afee` |
 
+## Kalibrierung der Textähnlichkeit
+
+`calibration/label-variants.json` ist ein Goldkorpus aus Label-Paaren (Referenz,
+Variante, erwartetes Urteil), gegliedert nach der Varianten-Typologie A1–F2
+(Orthografie, Morphologie, Lexik, Phrase, Struktur, Sprache) mit 8–10 Fällen je
+Kategorie, inklusive harter Negative. `scripts/calibrate_threshold.py` bewertet
+damit die Levenshtein-Schwelle mit der Entscheidungsregel des Graph-Matchers
+(exakter Anker oder Score ≥ Schwelle), je Vorverarbeitung `normalize` und
+`normalize+casefold`, als Sweep und je Kategorie. `partial`/`context` werden nur
+berichtet. Ausführung im Service-Image, da `rapidfuzz` benötigt wird:
+
+```sh
+docker run --rm --entrypoint python -v "<repo>/dagu/workflow-services/synonym-matching:/svc" -w /svc   -e PYTHONPATH=/svc/src:/app/src modeling-copilot/synonym-matching:v2   scripts/calibrate_threshold.py --thresholds 0.7,0.8 --detail 0.75
+```
+
+Die Korpusprüfung liegt in `tests/test_calibration.py`
+(`python -m unittest tests.test_calibration` mit derselben Umgebung).
+
 ## Workspace-Eingabe
 
 Alle Artefaktpfade sind relativ zu
