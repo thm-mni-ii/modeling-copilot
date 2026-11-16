@@ -41,6 +41,11 @@ async def _settings() -> dict:
         return {}
 
 
+async def enabled() -> bool:
+    """Ob das Archiv in den Collab-Einstellungen an ist; nicht lesbar gilt aus."""
+    return (await _settings()).get("enabled") is True
+
+
 async def archive_closed_share(workpiece_ids: list[str | None]) -> None:
     """Archiviert Modell und Aufgabe einer beendeten Share, wenn Archiv und archiveOnShareClose an sind.
 

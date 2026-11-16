@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 
 from modeling_api.routes.deps import CurrentBearer, CurrentUser
-from modeling_api.schemas.group_work import CreateGroupWork, GroupWorkPlan, GroupWorkResult
+from modeling_api.schemas.group_work import ArchiveGroupWork, CreateGroupWork, GroupWorkArchived, GroupWorkPlan, GroupWorkResult
 from modeling_api.services.collab_kit import group_work as service
 
 router = APIRouter(prefix="/group-work", tags=["Group work"])
@@ -45,3 +45,19 @@ async def preview_group_work(body: CreateGroupWork, user: CurrentUser, token: Cu
 async def create_group_work(body: CreateGroupWork, user: CurrentUser, token: CurrentBearer) -> GroupWorkResult:
     groups = [group.model_dump(mode="json", by_alias=True) for group in body.groups]
     return GroupWorkResult.model_validate({"rooms": await service.create(user, body.course, groups, token)})
+
+
+@router.post(
+    "/archive",
+    summary="Archive the group work of a course",
+    description=(
+        "Moves every room of the course into the archive of Collab-Kit: first its models and tasks, "
+        "then its group, then the room. A workpiece that also lies in a room outside the course stays. "
+        "Each part is restored on its own in the archive, back into its room. A room whose parts "
+        "Collab-Kit refuses stays live and is listed; calling again finishes it. Only moderators may "
+        "call it, and only while the archive is on in the collab settings."
+    ),
+    response_description="How much went to the archive, and the rooms left live.",
+)
+async def archive_group_work(body: ArchiveGroupWork, user: CurrentUser) -> GroupWorkArchived:
+    return GroupWorkArchived.model_validate(await service.archive_course(user, body.course))

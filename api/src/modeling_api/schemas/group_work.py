@@ -64,3 +64,18 @@ class CreatedGroupRoom(ApiSchema):
 
 class GroupWorkResult(ApiSchema):
     rooms: list[CreatedGroupRoom]
+
+
+class ArchiveGroupWork(ApiSchema):
+    """Ein Kurs, dessen Räume samt Gruppen und Modellen ins Archiv gehen."""
+
+    course: Name = Field(description="The course as given at the import; compared without case and extra spaces.")
+
+
+class GroupWorkArchived(ApiSchema):
+    """Was ins Archiv ging und welche Räume stehen blieben."""
+
+    rooms: int = Field(description="Rooms archived.")
+    groups: int = Field(description="Groups archived.")
+    workpieces: int = Field(description="Models and tasks archived; one that also lies in a room outside the course stays.")
+    failed: list[str] = Field(description="Rooms left live because Collab-Kit refused one of their parts; another call finishes them.")

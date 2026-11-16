@@ -5,8 +5,10 @@ Modell wie beim Teilen: feste CK-Aufgabe, Werkstück für Markierungen und Notiz
 Räume und Gruppen tragen `groupWork` statt `share`, Teilen und Sweep sehen sie also nicht.
 Ein Raum gehört zu einem Kurs; importiert man denselben Kurs noch einmal, bekommen vorhandene
 Räume nur, was ihnen fehlt: neue Personen und Modelle für neue Aufgaben. Niemand wird entfernt.
+Ist ein Kurs vorbei, geht er mit allen Räumen ins Archiv von CK (`archive_course`).
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -16,10 +18,12 @@ from modeling_api.core.auth import User
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
 from modeling_api.services import models
-from modeling_api.services.collab_kit import client
+from modeling_api.services.collab_kit import archive, client
 from modeling_api.services.collab_kit.share import TASK_FORMAT, create_model_workpiece
 from modeling_api.services.fbs_users import users_uri
 from modeling_api.services.submissions import is_moderator, require
+
+logger = logging.getLogger(__name__)
 
 KEY = "groupWork"
 # Alle in der Gruppe sehen, kommentieren und bearbeiten; Aufgaben, Entscheidungen und Rechte bleiben bei den Tutoren.
@@ -60,13 +64,14 @@ def same(text: str) -> str:
     return " ".join(text.split()).casefold()
 
 
+def in_course(room: dict[str, Any], course: str) -> bool:
+    """Ob ein Import diesen Raum für den Kurs angelegt hat."""
+    return isinstance(room.get("settings", {}).get(KEY), dict) and same(str(room["settings"][KEY].get("course", ""))) == same(course)
+
+
 async def existing_rooms(course: str) -> dict[str, dict[str, Any]]:
     """Die Räume früherer Importe dieses Kurses je Gruppenname: Raum, CK-Gruppe, Mitglieder und die Aufgaben, die schon ein Modell haben."""
-    rooms = [
-        room
-        for room in await client.list_rooms()
-        if isinstance(room.get("settings", {}).get(KEY), dict) and same(str(room["settings"][KEY].get("course", ""))) == same(course)
-    ]
+    rooms = [room for room in await client.list_rooms() if in_course(room, course)]
     if not rooms:
         return {}
     groups = {
@@ -167,3 +172,44 @@ async def create(user: User, course: str, groups: list[dict[str, Any]], token: s
             }
         )
     return created
+
+
+async def archive_course(user: User, course: str) -> dict[str, Any]:
+    """Gibt alle Räume eines Kurses ins Archiv von CK: je Raum seine Werkstücke, seine Gruppe, dann den Raum.
+
+    Erst die Werkstücke, denn ein archivierter Raum ließe sie ohne Raum live; CK merkt sich ihren Raum und legt
+    sie beim Zurückholen wieder hinein, gleich in welcher Reihenfolge zurückgeholt wird. Ein Werkstück, das auch
+    in einem Raum außerhalb des Kurses liegt, bleibt dort live. Scheitert eines, bleiben Gruppe und Raum stehen;
+    ein neuer Aufruf erledigt den Rest, denn archivierte Räume findet er nicht mehr.
+    """
+    require(is_moderator(user))
+    if not await archive.enabled():
+        raise ApiError(409, "ARCHIVE_DISABLED", "The archive is turned off in the collab settings.")
+    reason = f"course archived: {course}"
+    rooms = await client.list_rooms()
+    ours = [room for room in rooms if in_course(room, course)]
+    ids = {room["_id"] for room in ours}
+    elsewhere = {workpiece_id for room in rooms if room["_id"] not in ids for workpiece_id in room.get("workpieces", [])}
+    groups = [
+        group
+        for group in await client.list_groups()
+        if isinstance((group.get("settings") or {}).get(KEY), dict) and group["settings"][KEY].get("roomId") in ids
+    ]
+    done = {"rooms": 0, "groups": 0, "workpieces": 0, "failed": []}
+    for room in ours:
+        try:
+            for workpiece_id in room.get("workpieces", []):
+                if workpiece_id not in elsewhere:
+                    await client.archive_workpiece(workpiece_id, reason)
+                    done["workpieces"] += 1
+            for group in groups:
+                if group["settings"][KEY]["roomId"] == room["_id"]:
+                    await client.archive_group(group["_id"], reason)
+                    done["groups"] += 1
+            await client.archive_room(room["_id"], reason)
+            done["rooms"] += 1
+        except ApiError:
+            # 409, solange CK etwas davon verschiebt, oder CK antwortet nicht: der Raum bleibt für einen neuen Aufruf.
+            logger.warning("Room %s of course %s could not be archived.", room["_id"], course, exc_info=True)
+            done["failed"].append(room["name"])
+    return done

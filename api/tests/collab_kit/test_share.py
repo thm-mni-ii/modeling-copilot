@@ -116,13 +116,19 @@ def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, arch
         if method == "GET" and path.endswith("/activity"):
             return httpx.Response(200, json=activity.get(path.split("/")[2], []))
         if method == "POST" and path.endswith("/archive"):
-            workpiece_id = path.split("/")[2]
-            if workpiece_id in archive_answers:
-                if archive_answers[workpiece_id] is None:
+            # Werkstück, Raum oder Gruppe.
+            _, collection, thing, _ = path.split("/")
+            if thing in archive_answers:
+                if archive_answers[thing] is None:
                     raise httpx.ConnectError("Collab-Kit is down.")
-                return httpx.Response(archive_answers[workpiece_id], json={"error": "refused"})
-            archived.append({"_id": workpiece_id, "reason": body.get("reason"), "rooms": [r for r, room in rooms.items() if workpiece_id in room["workpieces"]]})
-            return httpx.Response(200, json={"_id": workpiece_id, "kind": "workpiece"})
+                return httpx.Response(archive_answers[thing], json={"error": "refused"})
+            archived.append({"_id": thing, "reason": body.get("reason"), "rooms": [r for r, room in rooms.items() if thing in room["workpieces"]]})
+            # Wie CK: ein Werkstück verlässt seine Räume, Raum und Gruppe sind nicht mehr live.
+            for room in rooms.values():
+                room["workpieces"] = [workpiece_id for workpiece_id in room["workpieces"] if workpiece_id != thing]
+            rooms.pop(thing, None)
+            groups.pop(thing, None)
+            return httpx.Response(200, json={"_id": thing, "kind": collection[:-1]})
         if method == "GET" and path.endswith("/presence"):
             return httpx.Response(200, json=presence)
         if (method, path) == ("GET", "/groups"):

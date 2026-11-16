@@ -143,6 +143,16 @@ async def archive_workpiece(workpiece_id: str, reason: str) -> dict:
     return await _request("POST", f"/workpieces/{workpiece_id}/archive", {"reason": reason})
 
 
+async def archive_room(room_id: str, reason: str) -> dict:
+    """Verschiebt den Raum ins Archiv von CK; seine Werkstücke bleiben live."""
+    return await _request("POST", f"/rooms/{room_id}/archive", {"reason": reason})
+
+
+async def archive_group(group_id: str, reason: str) -> dict:
+    """Verschiebt die Gruppe samt Mitgliedern ins Archiv von CK; ihre Grants wirken solange nicht."""
+    return await _request("POST", f"/groups/{group_id}/archive", {"reason": reason})
+
+
 async def get_settings(key: str) -> dict[str, Any]:
     """Die Werte eines Bereichs der Collab-Einstellungen; einen nie gesetzten gibt CK als {} zurück."""
     return await _request("GET", f"/settings/{key}")

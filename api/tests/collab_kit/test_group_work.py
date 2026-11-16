@@ -273,3 +273,91 @@ def test_the_preview_route_answers_with_the_plan(ck, fbs, monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"rooms": [{"name": "Gruppe 01", "roomId": None, "newMembers": ["malb76"], "newTasks": body["groups"][0]["tasks"], "missing": []}]}
+
+
+OTHER_COURSE = "Datenbanken SS 27"
+
+
+def two_courses():
+    """Im Kurs zwei Räume: R0 mit zwei Aufgaben (W0 bis W3), R1 mit einer (W4, W5); im anderen Kurs R2 (W6, W7)."""
+    asyncio.run(group_work.create(TUTOR, COURSE, [{"name": "Gruppe 01", "usernames": ["malb76"], "tasks": [ref(1), ref(2)]}, {"name": "Gruppe 02", "usernames": ["bobb12"], "tasks": [ref(1)]}], "token"))
+    asyncio.run(group_work.create(TUTOR, OTHER_COURSE, [{"name": "Gruppe 01", "usernames": ["malb76"], "tasks": [ref(1)]}], "token"))
+
+
+def test_archiving_a_course_takes_models_tasks_groups_and_rooms_and_leaves_other_courses(ck, fbs, archiving, archived):
+    rooms, groups, _, _ = ck
+    archiving["enabled"] = True
+    two_courses()
+
+    done = asyncio.run(group_work.archive_course(TUTOR, COURSE))
+
+    assert done == {"rooms": 2, "groups": 2, "workpieces": 6, "failed": []}
+    assert list(rooms) == ["R2"] and list(groups) == ["G2"]
+    # Die Werkstücke zuerst, noch im Raum: CK merkt sich den Raum und legt sie beim Zurückholen wieder hinein.
+    assert [(entry["_id"], entry["rooms"]) for entry in archived] == [
+        *[(f"W{n}", ["R0"]) for n in range(4)],
+        ("G0", []),
+        ("R0", []),
+        *[(f"W{n}", ["R1"]) for n in (4, 5)],
+        ("G1", []),
+        ("R1", []),
+    ]
+    assert {entry["reason"] for entry in archived} == {f"course archived: {COURSE}"}
+
+
+def test_only_moderators_archive_a_course_and_only_while_the_archive_is_on(ck, fbs, archiving, archived):
+    two_courses()
+
+    with pytest.raises(ApiError) as off:
+        asyncio.run(group_work.archive_course(TUTOR, COURSE))
+    archiving["enabled"] = True
+    with pytest.raises(ApiError) as student:
+        asyncio.run(group_work.archive_course(User(id="5", global_role="USER"), COURSE))
+
+    assert (off.value.status, off.value.code, student.value.status) == (409, "ARCHIVE_DISABLED", 403)
+    assert archived == []
+
+
+def test_a_model_that_also_lies_in_a_room_outside_the_course_stays_there(ck, fbs, archiving, archived):
+    rooms, _, _, _ = ck
+    archiving["enabled"] = True
+    two_courses()
+    rooms["R2"]["workpieces"].append("W1")
+
+    done = asyncio.run(group_work.archive_course(TUTOR, COURSE))
+
+    assert done["workpieces"] == 5 and "W1" not in [entry["_id"] for entry in archived]
+    assert rooms["R2"]["workpieces"] == ["W6", "W7", "W1"]
+
+
+def test_a_room_whose_model_collab_kit_refuses_stays_and_archiving_again_finishes_it(ck, fbs, archiving, archived, archive_answers):
+    rooms, groups, _, _ = ck
+    archiving["enabled"] = True
+    two_courses()
+    # 409, solange CK das Modell W1 aus Gruppe 01 verschiebt.
+    archive_answers["W1"] = 409
+
+    first = asyncio.run(group_work.archive_course(TUTOR, COURSE))
+    assert first == {"rooms": 1, "groups": 1, "workpieces": 3, "failed": ["Gruppe 01"]}
+    assert set(rooms) == {"R0", "R2"} and set(groups) == {"G0", "G2"} and rooms["R0"]["workpieces"] == ["W1", "W2", "W3"]
+
+    del archive_answers["W1"]
+    again = asyncio.run(group_work.archive_course(TUTOR, COURSE))
+    assert again == {"rooms": 1, "groups": 1, "workpieces": 3, "failed": []}
+    assert list(rooms) == ["R2"]
+
+
+def test_the_archive_route_answers_with_what_went_to_the_archive(ck, fbs, archiving, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from modeling_api.core.auth import get_user
+    from modeling_api.main import app
+
+    monkeypatch.setitem(app.dependency_overrides, get_user, lambda: TUTOR)
+    archiving["enabled"] = True
+    two_courses()
+
+    response = TestClient(app).post("/v1/group-work/archive", json={"course": OTHER_COURSE}, headers={"Authorization": "Bearer token"})
+
+    assert response.status_code == 200
+    assert response.json() == {"rooms": 1, "groups": 1, "workpieces": 2, "failed": []}

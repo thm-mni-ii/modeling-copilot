@@ -35,7 +35,7 @@
     <v-expand-transition>
       <v-sheet v-show="importing" border rounded="lg" class="pa-4 mb-6"><GroupWorkImport :courses="overview?.courses ?? []" @created="created" /></v-sheet>
     </v-expand-transition>
-    <GroupModels ref="overview" imported :search="search ?? ''" />
+    <GroupModels ref="overview" imported :search="search ?? ''" @archived="emit('created')" />
   </div>
 </template>
 
@@ -44,7 +44,7 @@ import { ref, shallowRef } from 'vue'
 import GroupModels from './GroupModels.vue'
 import GroupWorkImport from './GroupWorkImport.vue'
 
-/** Meldet, dass Räume angelegt wurden, damit auch <ck-management> neu lädt. */
+/** Meldet, dass Räume angelegt oder archiviert wurden, damit auch <ck-management> neu lädt. */
 const emit = defineEmits<{ created: [] }>()
 
 const search = ref<string | null>('')

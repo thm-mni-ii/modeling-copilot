@@ -5,9 +5,13 @@
   <!-- Im Management nur der Überblick: je Kurs eine Tabelle, je Raum eine Zeile mit Aufgaben und Mitgliedern. -->
   <template v-else-if="imported">
     <template v-for="{ key, mark, rooms } in byCourse" :key="key ?? ''">
-      <p class="text-subtitle-2 mt-4 mb-2">
-        {{ mark.course || 'Without course' }} <span class="text-medium-emphasis font-weight-regular">· {{ rooms.length }} {{ rooms.length === 1 ? 'room' : 'rooms' }} · last import {{ formattedDate(lastImport.get(key) ?? mark.importedAt) }}</span>
-      </p>
+      <div class="d-flex align-center mt-4 mb-2">
+        <p class="text-subtitle-2 mb-0">
+          {{ mark.course || 'Without course' }} <span class="text-medium-emphasis font-weight-regular">· {{ rooms.length }} {{ rooms.length === 1 ? 'room' : 'rooms' }} · last import {{ formattedDate(lastImport.get(key) ?? mark.importedAt) }}</span>
+        </p>
+        <v-spacer />
+        <v-btn v-if="collabSettings.archive.enabled && mark.course" size="small" variant="text" prepend-icon="mdi-archive-arrow-down-outline" @click="askArchive(key, mark.course)">Archive course</v-btn>
+      </div>
       <v-table density="compact" class="border rounded-lg mb-4">
         <thead>
           <tr>
@@ -61,17 +65,32 @@
       </v-card>
     </template>
   </template>
+  <v-dialog :model-value="asked !== null" width="440" persistent>
+    <v-card v-if="asked" :title="`Archive ${asked.course}?`">
+      <v-card-text class="pt-0">{{ asked.rooms }} {{ asked.rooms === 1 ? 'room with its group' : 'rooms with their groups' }} and {{ asked.models }} {{ asked.models === 1 ? 'model' : 'models' }} go to the archive, the tasks along with them. Nobody can open them meanwhile. You restore them one by one in the Archive tab.</v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" :disabled="archiving" @click="asked = null">Cancel</v-btn>
+        <v-btn color="error" variant="text" :loading="archiving" @click="archiveCourse">Archive</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
-import { notifyError } from '@/composables/useNotifications'
+import type { AxiosError } from 'axios'
+import { notifyError, notifySuccess } from '@/composables/useNotifications'
+import httpClient from '@/services/api/httpClient'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
+import { collabSettings } from '@/collab/connection/collabSettings'
 import { loadGroupRooms, type GroupRoom, type GroupWorkMark } from '@/collab/groups/groupRooms'
 
 /** `imported`: nur die Räume aus einer Teilnehmerliste, mit Import und Mitgliedern, wie der Reiter „Group work“ sie zeigt. */
 const props = withDefaults(defineProps<{ imported?: boolean; search?: string }>(), { imported: false, search: '' })
+/** Meldet, dass ein Kurs ins Archiv ging, damit auch <ck-management> neu lädt. */
+const emit = defineEmits<{ archived: [] }>()
 
 const headers = [
   { title: 'Task', key: 'task', sortable: false },
@@ -136,6 +155,33 @@ const reload = async () => {
     notifyError(`The group models could not be loaded: ${collabErrorMessage(error)}`)
   } finally {
     loading.value = false
+  }
+}
+
+/** Der Kurs, nach dessen Archivieren gefragt wird, gezählt mit allen seinen Räumen, auch denen, die die Suche ausblendet. */
+const asked = ref<{ course: string; rooms: number; models: number } | null>(null)
+const archiving = ref(false)
+
+const askArchive = (key: string | null, course: string) => {
+  const all = groupRooms.value.filter((group) => courseKey(group.imported) === key)
+  asked.value = { course, rooms: all.length, models: all.reduce((sum, group) => sum + group.models.length, 0) }
+}
+
+/** Gibt den Kurs ins Archiv; einen Raum, den collab-kit ablehnte, erledigt ein zweiter Versuch. */
+const archiveCourse = async () => {
+  if (!asked.value) return
+  archiving.value = true
+  try {
+    const { data } = await httpClient.post<{ rooms: number; failed: string[] }>('/v1/group-work/archive', { course: asked.value.course })
+    if (data.failed.length) notifyError(`Not archived: ${data.failed.join(', ')}. Archive the course again to finish.`)
+    else notifySuccess(`${asked.value.course} archived with ${data.rooms} ${data.rooms === 1 ? 'room' : 'rooms'}.`)
+    asked.value = null
+    await reload()
+    emit('archived')
+  } catch (error) {
+    notifyError(`The course could not be archived: ${(error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message}`)
+  } finally {
+    archiving.value = false
   }
 }
 
