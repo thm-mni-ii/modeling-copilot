@@ -1,60 +1,78 @@
 <template>
   <div class="collab-settings">
-    <p class="about mb-4">These settings apply to every shared model and group room. A change reaches everyone connected at once, and the backend at its next look at the shares.</p>
-    <v-expansion-panels v-model="openPanels" multiple variant="accordion">
-      <v-expansion-panel v-for="group in GROUPS" :key="group.id" :value="group.id">
-        <v-expansion-panel-title>
-          <span class="title">{{ group.title }}</span>
-          <span class="about ml-3">{{ group.about }}</span>
-          <v-chip v-if="group.areas.some((area) => changed(area))" size="x-small" color="warning" variant="tonal" class="ml-3">changed</v-chip>
-        </v-expansion-panel-title>
-        <v-expansion-panel-text>
-          <div v-for="section in sectionsOf(group)" :key="section.area" class="section">
-            <h3 class="title">{{ section.title }}</h3>
-            <p class="about mb-4">{{ section.about }}</p>
-            <div class="fields">
-              <div v-for="field in section.fields" v-show="shown(section.area, field)" :key="field.key">
-                <v-select v-if="field.items" v-model="form[section.area][field.key]" :items="field.items" item-title="title" item-value="value" :label="field.label" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
-                <v-switch v-else-if="typeof limitOf(section.area, field.key).default === 'boolean'" v-model="form[section.area][field.key]" :label="field.label" color="primary" density="compact" inset :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
-                <div v-else-if="'color' in limitOf(section.area, field.key)" class="colors">
-                  <div class="colors__label">{{ field.label }}</div>
-                  <span class="swatch" :style="{ color: textOn(String(form[section.area][field.key])) }">
-                    <input v-model="form[section.area][field.key]" type="color" :disabled="!loaded" :aria-label="field.label" />
-                    <span class="swatch__text">H</span>
-                  </span>
-                  <div class="colors__hint">{{ hintOf(section.area, field) }}</div>
-                </div>
-                <div v-else-if="'minItems' in limitOf(section.area, field.key)" class="colors">
-                  <div class="colors__label">{{ field.label }}</div>
-                  <div class="d-flex flex-wrap align-center ga-1">
-                    <span v-for="(color, at) in listOf(section.area, field.key)" :key="at" class="swatch" :style="{ color: textOn(color) }">
-                      <input :value="color" type="color" :disabled="!loaded" :aria-label="`${field.label} ${at + 1}`" @input="setColor(section.area, field.key, at, $event)" />
-                      <span class="swatch__text">{{ at + 1 }}</span>
-                      <v-btn icon="mdi-close" size="x-small" density="compact" variant="flat" class="swatch__remove" :disabled="!loaded" :aria-label="`Remove color ${at + 1}`" @click="listOf(section.area, field.key).splice(at, 1)" />
-                    </span>
-                    <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" class="ml-2" :disabled="!loaded" @click="listOf(section.area, field.key).push(randomColor())">Add color</v-btn>
-                  </div>
-                  <div v-if="problemOf(section.area, field.key)" class="colors__hint text-error">{{ problemOf(section.area, field.key) }}</div>
-                  <div v-else-if="warningOf(section.area)" class="colors__hint text-warning">{{ warningOf(section.area) }}</div>
-                  <div v-else class="colors__hint">{{ hintOf(section.area, field) }}</div>
-                </div>
-                <v-text-field v-else v-model.number="form[section.area][field.key]" type="number" :label="field.label" :suffix="unitOf(field.key)" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint :error-messages="problemOf(section.area, field.key)" />
+    <p class="about mb-3">These settings apply to every shared model and group room. A change reaches everyone connected at once, and the backend at its next look at the shares.</p>
+    <div class="shell">
+      <div class="shell__head">
+        <v-icon icon="mdi-cog-outline" size="20" />
+        <span class="shell__title">Collab settings</span>
+        <v-chip v-if="unsavedCount" size="small" color="warning" variant="tonal">{{ unsavedCount }} unsaved</v-chip>
+        <v-spacer />
+        <v-btn variant="outlined" :disabled="!unsavedCount || busy !== null" @click="discard">Discard</v-btn>
+        <v-btn color="primary" variant="flat" :disabled="!loaded || !unsavedCount || blocked || busy !== null" :loading="busy === 'all'" @click="saveAll">Save all</v-btn>
+      </div>
+      <div class="shell__tools">
+        <v-text-field v-model="query" density="compact" variant="outlined" hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="Search settings" aria-label="Search settings" class="search" :disabled="!loaded" />
+        <v-btn-toggle v-model="filter" mandatory density="compact" variant="outlined" divided color="primary" aria-label="Filter settings">
+          <v-btn value="all" size="small">All</v-btn>
+          <v-btn value="changed" size="small">Changed</v-btn>
+          <v-btn value="advanced" size="small">Advanced</v-btn>
+        </v-btn-toggle>
+      </div>
+      <v-tabs v-model="tab" density="compact" color="primary" class="shell__tabs" @update:model-value="clearSearch">
+        <v-tab v-for="group in GROUPS" :key="group.id" :value="group.id" :prepend-icon="group.icon">
+          {{ group.title }}
+          <span v-if="group.areas.some((area) => changed(area))" class="tab-dot" title="Unsaved changes" />
+        </v-tab>
+      </v-tabs>
+      <div class="shell__body">
+        <p v-if="searching && visible.length === 0" class="about">No settings match.</p>
+        <div v-for="entry in visible" :key="entry.section.area" class="card">
+          <h3 v-if="searching || entry.section.title !== entry.group.title" class="title">{{ searching && entry.section.title !== entry.group.title ? `${entry.group.title} · ${entry.section.title}` : entry.section.title }}</h3>
+          <p v-if="!searching" class="about mb-2">{{ entry.section.about }}</p>
+          <div v-for="field in entry.fields" :key="field.key" class="row" :class="{ 'row--wide': isWide(entry.section.area, field.key) }">
+            <div class="row__text">
+              <div class="row__label">
+                <span v-if="fieldChanged(entry.section.area, field.key)" class="row__dot" title="Unsaved change" />
+                {{ field.label }}
               </div>
+              <div class="row__hint">{{ hintOf(entry.section.area, field) }}</div>
+              <div v-if="problemOf(entry.section.area, field.key)" class="row__hint text-error">{{ problemOf(entry.section.area, field.key) }}</div>
+              <div v-else-if="warningOf(entry.section.area) && isWide(entry.section.area, field.key)" class="row__hint text-warning">{{ warningOf(entry.section.area) }}</div>
             </div>
-            <v-btn v-if="section.fields.some((field) => field.advanced)" variant="text" size="small" class="mt-2" :append-icon="open[section.area] ? 'mdi-chevron-up' : 'mdi-chevron-down'" @click="open[section.area] = !open[section.area]">Advanced</v-btn>
-            <div class="d-flex ga-2 mt-4">
-              <v-btn color="primary" variant="flat" :disabled="!loaded || !changed(section.area) || invalid(section) || busy !== null" :loading="busy === section.area" @click="save(section)">Save</v-btn>
-              <v-btn variant="text" :disabled="!loaded || busy !== null" @click="reset(section)">Reset to defaults</v-btn>
+            <div class="row__control">
+              <v-select v-if="field.items" v-model="form[entry.section.area][field.key]" :items="field.items" item-title="title" item-value="value" density="compact" variant="outlined" hide-details :disabled="!loaded" :aria-label="field.label" />
+              <v-switch v-else-if="typeof limitOf(entry.section.area, field.key).default === 'boolean'" v-model="form[entry.section.area][field.key]" color="primary" density="compact" inset hide-details :disabled="!loaded" :aria-label="field.label" />
+              <span v-else-if="'color' in limitOf(entry.section.area, field.key)" class="swatch" :style="{ color: textOn(String(form[entry.section.area][field.key])) }">
+                <input v-model="form[entry.section.area][field.key]" type="color" :disabled="!loaded" :aria-label="field.label" />
+                <span class="swatch__text">H</span>
+              </span>
+              <div v-else-if="isWide(entry.section.area, field.key)" class="d-flex flex-wrap align-center ga-1">
+                <span v-for="(color, at) in listOf(entry.section.area, field.key)" :key="at" class="swatch" :style="{ color: textOn(color) }">
+                  <input :value="color" type="color" :disabled="!loaded" :aria-label="`${field.label} ${at + 1}`" @input="setColor(entry.section.area, field.key, at, $event)" />
+                  <span class="swatch__text">{{ at + 1 }}</span>
+                  <v-btn icon="mdi-close" size="x-small" density="compact" variant="flat" class="swatch__remove" :disabled="!loaded" :aria-label="`Remove color ${at + 1}`" @click="listOf(entry.section.area, field.key).splice(at, 1)" />
+                </span>
+                <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" class="ml-2" :disabled="!loaded" @click="listOf(entry.section.area, field.key).push(randomColor())">Add color</v-btn>
+              </div>
+              <v-text-field v-else v-model.number="form[entry.section.area][field.key]" type="number" :suffix="unitOf(field.key)" density="compact" variant="outlined" hide-details :error="Boolean(problemOf(entry.section.area, field.key))" :disabled="!loaded" :aria-label="field.label" />
+            </div>
+            <div class="row__reset">
+              <v-btn v-if="nonDefault(entry.section.area, field.key)" icon="mdi-restore" size="x-small" density="comfortable" variant="text" :disabled="!loaded" :aria-label="`Reset ${field.label} to the default`" title="Reset to the default" @click="resetField(entry.section.area, field.key)" />
             </div>
           </div>
-        </v-expansion-panel-text>
-      </v-expansion-panel>
-    </v-expansion-panels>
+          <div v-if="!searching" class="d-flex align-center ga-2 mt-2">
+            <v-btn v-if="entry.section.fields.some((field) => field.advanced)" variant="text" size="small" :append-icon="open[entry.section.area] ? 'mdi-chevron-up' : 'mdi-chevron-down'" @click="open[entry.section.area] = !open[entry.section.area]">Advanced ({{ entry.section.fields.filter((field) => field.advanced).length }})</v-btn>
+            <v-spacer />
+            <v-btn variant="text" size="small" :disabled="!loaded || busy !== null" :loading="busy === entry.section.area" @click="reset(entry.section)">Reset to defaults</v-btn>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import { collabErrorMessage } from '@/collab/kit/collabKit'
 import type { CollabKitApi } from '@/collab/kit/collabKitV1'
@@ -85,7 +103,7 @@ interface Section {
 interface Group {
   readonly id: string
   readonly title: string
-  readonly about: string
+  readonly icon: string
   readonly areas: readonly CollabArea[]
 }
 
@@ -186,10 +204,10 @@ const SECTIONS: readonly Section[] = [
 ]
 
 const GROUPS: readonly Group[] = [
-  { id: 'sharing', title: 'Sharing', about: 'Waiting times, share defaults', areas: ['sharing', 'shareDefaults'] },
-  { id: 'people', title: 'People', about: 'Presence, colors', areas: ['presence', 'colors'] },
-  { id: 'activity', title: 'Activity and hints', about: 'Event log, notices', areas: ['log', 'hints'] },
-  { id: 'archive', title: 'Archive', about: 'Archive of workpieces', areas: ['archive'] }
+  { id: 'sharing', title: 'Sharing', icon: 'mdi-share-variant', areas: ['sharing', 'shareDefaults'] },
+  { id: 'people', title: 'People', icon: 'mdi-account-group', areas: ['presence', 'colors'] },
+  { id: 'activity', title: 'Activity and hints', icon: 'mdi-bell-outline', areas: ['log', 'hints'] },
+  { id: 'archive', title: 'Archive', icon: 'mdi-archive-outline', areas: ['archive'] }
 ]
 const sectionsOf = (group: Group) => SECTIONS.filter((section) => group.areas.includes(section.area))
 
@@ -212,10 +230,14 @@ const formOf = (area: CollabArea): Record<string, FormValue> => Object.fromEntri
 
 const form = reactive(Object.fromEntries(COLLAB_AREAS.map((area) => [area, formOf(area)])) as Record<CollabArea, Record<string, FormValue>>)
 const loaded = ref(false)
-const busy = ref<CollabArea | null>(null)
+const busy = ref<CollabArea | 'all' | null>(null)
 const open = reactive<Partial<Record<CollabArea, boolean>>>({})
-const openPanels = ref(['sharing'])
+const tab = ref('sharing')
+const query = ref<string | null>('')
+const filter = ref<'all' | 'changed' | 'advanced'>('all')
 
+/** A color list is too wide for the column of values; it gets a line of its own. */
+const isWide = (area: CollabArea, key: string) => 'minItems' in limitOf(area, key)
 const listOf = (area: CollabArea, key: string) => form[area][key] as string[]
 const setColor = (area: CollabArea, key: string, at: number, event: Event) => (listOf(area, key)[at] = (event.target as HTMLInputElement).value)
 const randomColor = () =>
@@ -257,24 +279,68 @@ const warningOf = (area: CollabArea) => {
   return undefined
 }
 
-/** Technical fields show when expanded, with an error that would otherwise block saving unseen, and when changed until saved. */
-const shown = (area: CollabArea, field: Field) => !field.advanced || open[area] || Boolean(problemOf(area, field.key)) || form[area][field.key] !== formOf(area)[field.key]
+/** The values in effect as the form shows them, to tell what is not saved yet. */
+const saved = computed(() => Object.fromEntries(COLLAB_AREAS.map((area) => [area, formOf(area)])) as Record<CollabArea, Record<string, FormValue>>)
+const fieldChanged = (area: CollabArea, key: string) => JSON.stringify(form[area][key]) !== JSON.stringify(saved.value[area][key])
+const changed = (area: CollabArea) => JSON.stringify(form[area]) !== JSON.stringify(saved.value[area])
+const defaultOf = (area: CollabArea, key: string) => {
+  const { default: value } = limitOf(area, key)
+  return (typeof value === 'number' ? value / factorOf(key) : Array.isArray(value) ? [...value] : value) as FormValue
+}
+const nonDefault = (area: CollabArea, key: string) => JSON.stringify(form[area][key]) !== JSON.stringify(defaultOf(area, key))
+const resetField = (area: CollabArea, key: string) => (form[area][key] = defaultOf(area, key))
 const invalid = (section: Section) => section.fields.some((field) => problemOf(section.area, field.key))
-const changed = (area: CollabArea) => JSON.stringify(form[area]) !== JSON.stringify(formOf(area))
 
-const save = async (section: Section) => {
-  busy.value = section.area
-  try {
-    // PUT replaces the whole area, so all its values always go along.
-    const values = Object.fromEntries(Object.entries(form[section.area]).map(([key, value]) => [key, 'min' in limitOf(section.area, key) ? Number(value) * factorOf(key) : value]))
-    applyCollabSettings(section.area, await props.ck.settings.set(section.area, values))
-    form[section.area] = formOf(section.area)
-    notifySuccess(`${section.title} saved.`)
-  } catch (error) {
-    notifyError(`${section.title} could not be saved: ${collabErrorMessage(error)}`)
-  } finally {
-    busy.value = null
+/** Technical fields show when expanded, with an error that would otherwise block saving unseen, and when changed until saved. */
+const shown = (area: CollabArea, field: Field) => !field.advanced || open[area] || Boolean(problemOf(area, field.key)) || fieldChanged(area, field.key)
+
+/** With a search or a filter the tab lists the matching fields of all areas, else the sections of the open tab. */
+const searching = computed(() => Boolean(query.value?.trim()) || filter.value !== 'all')
+const matches = (section: Section, field: Field) => {
+  const text = query.value?.trim().toLowerCase()
+  return !text || [field.label, field.hint, field.key, section.title].some((part) => part.toLowerCase().includes(text))
+}
+const passes = (area: CollabArea, field: Field) => filter.value === 'all' || (filter.value === 'advanced' ? Boolean(field.advanced) : nonDefault(area, field.key) || fieldChanged(area, field.key))
+const visible = computed(() => {
+  const groupOf = (area: CollabArea) => GROUPS.find((group) => group.areas.includes(area)) as Group
+  if (searching.value) return SECTIONS.map((section) => ({ section, group: groupOf(section.area), fields: section.fields.filter((field) => matches(section, field) && passes(section.area, field)) })).filter((entry) => entry.fields.length > 0)
+  const group = GROUPS.find((entry) => entry.id === tab.value) as Group
+  return sectionsOf(group).map((section) => ({ section, group, fields: section.fields.filter((field) => shown(section.area, field)) }))
+})
+const clearSearch = () => {
+  query.value = ''
+  filter.value = 'all'
+}
+
+const unsavedCount = computed(() => SECTIONS.reduce((sum, section) => sum + section.fields.filter((field) => fieldChanged(section.area, field.key)).length, 0))
+/** Saving stops while a changed area holds an error. */
+const blocked = computed(() => SECTIONS.some((section) => changed(section.area) && invalid(section)))
+const discard = () => {
+  for (const area of COLLAB_AREAS) form[area] = formOf(area)
+}
+
+const saveArea = async (area: CollabArea) => {
+  // PUT replaces the whole area, so all its values always go along.
+  const values = Object.fromEntries(Object.entries(form[area]).map(([key, value]) => [key, 'min' in limitOf(area, key) ? Number(value) * factorOf(key) : value]))
+  applyCollabSettings(area, await props.ck.settings.set(area, values))
+  form[area] = formOf(area)
+}
+
+/** Saves every changed area one after the other; one that fails does not stop the others. */
+const saveAll = async () => {
+  busy.value = 'all'
+  const failed: string[] = []
+  for (const section of SECTIONS) {
+    if (!changed(section.area)) continue
+    try {
+      await saveArea(section.area)
+    } catch (error) {
+      failed.push(`${section.title}: ${collabErrorMessage(error)}`)
+    }
   }
+  busy.value = null
+  if (failed.length) notifyError(`Could not be saved: ${failed.join('; ')}`)
+  else notifySuccess('Settings saved.')
 }
 
 /** Deletes the area in collab-kit; without a document the defaults apply everywhere. */
@@ -303,7 +369,7 @@ onMounted(async () => {
 
 <style scoped>
 .collab-settings {
-  max-width: 880px;
+  max-width: 920px;
 }
 
 .title {
@@ -318,15 +384,130 @@ onMounted(async () => {
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
-.colors__label {
-  margin-bottom: 4px;
-  font-size: 13px;
+/* The frame: head with the actions, search, tabs and the sections as cards. */
+.shell {
+  overflow: hidden;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-radius: 12px;
 }
 
-.colors__hint {
-  margin-top: 6px;
+.shell__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+}
+
+.shell__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.shell__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 10px;
+}
+
+.search {
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.shell__tabs {
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.shell__body {
+  padding: 16px;
+}
+
+.card {
+  padding: 12px 14px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-radius: 8px;
+}
+
+.card + .card {
+  margin-top: 12px;
+}
+
+.tab-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: rgb(var(--v-theme-warning));
+}
+
+/* A setting: name and explanation on the left, the value on the right, the reset arrow when it differs from the default. */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px 32px;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.row__label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.row__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: rgb(var(--v-theme-warning));
+}
+
+.row__hint {
+  margin-top: 2px;
   font-size: 12px;
+  line-height: 1.45;
   color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.row__control {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.row__control :deep(.v-input) {
+  width: 100%;
+}
+
+.row__control :deep(.v-selection-control) {
+  justify-content: flex-end;
+}
+
+.row__reset {
+  display: flex;
+  justify-content: center;
+}
+
+.row--wide {
+  grid-template-columns: minmax(0, 1fr) 32px;
+}
+
+.row--wide .row__control {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+}
+
+.row--wide .row__reset {
+  grid-row: 1;
+  grid-column: 2;
 }
 
 /* A color field: the native field at full size, number and remove on top of it. */
@@ -374,17 +555,5 @@ onMounted(async () => {
 
 .swatch:hover .swatch__remove {
   display: inline-flex;
-}
-
-.section + .section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
-}
-
-.fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 12px 24px;
 }
 </style>
