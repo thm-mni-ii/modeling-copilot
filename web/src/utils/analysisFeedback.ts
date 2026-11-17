@@ -17,6 +17,8 @@ export interface IdentityCriterion {
   method: string; role: 'compatibility' | 'support' | 'identity_anchor'; result: AnalysisFact['status']
   referenceIds?: string[]; submissionIds?: string[]; dependsOn?: { referenceId: string; studentId: string }[]
   matched?: number; expected?: number; observed?: number; complete?: boolean
+  // text_similarity only: the matcher's own verdict (reached tier with its thresholds, guard veto).
+  scores?: Record<string, number>; tier?: string | null; minimumSimilarity?: Record<string, number>; veto?: string
 }
 export interface AnalysisIdentity { status: 'uniquely_supported' | 'supported' | 'unresolved'; criteria: IdentityCriterion[]; supportingCandidateCount?: number }
 export interface LocalCounts {
@@ -429,7 +431,7 @@ export const analysisFactLabel = (code: string) => {
   return checkLabels[prefix] ?? code
 }
 export const analysisIdentityLabel = (status: string) => ({ uniquely_supported: 'Eindeutig erkannt', supported: 'Identität gestützt; Eindeutigkeit offen', unresolved: 'Identität ungeklärt' })[status] ?? status
-export const analysisIdentityMethodLabel = (method: string) => ({ exact_label: 'Exakte Beschriftung', type_compatibility: 'Typkompatibilität', independent_children: 'Unabhängig erkannte Kinder', combined_children: 'Gemeinsame Kinderstruktur', identified_owner: 'Unabhängig erkannter Besitzer', connection_structure: 'Verbindungsstruktur', text_similarity: 'Textähnlichkeit über Schwelle', semantic_proposal: 'Vorhandene semantische Evidenz' })[method] ?? method
+export const analysisIdentityMethodLabel = (method: string) => ({ exact_label: 'Exakte Beschriftung', type_compatibility: 'Typkompatibilität', independent_children: 'Unabhängig erkannte Kinder', combined_children: 'Gemeinsame Kinderstruktur', identified_owner: 'Unabhängig erkannter Besitzer', connection_structure: 'Verbindungsstruktur', text_similarity: 'Textähnlichkeit über Schwelle', label_structure: 'Beschriftung widerspricht Struktur (vermutlich vertauscht)', semantic_proposal: 'Vorhandene semantische Evidenz' })[method] ?? method
 export const analysisIdentityRoleLabel = (role: string) => ({ compatibility: 'Vergleich zulässig', support: 'Positive Evidenz', identity_anchor: 'Identitätsanker nach Konkurrenzprüfung' })[role] ?? role
 export const analysisPlacementLabel = (status: unknown) => typeof status === 'string' ? ({ correct_placement: 'Korrekt platziert', wrong_placement: 'Falsch platziert', placement_unresolved: 'Platzierung ungeklärt', unmatched_submission: 'Abgabegegenstück nicht zugeordnet', unmatched_reference: 'Referenzgegenstück nicht zugeordnet', proven_absent: 'Abwesenheit nachgewiesen' })[status] ?? status : ''
 export const analysisFactEvidence = (fact: AnalysisFact) => {
@@ -462,7 +464,7 @@ export const analysisChildChecklist = (facts: AnalysisFact[] | undefined) => {
     unresolvedReference: ids('unmatchedReferenceIds').filter(id => !absent.includes(id)),
     unresolvedSubmission: ids('unmatchedSubmissionIds'), foreign: ids('mappedFromOtherTargets'), roleDifferences: ids('roleDifferenceReferenceIds') }
 }
-export const analysisReasonLabel = (reason: string) => ({ combined_child_structure: 'Gemeinsam unterscheidende Kinderstruktur', unique_mapped_endpoints: 'Eindeutig zugeordnete Endpunkte', unique_exact_connection_label: 'Eindeutige Verbindungsbeschriftung', unique_exact_label: 'Eindeutige gleiche Beschriftung', unique_exact_after_reservations: 'Eindeutige gleiche Beschriftung nach bestehenden Zuordnungen', consistent_owner_anchor: 'Konsistenter zugeordneter Besitzer', independent_child_evidence: 'Unabhängige Evidenz enthaltener Elemente', supported_semantic_evidence: 'Semantisch gestützte Zuordnung', compatible_type_and_mapped_endpoints: 'Kompatibler Typ und zugeordnete Endpunkte', structural_child_of_mapped_parent: 'Kind eines zugeordneten Parents' })[reason] ?? `Zuordnungsregel: ${reason}`
+export const analysisReasonLabel = (reason: string) => ({ combined_child_structure: 'Gemeinsam unterscheidende Kinderstruktur', unique_mapped_endpoints: 'Eindeutig zugeordnete Endpunkte', unique_exact_connection_label: 'Eindeutige Verbindungsbeschriftung', unique_exact_label: 'Eindeutige gleiche Beschriftung', unique_exact_after_reservations: 'Eindeutige gleiche Beschriftung nach bestehenden Zuordnungen', consistent_owner_anchor: 'Konsistenter zugeordneter Besitzer', independent_child_evidence: 'Unabhängige Evidenz enthaltener Elemente', supported_semantic_evidence: 'Semantisch gestützte Zuordnung', neighbor_confirmed_semantic_evidence: 'Textähnlichkeit im Graubereich, durch zugeordnete Nachbarn bestätigt', compatible_type_and_mapped_endpoints: 'Kompatibler Typ und zugeordnete Endpunkte', structural_child_of_mapped_parent: 'Kind eines zugeordneten Parents' })[reason] ?? `Zuordnungsregel: ${reason}`
 const hintTexts: Record<string, string> = {
   'fact.violated': 'Die Einzelprüfung weist eine Abweichung nach.', 'fact.unresolved': 'Diese Einzelprüfung bleibt ungeklärt.',
   'fact.group_violated': 'Die Verbindungsgruppe weicht ab; einzelne Identitäten bleiben vorläufig.', 'fact.group_unresolved': 'Die Prüfung der Verbindungsgruppe bleibt ungeklärt.',
@@ -519,11 +521,14 @@ export const graphDiagnosticLabel = (diagnostic: GraphDiagnostic) => ({
   UNRESOLVED_DIRECTION: 'Verbindungsrichtung unbekannt', UNRESOLVED_LANGUAGE_ORIGIN: 'Sprachherkunft nicht auflösbar'
 } as Record<string, string>)[diagnostic.code] ?? diagnostic.message ?? diagnostic.code
 
-export interface SimilarityMethod { name: string; range: [number, number]; threshold: number | null }
+export interface SimilarityMethod { name: string; range: [number, number]; threshold: number | null; stages: string[]; floor: number | null }
 export interface CandidatePair { referenceId: string; submissionId: string; referenceLabel: string; submissionLabel: string; scores: Record<string, number> | null; unavailableReason: string | null }
 export interface CandidateEvidence { configured: boolean; methods: SimilarityMethod[]; pairs: CandidatePair[] }
-export const similarityMethodLabel = (name: string) => ({ levenshtein: 'Levenshtein', jaro_winkler: 'Jaro-Winkler', char_trigram: 'Zeichen-Trigramme', multilingual: 'Multilinguales Embedding' } as Record<string, string>)[name] ?? name
-export const unavailableTextLabel = (reason: string | null) => reason === 'missing_text' ? 'Beschriftung fehlt' : reason === 'unsupported_text' ? 'Beschriftungsformat nicht unterstützt' : 'Kein Wert berechnet'
+/** Prototype tier names from the workflow preset; unknown names are shown as configured. */
+export const tierLabel = (name: string) => ({ canonical: 'Kanonisch gleich', spelling: 'Schreibweise', meaning: 'Bedeutung' } as Record<string, string>)[name] ?? name
+export const similarityMethodLabel = (name: string) => ({ levenshtein: 'Levenshtein', jaro_winkler: 'Jaro-Winkler', char_trigram: 'Zeichen-Trigramme', multilingual: 'Multilinguales Embedding', levenshtein_canonical: 'Levenshtein (kanonische Schreibweise)', damerau_canonical: 'Damerau-Levenshtein (kanonische Schreibweise)', multilingual_expanded: 'Multilinguales Embedding (ausgeschriebene Abkürzungen)' } as Record<string, string>)[name] ?? name
+export const textVetoLabel = (veto: string) => ({ digit_mismatch: 'Ziffern unterscheiden sich', start_mismatch: 'Wortanfang unterscheidet sich, Schreibweise zählt nicht' } as Record<string, string>)[veto] ?? veto
+export const unavailableTextLabel =(reason: string | null) => reason === 'missing_text' ? 'Beschriftung fehlt' : reason === 'unsupported_text' ? 'Beschriftungsformat nicht unterstützt' : 'Kein Wert berechnet'
 
 /** Candidate matrix plus the thresholds the matcher actually used; only returned when both artifacts are bound to each other. */
 export function candidateEvidence(detail: EvaluationDetail, referenceKey: string): CandidateEvidence | null {
@@ -532,12 +537,32 @@ export function candidateEvidence(detail: EvaluationDetail, referenceKey: string
   if (candidates?.schema !== 'semantic-candidates/v1' || candidates.evaluationId !== detail.id || !object(candidates.pair) || candidates.pair.referenceKey !== referenceKey ||
       !object(comparison) || !hash(candidates.candidateHash) || comparison.candidateHash !== candidates.candidateHash ||
       !Array.isArray(candidates.methods) || !Array.isArray(candidates.synonymMatrix)) return null
-  const thresholds = object(comparison.semanticConfiguration) && object(comparison.semanticConfiguration.minimumSimilarity) ? comparison.semanticConfiguration.minimumSimilarity : {}
+  const configuration = object(comparison.semanticConfiguration) ? comparison.semanticConfiguration : {}
+  const thresholds: Record<string, unknown> = object(configuration.minimumSimilarity) ? { ...configuration.minimumSimilarity } : {}
+  // Tiers: a pair is supported when any tier method reaches its threshold, so the lowest threshold per method decides.
+  const tiers = object(configuration.textEvidence) && Array.isArray(configuration.textEvidence.tiers) ? configuration.textEvidence.tiers : []
+  const stages: Record<string, string[]> = {}
+  const floors: Record<string, number> = {}
+  const format = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  for (const tier of tiers as unknown[]) {
+    const minimum = object(tier) && object(tier.minimumSimilarity) ? tier.minimumSimilarity : {}
+    const name = object(tier) ? tierLabel(String(tier.name ?? '')) : ''
+    for (const [method, value] of Object.entries(minimum)) {
+      if (typeof value !== 'number') continue
+      const current = thresholds[method]
+      if (typeof current !== 'number' || value < current) thresholds[method] = value
+      ;(stages[method] ??= []).push(`${name} ${value >= 1 ? '=' : '≥'} ${format.format(value)}`)
+    }
+    for (const [method, value] of Object.entries(object(tier) && object(tier.confirmationFloor) ? tier.confirmationFloor : {})) {
+      if (typeof value === 'number') floors[method] = value
+    }
+  }
   const methods: SimilarityMethod[] = []
   for (const method of candidates.methods as unknown[]) {
     if (!object(method) || !id(method.name) || !Array.isArray(method.scoreRange) || method.scoreRange.length !== 2 || !method.scoreRange.every(Number.isFinite)) return null
     const threshold = thresholds[method.name]
-    methods.push({ name: method.name, range: method.scoreRange as [number, number], threshold: typeof threshold === 'number' && Number.isFinite(threshold) ? threshold : null })
+    methods.push({ name: method.name, range: method.scoreRange as [number, number], threshold: typeof threshold === 'number' && Number.isFinite(threshold) ? threshold : null,
+      stages: stages[method.name] ?? [], floor: floors[method.name] ?? null })
   }
   const pairs: CandidatePair[] = []
   for (const row of candidates.synonymMatrix as unknown[]) {
@@ -576,12 +601,14 @@ export function identityExplanation(item: { identity?: AnalysisIdentity; referen
   return 'Kein Gegenstück: Für dieses Objekt liegt keine tragfähige Identitätsevidenz vor.'
 }
 export function identityCriterionNote(criterion: IdentityCriterion, describe: (dependency: { referenceId: string; studentId: string }) => string) {
-  const counts = typeof criterion.expected === 'number' ? ` · ${criterion.matched ?? 0} / ${criterion.expected}` : ''
+  const counts = (typeof criterion.expected === 'number' ? ` · ${criterion.matched ?? 0} / ${criterion.expected}` : '') +
+    (criterion.tier ? ` · Stufe ${tierLabel(criterion.tier)}` : '') + (criterion.veto ? ` · verworfen: ${textVetoLabel(criterion.veto)}` : '')
   if (criterion.role === 'compatibility') return (criterion.result === 'satisfied' ? 'Vergleich zulässig, kein Identitätsbeleg' : 'Typen nicht vergleichbar') + counts
   if (criterion.role === 'identity_anchor') return 'Entscheidend: schließt alle Konkurrenten aus' + counts
   if (criterion.result === 'satisfied') return 'Spricht dafür, allein nicht eindeutig' + counts
   if (criterion.result === 'unresolved' && criterion.dependsOn?.length) return `Offen: stützt sich auf ${criterion.dependsOn.map(describe).join(', ')}, selbst nicht eindeutig erkannt` + counts
   if (criterion.result === 'unresolved') return 'Offen: Datenlage reicht nicht aus' + counts
+  if (criterion.method === 'label_structure') return 'Gleiche Beschriftung, aber Kinder und Nachbarn passen zu einem anderen Gegenstück; zur Prüfung offen gelassen'
   return (criterion.result === 'violated' ? 'Nicht erfüllt' : analysisValueLabel(criterion.result)) + counts
 }
 

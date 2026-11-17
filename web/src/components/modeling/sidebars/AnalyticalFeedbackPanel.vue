@@ -18,7 +18,11 @@
         <template v-if="evidence">
           <div v-for="method in evidence.methods" :key="method.name" class="d-flex justify-space-between ga-2">
             <span>{{ similarityMethodLabel(method.name) }}</span>
-            <span :class="method.threshold === null ? 'text-medium-emphasis' : 'font-weight-medium'">{{ method.threshold === null ? 'berechnet, ohne Schwelle' : `Schwelle ${number.format(method.threshold)}` }}</span>
+            <span :class="method.threshold === null ? 'text-medium-emphasis' : 'font-weight-medium'">{{ method.threshold === null ? 'berechnet, ohne Schwelle' : method.stages.length ? method.stages.join(' · ') : `Schwelle ${number.format(method.threshold)}` }}</span>
+          </div>
+          <div v-for="method in evidence.methods.filter(item => item.floor !== null)" :key="`${method.name}-floor`" class="d-flex justify-space-between ga-2 text-medium-emphasis">
+            <span>Graubereich {{ similarityMethodLabel(method.name) }}</span>
+            <span>ab {{ number.format(method.floor ?? 0) }}, nur mit Bestätigung durch Nachbarn</span>
           </div>
           <p class="text-medium-emphasis mt-1 mb-0">{{ evidence.configured ? 'Verfahren mit Schwelle können eine Zuordnung begründen; die übrigen Werte sind nur informativ.' : 'Keine Schwelle konfiguriert: Textähnlichkeit fließt nicht in die Zuordnung ein.' }}</p>
         </template>

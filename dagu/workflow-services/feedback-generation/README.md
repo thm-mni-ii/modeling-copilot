@@ -1,6 +1,6 @@
 # feedback-generation
 
-Serviceversion `2.2.0`, Image `v9`, Ausgabe `feedback-report/v3` in
+Serviceversion `2.2.1`, Image `v10`, Ausgabe `feedback-report/v3` in
 `workflow-result/v1`.
 
 Der Dienst verlangt `WORKFLOW_EVALUATION_ID`, `REFERENCE_KEY` und

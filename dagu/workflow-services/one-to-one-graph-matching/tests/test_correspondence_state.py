@@ -20,12 +20,12 @@ def fixture():
         + [(r, s) for r in ("r-p-name", "r-d-name") for s in ("s-p-name", "s-d-name")]
         + [("r-other", "s-other")],
         [
-            {"kind": "contains", "role": "content", "source": "r-p-name", "target": "r-person"},
-            {"kind": "contains", "role": "content", "source": "r-d-name", "target": "r-dept"},
+            {"kind": "contains", "role": "component", "source": "r-p-name", "target": "r-person"},
+            {"kind": "contains", "role": "component", "source": "r-d-name", "target": "r-dept"},
         ],
         [
-            {"kind": "contains", "role": "content", "source": "s-p-name", "target": "s-person"},
-            {"kind": "contains", "role": "content", "source": "s-d-name", "target": "s-dept"},
+            {"kind": "contains", "role": "component", "source": "s-p-name", "target": "s-person"},
+            {"kind": "contains", "role": "component", "source": "s-d-name", "target": "s-dept"},
         ],
     )
     for side in ("reference", "student"):
@@ -162,7 +162,7 @@ class CorrespondenceStateTests(unittest.TestCase):
         )
         for side, prefix in (("reference", "r"), ("student", "s")):
             nodes = list(indices[side].nodes.values()) + [node(prefix + "-box", "structuralElement")]
-            edges = [{"kind": "contains", "role": "content", "source": prefix + "-child", "target": prefix + "-box"},
+            edges = [{"kind": "contains", "role": "component", "source": prefix + "-child", "target": prefix + "-box"},
                      {"kind": "contains", "role": "component", "source": prefix + "-box", "target": prefix + "-owner"}]
             indices[side] = GraphIndex(graph(nodes, edges))
         state = correspondence_state.build_provisional_state(indices, candidates)
@@ -182,10 +182,10 @@ class CorrespondenceStateTests(unittest.TestCase):
             {"r-owner": "Old", "r-one": "One", "r-two": "Two"},
             {"s-owner": "New", "s-other": "Other", "s-one": "One", "s-two": "Two"},
             [("r-owner", "s-owner"), ("r-owner", "s-other"), ("r-one", "s-one"), ("r-two", "s-two")],
-            [{"kind": "contains", "role": "content", "source": child, "target": "r-owner"}
+            [{"kind": "contains", "role": "component", "source": child, "target": "r-owner"}
              for child in ("r-one", "r-two")],
-            [{"kind": "contains", "role": "content", "source": "s-one", "target": "s-owner"},
-             {"kind": "contains", "role": "content", "source": "s-two", "target": "s-other"}],
+            [{"kind": "contains", "role": "component", "source": "s-one", "target": "s-owner"},
+             {"kind": "contains", "role": "component", "source": "s-two", "target": "s-other"}],
         )
         state = correspondence_state.build_provisional_state(indices, candidates)
         self.assertFalse(any(item["referenceId"] == "r-owner" for item in state["proposals"]))
@@ -198,8 +198,8 @@ class CorrespondenceStateTests(unittest.TestCase):
             {"r-owner": "Old", "r1": "Name", "r2": "Name"},
             {"s-owner": "New", "s1": "Name", "s2": "Name"},
             [("r-owner", "s-owner")] + [(ref, sub) for ref in ("r1", "r2") for sub in ("s1", "s2")],
-            [{"kind": "contains", "role": "content", "source": ref, "target": "r-owner"} for ref in ("r1", "r2")],
-            [{"kind": "contains", "role": "content", "source": sub, "target": "s-owner"} for sub in ("s1", "s2")],
+            [{"kind": "contains", "role": "component", "source": ref, "target": "r-owner"} for ref in ("r1", "r2")],
+            [{"kind": "contains", "role": "component", "source": sub, "target": "s-owner"} for sub in ("s1", "s2")],
         )
         state = correspondence_state.build_provisional_state(indices, candidates)
         self.assertEqual(state["proposals"], [{"referenceId": "r-owner", "studentId": "s-owner",
@@ -214,10 +214,10 @@ class CorrespondenceStateTests(unittest.TestCase):
             {"s-known": "Known", "s-new": "New", "s-a": "Name", "s-b": "Name"},
             [("r-known", "s-known"), ("r-new", "s-new")]
             + [(ref, sub) for ref in ("r-a", "r-b") for sub in ("s-a", "s-b")],
-            [{"kind": "contains", "role": "content", "source": "r-a", "target": "r-known"},
-             {"kind": "contains", "role": "content", "source": "r-b", "target": "r-new"}],
-            [{"kind": "contains", "role": "content", "source": "s-a", "target": "s-known"},
-             {"kind": "contains", "role": "content", "source": "s-b", "target": "s-new"}],
+            [{"kind": "contains", "role": "component", "source": "r-a", "target": "r-known"},
+             {"kind": "contains", "role": "component", "source": "r-b", "target": "r-new"}],
+            [{"kind": "contains", "role": "component", "source": "s-a", "target": "s-known"},
+             {"kind": "contains", "role": "component", "source": "s-b", "target": "s-new"}],
         )
         state = correspondence_state.build_provisional_state(indices, candidates)
         pairs = {item["referenceId"]: item for item in state["proposals"]}
@@ -230,7 +230,7 @@ class CorrespondenceStateTests(unittest.TestCase):
 
     def test_child_cannot_create_owner_without_candidate_or_global_capacity(self):
         edges = lambda prefix: [
-            {"kind": "contains", "role": "content", "source": prefix + "-child", "target": prefix + "-owner"}]
+            {"kind": "contains", "role": "component", "source": prefix + "-child", "target": prefix + "-owner"}]
         for owner_pairs in ([], [("r-owner", "s-owner"), ("r-owner", "s-other"), ("r-other", "s-owner")]):
             with self.subTest(owner_pairs=owner_pairs):
                 indices, candidates = make_inputs(
@@ -275,9 +275,9 @@ class CorrespondenceStateTests(unittest.TestCase):
             {"r-owner": "Old", "r-other": "Reference", "r-child": "Unique"},
             {"s-owner": "New", "s-child": "Unique"},
             [("r-owner", "s-owner"), ("r-other", "s-owner"), ("r-child", "s-child")],
-            [{"kind": "contains", "role": "content", "source": "r-child", "target": "r-owner"},
-             {"kind": "contains", "role": "content", "source": "r-child", "target": "r-other"}],
-            [{"kind": "contains", "role": "content", "source": "s-child", "target": "s-owner"}],
+            [{"kind": "contains", "role": "component", "source": "r-child", "target": "r-owner"},
+             {"kind": "contains", "role": "component", "source": "r-child", "target": "r-other"}],
+            [{"kind": "contains", "role": "component", "source": "s-child", "target": "s-owner"}],
         )
         state = correspondence_state.build_provisional_state(indices, candidates)
         self.assertEqual([item["referenceId"] for item in state["proposals"]], ["r-child"])
@@ -291,9 +291,9 @@ class CorrespondenceStateTests(unittest.TestCase):
             {"r-first": "First", "r-second": "Second", "r-one": "One", "r-two": "Two"},
             {"s-owner": "New", "s-one": "One", "s-two": "Two"},
             [("r-first", "s-owner"), ("r-second", "s-owner"), ("r-one", "s-one"), ("r-two", "s-two")],
-            [{"kind": "contains", "role": "content", "source": "r-one", "target": "r-first"},
-             {"kind": "contains", "role": "content", "source": "r-two", "target": "r-second"}],
-            [{"kind": "contains", "role": "content", "source": child, "target": "s-owner"}
+            [{"kind": "contains", "role": "component", "source": "r-one", "target": "r-first"},
+             {"kind": "contains", "role": "component", "source": "r-two", "target": "r-second"}],
+            [{"kind": "contains", "role": "component", "source": child, "target": "s-owner"}
              for child in ("s-one", "s-two")],
         )
         state = correspondence_state.build_provisional_state(indices, candidates)
@@ -305,9 +305,9 @@ class CorrespondenceStateTests(unittest.TestCase):
             {"r-owner": "Old", "r-found": "Found", "r-missing": "Missing"},
             {"s-owner": "New", "s-found": "Found"},
             [("r-owner", "s-owner"), ("r-found", "s-found")],
-            [{"kind": "contains", "role": "content", "source": child, "target": "r-owner"}
+            [{"kind": "contains", "role": "component", "source": child, "target": "r-owner"}
              for child in ("r-found", "r-missing")],
-            [{"kind": "contains", "role": "content", "source": "s-found", "target": "s-owner"}],
+            [{"kind": "contains", "role": "component", "source": "s-found", "target": "s-owner"}],
         )
         state = correspondence_state.build_provisional_state(indices, candidates)
         evidence = next(item for item in state["childOwnerEvidence"] if item["referenceId"] == "r-owner")
@@ -322,10 +322,10 @@ class CorrespondenceStateTests(unittest.TestCase):
             {"s1": "New1", "s2": "New2", "s3": "New3", "sc1": "One", "sc2": "Two"},
             [("r1", "s1"), ("r1", "s3"), ("r2", "s2"), ("r2", "s3"),
              ("r3", "s1"), ("r3", "s2"), ("rc1", "sc1"), ("rc2", "sc2")],
-            [{"kind": "contains", "role": "content", "source": "rc1", "target": "r1"},
-             {"kind": "contains", "role": "content", "source": "rc2", "target": "r2"}],
-            [{"kind": "contains", "role": "content", "source": "sc1", "target": "s1"},
-             {"kind": "contains", "role": "content", "source": "sc2", "target": "s2"}],
+            [{"kind": "contains", "role": "component", "source": "rc1", "target": "r1"},
+             {"kind": "contains", "role": "component", "source": "rc2", "target": "r2"}],
+            [{"kind": "contains", "role": "component", "source": "sc1", "target": "s1"},
+             {"kind": "contains", "role": "component", "source": "sc2", "target": "s2"}],
         )
         state = correspondence_state.build_provisional_state(indices, candidates)
         self.assertFalse(any(item["reason"] == "independent_child_evidence" for item in state["proposals"]))

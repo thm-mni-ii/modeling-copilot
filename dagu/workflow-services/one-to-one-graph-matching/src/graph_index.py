@@ -95,6 +95,27 @@ class GraphIndex:
                     raise ValueError("connection has duplicate endpoint role")
                 self.endpoints[connection][role] = terminal
 
+    def identity_owner(self, identity):
+        """Return the nearest semantic parent only if the path crosses a declared substructure.
+
+        A `component` edge marks a child the language declares (e.g. an attribute list);
+        a model element merely placed inside another one (e.g. a task in a lane) has no
+        identity-bearing owner, only a placement that facts evaluate separately.
+        """
+        visited = {identity}
+        current, declared = identity, False
+        while True:
+            edges = self.parents.get(current, ())
+            if len(edges) != 1:
+                return None
+            declared = declared or edges[0]["role"] == "component"
+            current = edges[0]["target"]
+            if current in visited:
+                return None
+            visited.add(current)
+            if self.nodes[current]["kind"] != "structuralElement":
+                return current if declared else None
+
     def owner(self, identity):
         """Return the nearest semantic parent if the retained path is unambiguous."""
         visited = {identity}

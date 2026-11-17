@@ -27,7 +27,7 @@ def run(store: Workspace, reference_key: str, analysis_path: str | None = None) 
         "pair": comparison["pair"], "comparisonHash": comparison["comparisonHash"],
         "analysisHash": analysis["analysisHash"], "analysisPath": analysis_path,
         "recognition": analysis["recognition"],
-        "producer": {"service": SERVICE, "version": "2.2.0",
+        "producer": {"service": SERVICE, "version": "2.2.1",
                      "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()})},
     }
     report["feedbackHash"] = content_hash(report)

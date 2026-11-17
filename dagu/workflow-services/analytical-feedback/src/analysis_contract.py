@@ -430,7 +430,9 @@ def validate_analysis(report, store=None):
 def compact_identity(fact):
     if fact is None:
         return None
-    fields = ("method", "role", "result", "matched", "expected", "observed", "complete", "referenceChildIds", "submissionChildIds")
+    fields = ("method", "role", "result", "matched", "expected", "observed", "complete", "referenceChildIds", "submissionChildIds",
+              # The matcher's own text verdict: scores, reached tier, its applied thresholds and any guard veto.
+              "scores", "tier", "minimumSimilarity", "veto")
     criteria = [{**{key: criterion[key] for key in fields if key in criterion},
                  **({"dependsOn": criterion["dependsOn"]} if criterion.get("dependsOn") else {})}
                 for criterion in fact["evidence"]["criteria"] if criterion["result"] not in ("not_evaluated", "not_applicable")]

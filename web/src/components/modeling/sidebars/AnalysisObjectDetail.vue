@@ -43,7 +43,7 @@
 
     <section v-if="evidence && isElement" class="analysis-detail__section" aria-label="Textähnlichkeit">
       <h5 class="analysis-detail__heading">Textähnlichkeit</h5>
-      <SimilarityEvidence :evidence="evidence" :submission-id="submissionId" :reference-id="annotation?.referenceId ?? referenceHint?.referenceId" />
+      <SimilarityEvidence :evidence="evidence" :submission-id="submissionId" :reference-id="annotation?.referenceId ?? referenceHint?.referenceId" :verdict="textVerdict" />
     </section>
 
     <section v-if="factGroups.length || otherFactCount" class="analysis-detail__section" aria-label="Prüfungen">
@@ -173,6 +173,8 @@ const display = computed(() => props.annotation ? analysisDisplay[analysisStatus
 const statusLabel = computed(() => props.annotation ? display.value.label
   : props.referenceHint?.code === 'reference.missing' ? 'Referenz fehlt' : props.referenceHint?.code === 'reference.not_evaluated' ? 'Nicht ausgewertet' : 'Referenz ohne Gegenstück')
 const identity = computed(() => props.annotation?.identity ?? props.referenceHint?.identity)
+// Only a mapped annotation's identity describes exactly the shown pair; other identities aggregate all candidates.
+const textVerdict = computed(() => props.annotation?.referenceId ? props.annotation.identity?.criteria.find(item => item.method === 'text_similarity') : undefined)
 const explanation = computed(() => props.annotation ? identityExplanation(props.annotation) : props.referenceHint ? analysisHintText(props.referenceHint) : null)
 const facts = computed(() => (props.annotation?.facts ?? props.referenceHint?.facts ?? []).filter(fact => !fact.code.startsWith('identity.')))
 const hints = computed(() => props.annotation?.hints ?? (props.referenceHint ? [props.referenceHint] : []))

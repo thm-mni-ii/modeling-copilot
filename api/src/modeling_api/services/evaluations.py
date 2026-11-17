@@ -215,8 +215,9 @@ async def _evaluation_input(
             "comparisonConfig": config}, descriptors
 
 
-async def start(model_id: UUID, user: User, *, levenshtein_threshold: float | None = None) -> Document:
-    if levenshtein_threshold is not None and not user.is_admin:
+async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None) -> Document:
+    """`text_evidence`: admin overrides {spelling, meaning, meaningFloor}; None runs the workflow defaults."""
+    if text_evidence is not None and not user.is_admin:
         raise ApiError(403, "FORBIDDEN", "Evaluation parameters require administrator access.")
     model = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
     if model is None or not model.get("taskVersion"):
@@ -265,9 +266,9 @@ async def start(model_id: UUID, user: User, *, levenshtein_threshold: float | No
               "parser_models": [{"key": source["key"]} for source in parser_models],
               "reference_models": [{"key": source["key"]} for source in parser_models if source["role"] == "reference"],
               "model_count": len(parser_models), "reference_count": len(reference_snapshots)}
-    if levenshtein_threshold is not None:
+    if text_evidence is not None:
         # Dagu declares the parameter as a string; workflow-data validates and freezes it.
-        params["levenshtein_threshold"] = str(levenshtein_threshold)
+        params["text_evidence"] = json.dumps(text_evidence, separators=(",", ":"))
     evaluation = await insert(db.evaluations, {
         "_id": evaluation_id,
         "ownerId": user.id, "taskId": task_ref["taskId"], "taskVersionId": task_ref["versionId"],
@@ -275,7 +276,7 @@ async def start(model_id: UUID, user: User, *, levenshtein_threshold: float | No
         "task": task_ref, "submission": {"modelId": str(model_id), "versionId": str(version_id)},
         "submissionSnapshot": snapshot, "parserModels": parser_models, "dagName": workflow_name, "dagRunId": evaluation_id,
         "startedAt": utcnow(), "state": "unknown", "startStatus": "starting", "workflow": workflow,
-        "parameters": {"levenshteinThreshold": levenshtein_threshold},
+        "parameters": {"textEvidence": text_evidence},
     })
     try:
         dag_run_id = await dagu.start_workflow(workflow_name, params, run_id=evaluation_id)

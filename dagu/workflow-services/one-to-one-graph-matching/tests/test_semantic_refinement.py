@@ -7,7 +7,7 @@ from test_matching import make_inputs
 
 
 def contains(child, parent):
-    return {"kind": "contains", "role": "content", "source": child, "target": parent}
+    return {"kind": "contains", "role": "component", "source": child, "target": parent}
 
 
 def fixture(references, students, entries, reference_edges=(), student_edges=()):

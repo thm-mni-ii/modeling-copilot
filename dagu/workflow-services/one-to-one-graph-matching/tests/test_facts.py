@@ -171,7 +171,7 @@ class PropertyFactsTests(unittest.TestCase):
 
 
 def contains(child, parent):
-    return {"kind": "contains", "source": child, "target": parent, "role": "content"}
+    return {"kind": "contains", "source": child, "target": parent, "role": "component"}
 
 
 if __name__ == "__main__":

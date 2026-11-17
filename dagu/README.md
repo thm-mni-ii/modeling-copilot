@@ -66,16 +66,20 @@ Inventare unter `labels/<modelKey>.json` und semantische Kandidaten unter
 `analysis/<referenceKey>/<analysisKey>.json`. Die Abgabe wird nur einmal vorbereitet.
 Alle benötigten Modell- und Paarabläufe sind intern in derselben Datei eingebettet.
 Dagu registriert ausschließlich `model-evaluation-graph-matching`. Die Workflowversion
-ist `v12` (der interne Analyse-/Feedbackablauf bleibt `v11`), der Graphvergleich verwendet
-intern `v6`, Synonym Matching `v2`. Graph Matching verwendet Serviceversion
-`2.2.0`, Analytical Feedback `2.2.1`, Synonym Matching `1.1.0`, Feedback Generation
-`2.2.0`, die übrigen Dienste `1.0.0`. Graphvergleich verwendet
+ist `v21` (der interne Analyse-/Feedbackablauf ist `v13`), der Graphvergleich verwendet
+intern `v13`, Synonym Matching `v4`. Graph Matching verwendet Serviceversion
+`2.7.1`, Analytical Feedback `2.3.0`, Synonym Matching `1.3.0`, Feedback Generation
+`2.2.1`, die übrigen Dienste `1.0.0`. Graphvergleich verwendet
 `reference-comparison/v2`, Analyse/Feedback `/v3`, übrige Artefakte und vollständige
 stdout-Envelopes `/v1`; Matcher-Fakten `1.1`, Identitätsevidenzen `1.1`.
-Image-Tags: Analyse `v10`, Feedback `v9`, Matcher `v6`, Workflow-Data `v2`, Synonym `v2`, übrige `v1`.
-Der optionale Workflowparameter `levenshtein_threshold` (0–1, leer = aus) wird von
-`workflow-data` vor dem Eingabehash als `graphMatching.minimumSimilarity.levenshtein`
-und `semantics.methods: [levenshtein]` in `comparisonConfig` eingefroren.
+Image-Tags: Analyse `v11`, Feedback `v10`, Matcher `v13`, Workflow-Data `v5`, Synonym `v4`, übrige `v1`.
+Jede Auswertung verwendet die Evidenzstufen: `workflow-data` friert vor dem Eingabehash
+`graphMatching.textEvidence.tiers` (kanonisch gleich → Schreibvariante → Bedeutung) mit
+`semantics.methods: [damerau_canonical, multilingual_expanded]` in `comparisonConfig` ein.
+Standardschwellen: Schreibvariante 0,85, Bedeutung 0,85, Graubereich ab 0,70. Der optionale
+Workflowparameter `text_evidence` überschreibt sie als JSON-Objekt (`spelling`, `meaning`,
+`meaningFloor`; nur Admins über den Startdialog). Konzept unter
+`docs/graph-matching-workflow/07-KONZEPT-TEXTEVIDENZ-STUFEN.md`.
 Lokale Nachweise vom 16.11.2026: [Graph-Evaluation](../docs/graph-evaluation/RUNLOG.md).
 
 Der Analyse-/Feedbackablauf liest `analysisPath` und `analysisKey` aus dem vollständigen
@@ -156,7 +160,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v2 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v2 modeling-copilot/one-to-one-graph-matching:v6 modeling-copilot/analytical-feedback:v10 modeling-copilot/feedback-generation:v9 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v5 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v4 modeling-copilot/one-to-one-graph-matching:v13 modeling-copilot/analytical-feedback:v11 modeling-copilot/feedback-generation:v10 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre

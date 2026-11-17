@@ -5,7 +5,7 @@ import unicodedata
 from artifacts import _key
 from assignment_capacity import necessary_pairs
 from structural_evidence import analyze_child_owner_evidence, analyze_containment
-from text_similarity import pair_similarity
+from text_similarity import configured_tiers, legacy_thresholds, pair_similarity
 
 
 METHODS = ("exact_label", "text_similarity", "type_compatibility", "independent_children", "combined_children", "identified_owner", "connection_structure")
@@ -16,12 +16,20 @@ def normalized(value):
     return " ".join(unicodedata.normalize("NFC", value or "").split())
 
 
+def labelled(index, connection):
+    """Whether a connection carries any text, on the line itself or as an additional label."""
+    if (index.nodes[connection].get("label") or "").strip():
+        return True
+    return any(index.nodes[edge["source"]]["kind"] == "connectionLabel" and (index.nodes[edge["source"]].get("label") or "").strip()
+               for edge in index.children.get(connection, ()))
+
+
 def dependency_pairs(row):
     return {(item["referenceId"], item["studentId"]) for item in row.get("dependsOn", [])}
 
 
 def evaluate_identity(indices, candidates, proposals, *, combined=(), connection_pairs=(), connection_candidates=(),
-                      minimum_similarity=None):
+                      minimum_similarity=None, text_evidence=None, label_conflicts=()):
     """No new correspondence selection: explain the supplied one-to-one pairs.
 
     Unique means forced among evidence-backed alternatives after independent
@@ -29,7 +37,12 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
     Text similarity is assessed for every admissible pair, so competing
     above-threshold alternatives remain visible to the uniqueness check.
     """
-    thresholds, similarity = pair_similarity(candidates, minimum_similarity) if minimum_similarity else ({}, {})
+    graph_matching = {"minimumSimilarity": minimum_similarity or {}}
+    if text_evidence is not None:
+        graph_matching["textEvidence"] = text_evidence
+    tiers = configured_tiers(candidates, graph_matching)
+    thresholds = legacy_thresholds(tiers)
+    similarity = pair_similarity(candidates, tiers) if tiers else {}
     proposals = list(proposals) + list(connection_pairs)
     selected = {(row["referenceId"], row["studentId"]): row for row in proposals}
     if (len(selected) != len(proposals) or len({r for r, _ in selected}) != len(selected)
@@ -70,15 +83,24 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
                 criterion("combined_children", "satisfied" if shared and shared["matched"] else "unresolved" if shared else "not_evaluated" if pair in children else "not_applicable", [ref], [sub],
                           dependency_pairs(shared or {}), **{key: shared[key] for key in ("matched", "expected", "observed", "complete", "referenceChildIds") if shared and key in shared},
                           **({"submissionChildIds": shared["studentChildIds"]} if shared else {})),
-                criterion("identified_owner", "not_applicable" if not owner["referenceParentIds"] and not owner["studentParentIds"] else
+                criterion("identified_owner", "not_applicable" if not owner["referenceSubstructure"] and not owner["studentSubstructure"] else
                           {"consistent": "satisfied", "conflicting": "violated", "unknown": "unresolved"}[owner["ownerAnchorRelation"]],
                           [ref], [sub], [(owner["referenceOwnerId"], owner["studentOwnerId"])] if owner["ownerAnchorRelation"] == "consistent" else []),
                 criterion("connection_structure", "not_evaluated", [ref], [sub]),
             ]
-            if thresholds:
+            if pair in label_conflicts:
+                # GM-04a: equal labels, but children and neighbours point to another counterpart.
+                evidence.append(criterion("label_structure", "violated", [ref], [sub]))
+            if tiers:
                 text = similarity[pair]
+                details = ({"minimumSimilarity": thresholds} if text_evidence is None
+                           else {"tier": text["tier"], "tierRank": text["tierRank"],
+                                 # The thresholds of the reached tier, so consumers need not re-derive the verdict.
+                                 **({"minimumSimilarity": tiers[text["tierRank"]]["minimumSimilarity"]}
+                                    if text["tierRank"] is not None else {}),
+                                 **({"veto": text["veto"]} if text["veto"] else {})})
                 evidence.append(criterion("text_similarity", SIMILARITY_RESULTS[text["status"]], [ref], [sub],
-                                          scores=text["scores"], minimumSimilarity=thresholds))
+                                          scores=text["scores"], **details))
             rows[pair] = {"referenceId": ref, "studentId": sub, "status": "unresolved", "criteria": evidence}
 
     element_mapping = {r: s for r, s in selected if indices["reference"].nodes[r]["kind"] == "modelElement"}
@@ -92,7 +114,9 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
         endpoints = indices["reference"].endpoints.get(pair[0], {})
         dependencies = {(identity, element_mapping[identity]) for identity in endpoints.values() if identity in element_mapping}
         rows[pair] = {"referenceId": pair[0], "studentId": pair[1], "status": "unresolved", "criteria": [
-            criterion("exact_label", "satisfied" if source["exactLabel"] else "violated", [pair[0]], [pair[1]]),
+            criterion("exact_label", "satisfied" if source["exactLabel"] else
+                      "violated" if labelled(indices["reference"], pair[0]) or labelled(indices["student"], pair[1]) else "not_applicable",
+                      [pair[0]], [pair[1]]),
             criterion("type_compatibility", "satisfied" if _key(left) == _key(right) else "violated", [pair[0]], [pair[1]]),
             criterion("connection_structure", "satisfied" if source["sameEndpoints"] else "violated", [pair[0]], [pair[1]],
                       dependencies, uniquenessVerified=source["uniquenessVerified"])]}
@@ -108,8 +132,19 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
         exact_anchors = necessary_pairs({pair for pair in exact_pairs
                                         if pair[0] not in used_ref and pair[1] not in used_sub})
         # Like exact text: an above-threshold pair anchors only if no open above-threshold alternative remains.
-        similarity_anchors = necessary_pairs({pair for pair in similar_pairs
-                                             if pair[0] not in used_ref and pair[1] not in used_sub})
+        # Tiers reserve in order: anchors of a stronger tier remove their elements before weaker tiers compete.
+        similarity_anchors, tier_ref, tier_sub = set(), set(used_ref), set(used_sub)
+        for rank in range(len(tiers)):
+            found = necessary_pairs({pair for pair in similar_pairs if similarity[pair]["tierRank"] <= rank
+                                     and pair[0] not in tier_ref and pair[1] not in tier_sub})
+            similarity_anchors |= found
+            tier_ref |= {r for r, _ in found}
+            tier_sub |= {s for _, s in found}
+        # An identified owner scopes its substructure children: text needs to be unique only within that owner.
+        owner_scoped = necessary_pairs({
+            pair for pair in similar_pairs if pair[0] not in used_ref and pair[1] not in used_sub
+            and any(item["method"] == "identified_owner" and item["result"] == "satisfied"
+                    and dependency_pairs(item) and dependency_pairs(item) <= unique for item in rows[pair]["criteria"])})
         eligible = {}
         for pair, row in rows.items():
             if pair[0] in used_ref or pair[1] in used_sub:
@@ -127,7 +162,9 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
                 dependencies = dependency_pairs(item)
                 full_combination = item["method"] != "combined_children" or item.get("complete") is True
                 unique_connection = item["method"] != "connection_structure" or item.get("uniquenessVerified") is True
-                owner_discriminates = item["method"] != "identified_owner" or any(criterion["method"] == "exact_label" and criterion["result"] == "satisfied" for criterion in row["criteria"])
+                owner_discriminates = (item["method"] != "identified_owner" or pair in owner_scoped
+                                       or any(criterion["method"] == "exact_label" and criterion["result"] == "satisfied"
+                                              for criterion in row["criteria"]))
                 exact_discriminates = item["method"] != "exact_label" or pair in exact_anchors
                 similarity_discriminates = item["method"] != "text_similarity" or pair in similarity_anchors
                 if (item["method"] != "type_compatibility" and item["result"] == "satisfied" and full_combination
@@ -151,7 +188,9 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
               and (item["method"] != "combined_children" or item.get("complete")) for item in row["criteria"])}
     for pair, row in rows.items():
         for item in row["criteria"]:
-            if item["method"] in ("identified_owner", "independent_children") and item["result"] == "satisfied" and not dependency_pairs(item) <= unique:
+            # Evidence resting on endpoints or owners that are not identified themselves stays open.
+            if (item["method"] in ("identified_owner", "independent_children", "connection_structure")
+                    and item["result"] == "satisfied" and not dependency_pairs(item) <= unique):
                 item["result"] = "unresolved"
         positive = any(item["role"] == "support" and item["result"] == "satisfied" for item in row["criteria"])
         if row["status"] != "uniquely_supported" and positive:

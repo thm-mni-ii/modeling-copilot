@@ -91,8 +91,8 @@ class ExactAnchorTests(unittest.TestCase):
         indices, candidates = make_inputs(
             {"r": "Name", "r-parent": "Reference owner"},
             {"s": "Name", "s-parent": "Student owner"}, [("r", "s")],
-            [{"kind": "contains", "role": "content", "source": "r", "target": "r-parent"}],
-            [{"kind": "contains", "role": "content", "source": "s", "target": "s-parent"}],
+            [{"kind": "contains", "role": "component", "source": "r", "target": "r-parent"}],
+            [{"kind": "contains", "role": "component", "source": "s", "target": "s-parent"}],
         )
         self.assertEqual(propose_exact_anchors(indices, candidates), (
             [{"referenceId": "r", "studentId": "s", "reason": "unique_exact_label"}], [],
@@ -134,12 +134,12 @@ class ContainmentAnchorTests(unittest.TestCase):
             [(r, s) for r in ("r-person", "r-dept") for s in ("s-person", "s-dept")]
             + [(r, s) for r in ("r-p-name", "r-d-name") for s in ("s-p-name", "s-d-name")],
             [
-                {"kind": "contains", "role": "content", "source": "r-p-name", "target": "r-person"},
-                {"kind": "contains", "role": "content", "source": "r-d-name", "target": "r-dept"},
+                {"kind": "contains", "role": "component", "source": "r-p-name", "target": "r-person"},
+                {"kind": "contains", "role": "component", "source": "r-d-name", "target": "r-dept"},
             ],
             [
-                {"kind": "contains", "role": "content", "source": "s-p-name", "target": "s-person"},
-                {"kind": "contains", "role": "content", "source": "s-d-name", "target": "s-dept"},
+                {"kind": "contains", "role": "component", "source": "s-p-name", "target": "s-person"},
+                {"kind": "contains", "role": "component", "source": "s-d-name", "target": "s-dept"},
             ],
         )
         anchors, unresolved = propose_exact_anchors(indices, candidates)
@@ -157,10 +157,10 @@ class ContainmentAnchorTests(unittest.TestCase):
             [(r, s) for r in ("r-person", "r-dept") for s in ("s-person", "s-dept")]
             + [("r-p-name", "s-d-name"), ("r-d-name", "s-d-name")],
             [
-                {"kind": "contains", "role": "content", "source": "r-p-name", "target": "r-person"},
-                {"kind": "contains", "role": "content", "source": "r-d-name", "target": "r-dept"},
+                {"kind": "contains", "role": "component", "source": "r-p-name", "target": "r-person"},
+                {"kind": "contains", "role": "component", "source": "r-d-name", "target": "r-dept"},
             ],
-            [{"kind": "contains", "role": "content", "source": "s-d-name", "target": "s-dept"}],
+            [{"kind": "contains", "role": "component", "source": "s-d-name", "target": "s-dept"}],
         )
         anchors, unresolved = propose_exact_anchors(indices, candidates)
         evidence = analyze_containment(indices, candidates, anchors)
@@ -174,8 +174,8 @@ class ContainmentAnchorTests(unittest.TestCase):
             {"r-owner": "Person", "r1": "Name", "r2": "Name"},
             {"s-owner": "Person", "s1": "Name", "s2": "Name"},
             [("r-owner", "s-owner")] + [(r, s) for r in ("r1", "r2") for s in ("s1", "s2")],
-            [{"kind": "contains", "role": "content", "source": r, "target": "r-owner"} for r in ("r1", "r2")],
-            [{"kind": "contains", "role": "content", "source": s, "target": "s-owner"} for s in ("s1", "s2")],
+            [{"kind": "contains", "role": "component", "source": r, "target": "r-owner"} for r in ("r1", "r2")],
+            [{"kind": "contains", "role": "component", "source": s, "target": "s-owner"} for s in ("s1", "s2")],
         )
         anchors, unresolved = propose_exact_anchors(indices, candidates)
         evidence = analyze_containment(indices, candidates, anchors)

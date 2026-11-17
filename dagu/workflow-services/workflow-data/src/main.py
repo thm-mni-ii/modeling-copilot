@@ -22,28 +22,53 @@ class EvaluationInput(TypedDict):
     inputHash: NotRequired[str]
 
 
-def apply_levenshtein_threshold(config: dict, raw: str | None) -> dict:
-    """Freeze the workflow's optional Levenshtein threshold into comparisonConfig before hashing."""
+# Tier policy: canonical equality before spelling similarity before meaning; default values from
+# the label-variant gold corpus (precision target), see docs/graph-matching-workflow/07-*.
+TEXT_EVIDENCE_METHODS = ["damerau_canonical", "multilingual_expanded"]
+TEXT_EVIDENCE_DEFAULTS = {"spelling": 0.85, "meaning": 0.85, "meaningFloor": 0.70}
+
+
+def text_evidence_thresholds(raw: str | None) -> dict:
+    """Defaults, optionally overridden by a JSON object with the keys of TEXT_EVIDENCE_DEFAULTS."""
     if raw is None or not raw.strip():
-        return config
+        return dict(TEXT_EVIDENCE_DEFAULTS)
     try:
-        threshold = float(raw)
-    except ValueError:
-        raise ValueError("levenshtein_threshold must be a number") from None
-    if not math.isfinite(threshold) or not 0 <= threshold <= 1:
-        raise ValueError("levenshtein_threshold must be between 0 and 1")
+        overrides = json.loads(raw)
+    except json.JSONDecodeError:
+        raise ValueError("text_evidence must be a JSON object") from None
+    if not isinstance(overrides, dict) or not set(overrides) <= TEXT_EVIDENCE_DEFAULTS.keys():
+        raise ValueError(f"text_evidence accepts only {', '.join(TEXT_EVIDENCE_DEFAULTS)}")
+    values = {**TEXT_EVIDENCE_DEFAULTS, **overrides}
+    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+           or not 0 <= value <= 1 for value in values.values()):
+        raise ValueError("text_evidence thresholds must be numbers between 0 and 1")
+    if values["meaningFloor"] > values["meaning"]:
+        raise ValueError("text_evidence meaningFloor must not exceed meaning")
+    return values
+
+
+def apply_text_evidence(config: dict, raw: str | None) -> dict:
+    """Freeze the text-evidence tiers (with optional threshold overrides) into comparisonConfig before hashing."""
+    values = text_evidence_thresholds(raw)
+    tiers = [
+        {"name": "canonical", "minimumSimilarity": {"damerau_canonical": 1.0}},
+        {"name": "spelling", "minimumSimilarity": {"damerau_canonical": values["spelling"]}},
+        {"name": "meaning", "minimumSimilarity": {"multilingual_expanded": values["meaning"]},
+         "confirmationFloor": {"multilingual_expanded": values["meaningFloor"]}},
+    ]
     graph_matching, semantics = config.get("graphMatching", {}), config.get("semantics", {})
     if not isinstance(graph_matching, dict) or not isinstance(semantics, dict):
         raise ValueError("comparisonConfig.graphMatching and semantics must be JSON objects")
-    expected = ({"levenshtein": threshold}, ["levenshtein"])
-    present = (graph_matching.get("minimumSimilarity"), semantics.get("methods"))
-    if any(value not in (None, {}, want) for value, want in zip(present, expected)):
-        raise ValueError("levenshtein_threshold conflicts with the configured comparison methods")
-    return {**config, "graphMatching": {**graph_matching, "minimumSimilarity": expected[0]},
+    expected = ({"tiers": tiers}, TEXT_EVIDENCE_METHODS)
+    present = (graph_matching.get("textEvidence"), semantics.get("methods"))
+    if graph_matching.get("minimumSimilarity") or any(
+            value not in (None, want) for value, want in zip(present, expected)):
+        raise ValueError("text_evidence conflicts with the configured comparison methods")
+    return {**config, "graphMatching": {**graph_matching, "textEvidence": expected[0]},
             "semantics": {**semantics, "methods": expected[1]}}
 
 
-def prepare(store: Workspace, bundle: EvaluationInput, levenshtein_threshold: str | None = None) -> dict:
+def prepare(store: Workspace, bundle: EvaluationInput, text_evidence: str | None = None) -> dict:
     if bundle.get("schemaVersion") != VERSION or bundle.get("schema") != INPUT_SCHEMA:
         raise ValueError("unsupported evaluation input schema")
     if bundle.get("evaluationId") != store.evaluation_id:
@@ -56,7 +81,7 @@ def prepare(store: Workspace, bundle: EvaluationInput, levenshtein_threshold: st
     bundle = {**bundle, "comparisonConfig": bundle.get("comparisonConfig", {})}
     if not isinstance(bundle["comparisonConfig"], dict):
         raise ValueError("comparisonConfig must be a JSON object")
-    bundle["comparisonConfig"] = apply_levenshtein_threshold(bundle["comparisonConfig"], levenshtein_threshold)
+    bundle["comparisonConfig"] = apply_text_evidence(bundle["comparisonConfig"], text_evidence)
     models, definitions = bundle.get("models"), bundle.get("languages")
     if not isinstance(models, list) or not models or not isinstance(definitions, list):
         raise ValueError("complete models and language definitions are required")
@@ -137,7 +162,7 @@ def main() -> int:
         bundle = json.loads(gzip.decompress(base64.b64decode(encoded, validate=True)).decode("utf-8"))
         if not isinstance(bundle, dict):
             raise ValueError("evaluation input must be a JSON object")
-        result = prepare(workspace(), bundle, os.environ.get("LEVENSHTEIN_THRESHOLD"))
+        result = prepare(workspace(), bundle, os.environ.get("TEXT_EVIDENCE"))
         write_output(result)
         return 0
     except (ValueError, TypeError, KeyError, OSError, EOFError) as error:

@@ -88,7 +88,7 @@ connectionTextMatrix[]
 - `minimumSimilarity` gehört **nicht** zur Synonym-Berechnung, sondern zur optionalen semantischen Vorschlagslogik des **Graph-Matchers**.
 - `not_scored` als spätere Optimierung ist **kein** gegenwärtig aktivierter allgemeiner Trimmingpfad. Nicht berechnet darf künftig nicht mit „unähnlich“ gleichgesetzt werden.
 
-**Workflowparameter:** Mit gesetztem `levenshtein_threshold` friert `workflow-data` `semantics.methods: [levenshtein]` ein; der Dienst berechnet dann nur Levenshtein und lädt kein Embedding-Modell.
+**Workflowparameter:** Mit gesetztem `levenshtein_threshold` friert `workflow-data` `semantics.methods: [levenshtein]` ein; der Dienst berechnet dann nur Levenshtein und lädt kein Embedding-Modell. Mit `text_evidence=tiers` werden stattdessen `damerau_canonical` (Damerau-Levenshtein auf der kanonischen Form: NFC, `Nr.`→`Nummer`, CamelCase/Unterstrich getrennt, casefold, Umlautumschrift ä→ae, Trennzeichen entfernt) und `multilingual_expanded` (NFC, `Nr.`→`Nummer`, CamelCase getrennt) berechnet; `levenshtein_canonical` nutzt dieselbe kanonische Form. Alle drei sind nur auf Anforderung aktiv. Goldkorpus (Stufen 1,0/0,85/0,85): Recall 0,588 → 0,619 bei unveränderten 12 Fehltreffern.
 
 ## Kalibrierung Levenshtein (Goldkorpus A1–F2, 257 Fälle)
 

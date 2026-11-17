@@ -20,7 +20,7 @@ def store_with_containment():
         element["type"] = "attribute"
         graph["graph"]["nodes"].append(element)
         graph["graph"]["edges"].append({
-            "kind": "contains", "role": "content", "source": child, "target": parent,
+            "kind": "contains", "role": "component", "source": child, "target": parent,
         })
         graph["graphHash"] = content_hash({field: graph[field] for field in GRAPH_HASH_FIELDS})
         inventory = store.files[f"labels/{key}.json"]["result"]

@@ -10,7 +10,7 @@ import numpy as np
 from synonym_matching import service, workflow
 from synonym_matching.config import resolve_config
 from synonym_matching.methods.multilingual import MultilingualMethod
-from synonym_matching.methods.registry import METHOD_REGISTRY, MethodDefinition
+from synonym_matching.methods.registry import DEFAULT_METHODS, METHOD_REGISTRY, MethodDefinition
 from synonym_matching.provenance import content_hash
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -229,7 +229,7 @@ class ComparePairTests(unittest.TestCase):
              for pair in result["connectionTextMatrix"]],
             [("r-card", "s-card"), ("r-role", "s-role"), ("r-self", "s-self")],
         )
-        self.assertTrue(all(pair["scores"] == {name: 1.0 for name in METHOD_REGISTRY}
+        self.assertTrue(all(pair["scores"] == {name: 1.0 for name in DEFAULT_METHODS}
                             for pair in result["connectionTextMatrix"]))
         reference_by_id = {item["id"]: item for item in ref}
         student_by_id = {item["id"]: item for item in sub}

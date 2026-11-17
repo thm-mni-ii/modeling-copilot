@@ -21,10 +21,10 @@ services:
     environment:
       MONGODB_URI: mongodb://admin:admin@mongo:27017/?authSource=admin
       # Tokens of the local Feedbacksystem 2.0: RS256 against the key set its
-      # identity service publishes on host port 8080. The issuer is the web
-      # shell on port 8083, through which the tokens are requested.
+      # identity service publishes through the web shell on host port 8083
+      # (the identity service itself is no longer published). The issuer is that shell.
       JWT_ALGORITHM: RS256
-      JWT_JWKS_URI: http://host.docker.internal:8080/oauth2/jwks
+      JWT_JWKS_URI: http://host.docker.internal:8083/oauth2/jwks
       JWT_ISSUER: http://localhost:8083
       # Sign-in without the Feedbacksystem: the API exchanges and renews the
       # tokens through the same shell as the browser's authorization request.
@@ -114,7 +114,7 @@ services:
       MONGODB_DB: collab_kit
       # Same Feedbacksystem 2.0 tokens as the api.
       JWT_ALGORITHM: RS256
-      JWT_JWKS_URI: http://host.docker.internal:8080/oauth2/jwks
+      JWT_JWKS_URI: http://host.docker.internal:8083/oauth2/jwks
       JWT_ISSUER: http://localhost:8083
       ACTOR_CLAIM: id
       TOP_CLAIM: globalRole
@@ -139,7 +139,7 @@ services:
     restart: unless-stopped
 
   workflow-synonym-matching:
-    image: modeling-copilot/synonym-matching:v2
+    image: modeling-copilot/synonym-matching:v4
     build:
       context: ./dagu/workflow-services
       dockerfile: synonym-matching/Dockerfile
@@ -160,28 +160,28 @@ services:
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:
-    image: modeling-copilot/one-to-one-graph-matching:v6
+    image: modeling-copilot/one-to-one-graph-matching:v13
     build:
       context: ./dagu/workflow-services
       dockerfile: one-to-one-graph-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-feedback-generation:
-    image: modeling-copilot/feedback-generation:v9
+    image: modeling-copilot/feedback-generation:v10
     build:
       context: ./dagu/workflow-services
       dockerfile: feedback-generation/Dockerfile
     profiles: [workflow-services]
 
   workflow-analytical-feedback:
-    image: modeling-copilot/analytical-feedback:v10
+    image: modeling-copilot/analytical-feedback:v11
     build:
       context: ./dagu/workflow-services
       dockerfile: analytical-feedback/Dockerfile
     profiles: [workflow-services]
 
   workflow-data:
-    image: modeling-copilot/workflow-data:v2
+    image: modeling-copilot/workflow-data:v5
     build:
       context: ./dagu/workflow-services
       dockerfile: workflow-data/Dockerfile

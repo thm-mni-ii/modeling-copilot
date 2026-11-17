@@ -8,6 +8,8 @@ from decision_diagnostics import record
 from identity_evidence import normalized
 from initial_evaluation import _class_key, _language_value, _sort_key, _type_key
 
+SEMANTIC_REASONS = ("supported_semantic_evidence", "neighbor_confirmed_semantic_evidence")
+
 
 def propose_connections(indices, elements, candidates=None):
     events = []
@@ -236,7 +238,7 @@ def recognition_metrics(indices, elements, connections, category_config):
 
     def counts(reference_ids):
         selected = [item for item in elements if item["referenceId"] in reference_ids]
-        semantic = sum(item["reason"] == "supported_semantic_evidence" for item in selected)
+        semantic = sum(item["reason"] in SEMANTIC_REASONS for item in selected)
         total = len(selected)
         return {"referenceCount": len(reference_ids), "provisionalAnchorCount": total - semantic,
                 "semanticProposalCount": semantic, "provisionalRecognizedCount": total,
@@ -289,7 +291,7 @@ def recognition_metrics(indices, elements, connections, category_config):
             if side == "reference" and identity in matched[node["kind"]]:
                 row["provisionalRecognizedCount"] += 1
                 reason = matched[node["kind"]][identity]["reason"]
-                if reason == "supported_semantic_evidence":
+                if reason in SEMANTIC_REASONS:
                     row["semanticProposalCount"] += 1
                 elif node["kind"] == "modelElement":
                     row["provisionalAnchorCount"] += 1

@@ -1,6 +1,6 @@
 # one-to-one-graph-matching
 
-Serviceversion `2.2.0`, Image `v6`, Ausgabeschema `reference-comparison/v2`.
+Serviceversion `2.7.1`, Image `v13`, Ausgabeschema `reference-comparison/v2`.
 Mit konfigurierter `minimumSimilarity` bewertet `text_similarity.py` jedes zulässige
 Paar gegen die Schwelle. `identity_evidence.py` (Version `1.1`) führt daraus das
 Kriterium `text_similarity`; es ist nur dann Identitätsanker, wenn das Paar unter allen
@@ -12,6 +12,8 @@ Fehlende/nicht unterstützte Beschriftungen und fehlende Typ-/Relationssemantik
 werden als `not_evaluated` ausgewiesen. `not_scored` bleibt von fehlender
 Ausführbarkeit und niedrigen Scores getrennt; Score-Trimming ist nicht aktiviert.
 Ohne Schwelle (`{}`) entstehen weder semantische Vorschläge noch Textähnlichkeitsanker.
+Identitätsprägende Besitzer entstehen nur über deklarierte Substrukturen (`component`); bloße
+Platzierung (`content` in einem anderen Fachobjekt, etwa einer Lane) bleibt ein Lagebefund (GM-13a).
 Die historischen Methodennachweise unten beziehen sich auf ihre jeweiligen Versionen.
 Regulaer werden ausgewaehlte Zuordnungen, `propertyFacts`, offene Original-IDs,
 Konfiguration und Herkunft gespeichert. Identitaetsfakten nennen zusaetzlich ihre
@@ -177,6 +179,14 @@ Optionale Mindestähnlichkeiten werden im eingefrorenen `comparisonConfig` als
 Mindestwerten. Nur deklarierte Methoden und Werte innerhalb ihrer Scorebereiche
 sind zulässig. Ohne konfigurierte Mindestwerte ist die semantische Verfeinerung
 als `not_configured` gekennzeichnet und erzeugt keine Vorschläge.
+
+Mit Evidenzstufen (`graphMatching.textEvidence.tiers`) gelten zwei Textwächter.
+Tragen beide Labels Ziffern und weichen diese ab (`Version 1`/`Version 2`), zählt
+der Text in keiner Stufe als Beleg. Beginnen die Labels unterschiedlich (erste zwei
+Buchstaben nach Kleinschreibung und Umlautauflösung), zählen zeichenbasierte
+Methoden nicht (`VersuchsNr.`/`BesuchsNr.`); Bedeutungsmethoden bleiben wirksam.
+Hat ein Wächter das Stufenverdikt geändert, trägt das Kriterium `text_similarity`
+den Grund als `veto`. Der Einzelschwellen-Modus bleibt unverändert.
 
 `semanticRefinement` unterscheidet unterstützte, unterschwellige und nicht
 auswertbare Kandidaten sowie zusätzliche Vorschläge, ungeklärte Referenzen und

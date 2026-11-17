@@ -230,9 +230,13 @@ const relativeTime = (iso: string) => {
 const absoluteTime = (iso: string) => new Date(iso).toLocaleString()
 
 const parameterSummary = computed(() => {
-  const threshold = detail.value?.parameters?.levenshteinThreshold
-  if (threshold === undefined) return 'nicht erfasst'
-  return threshold === null ? 'Textähnlichkeit aus' : `Levenshtein-Mindestähnlichkeit ${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 }).format(threshold)}`
+  const parameters = detail.value?.parameters as Record<string, unknown> | undefined
+  // Runs started before the tier-only workflow recorded a Levenshtein threshold.
+  if (parameters && 'levenshteinThreshold' in parameters) return 'Älterer Lauf mit früherem Textvergleich'
+  const values = detail.value?.parameters?.textEvidence
+  if (!values || typeof values !== 'object') return 'Evidenzstufen mit Standardwerten'
+  const number = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 })
+  return `Evidenzstufen: Schreibvariante ≥ ${number.format(values.spelling)}, Bedeutung ≥ ${number.format(values.meaning)}, Graubereich ab ${number.format(values.meaningFloor)}`
 })
 const doneStepCount = computed(() => (detail.value ? detail.value.steps.filter((step) => step.status === 'succeeded' || step.status === 'failed').length : 0))
 const progressPercent = computed(() => {

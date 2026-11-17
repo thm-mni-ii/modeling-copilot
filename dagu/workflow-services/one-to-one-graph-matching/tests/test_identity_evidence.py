@@ -63,9 +63,7 @@ class IdentityEvidenceTests(unittest.TestCase):
             for item in index.nodes.values():
                 item["type"] = "custom-node"
                 item["language"] = {"languageId": "custom-language", "versionId": "release-19"}
-            for edges in index.parents.values():
-                for edge in edges:
-                    edge["role"] = "custom-slot"
+        # Relation roles are the parser's contract (content/component); only `component` marks identity-bearing children.
         state = build_provisional_state(indices, candidates)
         self.assertEqual(len(state["proposals"]), 9)
         self.assertEqual(sum(row["reason"] == "combined_child_structure" for row in state["proposals"]), 3)

@@ -188,7 +188,7 @@ def analyze_proposal_feasibility(state):
 
 
 def capacity_preserving_proposals(state, proposals):
-    """Assess competition per candidate component, without choosing a tie winner."""
+    """Accept feasible proposals that conflict with no other feasible proposal, without choosing a tie winner."""
     individually_feasible, accepted = [], []
     candidate_pairs = {(row["referenceId"], row["studentId"]) for row in state["candidatePairs"]}
     if any((row["referenceId"], row["studentId"]) not in candidate_pairs for row in proposals):
@@ -206,7 +206,17 @@ def capacity_preserving_proposals(state, proposals):
 
         feasible = [row for row in extra if preserves([row])]
         individually_feasible.extend(feasible)
-        if preserves(feasible):
-            accepted.extend(feasible)
+
+        def conflict(left, right):
+            return (left["referenceId"] == right["referenceId"] or left["studentId"] == right["studentId"]
+                    or not preserves([left, right]))
+
+        # Only genuinely competing proposals stay open; no tie winner is chosen.
+        uncontested = [row for index, row in enumerate(feasible)
+                       if not any(conflict(row, other) for other_index, other in enumerate(feasible)
+                                  if other_index != index)]
+        # Capacity is not pairwise-determined; a higher-order conflict keeps the component open.
+        if preserves(uncontested):
+            accepted.extend(uncontested)
     order = lambda row: (row["referenceId"], row["studentId"])
     return sorted(individually_feasible, key=order), sorted(accepted, key=order)

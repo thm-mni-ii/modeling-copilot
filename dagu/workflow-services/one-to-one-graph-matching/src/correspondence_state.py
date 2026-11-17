@@ -64,10 +64,65 @@ def _candidate_graph(indices, candidates):
     }
 
 
+def _neighbors(index):
+    """Undirected element neighbourhood through modeled connections."""
+    result = defaultdict(set)
+    for endpoints in index.endpoints.values():
+        if "source" in endpoints and "target" in endpoints:
+            result[endpoints["source"]].add(endpoints["target"])
+            result[endpoints["target"]].add(endpoints["source"])
+    return result
+
+
+def _label_structure_conflicts(indices, candidates, anchors, complete):
+    """Exact label anchors contradicted by both a closed child composition and the neighbourhood.
+
+    Children alone are not enough: an attribute list swapped between two correctly named objects
+    also yields closed compositions, but there the connections keep supporting the labels.
+    """
+    compositions = [item for item in analyze_combined_children(indices, candidates, [], complete=complete) if item["complete"]]
+    alternatives = {"reference": defaultdict(set), "student": defaultdict(set)}
+    for item in compositions:
+        alternatives["reference"][item["studentId"]].add(item["referenceId"])
+        alternatives["student"][item["referenceId"]].add(item["studentId"])
+    disputed = {(item["referenceId"], item["studentId"]) for item in anchors
+                if (alternatives["reference"][item["studentId"]] and item["referenceId"] not in alternatives["reference"][item["studentId"]])
+                or (alternatives["student"][item["referenceId"]] and item["studentId"] not in alternatives["student"][item["referenceId"]])}
+    if not disputed:
+        return set()
+    neighbors = {side: _neighbors(index) for side, index in indices.items()}
+    to_reference = {item["studentId"]: item["referenceId"] for item in anchors
+                    if (item["referenceId"], item["studentId"]) not in disputed}
+    to_student = {reference: student for student, reference in to_reference.items()}
+
+    def overlap(side, mapped, identity):
+        return len(mapped & neighbors[side][identity])
+
+    contradicted = set()
+    for ref, sub in disputed:
+        mapped_sub = {to_reference[n] for n in neighbors["student"][sub] if n in to_reference}
+        mapped_ref = {to_student[n] for n in neighbors["reference"][ref] if n in to_student}
+        if (any(overlap("reference", mapped_sub, other) > overlap("reference", mapped_sub, ref)
+                for other in alternatives["reference"][sub] - {ref})
+                or any(overlap("student", mapped_ref, other) > overlap("student", mapped_ref, sub)
+                       for other in alternatives["student"][ref] - {sub})):
+            contradicted.add((ref, sub))
+    return contradicted
+
+
 def build_provisional_state(indices, candidates, *, graphs=None):
     """Combine the existing one-pass proposals and all candidate graph edges."""
     events = []
     anchors, unresolved = propose_exact_anchors(indices, candidates, events)
+    complete_graphs = graphs is None or all(graph["completeness"]["interpretation"] == "complete" for graph in graphs.values())
+    # No automatic swap: a contradicted label anchor and its alternatives stay open for review.
+    contradicted = _label_structure_conflicts(indices, candidates, anchors, complete_graphs)
+    label_conflicts = [{**item, "dependsOn": [], "conflictReason": "label_structure_conflict"}
+                       for item in anchors if (item["referenceId"], item["studentId"]) in contradicted]
+    anchors = [item for item in anchors if (item["referenceId"], item["studentId"]) not in contradicted]
+    for item in label_conflicts:
+        record(events, "label_structure", item["reason"], item["referenceId"], item["studentId"],
+               "blocked", ["label_contradicted_by_children_and_neighbors"])
     # GraphIndex.owner can populate missing defaultdict entries during a read.
     evidence = analyze_containment(deepcopy(indices), candidates, anchors)
     containment_anchors = propose_containment_anchors(unresolved, anchors, evidence, events)
@@ -98,7 +153,7 @@ def build_provisional_state(indices, candidates, *, graphs=None):
     conflicts = [
         proposal for proposal in proposals
         if len(by_reference[proposal["referenceId"]]) > 1 or len(by_student[proposal["studentId"]]) > 1
-    ]
+    ] + label_conflicts
     conflict_pairs = {(item["referenceId"], item["studentId"]) for item in conflicts}
     available_original = original_pairs - conflict_pairs
     blocked = [
@@ -179,8 +234,12 @@ def build_provisional_state(indices, candidates, *, graphs=None):
 
     child_evidence = analyze_child_owner_evidence(indices, candidates, state["proposals"])
     used_ref, used_sub = available_ids()
+    # GM-07: a child whose label alone identifies it, placed under another owner, contradicts the pair;
+    # a child identified only by elimination after reservations is too weak to block.
+    contradicted = {(item["referenceId"], item["studentId"]) for item in child_evidence
+                    if any(child["reason"] == "unique_exact_label" for child in item["conflictingChildren"])}
     supported = [item for item in child_evidence
-                 if item["supportingChildren"]
+                 if item["supportingChildren"] and (item["referenceId"], item["studentId"]) not in contradicted
                  and item["referenceId"] not in used_ref and item["studentId"] not in used_sub]
     refs, subs = defaultdict(set), defaultdict(set)
     for item in supported:
@@ -202,7 +261,7 @@ def build_provisional_state(indices, candidates, *, graphs=None):
             item["proposalStatus"] = "proposed"
         elif ref in used_ref or sub in used_sub:
             item["proposalStatus"] = "reserved"
-        elif item["conflictingChildren"]:
+        elif (ref, sub) in contradicted:
             item["proposalStatus"] = "conflicting"
         elif not item["supportingChildren"]:
             item["proposalStatus"] = "no_independent_support"
@@ -219,7 +278,6 @@ def build_provisional_state(indices, candidates, *, graphs=None):
                depends_on=[{"referenceId": child["referenceId"], "studentId": child["studentId"]}
                            for child in item["supportingChildren"]], proposalStatus=item["proposalStatus"])
 
-    complete_graphs = graphs is None or all(graph["completeness"]["interpretation"] == "complete" for graph in graphs.values())
     combined = analyze_combined_children(indices, candidates, state["proposals"], complete=complete_graphs)
     used_ref, used_sub = available_ids()
     uncertain_ref = {item["referenceId"] for item in state["conflictingProposals"] + state["blockedProposals"]}

@@ -94,7 +94,7 @@ def build_evidence_report(bundle, indices, comparison):
         groups.append(group)
         for sub in subs:
             annotations[sub].setdefault("groupIds", []).append(group["id"])
-    return {"schema": "analysis-feedback/v3", "producer": {"service": "analytical-feedback", "version": "2.2.1"},
+    return {"schema": "analysis-feedback/v3", "producer": {"service": "analytical-feedback", "version": "2.3.0"},
             "evaluationId": bundle["evaluationId"], "pair": comparison["pair"], "comparisonHash": comparison["comparisonHash"],
             "status": "provisional", "assessmentAvailable": False, "recognition": recognition_summary(bundle, indices, comparison),
             "annotations": list(annotations.values()), "referenceHints": hints, "connectionGroups": groups,

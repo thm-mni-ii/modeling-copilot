@@ -34,6 +34,23 @@ def _containment(index, identity):
     return parents, owner, paths, unambiguous
 
 
+def _declared(index, path):
+    """Whether a containment path reaches its first domain parent through a declared substructure."""
+    for child, parent in zip(path, path[1:]):
+        if any(edge["target"] == parent and edge["role"] == "component" for edge in index.parents.get(child, ())):
+            return True
+        if index.nodes[parent]["kind"] != "structuralElement":
+            return False
+    return False
+
+
+def _identity_containment(index, identity):
+    """Containment restricted to identity-bearing substructure; placement keeps no owner."""
+    parents, owner, paths, unambiguous = _containment(index, identity)
+    substructure = any(_declared(index, path) for path in paths)
+    return parents, owner if substructure else None, paths, unambiguous, substructure
+
+
 def analyze_containment(indices, candidates, anchors):
     """Return structural evidence, not confirmed matches or errors."""
     reference_anchors = defaultdict(set)
@@ -45,14 +62,12 @@ def analyze_containment(indices, candidates, anchors):
     evidence = []
     for row in candidates["synonymMatrix"]:
         reference_id = row["referenceElementId"]
-        reference_parents, reference_owner, reference_paths, reference_unambiguous = _containment(
-            indices["reference"], reference_id
-        )
+        (reference_parents, reference_owner, reference_paths, reference_unambiguous,
+         reference_substructure) = _identity_containment(indices["reference"], reference_id)
         for match in row["matches"]:
             student_id = match["submissionElementId"]
-            student_parents, student_owner, student_paths, student_unambiguous = _containment(
-                indices["student"], student_id
-            )
+            (student_parents, student_owner, student_paths, student_unambiguous,
+             student_substructure) = _identity_containment(indices["student"], student_id)
             relation = "unknown"
             mapped_owners = reference_anchors.get(reference_owner, set())
             if (reference_unambiguous and student_unambiguous and reference_owner is not None
@@ -67,6 +82,8 @@ def analyze_containment(indices, candidates, anchors):
                 "studentParentIds": student_parents,
                 "referenceOwnerId": reference_owner,
                 "studentOwnerId": student_owner,
+                "referenceSubstructure": reference_substructure,
+                "studentSubstructure": student_substructure,
                 "referenceContainmentPaths": reference_paths,
                 "studentContainmentPaths": student_paths,
                 "ownerAnchorRelation": relation,
@@ -86,6 +103,8 @@ def analyze_child_owner_evidence(indices, candidates, proposals):
     def possible_owners(index, paths):
         owners = set()
         for path in paths:
+            if not _declared(index, path):
+                continue
             for identity in path[1:]:
                 node = index.nodes[identity]
                 if node["kind"] != "structuralElement":
@@ -195,9 +214,9 @@ def analyze_combined_children(indices, candidates, proposals, *, complete=True):
         for identity, node in index.nodes.items():
             if node["kind"] != "modelElement":
                 continue
-            _, owner, paths, unique = _containment(index, identity)
+            _, owner, paths, unique, _ = _identity_containment(index, identity)
             if owner is None:
-                for path in paths:
+                for path in filter(lambda path: _declared(index, path), paths):
                     for parent in path[1:]:
                         if index.nodes[parent]["kind"] != "structuralElement":
                             if parent != identity:

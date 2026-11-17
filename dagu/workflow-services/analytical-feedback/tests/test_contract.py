@@ -63,7 +63,7 @@ for (const sample of input) {
   invalid.result.annotations[0].target.id = 'unknown-original-id';
   assert.throws(() => adaptAnalysisFeedback(invalid.result, sample.context));
 }
-assert.equal(analysisStatus({identity:{status:'supported'}, facts:[]}), 'unresolved');
+assert.equal(analysisStatus({identity:{status:'supported'}, facts:[]}), 'supported');
 assert.equal(analysisStatus({identity:{status:'uniquely_supported'}, facts:[{code:'owner.different',status:'violated'}]}), 'warning');
 assert.equal(analysisStatus({identity:{status:'uniquely_supported'}, facts:[{code:'label.equal',status:'satisfied'}]}), 'recognized');
 assert.match(analysisHintText({code:'future.unknown'}), /future.unknown/);
