@@ -7,12 +7,12 @@ import { stripTaskEdits } from '@/utils/taskEdits'
 import { loadTaskEditHistory } from '@/utils/taskEditTimeline'
 import type { CollabKitApi, Session, UnitChange, Workpiece } from '@/collab/kit/collabKitV1'
 import { hasChange, stepsOf, type HistoryMode, type HistoryStep, type PrivateVersion } from '@/collab/converters/model/modelHistory'
-import { sameUnits, type ModelUnit } from '@/collab/converters/model/modelUnits'
+import type { ModelUnit } from '@/collab/converters/model/modelUnits'
 import type { SharedMark } from '@/collab/converters/task/marks'
 import { taskStepsOf, type PrivateTaskState, type TaskHistoryStep } from '@/collab/converters/task/taskHistory'
 import { MARKS_MAP, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { baseOf } from '@/collab/worksheet/roomTaskHistory'
-import { CELLS_MAP, type HostLink } from '@/collab/storage/workpiece'
+import { CELLS_MAP, isHeld, pause, type HostLink } from '@/collab/storage/workpiece'
 
 /** What the host shares: the private model, how much of its history, and the state as it is now. */
 export interface ShareSource {
@@ -34,8 +34,6 @@ const PAGE = 100
 /** How often collab-kit is asked whether it holds what was written, and for how long. */
 const POLL_MS = 50
 const WAIT_MS = 10000
-
-const pause = () => new Promise((resolve) => setTimeout(resolve, POLL_MS))
 
 /** The versions of the private model with their whole state and task state, oldest first. */
 const readPrivateVersions = async (model: Model): Promise<PrivateVersion[]> => {
@@ -112,9 +110,9 @@ const planOf = (modelSteps: readonly HistoryStep[], taskSteps: readonly TaskHist
 /** Waits until collab-kit holds every unit the session has, so a checkpoint marks exactly that state. */
 const waitUntilHeld = async <Value>(ck: CollabKitApi, session: Session<Value>, map: string) => {
   const until = Date.now() + WAIT_MS
-  while (!sameUnits((await ck.workpieces.unitsAt<Value>(session.workpieceId, { map })).units, session.units.entries())) {
+  while (!(await isHeld(ck, session, map))) {
     if (Date.now() > until) throw new Error('collab-kit did not take the history in time.')
-    await pause()
+    await pause(POLL_MS)
   }
 }
 

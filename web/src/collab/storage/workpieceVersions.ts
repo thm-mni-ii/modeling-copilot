@@ -6,11 +6,11 @@ import { createModelPatch } from '@/utils/modelPatches'
 import { loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabEvent, CollabKitApi, Session, Workpiece } from '@/collab/kit/collabKitV1'
 import { liveSession } from '@/collab/kit/liveSession'
-import { cellsOf, languagesIn, sameUnits, xmlOf, type ModelUnit } from '@/collab/converters/model/modelUnits'
+import { cellsOf, languagesIn, xmlOf, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { cellElement, type SharedCell } from '@/collab/converters/model/modelCells'
 import { sharedTaskHistory } from '@/collab/worksheet/sharedTask'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import { CELLS_MAP, languagesOf, linkOf } from './workpiece'
+import { CELLS_MAP, forEachState, isHeld, languagesOf, linkOf, pause } from './workpiece'
 
 /** The version methods of model.service for a model shared through a workpiece, in the shapes of the API. */
 export interface ModelVersions {
@@ -26,8 +26,6 @@ export interface ModelVersions {
 
 /** The release every shared model starts from; never stored, so all own models of the workpiece share it. */
 const INITIAL = 'initial'
-/** States read at once while catching up on the stored changes. */
-const BATCH = 6
 /** How often and how long a checkpoint waits for collab-kit to hold the own changes. */
 const ATTEMPTS = 10
 const PAUSE_MS = 200
@@ -53,6 +51,9 @@ interface History {
   /** The names of the people of the changes, as far as collab-kit names them. */
   names: Record<string, string>
 }
+
+/** A workpiece with nothing read of it yet. */
+const emptyHistory = (workpiece: Workpiece): History => ({ workpiece, steps: [], xml: EMPTY_MODEL_XML, contents: new Map(), authors: new Map(), names: {} })
 
 /** Creator and last editor of a cell, as keys of the people as in collab-kit. */
 export interface CellAuthors {
@@ -99,22 +100,17 @@ const historyOf = (ck: CollabKitApi, workpieceId: string) => {
   const read = (reads.get(workpieceId) ?? Promise.resolve())
     .catch(() => undefined)
     .then(async () => {
-      const history: History = histories.get(workpieceId) ?? { workpiece: await ck.workpieces.get(workpieceId), steps: [], xml: EMPTY_MODEL_XML, contents: new Map(), authors: new Map(), names: {} }
+      const history = histories.get(workpieceId) ?? emptyHistory(await ck.workpieces.get(workpieceId))
       histories.set(workpieceId, history)
       const since = history.steps[history.steps.length - 1]?.id
       const updates = await ck.workpieces.updates(workpieceId, since ? { since } : {})
-      for (let start = 0; start < updates.length; start += BATCH) {
-        const batch = updates.slice(start, start + BATCH)
-        const states = await Promise.all(batch.map((update) => ck.workpieces.unitsAt<ModelUnit>(workpieceId, { at: update._id, map: CELLS_MAP })))
-        batch.forEach((update, index) => {
-          const { units } = states[index]
-          const xml = xmlOf(units) ?? EMPTY_MODEL_XML
-          history.steps.push({ id: update._id, createdAt: update.createdAt, patch: createModelPatch(history.xml, xml), languages: languagesIn(units, history.workpiece) })
-          history.xml = xml
-          Object.assign(history.names, update.names)
-          trackAuthors(history, units, update.createdBy)
-        })
-      }
+      await forEachState(ck, workpieceId, updates, CELLS_MAP, (update, units: ReadonlyMap<string, ModelUnit>) => {
+        const xml = xmlOf(units) ?? EMPTY_MODEL_XML
+        history.steps.push({ id: update._id, createdAt: update.createdAt, patch: createModelPatch(history.xml, xml), languages: languagesIn(units, history.workpiece) })
+        history.xml = xml
+        Object.assign(history.names, update.names)
+        trackAuthors(history, units, update.createdBy)
+      })
       return history
     })
   reads.set(workpieceId, read)
@@ -212,8 +208,6 @@ const withState = (model: Model, workpiece: Workpiece, info: ModelVersionInfo, u
   taskEditSnapshot: null
 })
 
-const pause = () => new Promise((resolve) => setTimeout(resolve, PAUSE_MS))
-
 /** The adapter of a model shared through a workpiece; null for a model the API keeps. */
 export const versionsOf = (model: Model): ModelVersions | null => {
   const link = linkOf(model.preferences)
@@ -243,7 +237,7 @@ export const versionsOf = (model: Model): ModelVersions | null => {
   const read = async (withPatches: boolean) => {
     const ck = await loadCollabKit()
     const checkpoints = (await ck.events.list({ anchorKind: 'workpiece', anchorId: workpieceId, kind: 'checkpoint' })).reverse()
-    const history = withPatches ? await historyOf(ck, workpieceId) : { workpiece: histories.get(workpieceId)?.workpiece ?? (await ck.workpieces.get(workpieceId)), steps: [], xml: EMPTY_MODEL_XML, contents: new Map(), authors: new Map(), names: {} }
+    const history = withPatches ? await historyOf(ck, workpieceId) : emptyHistory(histories.get(workpieceId)?.workpiece ?? (await ck.workpieces.get(workpieceId)))
     const { entries, done } = entriesOf(model, history, checkpoints, host ? { base: await privateNewest(), since: host.checkpoint } : undefined)
     return { workpiece: history.workpiece, entries, rest: history.steps.slice(done) }
   }
@@ -254,11 +248,11 @@ export const versionsOf = (model: Model): ModelVersions | null => {
   const mark = async (version: CreateModelVersion) => {
     const session = liveSession<ModelUnit>(workpieceId)
     if (!session || session.status !== 'connected') throw new Error('Not connected to collab-kit.')
-    for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
-      if (sameUnits(await stateAt(), session.units.entries())) break
-      await pause()
-    }
     const ck = await loadCollabKit()
+    for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
+      if (await isHeld(ck, session, CELLS_MAP)) break
+      await pause(PAUSE_MS)
+    }
     return ck.workpieces.checkpoint(workpieceId, version.kind === 'release' ? { label: version.releaseName ?? undefined, reason: version.description ?? undefined } : {})
   }
 

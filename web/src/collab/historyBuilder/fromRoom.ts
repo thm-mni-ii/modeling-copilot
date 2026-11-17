@@ -16,6 +16,7 @@ import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/
 import { MARKS_MAP, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { CELLS_MAP, historyModeOf, linkOf } from '@/collab/storage/workpiece'
 import { versionsOf } from '@/collab/storage/workpieceVersions'
+import { readTaskSteps, type RoomTaskStep, type TaskRead } from '@/collab/worksheet/roomTaskHistory'
 import { sharedTaskEdit, sharedTaskReference } from '@/collab/worksheet/sharedTask'
 import { collabSettings } from '@/collab/connection/collabSettings'
 
@@ -23,20 +24,6 @@ import { collabSettings } from '@/collab/connection/collabSettings'
 export interface RoomState {
   xml: string
   languages: WorkspaceLanguageReference[]
-}
-
-/** One change of the marks of a room that changed them; notes change the same workpiece. */
-interface RoomTaskStep {
-  id: string
-  createdAt: string
-  marks: SharedMarks
-}
-
-/** What is read of the task of a room: its steps, and where the next read goes on. */
-interface TaskRead {
-  steps: RoomTaskStep[]
-  marks: SharedMarks
-  seen: string | null
 }
 
 /** What is read of a room for the way back: its versions, the changes after the last of them, and the task. */
@@ -48,28 +35,10 @@ interface RoomRead {
 
 const NOTHING: RoomRead = { versions: [], rest: [], task: { steps: [], marks: {}, seen: null } }
 
-/** States read at once from collab-kit. */
+/** States of versions read at once from collab-kit. */
 const BATCH = 6
 
 const xmlAt = async (ck: CollabKitApi, workpieceId: string, at?: string) => (at ? xmlOf((await ck.workpieces.unitsAt<ModelUnit>(workpieceId, { at, map: CELLS_MAP })).units) : null) ?? EMPTY_MODEL_XML
-
-/** Reads the changes of the marks since the last read. */
-const readTaskSteps = async (ck: CollabKitApi, workpieceId: string, read: TaskRead): Promise<TaskRead> => {
-  const updates = await ck.workpieces.updates(workpieceId, read.seen ? { since: read.seen } : {})
-  const steps = [...read.steps]
-  let { marks, seen } = read
-  for (let start = 0; start < updates.length; start += BATCH) {
-    const batch = updates.slice(start, start + BATCH)
-    const states = await Promise.all(batch.map((update) => ck.workpieces.unitsAt<SharedMark>(workpieceId, { at: update._id, map: MARKS_MAP })))
-    batch.forEach((update, index) => {
-      const next: SharedMarks = Object.fromEntries(states[index].units)
-      if (JSON.stringify(next) !== JSON.stringify(marks)) steps.push({ id: update._id, createdAt: update.createdAt, marks: next })
-      marks = next
-      seen = update._id
-    })
-  }
-  return { steps, marks, seen }
-}
 
 /** Reads what the room holds beyond `before`; states of versions read before are not read again. */
 const readRoom = async (ck: CollabKitApi, linked: Model, workpiece: Workpiece, before: RoomRead): Promise<RoomRead> => {
