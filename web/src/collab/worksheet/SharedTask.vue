@@ -19,14 +19,7 @@
     >
       <!-- An editor can show in one place only; while the window is open, the notes are there. -->
       <template v-if="notesEnabled && !windowOpen" #default>
-        <div class="shared-notes">
-          <!-- A labeled divider instead of a bar of their own; formatting goes through the bar of the text. -->
-          <div class="shared-notes__divider">
-            <v-icon size="14">mdi-note-text-outline</v-icon>
-            <span>Notes</span>
-          </div>
-          <editor-content :editor="notes" class="shared-notes__body" />
-        </div>
+        <SharedNotes :editor="notes" />
       </template>
     </TaskTopBar>
   </div>
@@ -34,7 +27,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { EditorContent, useEditor } from '@tiptap/vue-3'
+import { useEditor } from '@tiptap/vue-3'
 import TaskTopBar from '@/components/modeling/controls/TaskTopBar.vue'
 import type { TaskConnectionOption, TaskElementOption } from '@/components/tasks/taskEditorExtensions'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
@@ -54,6 +47,7 @@ import { roleOf } from '@/collab/rooms/roomRole'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { currentShare } from '@/collab/sharing/shareModel'
 import type { TaskVersionReference } from '@/services/api/types/common'
+import SharedNotes from './SharedNotes.vue'
 import { sharedTaskContent, sharedTaskEdit, sharedTaskHistory, sharedTaskReference, sharedTaskSettings, writeSharedTask, type SharedTaskSettings } from './sharedTask'
 
 // Notes are off for sharing for now: they do not go back into the private model yet when sharing ends.
@@ -254,44 +248,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* In the bar the notes lie on white, like the task above them. */
 .shared-notes {
-  padding: 4px 16px 12px;
   background: #fff;
-}
-.shared-notes__divider {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.6);
-}
-.shared-notes__divider::before,
-.shared-notes__divider::after {
-  content: '';
-  flex: 1;
-  border-top: 1px solid rgba(0, 0, 0, 0.12);
-}
-.shared-notes__body :deep(.ProseMirror) {
-  min-height: 80px;
-  padding: 8px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 6px;
-  outline: none;
-  font-size: 14px;
-  line-height: 1.6;
-}
-.shared-notes__body :deep(.ProseMirror ul) {
-  padding-left: 24px;
-}
-.shared-notes__body :deep(.ProseMirror-focused) {
-  border-color: rgb(var(--v-theme-primary));
-}
-.shared-notes__body :deep(.ProseMirror p.is-editor-empty:first-child::before) {
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  color: rgba(0, 0, 0, 0.38);
-  pointer-events: none;
 }
 </style>
