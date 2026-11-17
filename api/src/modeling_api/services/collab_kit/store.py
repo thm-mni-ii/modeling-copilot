@@ -36,6 +36,31 @@ def _share_of(settings_: Any) -> dict[str, Any]:
     return share if isinstance(share, dict) else {}
 
 
+async def _host_shares(owner_id: str | None = None) -> list[dict[str, Any]]:
+    """Die lesbaren Shares der Host-Gruppen, älteste zuerst; mit `owner_id` nur die dieses Hosts.
+
+    Ein Raum, der fehlt (404) oder nicht zu seinen Gruppen passt (409), wird übersprungen, etwa ein
+    halb angelegter oder ein archivierter.
+    """
+    groups = sorted(
+        (
+            group
+            for group in await client.list_groups()
+            if _share_of(group["settings"]).get("role") == HOSTS
+            and (owner_id is None or _share_of(group["settings"]).get("ownerId") == owner_id)
+        ),
+        key=lambda group: group["createdAt"],
+    )
+    shares = []
+    for group in groups:
+        try:
+            shares.append(await read(_share_of(group["settings"])["roomId"]))
+        except ApiError as error:
+            if error.status not in (404, 409):
+                raise
+    return shares
+
+
 async def find_by_owner(owner_id: str) -> dict[str, Any] | None:
     """The share of this host or None.
 
@@ -44,41 +69,13 @@ async def find_by_owner(owner_id: str) -> dict[str, Any] | None:
     nicht stimmt, wird übersprungen; es gewinnt der Raum mit laufender Share, sonst der älteste. So bleibt
     eine laufende Share die des Hosts, auch wenn ein älterer Raum aus dem Archiv zurückkommt.
     """
-    owned = sorted(
-        (
-            group
-            for group in await client.list_groups()
-            if _share_of(group["settings"]).get("role") == HOSTS
-            and _share_of(group["settings"]).get("ownerId") == owner_id
-        ),
-        key=lambda group: group["createdAt"],
-    )
-    found = []
-    for group in owned:
-        try:
-            found.append(await read(_share_of(group["settings"])["roomId"]))
-        except ApiError as error:
-            if error.status not in (404, 409):
-                raise
+    found = await _host_shares(owner_id)
     return next((current for current in found if current["workpieceId"]), found[0] if found else None)
 
 
 async def open_rooms() -> list[dict[str, Any]]:
     """The shares that have a workpiece right now, locked ones included; a room that cannot be read is skipped."""
-    rooms = []
-    for group in await client.list_groups():
-        share = _share_of(group["settings"])
-        if share.get("role") != HOSTS:
-            continue
-        try:
-            current = await read(share["roomId"])
-        except ApiError as error:
-            if error.status not in (404, 409):
-                raise
-            continue
-        if current["workpieceId"]:
-            rooms.append(current)
-    return rooms
+    return [current for current in await _host_shares() if current["workpieceId"]]
 
 
 async def read(room_id: str) -> dict[str, Any]:

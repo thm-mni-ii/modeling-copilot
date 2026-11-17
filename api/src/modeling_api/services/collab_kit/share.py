@@ -100,14 +100,8 @@ async def share(
     Returns the room, the workpiece and whether it was newly created. If the host is already
     sharing, everything stays as it is, including the rights they have changed in the room since.
     """
-    try:
-        current = await store.find_by_owner(host_id)
-    except ApiError as error:
-        # A half-created room (aborted while creating) is skipped and left as it is.
-        if error.status not in (404, 409):
-            raise
-        current = None
-    current = current or await _create_room(host_id, name)
+    # Ein halb angelegter Raum (abgebrochen beim Anlegen) wird schon in find_by_owner übersprungen.
+    current = await store.find_by_owner(host_id) or await _create_room(host_id, name)
     room_id = current["roomId"]
 
     if current["open"] and current["workpieceId"]:
@@ -132,16 +126,12 @@ async def share(
     return room_id, workpiece_id, True
 
 
-async def _own_share(host_id: str) -> dict[str, Any]:
+async def own_share(host_id: str) -> dict[str, Any]:
+    """The share of the host as stored; a host who never shared gets a 404."""
     current = await store.find_by_owner(host_id)
     if current is None:
         raise not_found()
     return current
-
-
-async def own_share(host_id: str) -> dict[str, Any]:
-    """The share of the host as stored; a host who never shared gets a 404."""
-    return await _own_share(host_id)
 
 
 def _restored(before: dict[str, Any]) -> list[str]:
@@ -159,7 +149,7 @@ async def set_open(host_id: str, open_: bool, auto: bool = False) -> None:
     Two ends are kept apart: what the host does is orderly and never counts as `auto`; only the sweep
     locks with `auto=True`, because the host is gone, and only such a lock does it open again.
     """
-    current = await _own_share(host_id)
+    current = await own_share(host_id)
     room_id, visitors = current["roomId"], current["groups"][store.VISITORS]
     if not open_:
         # Already locked: what was remembered stays, otherwise the already reduced rights would be in there.
@@ -185,7 +175,7 @@ async def set_open(host_id: str, open_: bool, auto: bool = False) -> None:
 
 async def set_joinable(host_id: str, joinable: bool) -> None:
     """Closes the link for new visitors or opens it again; whoever is already in stays, rights stay."""
-    current = await _own_share(host_id)
+    current = await own_share(host_id)
     if not current["workpieceId"]:
         raise not_sharing()
     await store.save(current["roomId"], joinable=joinable)
@@ -196,7 +186,7 @@ async def close(host_id: str) -> None:
 
     Every step can be repeated, an aborted call is finished by a new one.
     """
-    current = await _own_share(host_id)
+    current = await own_share(host_id)
     room_id = current["roomId"]
     # Wer gerade verbunden ist, hat seine Arbeitskopie noch offen; sie geht erst mit seinem `leave`.
     try:
