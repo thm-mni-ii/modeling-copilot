@@ -27,7 +27,7 @@ def test_every_variant_returns_a_matrix_without_changing_inputs(name):
 
 
 def test_active_catalog():
-    assert len(VARIANTS) == 16
+    assert len(VARIANTS) == 17
     assert VARIANTS.keys() == REQUIRES.keys()
 
 
