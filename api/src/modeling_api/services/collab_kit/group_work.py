@@ -27,6 +27,12 @@ KEY = "groupWork"
 MEMBER_RIGHTS = ["see", "speak", "edit"]
 
 
+def _mark(item: dict[str, Any]) -> dict[str, Any]:
+    """Die Markierung eines Raums oder einer Gruppe aus dem Import, sonst {}."""
+    mark = (item.get("settings") or {}).get(KEY)
+    return mark if isinstance(mark, dict) else {}
+
+
 def same(text: str) -> str:
     """Wie Kurs und Gruppe verglichen werden: Groß- und Kleinschreibung und Leerzeichen zählen nicht."""
     return " ".join(text.split()).casefold()
@@ -34,7 +40,7 @@ def same(text: str) -> str:
 
 def in_course(room: dict[str, Any], course: str) -> bool:
     """Ob ein Import diesen Raum für den Kurs angelegt hat."""
-    return isinstance(room.get("settings", {}).get(KEY), dict) and same(str(room["settings"][KEY].get("course", ""))) == same(course)
+    return bool(_mark(room)) and same(str(_mark(room).get("course", ""))) == same(course)
 
 
 async def existing_rooms(course: str) -> dict[str, dict[str, Any]]:
@@ -42,11 +48,7 @@ async def existing_rooms(course: str) -> dict[str, dict[str, Any]]:
     rooms = [room for room in await client.list_rooms() if in_course(room, course)]
     if not rooms:
         return {}
-    groups = {
-        group["settings"][KEY]["roomId"]: group
-        for group in await client.list_groups()
-        if isinstance((group.get("settings") or {}).get(KEY), dict) and "roomId" in group["settings"][KEY]
-    }
+    groups = {_mark(group)["roomId"]: group for group in await client.list_groups() if "roomId" in _mark(group)}
     workpieces = {workpiece["_id"]: workpiece for workpiece in await client.list_workpieces()}
     found: dict[str, dict[str, Any]] = {}
     for room in rooms:
@@ -81,13 +83,15 @@ async def plan(user: User, course: str, groups: list[dict[str, Any]], token: str
         room = rooms.get(same(group["name"]))
         members = room["members"] if room else set()
         tasks = room["taskIds"] if room else set()
+        # Neue Personen als Anmeldename → FBS-ID, ohne Doppelte und ohne die, die schon drin sind.
+        new = {name: ids[name] for name in group["usernames"] if name in ids and ids[name] not in members}
         planned.append(
             {
                 "name": group["name"],
                 "roomId": room["roomId"] if room else None,
                 "groupId": room["groupId"] if room else None,
-                "newMembers": list(dict.fromkeys(name for name in group["usernames"] if name in ids and ids[name] not in members)),
-                "newMemberIds": list(dict.fromkeys(ids[name] for name in group["usernames"] if name in ids and ids[name] not in members)),
+                "newMembers": list(new),
+                "newMemberIds": list(new.values()),
                 "newTasks": [task for task in group["tasks"] if str(task["taskId"]) not in tasks],
                 "missing": [name for name in group["usernames"] if name not in ids],
                 # Je FBS-ID der Name aus der Liste; CK kennt Namen erst nach dem ersten Besuch, bis dahin zeigt der Reiter diesen.
@@ -96,6 +100,34 @@ async def plan(user: User, course: str, groups: list[dict[str, Any]], token: str
             }
         )
     return planned
+
+
+async def _ensure_group(entry: dict[str, Any], room_id: str) -> None:
+    """Legt die Gruppe samt Rechten an oder ergänzt die vorhandene um neue Personen und Namen."""
+    # Ein neuer Raum bekommt seine Gruppe; ebenso ein vorhandener, dessen Gruppe jemand von Hand gelöscht hat.
+    if entry["groupId"] is None:
+        ck_group = await client.create_group(entry["name"], entry["newMemberIds"], {KEY: {"roomId": room_id, "names": entry["names"]}})
+        await client.set_grant(ck_group["_id"], MEMBER_RIGHTS, room_id)
+        return
+    for member in entry["newMemberIds"]:
+        await client.add_member(entry["groupId"], member)
+    # Neue Namen kommen zu den alten; CK ersetzt die Einstellungen als Ganzes, also gehen fremde Schlüssel mit.
+    mark = entry["settings"].get(KEY, {})
+    names = {**mark.get("names", {}), **entry["names"]}
+    if names != mark.get("names", {}):
+        await client.update_group_settings(entry["groupId"], {**entry["settings"], KEY: {**mark, "names": names}})
+
+
+async def _add_models(room_id: str, references: list[dict[str, Any]], tasks: dict[tuple, dict[str, Any]]) -> list[str]:
+    """Legt je neuer Aufgabe ein Modell im Raum an; gibt die neuen Modelle zurück."""
+    workpiece_ids = []
+    for reference in references:
+        # Die Sprachen gehen in den Contract des Modells, der Rest wie beim Teilen in die CK-Aufgabe.
+        room_task = dict(tasks[(reference["taskId"], reference["versionId"])])
+        languages = room_task.pop("workspaceLanguages")
+        workpiece_id, _ = await create_model_workpiece(room_id, room_task["title"], model_contract(languages), MODEL_UNITS, room_task)
+        workpiece_ids.append(workpiece_id)
+    return workpiece_ids
 
 
 async def create(user: User, course: str, groups: list[dict[str, Any]], token: str | None) -> list[dict[str, Any]]:
@@ -110,25 +142,8 @@ async def create(user: User, course: str, groups: list[dict[str, Any]], token: s
     created = []
     for entry in planned:
         room_id = entry["roomId"] or (await client.create_room(entry["name"], {KEY: marker}))["_id"]
-        # Ein neuer Raum bekommt seine Gruppe; ebenso ein vorhandener, dessen Gruppe jemand von Hand gelöscht hat.
-        if entry["groupId"] is None:
-            ck_group = await client.create_group(entry["name"], entry["newMemberIds"], {KEY: {"roomId": room_id, "names": entry["names"]}})
-            await client.set_grant(ck_group["_id"], MEMBER_RIGHTS, room_id)
-        else:
-            for member in entry["newMemberIds"]:
-                await client.add_member(entry["groupId"], member)
-            # Neue Namen kommen zu den alten; CK ersetzt die Einstellungen als Ganzes, also gehen fremde Schlüssel mit.
-            mark = entry["settings"].get(KEY, {})
-            names = {**mark.get("names", {}), **entry["names"]}
-            if names != mark.get("names", {}):
-                await client.update_group_settings(entry["groupId"], {**entry["settings"], KEY: {**mark, "names": names}})
-        workpiece_ids = []
-        for reference in entry["newTasks"]:
-            # Die Sprachen gehen in den Contract des Modells, der Rest wie beim Teilen in die CK-Aufgabe.
-            room_task = dict(tasks[(reference["taskId"], reference["versionId"])])
-            languages = room_task.pop("workspaceLanguages")
-            workpiece_id, _ = await create_model_workpiece(room_id, room_task["title"], model_contract(languages), MODEL_UNITS, room_task)
-            workpiece_ids.append(workpiece_id)
+        await _ensure_group(entry, room_id)
+        workpiece_ids = await _add_models(room_id, entry["newTasks"], tasks)
         created.append(
             {
                 "name": entry["name"],
@@ -158,11 +173,7 @@ async def archive_course(user: User, course: str) -> dict[str, Any]:
     ours = [room for room in rooms if in_course(room, course)]
     ids = {room["_id"] for room in ours}
     elsewhere = {workpiece_id for room in rooms if room["_id"] not in ids for workpiece_id in room.get("workpieces", [])}
-    groups = [
-        group
-        for group in await client.list_groups()
-        if isinstance((group.get("settings") or {}).get(KEY), dict) and group["settings"][KEY].get("roomId") in ids
-    ]
+    groups = [group for group in await client.list_groups() if _mark(group).get("roomId") in ids]
     done = {"rooms": 0, "groups": 0, "workpieces": 0, "failed": []}
     for room in ours:
         try:
@@ -171,7 +182,7 @@ async def archive_course(user: User, course: str) -> dict[str, Any]:
                     await client.archive_workpiece(workpiece_id, reason)
                     done["workpieces"] += 1
             for group in groups:
-                if group["settings"][KEY]["roomId"] == room["_id"]:
+                if _mark(group)["roomId"] == room["_id"]:
                     await client.archive_group(group["_id"], reason)
                     done["groups"] += 1
             await client.archive_room(room["_id"], reason)
