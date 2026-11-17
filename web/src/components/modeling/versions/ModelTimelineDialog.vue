@@ -76,7 +76,7 @@ import { appendUnsavedTimelinePatches, buildModelTimeline, patchesForTimelineSte
 import ModelSnapshotPreview from './ModelSnapshotPreview.vue'
 import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
 import { buildTaskEditTimeline } from '@/utils/taskEditTimeline'
-import { useTaskHistory } from '@/collab/historyBuilder/useTaskHistory'
+import { useTaskHistory } from '@/collab/worksheet/useTaskHistory'
 import { roomBranchTask } from '@/collab/historyBuilder/fromRoom'
 import { sharedTaskContent } from '@/collab/worksheet/sharedTask'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'

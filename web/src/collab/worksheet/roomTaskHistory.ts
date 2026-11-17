@@ -8,7 +8,7 @@ import { loadTaskEditHistory } from '@/utils/taskEditTimeline'
 import type { CollabKitApi } from '@/collab/kit/collabKitV1'
 import { withMarks, type SharedMark, type SharedMarks } from '@/collab/converters/task/marks'
 import { MARKS_MAP } from '@/collab/converters/task/taskLink'
-import type { TaskHistorySource } from '@/collab/worksheet/sharedTask'
+import type { TaskHistorySource } from './sharedTask'
 
 /** States read at once while catching up on the task history. */
 const BATCH = 6

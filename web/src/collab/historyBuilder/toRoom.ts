@@ -11,7 +11,7 @@ import { sameUnits, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import type { SharedMark } from '@/collab/converters/task/marks'
 import { taskStepsOf, type PrivateTaskState, type TaskHistoryStep } from '@/collab/converters/task/taskHistory'
 import { MARKS_MAP, taskLinkOf } from '@/collab/converters/task/taskLink'
-import { baseOf } from '@/collab/sharing/shareTask'
+import { baseOf } from '@/collab/worksheet/roomTaskHistory'
 import { CELLS_MAP, type HostLink } from '@/collab/storage/workpiece'
 
 /** What the host shares: the private model, how much of its history, and the state as it is now. */

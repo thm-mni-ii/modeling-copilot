@@ -2,7 +2,7 @@ import { computed, reactive } from 'vue'
 import modelService from '@/services/model/model.service'
 import type { TaskEditDocument, TaskEditVersionInfo } from '@/services/api/types/model'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import { sharedTaskHistory } from '@/collab/worksheet/sharedTask'
+import { sharedTaskHistory } from './sharedTask'
 import { loadTaskEditHistory } from '@/utils/taskEditTimeline'
 
 /** Where the dialogs get the task history from: the open model with a task, or the task of a room. */
