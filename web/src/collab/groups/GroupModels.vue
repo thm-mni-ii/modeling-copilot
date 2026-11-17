@@ -83,7 +83,7 @@ import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import httpClient from '@/services/api/httpClient'
 import { apiErrorMessage, collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
-import { collabSettings } from '@/collab/connection/collabSettings'
+import { collabSettings } from '@/collab/settings/collabSettings'
 import { loadGroupRooms, type GroupRoom, type GroupWorkMark } from '@/collab/groups/groupRooms'
 
 /** `imported`: only the rooms from a participant list, with import and members, as the "Group work" tab shows them. */

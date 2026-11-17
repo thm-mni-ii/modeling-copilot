@@ -3,7 +3,7 @@ import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { followRoomHistory } from '@/collab/historyBuilder/fromRoom'
 import { loadCollabKit } from '@/collab/kit/collabKit'
 import type { Session } from '@/collab/kit/collabKitV1'
-import { collabSettings } from '@/collab/connection/collabSettings'
+import { collabSettings } from '@/collab/settings/collabSettings'
 import { currentShare, hostAway, hostClosed, visitorRights } from './shareModel'
 
 /**

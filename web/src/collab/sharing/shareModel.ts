@@ -14,7 +14,7 @@ import type { HistoryMode } from '@/collab/converters/model/modelHistory'
 import { forgetRoomHistory, keepRoomAsOwnModel, saveRoomAsNewModel, writeRoomToPrivateModel } from '@/collab/historyBuilder/fromRoom'
 import { buildRoomHistory, roomHistoryStart } from '@/collab/historyBuilder/toRoom'
 import { newWorkpiece } from '@/collab/storage/workpiece'
-import { collabSettings, loadCollabSettings } from '@/collab/connection/collabSettings'
+import { collabSettings, loadCollabSettings } from '@/collab/settings/collabSettings'
 import type { LeaveTarget } from './shareChoices'
 
 /** What the host answers in the dialog before the link; visitors always see. */

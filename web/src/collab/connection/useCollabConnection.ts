@@ -18,7 +18,7 @@ import { watchShare } from '@/collab/sharing/watchShare'
 import { roleOf, roomRole, type RoomRole } from '@/collab/rooms/roomRole'
 import { openWorkpiece } from './openWorkpiece'
 import { startPresence, type Person } from '@/collab/presence/presence'
-import { COLLAB_AREAS, isCollabArea, loadCollabSettings, type CollabArea } from './collabSettings'
+import { COLLAB_AREAS, isCollabArea, loadCollabSettings, type CollabArea } from '@/collab/settings/collabSettings'
 import { log, logBy, logChange, logEntries, SOMEONE_COLOR, trackPeople, type LogEntry, type LogKind } from './collabLog'
 
 const WORKPIECE_KEY = 'collabWorkpieceId'

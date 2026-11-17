@@ -18,7 +18,7 @@ import { CELLS_MAP, historyModeOf, linkOf } from '@/collab/storage/workpiece'
 import { versionsOf } from '@/collab/storage/workpieceVersions'
 import { readTaskSteps, type RoomTaskStep, type TaskRead } from '@/collab/worksheet/roomTaskHistory'
 import { sharedTaskEdit, sharedTaskReference } from '@/collab/worksheet/sharedTask'
-import { collabSettings } from '@/collab/connection/collabSettings'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** The state of the room as this browser holds it now. */
 export interface RoomState {

@@ -1,44 +1,55 @@
 <template>
   <div class="collab-settings">
     <p class="about mb-4">These settings apply to every shared model and group room. A change reaches everyone connected at once, and the backend at its next look at the shares.</p>
-    <v-sheet v-for="section in SECTIONS" :key="section.area" border rounded="lg" class="pa-4 mb-4">
-      <h3 class="title">{{ section.title }}</h3>
-      <p class="about mb-4">{{ section.about }}</p>
-      <div class="fields">
-        <div v-for="field in section.fields" v-show="shown(section.area, field)" :key="field.key">
-          <v-select v-if="field.items" v-model="form[section.area][field.key]" :items="field.items" item-title="title" item-value="value" :label="field.label" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
-          <v-switch v-else-if="typeof limitOf(section.area, field.key).default === 'boolean'" v-model="form[section.area][field.key]" :label="field.label" color="primary" density="compact" inset :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
-          <div v-else-if="'color' in limitOf(section.area, field.key)" class="colors">
-            <div class="colors__label">{{ field.label }}</div>
-            <span class="swatch" :style="{ color: textOn(String(form[section.area][field.key])) }">
-              <input v-model="form[section.area][field.key]" type="color" :disabled="!loaded" :aria-label="field.label" />
-              <span class="swatch__text">H</span>
-            </span>
-            <div class="colors__hint">{{ hintOf(section.area, field) }}</div>
-          </div>
-          <div v-else-if="'minItems' in limitOf(section.area, field.key)" class="colors">
-            <div class="colors__label">{{ field.label }}</div>
-            <div class="d-flex flex-wrap align-center ga-1">
-              <span v-for="(color, at) in listOf(section.area, field.key)" :key="at" class="swatch" :style="{ color: textOn(color) }">
-                <input :value="color" type="color" :disabled="!loaded" :aria-label="`${field.label} ${at + 1}`" @input="setColor(section.area, field.key, at, $event)" />
-                <span class="swatch__text">{{ at + 1 }}</span>
-                <v-btn icon="mdi-close" size="x-small" density="compact" variant="flat" class="swatch__remove" :disabled="!loaded" :aria-label="`Remove color ${at + 1}`" @click="listOf(section.area, field.key).splice(at, 1)" />
-              </span>
-              <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" class="ml-2" :disabled="!loaded" @click="listOf(section.area, field.key).push(randomColor())">Add color</v-btn>
+    <v-expansion-panels v-model="openPanels" multiple variant="accordion">
+      <v-expansion-panel v-for="group in GROUPS" :key="group.id" :value="group.id">
+        <v-expansion-panel-title>
+          <span class="title">{{ group.title }}</span>
+          <span class="about ml-3">{{ group.about }}</span>
+          <v-chip v-if="group.areas.some((area) => changed(area))" size="x-small" color="warning" variant="tonal" class="ml-3">changed</v-chip>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
+          <div v-for="section in sectionsOf(group)" :key="section.area" class="section">
+            <h3 class="title">{{ section.title }}</h3>
+            <p class="about mb-4">{{ section.about }}</p>
+            <div class="fields">
+              <div v-for="field in section.fields" v-show="shown(section.area, field)" :key="field.key">
+                <v-select v-if="field.items" v-model="form[section.area][field.key]" :items="field.items" item-title="title" item-value="value" :label="field.label" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
+                <v-switch v-else-if="typeof limitOf(section.area, field.key).default === 'boolean'" v-model="form[section.area][field.key]" :label="field.label" color="primary" density="compact" inset :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint />
+                <div v-else-if="'color' in limitOf(section.area, field.key)" class="colors">
+                  <div class="colors__label">{{ field.label }}</div>
+                  <span class="swatch" :style="{ color: textOn(String(form[section.area][field.key])) }">
+                    <input v-model="form[section.area][field.key]" type="color" :disabled="!loaded" :aria-label="field.label" />
+                    <span class="swatch__text">H</span>
+                  </span>
+                  <div class="colors__hint">{{ hintOf(section.area, field) }}</div>
+                </div>
+                <div v-else-if="'minItems' in limitOf(section.area, field.key)" class="colors">
+                  <div class="colors__label">{{ field.label }}</div>
+                  <div class="d-flex flex-wrap align-center ga-1">
+                    <span v-for="(color, at) in listOf(section.area, field.key)" :key="at" class="swatch" :style="{ color: textOn(color) }">
+                      <input :value="color" type="color" :disabled="!loaded" :aria-label="`${field.label} ${at + 1}`" @input="setColor(section.area, field.key, at, $event)" />
+                      <span class="swatch__text">{{ at + 1 }}</span>
+                      <v-btn icon="mdi-close" size="x-small" density="compact" variant="flat" class="swatch__remove" :disabled="!loaded" :aria-label="`Remove color ${at + 1}`" @click="listOf(section.area, field.key).splice(at, 1)" />
+                    </span>
+                    <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" class="ml-2" :disabled="!loaded" @click="listOf(section.area, field.key).push(randomColor())">Add color</v-btn>
+                  </div>
+                  <div v-if="problemOf(section.area, field.key)" class="colors__hint text-error">{{ problemOf(section.area, field.key) }}</div>
+                  <div v-else-if="warningOf(section.area)" class="colors__hint text-warning">{{ warningOf(section.area) }}</div>
+                  <div v-else class="colors__hint">{{ hintOf(section.area, field) }}</div>
+                </div>
+                <v-text-field v-else v-model.number="form[section.area][field.key]" type="number" :label="field.label" :suffix="unitOf(field.key)" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint :error-messages="problemOf(section.area, field.key)" />
+              </div>
             </div>
-            <div v-if="problemOf(section.area, field.key)" class="colors__hint text-error">{{ problemOf(section.area, field.key) }}</div>
-            <div v-else-if="warningOf(section.area)" class="colors__hint text-warning">{{ warningOf(section.area) }}</div>
-            <div v-else class="colors__hint">{{ hintOf(section.area, field) }}</div>
+            <v-btn v-if="section.fields.some((field) => field.advanced)" variant="text" size="small" class="mt-2" :append-icon="open[section.area] ? 'mdi-chevron-up' : 'mdi-chevron-down'" @click="open[section.area] = !open[section.area]">Advanced</v-btn>
+            <div class="d-flex ga-2 mt-4">
+              <v-btn color="primary" variant="flat" :disabled="!loaded || !changed(section.area) || invalid(section) || busy !== null" :loading="busy === section.area" @click="save(section)">Save</v-btn>
+              <v-btn variant="text" :disabled="!loaded || busy !== null" @click="reset(section)">Reset to defaults</v-btn>
+            </div>
           </div>
-          <v-text-field v-else v-model.number="form[section.area][field.key]" type="number" :label="field.label" :suffix="unitOf(field.key)" density="compact" :disabled="!loaded" :hint="hintOf(section.area, field)" persistent-hint :error-messages="problemOf(section.area, field.key)" />
-        </div>
-      </div>
-      <v-btn v-if="section.fields.some((field) => field.advanced)" variant="text" size="small" class="mt-2" :append-icon="open[section.area] ? 'mdi-chevron-up' : 'mdi-chevron-down'" @click="open[section.area] = !open[section.area]">Advanced</v-btn>
-      <div class="d-flex ga-2 mt-4">
-        <v-btn color="primary" variant="flat" :disabled="!loaded || !changed(section.area) || invalid(section) || busy !== null" :loading="busy === section.area" @click="save(section)">Save</v-btn>
-        <v-btn variant="text" :disabled="!loaded || busy !== null" @click="reset(section)">Reset to defaults</v-btn>
-      </div>
-    </v-sheet>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+    </v-expansion-panels>
   </div>
 </template>
 
@@ -47,9 +58,9 @@ import { onMounted, reactive, ref } from 'vue'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import { collabErrorMessage } from '@/collab/kit/collabKit'
 import type { CollabKitApi } from '@/collab/kit/collabKitV1'
-import { applyCollabSettings, COLLAB_AREAS, COLLAB_LIMITS, collabSettings, loadCollabSettings, type CollabArea, type CollabLimit } from '@/collab/connection/collabSettings'
+import { applyCollabSettings, COLLAB_AREAS, COLLAB_LIMITS, collabSettings, loadCollabSettings, type CollabArea, type CollabLimit } from '@/collab/settings/collabSettings'
 import { historyChoices } from '@/collab/sharing/shareChoices'
-import { textOn } from '@/collab/presence/cursors'
+import { labOf, textOn } from '@/collab/settings/colorMath'
 
 const props = defineProps<{ ck: CollabKitApi }>()
 
@@ -68,6 +79,14 @@ interface Section {
   readonly title: string
   readonly about: string
   readonly fields: readonly Field[]
+}
+
+/** A panel of the tab: one or more areas of collab-kit that belong together. */
+interface Group {
+  readonly id: string
+  readonly title: string
+  readonly about: string
+  readonly areas: readonly CollabArea[]
 }
 
 type FormValue = number | string | boolean | string[]
@@ -122,10 +141,17 @@ const SECTIONS: readonly Section[] = [
     fields: [
       { key: 'enabled', label: 'Archive', hint: 'Shows the Archive tab here.' },
       { key: 'archiveOnShareClose', label: 'Archive ended shares', hint: 'The model and the task of a share go to the archive when the host ends it, instead of staying in collab-kit without a room. Only while the archive is on.' },
-      { key: 'archiveUnusedAfterDays', label: 'Archive unused shared models after', hint: 'Models and tasks of ended shares that lie in no room and nobody has used for so long; the backend looks every hour. 0 never archives. Only while the archive is on.', unit: 'days' }
+      { key: 'archiveUnusedAfterDays', label: 'Archive unused shared models after', hint: 'Models and tasks of ended shares that lie in no room and nobody has used for so long; the backend looks once a day at 03:00 UTC. 0 never archives. Only while the archive is on.', unit: 'days' }
     ]
   }
 ]
+
+const GROUPS: readonly Group[] = [
+  { id: 'sharing', title: 'Sharing', about: 'Waiting times, share defaults', areas: ['sharing', 'shareDefaults'] },
+  { id: 'people', title: 'People', about: 'Presence, colors', areas: ['presence', 'colors'] },
+  { id: 'archive', title: 'Archive', about: 'Archive of workpieces', areas: ['archive'] }
+]
+const sectionsOf = (group: Group) => SECTIONS.filter((section) => group.areas.includes(section.area))
 
 /** The form shows seconds, except for fields with a unit of their own; keys ending in Ms without a unit are stored in milliseconds in collab-kit. */
 const UNITS = new Map(SECTIONS.flatMap((section) => section.fields.flatMap((field) => (field.unit ? [[field.key, field.unit] as const] : []))))
@@ -148,6 +174,7 @@ const form = reactive(Object.fromEntries(COLLAB_AREAS.map((area) => [area, formO
 const loaded = ref(false)
 const busy = ref<CollabArea | null>(null)
 const open = reactive<Partial<Record<CollabArea, boolean>>>({})
+const openPanels = ref(['sharing'])
 
 const listOf = (area: CollabArea, key: string) => form[area][key] as string[]
 const setColor = (area: CollabArea, key: string, at: number, event: Event) => (listOf(area, key)[at] = (event.target as HTMLInputElement).value)
@@ -181,11 +208,6 @@ const problemOf = (area: CollabArea, key: string): string | undefined => {
   return undefined
 }
 /** Color distance in Lab (CIE76); the default colors are at least 18 apart, below 15 the tab warns without blocking saving. */
-const labOf = (hex: string) => {
-  const [red, green, blue] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255).map((value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4))
-  const [x, y, z] = [(0.4124 * red + 0.3576 * green + 0.1805 * blue) / 0.95047, 0.2126 * red + 0.7152 * green + 0.0722 * blue, (0.0193 * red + 0.1192 * green + 0.9505 * blue) / 1.08883].map((value) => (value > 0.008856 ? Math.cbrt(value) : 7.787 * value + 16 / 116))
-  return [116 * y - 16, 500 * (x - y), 200 * (y - z)]
-}
 const warningOf = (area: CollabArea) => {
   if (area !== 'colors') return undefined
   const colors = [String(form.colors.hostColor), ...listOf('colors', 'palette')]
@@ -311,6 +333,12 @@ onMounted(async () => {
 
 .swatch:hover .swatch__remove {
   display: inline-flex;
+}
+
+.section + .section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .fields {

@@ -19,12 +19,12 @@ import { notifyError } from '@/composables/useNotifications'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabKitApi, ManagementElement, ManagementOpen, ManagementOwnTab, ManagementTab, Room } from '@/collab/kit/collabKitV1'
 import GroupWork from '@/collab/groups/GroupWork.vue'
-import CollabSettings from './CollabSettings.vue'
+import CollabSettings from '@/collab/settings/CollabSettings.vue'
 import { mayManageAll } from './access'
 import { newWorkpiece, UML_CLASS_DIAGRAM } from '@/collab/storage/workpiece'
 import { TASK_FORMAT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
-import { collabSettings, loadCollabSettings } from '@/collab/connection/collabSettings'
+import { collabSettings, loadCollabSettings } from '@/collab/settings/collabSettings'
 
 const ck = shallowRef<CollabKitApi>()
 const management = shallowRef<ManagementElement>()

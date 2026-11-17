@@ -7,7 +7,7 @@ import type { Session } from '@/collab/kit/collabKitV1'
 import { liveSession } from '@/collab/kit/liveSession'
 import { announcedRights, currentShare, hostPresenting, personColors, presenting, settingsLoaded, shareSettings } from '@/collab/sharing/shareModel'
 import { startCursors } from './cursors'
-import { collabSettings } from '@/collab/connection/collabSettings'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** One person at the workpiece, once however many tabs they have open. */
 export interface Person {
