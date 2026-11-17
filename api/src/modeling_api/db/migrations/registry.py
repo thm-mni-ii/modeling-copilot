@@ -89,4 +89,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v14_laboratory_structure_models.migration",
         ("13_language_comparison_groups",),
     ),
+    Migration(
+        "15_laboratory_synonym_models",
+        "modeling_api.db.migrations.versions.v15_laboratory_synonym_models.migration",
+        ("14_laboratory_structure_models",),
+    ),
 )
