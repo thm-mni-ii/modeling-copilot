@@ -46,6 +46,8 @@ import type { Session, SharedText } from '@/collab/kit/collabKitV1'
 import { bindNotes, notesExtensions } from '@/collab/worksheet/notesBinding'
 import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/converters/task/marks'
 import { MARKS_MAP, NOTES_TEXT, taskLinkOf } from '@/collab/converters/task/taskLink'
+import { changeOf } from '@/collab/converters/task/taskHistory'
+import { hasChange } from '@/collab/converters/model/modelHistory'
 import { baseOf, taskHistoryOf } from './roomTaskHistory'
 import { linkOf } from '@/collab/storage/workpiece'
 import { roleOf } from '@/collab/rooms/roomRole'
@@ -160,12 +162,10 @@ const write = (next: JsonObject) => {
     return
   }
   const after = marksOf(next)
-  const set: SharedMarks = {}
-  for (const [id, mark] of Object.entries(after)) if (JSON.stringify(mark) !== JSON.stringify(shown[id])) set[id] = mark
-  const removed = Object.keys(shown).filter((id) => !(id in after))
-  if (!Object.keys(set).length && !removed.length) return
+  const change = changeOf(shown, after)
+  if (!hasChange(change)) return
   try {
-    session.units.update({ set, delete: removed })
+    session.units.update(change)
     shown = after
     // Also from the sidebar: the editor and the list take what was written.
     document.value = next

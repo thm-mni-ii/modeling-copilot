@@ -5,7 +5,8 @@ import type { Session } from '@/collab/kit/collabKitV1'
 import type { Log } from '@/collab/connection/collabLog'
 import { applyCells, cellsOfUndoneEdit, type HeldText } from './applyCells'
 import { watchGraphChanges } from './graphChanges'
-import { joinModel, splitModel } from '@/collab/converters/model/modelCells'
+import { cellChange, joinModel, splitModel } from '@/collab/converters/model/modelCells'
+import { hasChange } from '@/collab/converters/model/modelHistory'
 import { cellsOf, isCellKey, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { lockGraph } from './readOnly'
 import { sharedHistory } from './sharedHistory'
@@ -157,15 +158,11 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: Log, o
     const holding = new Set([...heldBack.keys()].flatMap((cell) => cell.getId() ?? []))
     const shared = known()
     const cells = splitModel(exportModelAsXml(graph, false), shared)
-    const removed = Array.from(shared.keys()).filter((id) => !cells.has(id))
-    const changed = Array.from(cells).filter(([id, cell]) => {
-      const before = shared.get(id)
-      return !holding.has(id) && (!before || before.xml !== cell.xml || before.index !== cell.index)
-    })
-    if (changed.length === 0 && removed.length === 0) return
-    session.units.update({ set: Object.fromEntries(changed), delete: removed }, { undoable })
+    const change = cellChange(shared, cells, holding)
+    if (!hasChange(change)) return
+    session.units.update(change, { undoable })
     // Only what waits for the connection; the sending itself would be a line on every change.
-    if (session.status !== 'connected') log(`kept for connect · ${changed.length} of ${cells.size} cells · ${removed.length} removed`)
+    if (session.status !== 'connected') log(`kept for connect · ${Object.keys(change.set).length} of ${cells.size} cells · ${change.delete.length} removed`)
     showHistory()
   }
 
