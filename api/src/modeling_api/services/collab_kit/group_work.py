@@ -20,7 +20,7 @@ from modeling_api.core.errors import ApiError
 from modeling_api.services import models
 from modeling_api.services.collab_kit import archive, client
 from modeling_api.services.collab_kit.errors import archive_disabled
-from modeling_api.services.collab_kit.share import TASK_FORMAT, create_model_workpiece
+from modeling_api.services.collab_kit.workpieces import MODEL_UNITS, TASK_FORMAT, create_model_workpiece, model_contract
 from modeling_api.services.fbs_users import users_uri
 from modeling_api.services.submissions import is_moderator, require
 
@@ -29,14 +29,6 @@ logger = logging.getLogger(__name__)
 KEY = "groupWork"
 # Alle in der Gruppe sehen, kommentieren und bearbeiten; Aufgaben, Entscheidungen und Rechte bleiben bei den Tutoren.
 MEMBER_RIGHTS = ["see", "speak", "edit"]
-
-
-MODEL_UNITS = [{"path": ["cells"]}]
-
-
-def model_contract(languages: list[dict[str, Any]]) -> dict[str, Any]:
-    """Der Contract eines Modells, wie ihn der Browser baut (`newWorkpiece`), mit den Sprachen der Aufgabe als Start."""
-    return {"tool": "modeling-copilot", "format": "copilot-cells", "version": 1, "languages": languages, "history": "none"}
 
 
 async def fbs_ids(token: str | None) -> dict[str, str]:

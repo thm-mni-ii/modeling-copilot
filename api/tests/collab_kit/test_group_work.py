@@ -8,7 +8,8 @@ from modeling_api.core.auth import User
 from modeling_api.core.errors import ApiError
 from modeling_api.schemas.group_work import MAX_GROUPS, MAX_MEMBERS, MAX_TASKS, CreateGroupWork
 from modeling_api.services import models
-from modeling_api.services.collab_kit import group_work, share, store
+from modeling_api.services.collab_kit import group_work, store
+from modeling_api.services.collab_kit.workpieces import MODEL_UNITS, TASK_FORMAT
 
 # Das CK im Speicher aus den Tests des Teilens.
 from test_share import activity, archive_answers, archived, archiving, ck, deleted, presence, sharing, tasks  # noqa: F401
@@ -75,9 +76,9 @@ def test_each_group_gets_a_room_its_group_and_a_model_per_task(ck, fbs, tasks):
     assert group["settings"] == {"groupWork": {"roomId": room_id, "names": {"2254": "Michael Albach", "17": "Bob Bobby"}}}
     assert grants == [{"groupId": group["_id"], "rights": ["see", "speak", "edit"], "anonymous": False, "scope": {"kind": "room", "id": room_id}}]
     # Je Aufgabe wie beim Teilen: Werkstück für Markierungen und Notizen, feste CK-Aufgabe, Modell.
-    assert [w["contract"]["format"] for w in workpieces] == [share.TASK_FORMAT, "copilot-cells", share.TASK_FORMAT, "copilot-cells"]
+    assert [w["contract"]["format"] for w in workpieces] == [TASK_FORMAT, "copilot-cells", TASK_FORMAT, "copilot-cells"]
     model = workpieces[1]
-    assert model["name"] == "F1 – Case" and model["units"] == group_work.MODEL_UNITS
+    assert model["name"] == "F1 – Case" and model["units"] == MODEL_UNITS
     assert model["contract"]["languages"] == LANGUAGES
     assert model["contract"]["task"] == {"workpieceId": "W0", "taskId": "T0"}
     assert tasks[0]["detail"]["contentHtml"] == "<p>Case 1</p>" and "workspaceLanguages" not in tasks[0]["detail"]

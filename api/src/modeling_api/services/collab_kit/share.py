@@ -10,14 +10,10 @@ from modeling_api.core.errors import ApiError, not_found
 from modeling_api.services import models
 from modeling_api.services.collab_kit import archive, client, store
 from modeling_api.services.collab_kit.errors import link_closed, not_sharing
+from modeling_api.services.collab_kit.workpieces import create_model_workpiece
 
 # The host may do everything in the room.
 HOST_RIGHTS = ["see", "speak", "edit", "plan", "decide", "manage"]
-
-
-# The workpiece of the shared task and the map of its marks, as the web reads them.
-TASK_FORMAT = "copilot-task"
-MARKS_MAP = "marks"
 
 # What goes back to the visitors on reopening; the backend restores nothing more.
 RESTORABLE = ["see", "speak", "edit"]
@@ -134,48 +130,6 @@ async def share(
         autoLocked=False,
     )
     return room_id, workpiece_id, True
-
-
-async def create_model_workpiece(
-    room_id: str,
-    name: str,
-    contract: dict[str, Any],
-    units: list[dict[str, Any]],
-    task: dict[str, Any] | None = None,
-) -> tuple[str, str | None]:
-    """Legt ein Modell im Raum an, mit `task` (Titel, Text, Release) samt fester CK-Aufgabe und
-    einem Werkstück für Markierungen und Notizen; gibt das Modell und dieses Werkstück zurück.
-    Genutzt beim Teilen und bei der Gruppenarbeit."""
-    task_workpiece_id = None
-    if task is not None:
-        # The task first, because the contract of the model cannot be changed once created.
-        task_workpiece = await client.create_workpiece(
-            {
-                "name": f"{name} – Task",
-                "roomId": room_id,
-                "contract": {"tool": "modeling-copilot", "format": TASK_FORMAT, "version": 1, "taskVersion": task["taskVersion"]},
-                "units": [{"path": [MARKS_MAP]}],
-            }
-        )
-        task_workpiece_id = task_workpiece["_id"]
-        ck_task = await client.create_task(
-            {
-                "kind": "assignment",
-                "title": task["title"],
-                "state": "open",
-                "anchor": {"kind": "workpiece", "id": task_workpiece_id},
-                "detail": {
-                    "contentHtml": task["contentHtml"],
-                    "taskVersion": task["taskVersion"],
-                    **({"settings": task["settings"]} if "settings" in task else {}),
-                },
-            }
-        )
-        contract = {**contract, "task": {"workpieceId": task_workpiece_id, "taskId": ck_task["_id"]}}
-    workpiece = await client.create_workpiece(
-        {"name": name, "roomId": room_id, "contract": contract, "units": units}
-    )
-    return workpiece["_id"], task_workpiece_id
 
 
 async def _own_share(host_id: str) -> dict[str, Any]:

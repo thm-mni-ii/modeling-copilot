@@ -10,6 +10,7 @@ from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
 from modeling_api.services import models
 from modeling_api.services.collab_kit import archive, client, collab_settings, share, store, sweep
+from modeling_api.services.collab_kit.workpieces import MARKS_MAP, TASK_FORMAT
 
 ARGS = dict(name="Model", contract={"tool": "x"}, units=[{"path": ["cells"]}])
 # Die Standardzeiten des Sweeps.
@@ -238,8 +239,8 @@ def test_sharing_with_the_task_bundles_it_into_the_contract_of_the_model(ck, tas
     task_workpiece, model = workpieces
     assert (workpiece_id, created) == (model["_id"], True)
     assert rooms[room_id]["workpieces"] == [task_workpiece["_id"], model["_id"]]
-    assert task_workpiece["contract"]["format"] == share.TASK_FORMAT
-    assert task_workpiece["units"] == [{"path": [share.MARKS_MAP]}]
+    assert task_workpiece["contract"]["format"] == TASK_FORMAT
+    assert task_workpiece["units"] == [{"path": [MARKS_MAP]}]
     assert tasks[0]["anchor"] == {"kind": "workpiece", "id": task_workpiece["_id"]}
     assert tasks[0]["detail"] == {"contentHtml": "<p>Each order</p>", "taskVersion": TASK["taskVersion"]}
     assert model["contract"] == {"tool": "x", "task": {"workpieceId": task_workpiece["_id"], "taskId": "T0"}}
