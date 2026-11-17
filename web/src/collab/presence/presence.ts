@@ -59,23 +59,57 @@ const leastUsed = (assigned: Record<string, string>, present: Set<string>) => {
 /** The name collab-kit has from the token; a pseudonym shows as it is, a token without a name shows the ID. */
 export const nameOf = (person: { id: string; name?: string }) => person.name ?? (isPseudonym(person.id) ? person.id : `Person ${person.id}`)
 
+/** What the clients of the host announce; none while the host is not there. */
+const hostStates = (session: Session) =>
+  session.presence
+    .people()
+    .find((person) => person.id === hostId())
+    ?.clients.map(({ state }) => state as PresenceState) ?? []
+
 /** Whether the host presents. */
-const presenterActive = (session: Session) => session.presence.people().some((person) => person.id === hostId() && person.clients.some(({ state }) => (state as PresenceState).presenting === true))
+const presenterActive = (session: Session) => hostStates(session).some((state) => state.presenting === true)
 
 /** What the host announced for the visitors; none while the host is not there or has not read the settings yet. */
-const announcedBy = (session: Session) => {
-  const host = session.presence.people().find((person) => person.id === hostId())
-  return host?.clients.map(({ state }) => (state as PresenceState).visitors).find((visitors) => visitors !== undefined) ?? null
-}
+const announcedBy = (session: Session) =>
+  hostStates(session)
+    .map((state) => state.visitors)
+    .find((visitors) => visitors !== undefined) ?? null
 
 /** The colors the host handed out; none while the host is not there. */
-const colorsBy = (session: Session) => {
-  const host = session.presence.people().find((person) => person.id === hostId())
-  return host?.clients.map(({ state }) => (state as PresenceState).colors).find((colors) => colors !== undefined) ?? null
-}
+const colorsBy = (session: Session) =>
+  hostStates(session)
+    .map((state) => state.colors)
+    .find((colors) => colors !== undefined) ?? null
 
 /** Whether the cursor and selection of a person show: all do, until the host presents, then only the host's. */
 const shows = (session: Session, id: string) => !presenterActive(session) || id === hostId()
+
+const SVG = 'http://www.w3.org/2000/svg'
+
+/** An element of the overlay with its attributes. */
+const svgElement = (name: string, attributes: Record<string, string | number>) => {
+  const element = document.createElementNS(SVG, name)
+  for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value))
+  return element
+}
+
+/** A small disc in a person's color with something white on it, laid over the graph at x, y; clicks pass through it. */
+const badgeAt = (graph: Graph, x: number, y: number, color: string, ...content: Element[]) => {
+  const badge = svgElement('g', { transform: `translate(${x} ${y})`, 'pointer-events': 'none' })
+  badge.append(svgElement('circle', { r: 9, fill: color }), ...content)
+  graph.view.getOverlayPane().appendChild(badge)
+  return badge
+}
+
+/** The lock on a badge: its body and its shackle. */
+const lockShape = () => [svgElement('rect', { x: -4, y: -1, width: 8, height: 6, rx: 1, fill: '#fff' }), svgElement('path', { d: 'M-2.5 -1 V-3 a2.5 2.5 0 0 1 5 0 V-1', fill: 'none', stroke: '#fff', 'stroke-width': 1.5 })]
+
+/** A letter or a short count on a badge. */
+const letterShape = (text: string) => {
+  const letter = svgElement('text', { 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 10, 'font-weight': 500, fill: '#fff' })
+  letter.textContent = text
+  return letter
+}
 
 /**
  * Announces what this tab selects and whether it may only read, frames what the others select,
@@ -179,22 +213,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   }
 
   // A small lock at the top right of the frame, in the holder's color; it goes when the lock ends.
-  const drawLock = (x: number, y: number, color: string) => {
-    const ns = 'http://www.w3.org/2000/svg'
-    const badge = document.createElementNS(ns, 'g')
-    badge.setAttribute('transform', `translate(${x} ${y})`)
-    badge.setAttribute('pointer-events', 'none')
-    const disc = document.createElementNS(ns, 'circle')
-    disc.setAttribute('r', '9')
-    disc.setAttribute('fill', color)
-    const body = document.createElementNS(ns, 'rect')
-    for (const [name, value] of Object.entries({ x: -4, y: -1, width: 8, height: 6, rx: 1, fill: '#fff' })) body.setAttribute(name, String(value))
-    const shackle = document.createElementNS(ns, 'path')
-    for (const [name, value] of Object.entries({ d: 'M-2.5 -1 V-3 a2.5 2.5 0 0 1 5 0 V-1', fill: 'none', stroke: '#fff', 'stroke-width': 1.5 })) shackle.setAttribute(name, String(value))
-    badge.append(disc, body, shackle)
-    graph.view.getOverlayPane().appendChild(badge)
-    return badge
-  }
+  const drawLock = (x: number, y: number, color: string) => badges.push(badgeAt(graph, x, y, color, ...lockShape()))
 
   // Marks a whole element in the holder's color: the top cell with a thick frame and, only for the holder, the lock;
   // the cells right below it with a 2px frame and a light tint, whichever cell of it was selected.
@@ -213,8 +232,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
       }
       // The highlight keeps a gap to the cell and never paints a fill, so two neighbors show two lines.
       // A plain rectangle on the exact bounds draws one shared line and the tint; clicks pass through it.
-      const box = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-      for (const [name, value] of Object.entries({ x: view.x, y: view.y, width: view.width, height: view.height, fill: color, 'fill-opacity': 0.1, stroke: color, 'stroke-width': width, 'pointer-events': 'none' })) box.setAttribute(name, String(value))
+      const box = svgElement('rect', { x: view.x, y: view.y, width: view.width, height: view.height, fill: color, 'fill-opacity': 0.1, stroke: color, 'stroke-width': width, 'pointer-events': 'none' })
       graph.view.getOverlayPane().appendChild(box)
       badges.push(box)
     }
@@ -224,25 +242,11 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     // An empty list (a swimlane such as the attributes of an entity) stays unmarked: nothing in it belongs to the element yet.
     for (const child of top.getChildren()) if (child.getChildCount() > 0 || !graph.isSwimlane(child)) frame(child, 2, true)
     const view = graph.view.getState(top)
-    if (held && view) badges.push(drawLock(view.x + view.width, view.y, color))
+    if (held && view) drawLock(view.x + view.width, view.y, color)
   }
 
   // A small disc with a letter in a person's color; the others who selected the element sit in a row at its top left.
-  const drawMark = (x: number, y: number, color: string, text: string) => {
-    const ns = 'http://www.w3.org/2000/svg'
-    const badge = document.createElementNS(ns, 'g')
-    badge.setAttribute('transform', `translate(${x} ${y})`)
-    badge.setAttribute('pointer-events', 'none')
-    const disc = document.createElementNS(ns, 'circle')
-    disc.setAttribute('r', '9')
-    disc.setAttribute('fill', color)
-    const letter = document.createElementNS(ns, 'text')
-    for (const [name, value] of Object.entries({ 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 10, 'font-weight': 500, fill: '#fff' })) letter.setAttribute(name, String(value))
-    letter.textContent = text
-    badge.append(disc, letter)
-    graph.view.getOverlayPane().appendChild(badge)
-    badges.push(badge)
-  }
+  const drawMark = (x: number, y: number, color: string, text: string) => badges.push(badgeAt(graph, x, y, color, letterShape(text)))
 
   type Claim = { person: { id: string; name?: string }; held: boolean; since: number; clientId: number }
 
@@ -321,50 +325,61 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   // deleted, nor can its children. Edges that end at it still follow when it is moved.
   // Native hooks: isCellLocked/isCellDeletable in CellsMixin.js, isCellEditable in EditingMixin.js
   // (node_modules/@maxgraph/core/lib/esm/view/mixin). Wrapped on the instance, restored on stop.
-  const { isCellLocked, isCellEditable, isCellDeletable } = graph
-  graph.isCellLocked = (cell) => locked.has(cell.getId() ?? '') || isCellLocked.call(graph, cell)
-  graph.isCellEditable = (cell) => !locked.has(cell.getId() ?? '') && isCellEditable.call(graph, cell)
-  graph.isCellDeletable = (cell) => !touchesLocked(cell) && isCellDeletable.call(graph, cell)
+  const lockByPresence = () => {
+    const { isCellLocked, isCellEditable, isCellDeletable } = graph
+    graph.isCellLocked = (cell) => locked.has(cell.getId() ?? '') || isCellLocked.call(graph, cell)
+    graph.isCellEditable = (cell) => !locked.has(cell.getId() ?? '') && isCellEditable.call(graph, cell)
+    graph.isCellDeletable = (cell) => !touchesLocked(cell) && isCellDeletable.call(graph, cell)
 
-  // Tells who holds the element when someone tries to change it; at most once every few seconds.
-  // Only attempts count (drag, double click, delete), because maxGraph also asks the hooks above while drawing.
-  let lastWarned = 0
-  const warnLocked = (cell: Cell) => {
-    if (Date.now() - lastWarned < 3000) return
-    lastWarned = Date.now()
-    const holder = [...holderOf].find(([id]) => topOf(model.getCell(id) ?? cell) === topOf(cell))
-    const person = holder && session.presence.people().find(({ clients }) => clients.some(({ clientId }) => clientId === holder[1]))
-    notifyWarning(person ? `This element is locked. ${nameOf(person)} is editing it.` : 'This element is locked. Someone else is editing it.')
-  }
-  // Native: getDeletableCells in CellsMixin.js is called only when deleting.
-  const { getDeletableCells } = graph
-  graph.getDeletableCells = (cells) => {
-    const blocked = cells.find(touchesLocked)
-    if (blocked) warnLocked(blocked)
-    return getDeletableCells.call(graph, cells)
-  }
-  // A drag that starts on a locked element; a plain click only selects and stays quiet.
-  let pressed: { cell: Cell; x: number; y: number } | null = null
-  const lockWatcher = {
-    mouseDown: (_sender: unknown, me: InternalMouseEvent) => {
-      const cell = me.getCell()
-      pressed = cell && locked.has(cell.getId() ?? '') ? { cell, x: me.getGraphX(), y: me.getGraphY() } : null
-    },
-    mouseMove: (_sender: unknown, me: InternalMouseEvent) => {
-      if (!pressed || Math.hypot(me.getGraphX() - pressed.x, me.getGraphY() - pressed.y) <= graph.getEventTolerance()) return
-      warnLocked(pressed.cell)
-      pressed = null
-    },
-    mouseUp: () => {
-      pressed = null
+    // Tells who holds the element when someone tries to change it; at most once every few seconds.
+    // Only attempts count (drag, double click, delete), because maxGraph also asks the hooks above while drawing.
+    let lastWarned = 0
+    const warnLocked = (cell: Cell) => {
+      if (Date.now() - lastWarned < 3000) return
+      lastWarned = Date.now()
+      const holder = [...holderOf].find(([id]) => topOf(model.getCell(id) ?? cell) === topOf(cell))
+      const person = holder && session.presence.people().find(({ clients }) => clients.some(({ clientId }) => clientId === holder[1]))
+      notifyWarning(person ? `This element is locked. ${nameOf(person)} is editing it.` : 'This element is locked. Someone else is editing it.')
+    }
+    // Native: getDeletableCells in CellsMixin.js is called only when deleting.
+    const { getDeletableCells } = graph
+    graph.getDeletableCells = (cells) => {
+      const blocked = cells.find(touchesLocked)
+      if (blocked) warnLocked(blocked)
+      return getDeletableCells.call(graph, cells)
+    }
+    // A drag that starts on a locked element; a plain click only selects and stays quiet.
+    let pressed: { cell: Cell; x: number; y: number } | null = null
+    const lockWatcher = {
+      mouseDown: (_sender: unknown, me: InternalMouseEvent) => {
+        const cell = me.getCell()
+        pressed = cell && locked.has(cell.getId() ?? '') ? { cell, x: me.getGraphX(), y: me.getGraphY() } : null
+      },
+      mouseMove: (_sender: unknown, me: InternalMouseEvent) => {
+        if (!pressed || Math.hypot(me.getGraphX() - pressed.x, me.getGraphY() - pressed.y) <= graph.getEventTolerance()) return
+        warnLocked(pressed.cell)
+        pressed = null
+      },
+      mouseUp: () => {
+        pressed = null
+      }
+    }
+    graph.addMouseListener(lockWatcher)
+    const onDoubleClick = (_sender: unknown, evt: EventObject) => {
+      const cell = evt.getProperty('cell') as Cell | null
+      if (cell && locked.has(cell.getId() ?? '')) warnLocked(cell)
+    }
+    graph.addListener(InternalEvent.DOUBLE_CLICK, onDoubleClick)
+    return () => {
+      graph.isCellLocked = isCellLocked
+      graph.isCellEditable = isCellEditable
+      graph.isCellDeletable = isCellDeletable
+      graph.getDeletableCells = getDeletableCells
+      graph.removeMouseListener(lockWatcher)
+      graph.removeListener(onDoubleClick)
     }
   }
-  graph.addMouseListener(lockWatcher)
-  const onDoubleClick = (_sender: unknown, evt: EventObject) => {
-    const cell = evt.getProperty('cell') as Cell | null
-    if (cell && locked.has(cell.getId() ?? '')) warnLocked(cell)
-  }
-  graph.addListener(InternalEvent.DOUBLE_CLICK, onDoubleClick)
+  const releaseLocks = lockByPresence()
 
   const stopListening = session.presence.onChange(onChange)
   const stopCursors = startCursors(graph, session, colorOf, nameOf, (id) => shows(session, id))
@@ -411,12 +426,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     stopped = true
     clearInterval(idleCheck)
     for (const type of activityEvents) window.removeEventListener(type, onActivity)
-    graph.isCellLocked = isCellLocked
-    graph.isCellEditable = isCellEditable
-    graph.isCellDeletable = isCellDeletable
-    graph.getDeletableCells = getDeletableCells
-    graph.removeMouseListener(lockWatcher)
-    graph.removeListener(onDoubleClick)
+    releaseLocks()
     locked = new Set()
     stopCursors()
     stopListening()
