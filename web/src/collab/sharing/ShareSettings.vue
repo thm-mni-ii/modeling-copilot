@@ -1,19 +1,13 @@
 <template>
-  <div class="share-settings">
-    <div class="share-settings__header">
-      <span>Settings</span>
-      <v-btn :icon="open ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="x-small" variant="text" :aria-label="open ? 'Collapse settings' : 'Expand settings'" @click="open = !open" />
+  <CollabBox v-model="open" title="Settings" label="settings">
+    <div class="share-settings__body">
+      <!-- The same switches as in the ModeBar; presenting does not wait for the settings to load. -->
+      <button v-for="item in hostToggles" :key="item.key" type="button" class="share-toggle" :class="{ 'share-toggle--on': item.on, 'share-toggle--present': item.key === 'present' }" :title="item.title" :aria-label="item.title" :aria-pressed="item.on" :disabled="item.key === 'present' ? shareDialog === 'quit' : disabled" @click="item.toggle()">
+        <v-icon :icon="item.icon" size="20" />
+        <span>{{ item.label }}</span>
+      </button>
     </div>
-    <v-expand-transition>
-      <div v-show="open" class="share-settings__body">
-        <!-- The same switches as in the ModeBar; presenting does not wait for the settings to load. -->
-        <button v-for="item in hostToggles" :key="item.key" type="button" class="share-toggle" :class="{ 'share-toggle--on': item.on, 'share-toggle--present': item.key === 'present' }" :title="item.title" :aria-label="item.title" :aria-pressed="item.on" :disabled="item.key === 'present' ? shareDialog === 'quit' : disabled" @click="item.toggle()">
-          <v-icon :icon="item.icon" size="20" />
-          <span>{{ item.label }}</span>
-        </button>
-      </div>
-    </v-expand-transition>
-  </div>
+  </CollabBox>
 </template>
 
 <script lang="ts">
@@ -25,6 +19,7 @@ const open = ref(true)
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import CollabBox from '@/collab/connection/CollabBox.vue'
 import { hostToggles, loadShareSettings, shareDialog, shareSettingsBusy } from './shareModel'
 
 // Until the values are read, the switches would show what is not set; while the host decides how to leave, nothing changes.
@@ -34,31 +29,11 @@ onMounted(loadShareSettings)
 </script>
 
 <style scoped>
-.share-settings {
-  flex-shrink: 0;
-  border: 1px solid rgba(var(--v-theme-outline), 0.2);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.share-settings__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 6px 4px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: rgba(var(--v-theme-on-surface), 0.62);
-  text-transform: uppercase;
-}
-
 .share-settings__body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   padding: 8px 10px;
-  border-top: 1px solid rgba(var(--v-theme-outline), 0.15);
 }
 
 /* Green in the primary color in the sidebar, blue in the ModeBar; presenting is red in both. */

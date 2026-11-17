@@ -1,56 +1,50 @@
 <template>
-  <div class="collab-log" :class="{ 'collab-log--open': open }">
-    <div class="collab-log__header">
-      <span>Event Log</span>
-      <v-btn :icon="open ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="x-small" variant="text" :aria-label="open ? 'Collapse event log' : 'Expand event log'" @click="open = !open" />
-    </div>
-    <div v-show="open" class="collab-log__body">
-      <div v-if="entries.length === 0" class="collab-log__empty">No events yet</div>
-      <div v-for="block in blocks" :key="keyOf(block.entries[0])" class="collab-log__entry">
-        <div v-if="block.by" class="collab-log__block">
-          <div class="collab-log__person">
-            <span class="collab-log__dot" :style="{ background: block.color ?? SOMEONE_COLOR }">{{ block.by.charAt(0).toUpperCase() }}</span>
-            <span class="collab-log__name">{{ block.by }}</span>
-            <span class="collab-log__time" :title="new Date(block.at).toLocaleTimeString()">{{ ago(block.at) }}</span>
-          </div>
-          <div
-            v-for="entry in block.entries"
-            :key="keyOf(entry)"
-            class="collab-log__line"
-            :class="{ 'collab-log__line--show': showable(entry) }"
-            :role="showable(entry) ? 'button' : undefined"
-            :tabindex="showable(entry) ? 0 : undefined"
-            @mouseenter="showable(entry) && showEdits(entry, true)"
-            @mouseleave="hideEdits()"
-            @click="showable(entry) && showEdits(entry)"
-            @keydown.enter="showable(entry) && showEdits(entry)"
-          >
-            <v-icon :icon="ICONS[entry.kind].icon" :color="ICONS[entry.kind].color" size="16" class="collab-log__icon" />
-            <span v-if="entry.edits" class="collab-log__text">
-              <span class="collab-log__verb">{{ entry.kind }}</span>
-              <template v-if="countOf(entry) > 1">
-                <b>{{ countOf(entry) }} elements</b>
-              </template>
-              <template v-else>
-                <template v-if="entry.kind === 'renamed'">
-                  <s class="collab-log__old">{{ elementName({ ...lastOf(entry), name: entry.edits[0].from }) }}</s> →
-                </template>
-                <s v-if="entry.kind === 'deleted'" class="collab-log__old">{{ elementName(lastOf(entry)) }}</s>
-                <b v-else>{{ elementName(lastOf(entry)) }}</b>
-              </template>
-            </span>
-            <span v-else class="collab-log__text collab-log__verb">{{ entry.text }}</span>
-            <span v-if="showable(entry)" class="collab-log__go"><v-icon icon="mdi-eye-outline" size="14" />Show</span>
-          </div>
-        </div>
-        <template v-else>
-          <v-icon :icon="ICONS[block.entries[0].kind].icon" :color="ICONS[block.entries[0].kind].color" size="16" class="collab-log__icon" />
-          <span class="collab-log__text">{{ block.entries[0].text }}</span>
+  <CollabBox v-model="open" title="Event Log" label="event log" grow class="collab-log">
+    <div v-if="entries.length === 0" class="collab-log__empty">No events yet</div>
+    <div v-for="block in blocks" :key="keyOf(block.entries[0])" class="collab-log__entry">
+      <div v-if="block.by" class="collab-log__block">
+        <div class="collab-log__person">
+          <span class="collab-log__dot" :style="{ background: block.color ?? SOMEONE_COLOR }">{{ block.by.charAt(0).toUpperCase() }}</span>
+          <span class="collab-log__name">{{ block.by }}</span>
           <span class="collab-log__time" :title="new Date(block.at).toLocaleTimeString()">{{ ago(block.at) }}</span>
-        </template>
+        </div>
+        <div
+          v-for="entry in block.entries"
+          :key="keyOf(entry)"
+          class="collab-log__line"
+          :class="{ 'collab-log__line--show': showable(entry) }"
+          :role="showable(entry) ? 'button' : undefined"
+          :tabindex="showable(entry) ? 0 : undefined"
+          @mouseenter="showable(entry) && showEdits(entry, true)"
+          @mouseleave="hideEdits()"
+          @click="showable(entry) && showEdits(entry)"
+          @keydown.enter="showable(entry) && showEdits(entry)"
+        >
+          <v-icon :icon="ICONS[entry.kind].icon" :color="ICONS[entry.kind].color" size="16" class="collab-log__icon" />
+          <span v-if="entry.edits" class="collab-log__text">
+            <span class="collab-log__verb">{{ entry.kind }}</span>
+            <template v-if="countOf(entry) > 1">
+              <b>{{ countOf(entry) }} elements</b>
+            </template>
+            <template v-else>
+              <template v-if="entry.kind === 'renamed'">
+                <s class="collab-log__old">{{ elementName({ ...lastOf(entry), name: entry.edits[0].from }) }}</s> →
+              </template>
+              <s v-if="entry.kind === 'deleted'" class="collab-log__old">{{ elementName(lastOf(entry)) }}</s>
+              <b v-else>{{ elementName(lastOf(entry)) }}</b>
+            </template>
+          </span>
+          <span v-else class="collab-log__text collab-log__verb">{{ entry.text }}</span>
+          <span v-if="showable(entry)" class="collab-log__go"><v-icon icon="mdi-eye-outline" size="14" />Show</span>
+        </div>
       </div>
+      <template v-else>
+        <v-icon :icon="ICONS[block.entries[0].kind].icon" :color="ICONS[block.entries[0].kind].color" size="16" class="collab-log__icon" />
+        <span class="collab-log__text">{{ block.entries[0].text }}</span>
+        <span class="collab-log__time" :title="new Date(block.at).toLocaleTimeString()">{{ ago(block.at) }}</span>
+      </template>
     </div>
-  </div>
+  </CollabBox>
 </template>
 
 <script lang="ts">
@@ -62,6 +56,7 @@ const open = ref(false)
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount } from 'vue'
+import CollabBox from './CollabBox.vue'
 import { elementName, SOMEONE_COLOR, type LogEntry, type LogKind } from './collabLog'
 import { hideEdits, showEdits } from './useCollabConnection'
 
@@ -127,38 +122,7 @@ const ago = (at: number) => {
 
 <style scoped>
 .collab-log {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  border: 1px solid rgba(var(--v-theme-outline), 0.2);
-  border-radius: 8px;
-  overflow: hidden;
   background: rgba(var(--v-theme-on-surface), 0.01);
-}
-
-/* Open, it takes what the sync sidebar leaves, so it grows as the boxes above close. */
-.collab-log--open {
-  flex: 1;
-  min-height: 180px;
-}
-
-.collab-log__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 6px 4px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: rgba(var(--v-theme-on-surface), 0.62);
-  text-transform: uppercase;
-}
-
-.collab-log__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  border-top: 1px solid rgba(var(--v-theme-outline), 0.15);
 }
 
 .collab-log__empty {
