@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import json
 from datetime import datetime, timezone
 
@@ -68,6 +69,8 @@ def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, arch
     groups: dict[str, dict] = {}
     grants: list[dict] = []
     workpieces: list[dict] = []
+    # Fortlaufend wie in CK eindeutig, auch wenn Räume und Gruppen ins Archiv gehen.
+    room_numbers, group_numbers = itertools.count(), itertools.count()
 
     def handle(request: httpx.Request) -> httpx.Response:
         method, path = request.method, request.url.path
@@ -76,11 +79,12 @@ def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, arch
             tasks.append({"_id": f"T{len(tasks)}", **body})
             return httpx.Response(201, json=tasks[-1])
         if (method, path) == ("POST", "/rooms"):
-            room = {"_id": f"R{len(rooms)}", "createdBy": "service-modeling-copilot", "workpieces": [], **body}
+            room = {"_id": f"R{next(room_numbers)}", "createdBy": "service-modeling-copilot", "workpieces": [], **body}
             rooms[room["_id"]] = room
             return httpx.Response(201, json=room)
         if (method, path) == ("POST", "/groups"):
-            group = {"_id": f"G{len(groups)}", "createdAt": f"2026-01-01T00:00:{len(groups):02d}Z", **body}
+            number = next(group_numbers)
+            group = {"_id": f"G{number}", "createdAt": f"2026-01-01T00:00:{number:02d}Z", **body}
             groups[group["_id"]] = group
             return httpx.Response(201, json=group)
         if (method, path) == ("PUT", "/grants"):
@@ -385,6 +389,38 @@ def test_closing_again_changes_nothing_and_a_new_share_reuses_the_room(ck):
     asyncio.run(share.close("42"))
     asyncio.run(share.close("42"))
     assert start() == "R0" and len(rooms) == 1
+
+
+def test_after_the_room_was_archived_the_next_share_gets_one_new_room_the_host_can_lock_and_end(ck):
+    rooms, _, _, _ = ck
+    start()
+    asyncio.run(share.close("42"))
+    # Archiviert, etwa in ck-management; die Host-Gruppe bleibt live und zeigt weiter auf R0.
+    asyncio.run(client.archive_room("R0", "test"))
+
+    assert start() == "R1"
+    asyncio.run(share.set_open("42", False))
+    asyncio.run(share.close("42"))
+    assert rooms["R1"]["settings"]["share"]["workpieceId"] is None
+    # Die nächste Share nutzt den neuen Raum, statt noch einen anzulegen.
+    assert start() == "R1" and list(rooms) == ["R1"]
+
+
+def test_a_running_share_stays_the_hosts_when_the_older_room_comes_back_from_the_archive(ck):
+    rooms, _, _, _ = ck
+    start()
+    asyncio.run(share.close("42"))
+    old = rooms["R0"]
+    asyncio.run(client.archive_room("R0", "test"))
+    start()
+    rooms["R0"] = old
+
+    asyncio.run(share.close("42"))
+
+    # Beendet wird die laufende Share in R1, nicht der zurückgeholte Raum.
+    assert rooms["R1"]["workpieces"] == [] and rooms["R1"]["settings"]["share"]["workpieceId"] is None
+    # Ohne laufende Share gewinnt wieder der ältere Raum, wie beim Doppelklick.
+    assert start() == "R0"
 
 
 # Beide Schalter des Bereichs archive an.

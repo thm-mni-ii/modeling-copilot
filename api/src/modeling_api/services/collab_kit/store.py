@@ -36,17 +36,30 @@ def _share_of(settings_: Any) -> dict[str, Any]:
 
 
 async def find_by_owner(owner_id: str) -> dict[str, Any] | None:
-    """The share of this host or None; with several (double click) the older one wins."""
-    owned = [
-        group
-        for group in await client.list_groups()
-        if _share_of(group["settings"]).get("role") == HOSTS
-        and _share_of(group["settings"]).get("ownerId") == owner_id
-    ]
-    if not owned:
-        return None
-    oldest = min(owned, key=lambda group: group["createdAt"])
-    return await read(_share_of(oldest["settings"])["roomId"])
+    """The share of this host or None.
+
+    Mehrere Host-Gruppen entstehen durch einen Doppelklick oder, wenn jemand den Raum in CK archiviert
+    oder gelöscht hat, durch einen neuen Raum bei der nächsten Share. Eine Gruppe, deren Raum fehlt oder
+    nicht stimmt, wird übersprungen; es gewinnt der Raum mit laufender Share, sonst der älteste. So bleibt
+    eine laufende Share die des Hosts, auch wenn ein älterer Raum aus dem Archiv zurückkommt.
+    """
+    owned = sorted(
+        (
+            group
+            for group in await client.list_groups()
+            if _share_of(group["settings"]).get("role") == HOSTS
+            and _share_of(group["settings"]).get("ownerId") == owner_id
+        ),
+        key=lambda group: group["createdAt"],
+    )
+    found = []
+    for group in owned:
+        try:
+            found.append(await read(_share_of(group["settings"])["roomId"]))
+        except ApiError as error:
+            if error.status not in (404, 409):
+                raise
+    return next((current for current in found if current["workpieceId"]), found[0] if found else None)
 
 
 async def open_rooms() -> list[dict[str, Any]]:
