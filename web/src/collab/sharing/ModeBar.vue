@@ -32,13 +32,11 @@ import { useRoute } from 'vue-router'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { roomRole } from '@/collab/rooms/roomRole'
+import { collabSettings } from '@/collab/settings/collabSettings'
 import { showAuthors } from '@/collab/graph/authorMarks'
 import { liveSession } from '@/collab/kit/liveSession'
 import { COMMENTS_ENABLED, announcedRights, currentShare, hostAway, hostPresenting, hostToggles, isSharedModel, loadShareSettings, presenting, shareDialog, shareSettingsBusy, visitorRights } from './shareModel'
 
-const BLUE = '#3f8ad6'
-const CORAL = '#cf5c58'
-const AMBER = '#c77d0a'
 const GREEN = 'rgb(var(--v-theme-primary))'
 
 const { graph } = useGraphContext()
@@ -57,7 +55,7 @@ const isHost = computed(() => shared.value && Boolean(currentShare.value?.privat
 const presentingNow = computed(() => (isHost.value ? presenting.value : hostPresenting.value))
 // A visitor sees at once when the host is gone; the host does not need to be told about themselves.
 const away = computed(() => !isHost.value && hostAway.value)
-const color = computed(() => (group.value ? GREEN : away.value ? AMBER : presentingNow.value ? CORAL : BLUE))
+const color = computed(() => (group.value ? GREEN : away.value ? collabSettings.colors.barAwayColor : presentingNow.value ? collabSettings.colors.hostColor : collabSettings.colors.barColor))
 const locked = computed(() => shareSettingsBusy() || shareDialog.value === 'quit')
 
 watch([visible, isHost], ([shown, host]) => shown && host && void loadShareSettings(), { immediate: true })

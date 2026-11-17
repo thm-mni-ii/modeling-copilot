@@ -1,12 +1,11 @@
 import { CellOverlay, ImageBox, InternalEvent, Point, type Cell, type EventObject, type Graph } from '@maxgraph/core'
 import type { Session } from '@/collab/kit/collabKitV1'
 import { colorOf, nameOf } from '@/collab/presence/presence'
+import { collabSettings } from '@/collab/settings/collabSettings'
 import { cellAuthors } from '@/collab/storage/workpieceVersions'
 
 /** Size of the dot in px; maxGraph scales it with the zoom. */
-const SIZE = 14
-/** How long to wait after a change, so collab-kit has stored it and several are read together. */
-const WAIT_MS = 1500
+const sizeOf = () => collabSettings.presence.authorMarkSize
 
 /** The dot at a cell; a class of its own, so only these overlays are removed, not the warnings. */
 class AuthorOverlay extends CellOverlay {
@@ -15,7 +14,7 @@ class AuthorOverlay extends CellOverlay {
 }
 
 /** Fill in the color of the creator, ring in that of the last editor, on white for any background. */
-const imageOf = (fill: string, ring: string) => new ImageBox(`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}"><circle cx="7" cy="7" r="7" fill="#fff"/><circle cx="7" cy="7" r="4.75" fill="${fill}" stroke="${ring}" stroke-width="2.5"/></svg>`)}`, SIZE, SIZE)
+const imageOf = (fill: string, ring: string) => new ImageBox(`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${sizeOf()}" height="${sizeOf()}" viewBox="0 0 14 14"><circle cx="7" cy="7" r="7" fill="#fff"/><circle cx="7" cy="7" r="4.75" fill="${fill}" stroke="${ring}" stroke-width="2.5"/></svg>`)}`, sizeOf(), sizeOf())
 
 /**
  * Whether the cell is a part of its element, such as the attribute list below an entity type: maxGraph creates such
@@ -29,8 +28,8 @@ const isPart = (cell: Cell | null) => Boolean(cell?.isVertex() && cell.getGeomet
  */
 const placeOf = (cell: Cell) => {
   if (cell.isEdge()) return { vertical: 'bottom' as const, offset: new Point() }
-  if (isPart(cell.getParent())) return { vertical: 'middle' as const, offset: new Point(-(SIZE / 2 + 3), 0) }
-  return { vertical: 'bottom' as const, offset: new Point(SIZE / 2 + 3, -(SIZE / 2 + 3)) }
+  if (isPart(cell.getParent())) return { vertical: 'middle' as const, offset: new Point(-(sizeOf() / 2 + 3), 0) }
+  return { vertical: 'bottom' as const, offset: new Point(sizeOf() / 2 + 3, -(sizeOf() / 2 + 3)) }
 }
 
 /** A row of the popup: caption, below it color dot and name. */
@@ -122,7 +121,7 @@ export const showAuthors = (graph: Graph, session: Session) => {
   const redraw = () => void draw().catch((error) => console.warn('Could not read who changed the cells.', error))
   const stopChanges = session.units.onChange(() => {
     clearTimeout(timer)
-    timer = setTimeout(redraw, WAIT_MS)
+    timer = setTimeout(redraw, collabSettings.presence.authorMarkWaitMs)
   })
   redraw()
 

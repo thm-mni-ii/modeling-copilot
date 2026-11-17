@@ -31,12 +31,24 @@ export const COLLAB_LIMITS = {
     // After this long without activity a client gives up its selection and with it its locks.
     idleMs: { default: 90_000, min: 15_000, max: 3_600_000 },
     // A moving pointer goes out at most this often, the last position always; shorter is smoother and more traffic.
-    cursorSendMs: { default: 50, min: 20, max: 500 }
+    cursorSendMs: { default: 50, min: 20, max: 500 },
+    // How often at most the warning about a locked element shows.
+    lockHintMs: { default: 3000, min: 1000, max: 60_000 },
+    // How often a client looks whether it was idle long enough; at most idleMs, read when a model is opened.
+    idleCheckMs: { default: 5000, min: 1000, max: 60_000 },
+    // How many people show as marks at the top left of an element before "+n" takes the rest.
+    marksShown: { default: 2, min: 1, max: 6 },
+    // Size of the dot that shows who made an element, in px; maxGraph scales it with the zoom.
+    authorMarkSize: { default: 14, min: 8, max: 32 },
+    // How long to wait after a change before the dots are read, so collab-kit has stored it and several are read together.
+    authorMarkWaitMs: { default: 1500, min: 200, max: 10_000 }
   },
   shareDefaults: {
     // What the share dialog has chosen; the host changes it there for their share.
     anonymous: { default: false },
     edit: { default: true },
+    // Whether the task goes along when a model with a task is shared.
+    task: { default: true },
     history: { default: 'none', options: ['none', 'versions', 'steps'] }
   },
   colors: {
@@ -44,7 +56,34 @@ export const COLLAB_LIMITS = {
     hostColor: { default: '#cf5c58', color: true },
     // Sixteen colors, measured to tell apart well (CIEDE2000, also with red-green weakness), none red like the host.
     // The first ones lie furthest apart, so the first people in the room get the clearest colors.
+    // The bar of a shared model while sharing, and while the host is away; the presenter frame takes hostColor.
+    barColor: { default: '#3f8ad6', color: true },
+    barAwayColor: { default: '#c77d0a', color: true },
+    // The frame around a change of the own user that was overwritten.
+    conflictColor: { default: '#d32f2f', color: true },
+    // For changes that belong to no known person.
+    someoneColor: { default: '#757575', color: true },
     palette: { default: ['#c29ed7', '#214b25', '#ee9813', '#0e26dc', '#12c19f', '#652f55', '#715c00', '#6e83b7', '#1d8a85', '#8f4ef1', '#6f5d8d', '#f657f2', '#194b78', '#8605a8', '#41a8ba', '#2da0fb'], minItems: 8, maxItems: 24 }
+  },
+  log: {
+    // How long changes of the same person merge into one entry.
+    mergeMs: { default: 120_000, min: 10_000, max: 1_800_000 },
+    // How long a person must be away to count as gone; background tabs are throttled and report only about once a minute.
+    leaveMs: { default: 90_000, min: 60_000, max: 600_000 },
+    // How long after the sync the presence of the others still arrives and counts as the state on connecting.
+    settleMs: { default: 3000, min: 1000, max: 30_000 },
+    // How long the bar above the model shows a release by someone else.
+    releaseNoticeMs: { default: 10_000, min: 2000, max: 120_000 },
+    // How often the relative times in the log ("2 min ago") are renewed; read when the log opens.
+    refreshMs: { default: 30_000, min: 5000, max: 300_000 }
+  },
+  hints: {
+    // How long the frame around an overwritten change stays.
+    conflictFrameMs: { default: 4000, min: 1000, max: 60_000 },
+    // How long the share link shows as copied.
+    copiedMs: { default: 2500, min: 500, max: 30_000 },
+    // How long the group work import waits for quiet before it checks the input.
+    importDelayMs: { default: 400, min: 100, max: 5000 }
   },
   archive: {
     // The archive of collab-kit in the Copilot; off, the "Archive" tab is missing, collab-kit still shows its buttons to archive.
@@ -66,7 +105,7 @@ const copyOf = (value: unknown) => (Array.isArray(value) ? [...value] : value)
 const defaultsOf = <A extends CollabArea>(area: A) => Object.fromEntries(Object.entries(COLLAB_LIMITS[area]).map(([key, limit]) => [key, copyOf(limit.default)])) as AreaValues<A>
 
 /** The values in effect; whoever reads them on every use gets a change at once. */
-export const collabSettings = reactive({ sharing: defaultsOf('sharing'), presence: defaultsOf('presence'), shareDefaults: defaultsOf('shareDefaults'), colors: defaultsOf('colors'), archive: defaultsOf('archive') })
+export const collabSettings = reactive({ sharing: defaultsOf('sharing'), presence: defaultsOf('presence'), shareDefaults: defaultsOf('shareDefaults'), colors: defaultsOf('colors'), log: defaultsOf('log'), hints: defaultsOf('hints'), archive: defaultsOf('archive') })
 
 /** Whether a name from settingsChanged is an area of the Copilot. */
 export const isCollabArea = (key: string): key is CollabArea => COLLAB_AREAS.includes(key as CollabArea)

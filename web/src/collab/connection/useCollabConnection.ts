@@ -18,8 +18,8 @@ import { watchShare } from '@/collab/sharing/watchShare'
 import { roleOf, roomRole, type RoomRole } from '@/collab/rooms/roomRole'
 import { openWorkpiece } from './openWorkpiece'
 import { startPresence, type Person } from '@/collab/presence/presence'
-import { COLLAB_AREAS, isCollabArea, loadCollabSettings, type CollabArea } from '@/collab/settings/collabSettings'
-import { log, logBy, logChange, logEntries, SOMEONE_COLOR, trackPeople, type LogEntry, type LogKind } from './collabLog'
+import { COLLAB_AREAS, collabSettings, isCollabArea, loadCollabSettings, type CollabArea } from '@/collab/settings/collabSettings'
+import { log, logBy, logChange, logEntries, trackPeople, type LogEntry, type LogKind } from './collabLog'
 
 const WORKPIECE_KEY = 'collabWorkpieceId'
 const LIVE_CLASS = 'collab-live'
@@ -92,7 +92,7 @@ export const showEdits = (entry: LogEntry, hover = false) => {
   const cells = ids.flatMap((id) => graph.getDataModel().getCell(id) ?? [])
   if (!hover && cells.length === 0) notifyWarning('No longer in the model.')
   if (!hover && cells.length > 0) graph.scrollCellToVisible(cells[0], true)
-  unframeShown = ids.flatMap((id) => frameCell(graph, id, entry.color ?? SOMEONE_COLOR, hover ? Infinity : undefined) ?? [])
+  unframeShown = ids.flatMap((id) => frameCell(graph, id, entry.color ?? collabSettings.colors.someoneColor, hover ? Infinity : undefined) ?? [])
 }
 
 /** Takes away the frames of hovering; those of a click stay their time. */
@@ -103,15 +103,13 @@ export const hideEdits = () => {
   hovering = false
 }
 
-/** How long the bar above the model shows a release by someone else. */
-const RELEASE_NOTICE_MS = 10_000
 /** The release someone else just made; the bar shows it briefly, the log keeps it. */
 const recentRelease = ref<{ by: string; label: string } | null>(null)
 let releaseTimer: ReturnType<typeof setTimeout> | undefined
 const announceRelease = (release: { by: string; label: string }) => {
   recentRelease.value = release
   clearTimeout(releaseTimer)
-  releaseTimer = setTimeout(() => (recentRelease.value = null), RELEASE_NOTICE_MS)
+  releaseTimer = setTimeout(() => (recentRelease.value = null), collabSettings.log.releaseNoticeMs)
 }
 
 // Reconnect attempts repeat the same status; the log keeps only the changes.

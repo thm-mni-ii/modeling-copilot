@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import type { RemoteEdit } from '@/collab/graph/graphBinding'
 import type { Person } from '@/collab/presence/presence'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** The kind of an entry in the log. */
 export type LogKind = 'failed' | 'joined' | 'left' | RemoteEdit['kind'] | 'saved' | 'release' | 'conflict' | 'connected' | 'offline' | 'closed' | 'rights' | 'undo'
@@ -35,12 +36,6 @@ export const log: Log = (text, kind) => {
 /** An entry of a person, in the color they wear in the model. */
 export const logBy = (kind: LogKind, by: string, text: string, at: number, color: string | undefined) => addEntry({ kind, text, at, by, color })
 
-/** The color for changes that belong to no known person. */
-export const SOMEONE_COLOR = '#757575'
-
-/** How long changes of the same person merge into one entry. */
-const MERGE_MS = 2 * 60_000
-
 /** An element by its name, without one in general terms. */
 export const elementName = ({ name, edge }: { name?: string; edge: boolean }) => name || (edge ? 'a connection' : 'an element')
 
@@ -56,17 +51,12 @@ const editText = (kind: RemoteEdit['kind'], edits: RemoteEdit[]) => {
 export const logChange = (author: Pick<Person, 'name' | 'color'> | undefined, edits: RemoteEdit[]) => {
   const now = Date.now()
   for (const kind of new Set(edits.map((edit) => edit.kind))) {
-    const index = logEntries.value.findIndex((entry) => entry.kind === kind && entry.by === author?.name && now - entry.at < MERGE_MS)
+    const index = logEntries.value.findIndex((entry) => entry.kind === kind && entry.by === author?.name && now - entry.at < collabSettings.log.mergeMs)
     const merged = [...(logEntries.value[index]?.edits ?? []), ...edits.filter((edit) => edit.kind === kind)]
     if (index >= 0) logEntries.value.splice(index, 1)
     logEntries.value.unshift({ kind, text: editText(kind, merged), at: now, by: author?.name, color: author?.color, edits: merged })
   }
 }
-
-/** How long after the sync the presence of the others still arrives and counts as the state on connecting. */
-const SETTLE_MS = 3000
-/** How long a person must be away to count as gone; background tabs are throttled and report only about once a minute. */
-const LEAVE_MS = 90_000
 
 /**
  * Logs who joins and leaves a session, except oneself. Until shortly after `settle`, called once the session
@@ -95,7 +85,7 @@ export const trackPeople = () => {
           setTimeout(() => {
             leaving.delete(id)
             logBy('left', person.name, 'left', at, person.color)
-          }, LEAVE_MS)
+          }, collabSettings.log.leaveMs)
         )
       }
     }
@@ -105,5 +95,5 @@ export const trackPeople = () => {
     for (const timer of leaving.values()) clearTimeout(timer)
     leaving.clear()
   }
-  return { settle: () => (settledAt = Date.now() + SETTLE_MS), update, stop }
+  return { settle: () => (settledAt = Date.now() + collabSettings.log.settleMs), update, stop }
 }

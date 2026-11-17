@@ -60,7 +60,7 @@ onMounted(async () => {
     // Asked before the element, so the tab is there from the start; without an answer it stays away.
     manager.value = await mayManageAll()
     // Also before the element, so the "Archive" tab does not show briefly; without an answer the default applies, which is off.
-    await loadCollabSettings(api, 'archive').catch(() => undefined)
+    await Promise.allSettled([loadCollabSettings(api, 'archive'), loadCollabSettings(api, 'hints')])
     ck.value = api
   } catch (error) {
     notifyError(`collab-kit could not be loaded: ${collabErrorMessage(error)}`)

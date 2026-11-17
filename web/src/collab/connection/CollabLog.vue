@@ -4,7 +4,7 @@
     <div v-for="block in blocks" :key="keyOf(block.entries[0])" class="collab-log__entry">
       <div v-if="block.by" class="collab-log__block">
         <div class="collab-log__person">
-          <span class="collab-log__dot" :style="{ background: block.color ?? SOMEONE_COLOR }">{{ block.by.charAt(0).toUpperCase() }}</span>
+          <span class="collab-log__dot" :style="{ background: block.color ?? collabSettings.colors.someoneColor }">{{ block.by.charAt(0).toUpperCase() }}</span>
           <span class="collab-log__name">{{ block.by }}</span>
           <span class="collab-log__time" :title="new Date(block.at).toLocaleTimeString()">{{ ago(block.at) }}</span>
         </div>
@@ -57,7 +57,8 @@ const open = ref(false)
 <script setup lang="ts">
 import { computed, onBeforeUnmount } from 'vue'
 import CollabBox from './CollabBox.vue'
-import { elementName, SOMEONE_COLOR, type LogEntry, type LogKind } from './collabLog'
+import { collabSettings } from '@/collab/settings/collabSettings'
+import { elementName, type LogEntry, type LogKind } from './collabLog'
 import { hideEdits, showEdits } from './useCollabConnection'
 
 const props = defineProps<{ entries: LogEntry[] }>()
@@ -109,7 +110,7 @@ const ICONS: Record<LogKind, { icon: string; color?: string }> = {
 
 // The relative time keeps up while the log is shown.
 const now = ref(Date.now())
-const timer = setInterval(() => (now.value = Date.now()), 30_000)
+const timer = setInterval(() => (now.value = Date.now()), collabSettings.log.refreshMs)
 onBeforeUnmount(() => clearInterval(timer))
 
 const ago = (at: number) => {

@@ -70,7 +70,7 @@ interface Field {
   readonly label: string
   readonly hint: string
   readonly items?: readonly { readonly value: string; readonly title: string }[]
-  readonly unit?: 'ms' | 'days'
+  readonly unit?: 'ms' | 'days' | 'px' | 'people'
   readonly advanced?: boolean
 }
 
@@ -112,7 +112,12 @@ const SECTIONS: readonly Section[] = [
     about: 'Applies to everyone working on a model together, shared or in a group room.',
     fields: [
       { key: 'idleMs', label: 'Idle until the selection is released', hint: 'With the selection go the locks on its elements.' },
-      { key: 'cursorSendMs', label: 'Cursor sent at most every', hint: 'Shorter moves pointers more smoothly and sends more.', unit: 'ms', advanced: true }
+      { key: 'marksShown', label: 'People shown on an element', hint: 'Others who selected the same element show as marks at its top left; the rest as "+n".', unit: 'people' },
+      { key: 'cursorSendMs', label: 'Cursor sent at most every', hint: 'Shorter moves pointers more smoothly and sends more.', unit: 'ms', advanced: true },
+      { key: 'lockHintMs', label: 'Locked-element notice at most every', hint: 'How often someone who tries to change a locked element is told who holds it.', advanced: true },
+      { key: 'idleCheckMs', label: 'Idle check every', hint: 'How often a client looks whether it was idle long enough. Takes effect when a model is opened.', advanced: true },
+      { key: 'authorMarkSize', label: 'Size of the author dot', hint: 'The dot that shows who made an element; it scales with the zoom.', unit: 'px', advanced: true },
+      { key: 'authorMarkWaitMs', label: 'Author dots wait after a change', hint: 'Until collab-kit has stored the change, so several are read together.', unit: 'ms', advanced: true }
     ]
   },
   {
@@ -122,16 +127,43 @@ const SECTIONS: readonly Section[] = [
     fields: [
       { key: 'anonymous', label: 'Anonymous', hint: 'Others see a pseudonym instead of the name.' },
       { key: 'edit', label: 'May edit', hint: 'Visitors change the model together with the host.' },
+      { key: 'task', label: 'Share the task', hint: 'A model with a task takes the task along.' },
       { key: 'history', label: 'Share history', hint: 'How much of the private history goes into the shared model.', items: historyChoices }
     ]
   },
   {
     area: 'colors',
     title: 'Colors',
-    about: 'The colors of people in a shared model or group room: cursor, selection, locks and the marks of who made what. Everyone sees the same colors; a change reaches open models at once.',
+    about: 'The colors of people in a shared model or group room: cursor, selection, locks and the marks of who made what. Everyone sees the same colors; a change reaches open models at once. The status colors are under Advanced.',
     fields: [
       { key: 'hostColor', label: 'Host', hint: 'Only the host wears it, so keep it apart from the colors of the others.' },
-      { key: 'palette', label: 'Everyone else', hint: 'Handed out in this order, so the first ones should differ the most.' }
+      { key: 'palette', label: 'Everyone else', hint: 'Handed out in this order, so the first ones should differ the most.' },
+      { key: 'barColor', label: 'Bar while sharing', hint: 'The frame and the bar of a shared model; the presenter frame takes the color of the host.', advanced: true },
+      { key: 'barAwayColor', label: 'Bar while the host is away', hint: 'The same bar, as long as the host is disconnected.', advanced: true },
+      { key: 'conflictColor', label: 'Overwritten change', hint: 'The frame around your change that someone else overwrote.', advanced: true },
+      { key: 'someoneColor', label: 'Someone unknown', hint: 'Changes that belong to no known person, in the event log and as frame.', advanced: true }
+    ]
+  },
+  {
+    area: 'log',
+    title: 'Event log',
+    about: 'How the event log in the sidebar of a shared model or group room groups and times its entries.',
+    fields: [
+      { key: 'mergeMs', label: 'Changes of one person merge for', hint: 'Changes of the same person within this time make one entry.' },
+      { key: 'leaveMs', label: 'Away until "left" shows', hint: 'Background tabs report only about once a minute, so keep it above that.' },
+      { key: 'releaseNoticeMs', label: 'Release notice stays', hint: 'How long the bar above the model shows a release by someone else.' },
+      { key: 'settleMs', label: 'Settling after connecting', hint: 'People already there when you connect do not count as joined during this time.', advanced: true },
+      { key: 'refreshMs', label: 'Relative times renewed every', hint: 'How often "2 min ago" updates while the log is shown. Takes effect when the log opens.', advanced: true }
+    ]
+  },
+  {
+    area: 'hints',
+    title: 'Notices',
+    about: 'How long short notices and frames stay.',
+    fields: [
+      { key: 'conflictFrameMs', label: 'Overwritten change framed for', hint: 'The frame around your change that someone else overwrote.' },
+      { key: 'copiedMs', label: 'Link shows as copied for', hint: 'How long the share link says it was copied.', unit: 'ms' },
+      { key: 'importDelayMs', label: 'Group import checks after', hint: 'How long the import waits for quiet before it checks the input.', unit: 'ms', advanced: true }
     ]
   },
   {
@@ -149,6 +181,7 @@ const SECTIONS: readonly Section[] = [
 const GROUPS: readonly Group[] = [
   { id: 'sharing', title: 'Sharing', about: 'Waiting times, share defaults', areas: ['sharing', 'shareDefaults'] },
   { id: 'people', title: 'People', about: 'Presence, colors', areas: ['presence', 'colors'] },
+  { id: 'activity', title: 'Activity and hints', about: 'Event log, notices', areas: ['log', 'hints'] },
   { id: 'archive', title: 'Archive', about: 'Archive of workpieces', areas: ['archive'] }
 ]
 const sectionsOf = (group: Group) => SECTIONS.filter((section) => group.areas.includes(section.area))
@@ -200,6 +233,7 @@ const problemOf = (area: CollabArea, key: string): string | undefined => {
   if (typeof value !== 'number' || !Number.isInteger(value)) return 'Enter a whole number.'
   if (value < min || value > max) return `Allowed are ${min}–${max} ${unitOf(key)}.`
   const { visitorGraceSeconds: visitor, hostGraceSeconds: grace } = form.sharing
+  if (area === 'presence' && key === 'idleCheckMs' && typeof form.presence.idleMs === 'number' && value > form.presence.idleMs) return 'At most as long as until the selection is released.'
   if (area !== 'sharing' || typeof grace !== 'number') return undefined
   if (key === 'hostEndSeconds' && value < grace) return 'At least as long as until the room locks.'
   if (key === 'hostAwayMs' && value >= grace) return 'Shorter than until the room locks.'

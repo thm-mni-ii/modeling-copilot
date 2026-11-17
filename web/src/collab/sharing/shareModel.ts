@@ -25,8 +25,8 @@ export interface ShareOptions {
 }
 
 /** What the host picks in the dialog before the link, and what the dialog with the link shows afterwards. It lives here and not in a component, as the editor is rebuilt while sharing. */
-// Anonymous, edit and history come from the collab settings; comments and task have no switch in the dialog.
-const defaultChoice = () => ({ ...collabSettings.shareDefaults, comment: true, task: true })
+// Anonymous, edit, task and history come from the collab settings; comments have no switch in the dialog.
+const defaultChoice = () => ({ ...collabSettings.shareDefaults, comment: true })
 export const shareChoice = reactive(defaultChoice())
 
 // The editor does not use the comments of collab-kit yet; until then the switch is hidden, visitors keep `speak`.

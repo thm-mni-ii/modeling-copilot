@@ -116,6 +116,7 @@ import { apiErrorMessage } from '@/collab/kit/collabKit'
 import httpClient from '@/services/api/httpClient'
 import taskService from '@/services/task/task.service'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
+import { collabSettings } from '@/collab/settings/collabSettings'
 import GroupWorkCsvHelp from './GroupWorkCsvHelp.vue'
 import { currentSemester, decodeCsv, numberOf, parseGroupWorkCsv, type CsvGroup, type GroupWorkCsv } from './groupWorkCsv'
 
@@ -310,7 +311,7 @@ watch(
   () => {
     clearTimeout(planTimer)
     plans.value = {}
-    planTimer = setTimeout(() => void preview(), 400)
+    planTimer = setTimeout(() => void preview(), collabSettings.hints.importDelayMs)
   }
 )
 

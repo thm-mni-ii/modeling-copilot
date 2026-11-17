@@ -2,15 +2,13 @@ import { CellHighlight, type Graph } from '@maxgraph/core'
 import { notifyWarning } from '@/composables/useNotifications'
 import type { Session } from '@/collab/kit/collabKitV1'
 import type { Log } from '@/collab/connection/collabLog'
-
-/** How long a framed cell stays framed. */
-const FRAME_MS = 4000
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /**
  * Frames a cell for a while, or until taken away with ms Infinity; also the log shows its elements so. Returns what takes the frame away before,
  * or null when the cell is not shown.
  */
-export const frameCell = (graph: Graph, id: string, color: string, ms = FRAME_MS) => {
+export const frameCell = (graph: Graph, id: string, color: string, ms = collabSettings.hints.conflictFrameMs) => {
   const cell = graph.getDataModel().getCell(id)
   const state = cell ? graph.view.getState(cell) : null
   if (!state) return null
@@ -44,7 +42,7 @@ export const showConflicts = (graph: Graph, session: Session, log: Log) => {
     // The winning value may still be on its way into the graph.
     if (!unit) return
     setTimeout(() => {
-      const unframe = stopped ? null : frameCell(graph, unit, '#d32f2f')
+      const unframe = stopped ? null : frameCell(graph, unit, collabSettings.colors.conflictColor)
       if (unframe) frames.add(unframe)
     })
   })

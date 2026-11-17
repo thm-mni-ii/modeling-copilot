@@ -283,8 +283,9 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
       drawElement(top, main.held, colorOf(main.person.id))
       const view = graph.view.getState(top)
       if (!view) continue
-      others.slice(0, 2).forEach((other, at) => drawMark(view.x + at * 17, view.y, colorOf(other.person.id), Array.from(nameOf(other.person))[0]?.toUpperCase() ?? '?'))
-      if (others.length > 2) drawMark(view.x + 2 * 17, view.y, '#888780', `+${others.length - 2}`)
+      others.slice(0, collabSettings.presence.marksShown).forEach((other, at) => drawMark(view.x + at * 17, view.y, colorOf(other.person.id), Array.from(nameOf(other.person))[0]?.toUpperCase() ?? '?'))
+      const shown = collabSettings.presence.marksShown
+      if (others.length > shown) drawMark(view.x + shown * 17, view.y, '#888780', `+${others.length - shown}`)
     }
   }
 
@@ -335,7 +336,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     // Only attempts count (drag, double click, delete), because maxGraph also asks the hooks above while drawing.
     let lastWarned = 0
     const warnLocked = (cell: Cell) => {
-      if (Date.now() - lastWarned < 3000) return
+      if (Date.now() - lastWarned < collabSettings.presence.lockHintMs) return
       lastWarned = Date.now()
       const holder = [...holderOf].find(([id]) => topOf(model.getCell(id) ?? cell) === topOf(cell))
       const person = holder && session.presence.people().find(({ clients }) => clients.some(({ clientId }) => clientId === holder[1]))
@@ -400,7 +401,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     if (idle || Date.now() - lastActive < collabSettings.presence.idleMs) return
     idle = true
     sendSelection()
-  }, 5000)
+  }, collabSettings.presence.idleCheckMs)
   const activityEvents = ['pointerdown', 'keydown', 'wheel'] as const
   for (const type of activityEvents) window.addEventListener(type, onActivity, { passive: true })
   // The rights are known once connected; the first answer is no change, so synced tells it.
