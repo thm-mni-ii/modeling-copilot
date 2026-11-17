@@ -538,6 +538,13 @@ def test_without_sharing_on_the_server_the_job_ends(monkeypatch):
     assert archive._task is None
 
 
+def test_the_job_waits_for_the_next_fixed_hour():
+    # Vor 03:00 noch heute, danach erst morgen.
+    assert archive.seconds_until_next_run(datetime(2026, 1, 1, 1, 30, tzinfo=timezone.utc)) == 90 * 60
+    assert archive.seconds_until_next_run(datetime(2026, 1, 1, 3, 0, tzinfo=timezone.utc)) == 24 * 3600
+    assert archive.seconds_until_next_run(datetime(2026, 1, 1, 22, 0, tzinfo=timezone.utc)) == 5 * 3600
+
+
 def test_only_the_host_may_lock_open_or_close(ck):
     room_id = start()
     asyncio.run(share.join("99", room_id))

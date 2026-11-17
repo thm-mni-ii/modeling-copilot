@@ -50,7 +50,7 @@ async def get_room(room_id: str) -> dict:
 
 
 async def list_rooms() -> list[dict]:
-    """Alle Räume, die der Dienst sieht; mit seinen Rechten überall sind das alle."""
+    """All rooms the service sees; with its rights everywhere, that is all of them."""
     return await _request("GET", "/me/rooms")
 
 
@@ -81,7 +81,7 @@ async def get_group(group_id: str) -> dict:
 
 
 async def update_group_settings(group_id: str, settings: dict[str, Any]) -> dict:
-    """CK ersetzt die Einstellungen als Ganzes; fremde Schlüssel muss der Aufrufer mitschicken."""
+    """CK replaces the settings as a whole; the caller must send foreign keys along."""
     return await _request("PATCH", f"/groups/{group_id}", {"settings": settings})
 
 
@@ -110,7 +110,7 @@ async def list_grants(room_id: str) -> list[dict]:
 
 
 async def list_workpieces() -> list[dict]:
-    """Alle Werkstücke, die der Dienst sieht, mit ihrem Contract."""
+    """All workpieces the service sees, with their contract."""
     return await _request("GET", "/workpieces")
 
 
@@ -133,25 +133,25 @@ async def remove_workpiece_from_room(room_id: str, workpiece_id: str) -> dict:
 
 
 async def workpiece_activity(workpiece_id: str) -> list[dict]:
-    """Die neueste Spur je Person am Werkstück (`actorId`, `at`, `kind`), neueste zuerst; ohne Spur leer."""
+    """The latest trace per person on the workpiece (`actorId`, `at`, `kind`), newest first; empty without traces."""
     return await _request("GET", f"/workpieces/{workpiece_id}/activity")
 
 
 async def archive_workpiece(workpiece_id: str, reason: str) -> dict:
-    """Verschiebt das Werkstück samt Abzweigen ins Archiv von CK; offene Verbindungen enden mit 4403."""
+    """Moves the workpiece with its branches into the CK archive; open connections end with 4403."""
     return await _request("POST", f"/workpieces/{workpiece_id}/archive", {"reason": reason})
 
 
 async def archive_room(room_id: str, reason: str) -> dict:
-    """Verschiebt den Raum ins Archiv von CK; seine Werkstücke bleiben live."""
+    """Moves the room into the CK archive; its workpieces stay live."""
     return await _request("POST", f"/rooms/{room_id}/archive", {"reason": reason})
 
 
 async def archive_group(group_id: str, reason: str) -> dict:
-    """Verschiebt die Gruppe samt Mitgliedern ins Archiv von CK; ihre Grants wirken solange nicht."""
+    """Moves the group with its members into the CK archive; its grants have no effect meanwhile."""
     return await _request("POST", f"/groups/{group_id}/archive", {"reason": reason})
 
 
 async def get_settings(key: str) -> dict[str, Any]:
-    """Die Werte eines Bereichs der Collab-Einstellungen; einen nie gesetzten gibt CK als {} zurück."""
+    """The values of one area of the collab settings; CK returns an area never set as {}."""
     return await _request("GET", f"/settings/{key}")

@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await require_current()
     # Shares that were open before a restart still need someone to look after them; the task ends by itself if there are none.
     sweep.ensure_running()
-    # Archiviert stündlich, was nach Shares ohne Raum liegen blieb, wenn die Collab-Einstellungen es sagen.
+    # Archives nightly what was left without a room after shares, if the collab settings say so.
     archive.ensure_running()
     yield
     await sweep.stop()

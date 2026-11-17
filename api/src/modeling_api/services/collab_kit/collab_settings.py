@@ -1,8 +1,8 @@
-"""Die Collab-Einstellungen, die das Backend liest, mit ihren Grenzen.
+"""The collab settings the backend reads, with their limits.
 
-Jeder Bereich ist ein Dokument in Collab-Kit (CK); CK kennt weder Bereiche noch Schlüssel, die Grenzen
-prüft nur der Copilot. Standard, kleinster und größter Wert sind dieselben wie in
-web/src/collab/connection/collabSettings.ts (COLLAB_LIMITS); hier stehen nur die Bereiche des Backends.
+Each area is one document in Collab-Kit (CK); CK knows neither areas nor keys, only the Copilot checks
+the limits. Default, smallest and largest value are the same as in
+web/src/collab/connection/collabSettings.ts (COLLAB_LIMITS); only the areas of the backend are listed here.
 """
 
 import logging
@@ -15,14 +15,14 @@ from modeling_api.services.collab_kit.errors import SHARING_DISABLED
 logger = logging.getLogger(__name__)
 
 LIMITS: dict[str, dict[str, dict[str, Any]]] = {
-    # Die Wartezeiten des Sweeps (sweep.py).
+    # The waiting times of the sweep (sweep.py).
     "sharing": {
         "sweepSeconds": {"default": 30, "min": 10, "max": 120},
         "visitorGraceSeconds": {"default": 120, "min": 30, "max": 3600},
         "hostGraceSeconds": {"default": 120, "min": 30, "max": 3600},
         "hostEndSeconds": {"default": 300, "min": 30, "max": 7200},
     },
-    # Die Schalter und die Frist des Archivs (archive.py); 0 Tage heißt nie.
+    # The switches and the period of the archive (archive.py); 0 days means never.
     "archive": {
         "enabled": {"default": False},
         "archiveOnShareClose": {"default": False},
@@ -32,22 +32,22 @@ LIMITS: dict[str, dict[str, dict[str, Any]]] = {
 
 
 def defaults(area: str) -> dict[str, Any]:
-    """Die Standardwerte eines Bereichs."""
+    """The default values of an area."""
     return {key: limit["default"] for key, limit in LIMITS[area].items()}
 
 
 def _fits(limit: dict[str, Any], value: Any) -> bool:
-    """Ob ein Wert passt: eine ganze Zahl in den Grenzen oder ein Wahrheitswert."""
-    # type() statt isinstance(), denn auch True und False wären sonst Zahlen.
+    """Whether a value fits: an integer within the limits, or a boolean."""
+    # type() instead of isinstance(), since True and False would otherwise count as numbers too.
     if "min" in limit:
         return type(value) is int and limit["min"] <= value <= limit["max"]
     return type(value) is bool
 
 
 async def read(area: str) -> dict[str, Any]:
-    """Die geltenden Werte eines Bereichs; fehlt einer, passt er nicht oder ist der Bereich nicht lesbar, gilt sein Standard.
+    """The current values of an area; a missing or invalid value, or an unreadable area, falls back to the default.
 
-    Ohne Teilen auf diesem Server (`SHARING_DISABLED`) geht der Fehler weiter, daran enden die Jobs.
+    Without sharing on this server (`SHARING_DISABLED`) the error is passed on; the jobs end on it.
     """
     try:
         values = await client.get_settings(area)

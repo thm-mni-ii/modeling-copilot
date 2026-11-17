@@ -1,11 +1,11 @@
-"""Gruppenarbeit in Collab-Kit: Tutoren legen aus einer Teilnehmerliste Räume an.
+"""Group work in Collab-Kit: tutors create rooms from a list of participants.
 
-Je Gruppe ein Raum und eine CK-Gruppe, in der alle dieselben Rechte haben, und je Aufgabe ein
-Modell wie beim Teilen: feste CK-Aufgabe, Werkstück für Markierungen und Notizen, das Modell.
-Räume und Gruppen tragen `groupWork` statt `share`, Teilen und Sweep sehen sie also nicht.
-Ein Raum gehört zu einem Kurs; importiert man denselben Kurs noch einmal, bekommen vorhandene
-Räume nur, was ihnen fehlt: neue Personen und Modelle für neue Aufgaben. Niemand wird entfernt.
-Ist ein Kurs vorbei, geht er mit allen Räumen ins Archiv von CK (`archive_course`).
+Per group one room and one CK group in which everyone has the same rights, and per task one
+model as when sharing: fixed CK task, workpiece for marks and notes, the model.
+Rooms and groups carry `groupWork` instead of `share`, so sharing and the sweep do not see them.
+A room belongs to a course; importing the same course again gives existing rooms only what
+they lack: new people and models for new tasks. Nobody is removed.
+When a course is over, it goes into the CK archive with all its rooms (`archive_course`).
 """
 
 import logging
@@ -23,28 +23,28 @@ from modeling_api.services.submissions import is_moderator, require
 logger = logging.getLogger(__name__)
 
 KEY = "groupWork"
-# Alle in der Gruppe sehen, kommentieren und bearbeiten; Aufgaben, Entscheidungen und Rechte bleiben bei den Tutoren.
+# Everyone in the group sees, comments and edits; tasks, decisions and rights stay with the tutors.
 MEMBER_RIGHTS = ["see", "speak", "edit"]
 
 
 def _mark(item: dict[str, Any]) -> dict[str, Any]:
-    """Die Markierung eines Raums oder einer Gruppe aus dem Import, sonst {}."""
+    """The import mark of a room or group, otherwise {}."""
     mark = (item.get("settings") or {}).get(KEY)
     return mark if isinstance(mark, dict) else {}
 
 
 def same(text: str) -> str:
-    """Wie Kurs und Gruppe verglichen werden: Groß- und Kleinschreibung und Leerzeichen zählen nicht."""
+    """How course and group names are compared: case and whitespace do not matter."""
     return " ".join(text.split()).casefold()
 
 
 def in_course(room: dict[str, Any], course: str) -> bool:
-    """Ob ein Import diesen Raum für den Kurs angelegt hat."""
+    """Whether an import created this room for the course."""
     return bool(_mark(room)) and same(str(_mark(room).get("course", ""))) == same(course)
 
 
 async def existing_rooms(course: str) -> dict[str, dict[str, Any]]:
-    """Die Räume früherer Importe dieses Kurses je Gruppenname: Raum, CK-Gruppe, Mitglieder und die Aufgaben, die schon ein Modell haben."""
+    """The rooms of earlier imports of this course per group name: room, CK group, members and the tasks that already have a model."""
     rooms = [room for room in await client.list_rooms() if in_course(room, course)]
     if not rooms:
         return {}
@@ -53,13 +53,13 @@ async def existing_rooms(course: str) -> dict[str, dict[str, Any]]:
     found: dict[str, dict[str, Any]] = {}
     for room in rooms:
         group = groups.get(room["_id"])
-        # Welche Aufgaben ein Raum hat, steht im Contract seiner Aufgaben-Werkstücke; ein anderes Release derselben Aufgabe zählt mit.
+        # Which tasks a room has is in the contract of its task workpieces; another release of the same task counts too.
         task_ids = {
             str(contract["taskVersion"]["taskId"])
             for workpiece_id in room.get("workpieces", [])
             if (contract := workpieces.get(workpiece_id, {}).get("contract", {})).get("format") == TASK_FORMAT and contract.get("taskVersion")
         }
-        # Gibt es denselben Namen doppelt, etwa aus der Zeit vor dieser Prüfung, gilt der erste.
+        # If the same name exists twice, e.g. from before this check existed, the first one wins.
         found.setdefault(
             same(room["name"]),
             {
@@ -74,7 +74,7 @@ async def existing_rooms(course: str) -> dict[str, dict[str, Any]]:
 
 
 async def plan(user: User, course: str, groups: list[dict[str, Any]], token: str | None) -> list[dict[str, Any]]:
-    """Was ein Import täte, ohne etwas zu schreiben: je Gruppe ein neuer Raum, oder nur die neuen Personen und fehlenden Aufgaben des vorhandenen."""
+    """What an import would do, without writing anything: per group a new room, or only the new people and missing tasks of the existing one."""
     require(is_moderator(user))
     ids = await fbs_users.ids_by_username(token)
     rooms = await existing_rooms(course)
@@ -83,7 +83,7 @@ async def plan(user: User, course: str, groups: list[dict[str, Any]], token: str
         room = rooms.get(same(group["name"]))
         members = room["members"] if room else set()
         tasks = room["taskIds"] if room else set()
-        # Neue Personen als Anmeldename → FBS-ID, ohne Doppelte und ohne die, die schon drin sind.
+        # New people as username → FBS ID, without duplicates and without those already in.
         new = {name: ids[name] for name in group["usernames"] if name in ids and ids[name] not in members}
         planned.append(
             {
@@ -94,7 +94,7 @@ async def plan(user: User, course: str, groups: list[dict[str, Any]], token: str
                 "newMemberIds": list(new.values()),
                 "newTasks": [task for task in group["tasks"] if str(task["taskId"]) not in tasks],
                 "missing": [name for name in group["usernames"] if name not in ids],
-                # Je FBS-ID der Name aus der Liste; CK kennt Namen erst nach dem ersten Besuch, bis dahin zeigt der Reiter diesen.
+                # Per FBS ID the name from the list; CK knows names only after the first visit, until then the tab shows this one.
                 "names": {ids[name]: label for name, label in group.get("names", {}).items() if name in ids and label},
                 "settings": room["settings"] if room else {},
             }
@@ -103,15 +103,15 @@ async def plan(user: User, course: str, groups: list[dict[str, Any]], token: str
 
 
 async def _ensure_group(entry: dict[str, Any], room_id: str) -> None:
-    """Legt die Gruppe samt Rechten an oder ergänzt die vorhandene um neue Personen und Namen."""
-    # Ein neuer Raum bekommt seine Gruppe; ebenso ein vorhandener, dessen Gruppe jemand von Hand gelöscht hat.
+    """Creates the group with its rights, or adds new people and names to the existing one."""
+    # A new room gets its group; so does an existing one whose group someone deleted by hand.
     if entry["groupId"] is None:
         ck_group = await client.create_group(entry["name"], entry["newMemberIds"], {KEY: {"roomId": room_id, "names": entry["names"]}})
         await client.set_grant(ck_group["_id"], MEMBER_RIGHTS, room_id)
         return
     for member in entry["newMemberIds"]:
         await client.add_member(entry["groupId"], member)
-    # Neue Namen kommen zu den alten; CK ersetzt die Einstellungen als Ganzes, also gehen fremde Schlüssel mit.
+    # New names are added to the old ones; CK replaces the settings as a whole, so foreign keys are sent along.
     mark = entry["settings"].get(KEY, {})
     names = {**mark.get("names", {}), **entry["names"]}
     if names != mark.get("names", {}):
@@ -119,10 +119,10 @@ async def _ensure_group(entry: dict[str, Any], room_id: str) -> None:
 
 
 async def _add_models(room_id: str, references: list[dict[str, Any]], tasks: dict[tuple, dict[str, Any]]) -> list[str]:
-    """Legt je neuer Aufgabe ein Modell im Raum an; gibt die neuen Modelle zurück."""
+    """Creates one model in the room per new task; returns the new models."""
     workpiece_ids = []
     for reference in references:
-        # Die Sprachen gehen in den Contract des Modells, der Rest wie beim Teilen in die CK-Aufgabe.
+        # The languages go into the contract of the model, the rest into the CK task as when sharing.
         room_task = dict(tasks[(reference["taskId"], reference["versionId"])])
         languages = room_task.pop("workspaceLanguages")
         workpiece_id, _ = await create_model_workpiece(room_id, room_task["title"], model_contract(languages), MODEL_UNITS, room_task)
@@ -131,10 +131,10 @@ async def _add_models(room_id: str, references: list[dict[str, Any]], tasks: dic
 
 
 async def create(user: User, course: str, groups: list[dict[str, Any]], token: str | None) -> list[dict[str, Any]]:
-    """Führt den Plan aus: neue Räume mit Gruppe, Rechten und je Aufgabe einem Modell; vorhandene bekommen nur, was ihnen fehlt.
-    Wer im FBS fehlt, kommt nicht hinein und steht in `missing`; wer in der Liste fehlt, bleibt, wo er ist."""
+    """Carries out the plan: new rooms with group, rights and one model per task; existing ones get only what they lack.
+    Whoever is missing in the FBS is not added and is listed in `missing`; whoever is missing from the list stays where they are."""
     planned = await plan(user, course, groups, token)
-    # Jede neue Aufgabe einmal aus der DB, auch wenn mehrere Gruppen sie bearbeiten; ein unbekanntes Release ist ein 404, bevor etwas entsteht.
+    # Each new task is loaded from the DB once, even if several groups work on it; an unknown release is a 404 before anything is created.
     references = {(task["taskId"], task["versionId"]): task for entry in planned for task in entry["newTasks"]}
     tasks = {key: await models.task_for_room(reference) for key, reference in references.items()}
     marker = {"course": course, "importedBy": user.id, "importedAt": datetime.now(timezone.utc).isoformat()}
@@ -158,12 +158,12 @@ async def create(user: User, course: str, groups: list[dict[str, Any]], token: s
 
 
 async def archive_course(user: User, course: str) -> dict[str, Any]:
-    """Gibt alle Räume eines Kurses ins Archiv von CK: je Raum seine Werkstücke, seine Gruppe, dann den Raum.
+    """Puts all rooms of a course into the CK archive: per room its workpieces, its group, then the room.
 
-    Erst die Werkstücke, denn ein archivierter Raum ließe sie ohne Raum live; CK merkt sich ihren Raum und legt
-    sie beim Zurückholen wieder hinein, gleich in welcher Reihenfolge zurückgeholt wird. Ein Werkstück, das auch
-    in einem Raum außerhalb des Kurses liegt, bleibt dort live. Scheitert eines, bleiben Gruppe und Raum stehen;
-    ein neuer Aufruf erledigt den Rest, denn archivierte Räume findet er nicht mehr.
+    Workpieces first, since an archived room would leave them live without a room; CK remembers their room and
+    puts them back on restore, whatever the order of restoring. A workpiece that also lies in a room outside
+    the course stays live there. If one fails, group and room stay;
+    a new call finishes the rest, since it no longer finds archived rooms.
     """
     require(is_moderator(user))
     if not await archive.enabled():
@@ -188,7 +188,7 @@ async def archive_course(user: User, course: str) -> dict[str, Any]:
             await client.archive_room(room["_id"], reason)
             done["rooms"] += 1
         except ApiError:
-            # 409, solange CK etwas davon verschiebt, oder CK antwortet nicht: der Raum bleibt für einen neuen Aufruf.
+            # 409 while CK is moving part of it, or CK does not answer: the room stays for a new call.
             logger.warning("Room %s of course %s could not be archived.", room["_id"], course, exc_info=True)
             done["failed"].append(room["name"])
     return done

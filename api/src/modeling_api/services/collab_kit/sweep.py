@@ -25,11 +25,11 @@ from modeling_api.services.collab_kit.errors import SHARING_DISABLED
 
 logger = logging.getLogger(__name__)
 
-# Die Zeiten stellt der Reiter „Collab settings“ im Bereich sharing ein (collab_settings.py).
+# The times are set by the "Collab settings" tab in the sharing area (collab_settings.py).
 AREA = "sharing"
 
 _task: asyncio.Task | None = None
-# So lange schläft die Task bis zur nächsten Runde, wie die letzte Runde es aus den Einstellungen gelesen hat.
+# How long the task sleeps until the next round, as the last round read it from the settings.
 _sleep_seconds = collab_settings.defaults(AREA)["sweepSeconds"]
 # Set when a share starts while a sweep may already have missed it; the task then looks once more before it ends.
 _again = False
@@ -72,7 +72,7 @@ async def _sweep_room(room: dict, now: float, times: dict[str, int]) -> bool:
         key = (room_id, actor)
         if ended or (actor not in here and now - _missing.setdefault(key, now) >= times["visitorGraceSeconds"]):
             await client.remove_member(visitors["_id"], actor)
-            # Wer hinausgenommen wird, braucht seine Arbeitskopie nicht mehr, etwa nach einem geschlossenen Tab.
+            # Whoever is taken out no longer needs their working copy, e.g. after a closed tab.
             await models.delete_room_models(room_id, actor)
             _missing.pop(key, None)
             remaining.discard(actor)
@@ -91,7 +91,7 @@ async def sweep_once(now: float | None = None) -> int:
     now = time.monotonic() if now is None else now
     active = 0
     rooms = await store.open_rooms()
-    # Einmal je Runde gelesen, so gilt eine Änderung im Reiter spätestens ab der nächsten.
+    # Read once per round, so a change in the tab applies from the next round at the latest.
     times = await collab_settings.read(AREA) if rooms else {}
     _sleep_seconds = times.get("sweepSeconds", _sleep_seconds)
     for room in rooms:

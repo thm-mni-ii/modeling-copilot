@@ -4,13 +4,14 @@ The host can change the settings of the room (they have `manage` there), but not
 groups. So the room counts only as a hint: the groups it names must vouch for themselves as
 groups of this room. Otherwise a host could enter the ID of a foreign group.
 
-Raum:   {"share": {"open": true, "joinable": true, "workpieceId": "…", "taskWorkpieceId": "…" | null,
+Room:   {"share": {"open": true, "joinable": true, "workpieceId": "…", "taskWorkpieceId": "…" | null,
                    "groups": {"hosts": "…", "visitors": "…"},
                    "before": {"rights": […], "anonymous": false} (only while locked),
                    "autoLocked": true (only while the sweep keeps it locked for a missing host)}}
-Gruppe: {"share": {"role": "hosts" | "visitors", "roomId": "…", "ownerId": "…" (hosts only)}}
+Group:  {"share": {"role": "hosts" | "visitors", "roomId": "…", "ownerId": "…" (hosts only)}}
 """
 
+import asyncio
 from typing import Any
 
 from modeling_api.core.config import settings
@@ -37,15 +38,18 @@ def _share_of(settings_: Any) -> dict[str, Any]:
 
 
 async def _host_shares(owner_id: str | None = None) -> list[dict[str, Any]]:
-    """Die lesbaren Shares der Host-Gruppen, älteste zuerst; mit `owner_id` nur die dieses Hosts.
+    """The readable shares of the host groups, oldest first; with `owner_id` only those of this host.
 
-    Ein Raum, der fehlt (404) oder nicht zu seinen Gruppen passt (409), wird übersprungen, etwa ein
-    halb angelegter oder ein archivierter.
+    A room that is missing (404) or does not match its groups (409) is skipped, such as a
+    half-created or an archived one.
     """
+    every = await client.list_groups()
+    # read() checks the groups of each room against this list instead of asking CK for each of them.
+    known = {group["_id"]: group for group in every}
     groups = sorted(
         (
             group
-            for group in await client.list_groups()
+            for group in every
             if _share_of(group["settings"]).get("role") == HOSTS
             and (owner_id is None or _share_of(group["settings"]).get("ownerId") == owner_id)
         ),
@@ -54,7 +58,7 @@ async def _host_shares(owner_id: str | None = None) -> list[dict[str, Any]]:
     shares = []
     for group in groups:
         try:
-            shares.append(await read(_share_of(group["settings"])["roomId"]))
+            shares.append(await read(_share_of(group["settings"])["roomId"], known))
         except ApiError as error:
             if error.status not in (404, 409):
                 raise
@@ -64,10 +68,10 @@ async def _host_shares(owner_id: str | None = None) -> list[dict[str, Any]]:
 async def find_by_owner(owner_id: str) -> dict[str, Any] | None:
     """The share of this host or None.
 
-    Mehrere Host-Gruppen entstehen durch einen Doppelklick oder, wenn jemand den Raum in CK archiviert
-    oder gelöscht hat, durch einen neuen Raum bei der nächsten Share. Eine Gruppe, deren Raum fehlt oder
-    nicht stimmt, wird übersprungen; es gewinnt der Raum mit laufender Share, sonst der älteste. So bleibt
-    eine laufende Share die des Hosts, auch wenn ein älterer Raum aus dem Archiv zurückkommt.
+    Several host groups come from a double click or, when someone archived or deleted the room in CK,
+    from a new room on the next share. A group whose room is missing or does not match
+    is skipped; the room with a running share wins, otherwise the oldest. That way a running
+    share stays the host's, even when an older room comes back from the archive.
     """
     found = await _host_shares(owner_id)
     return next((current for current in found if current["workpieceId"]), found[0] if found else None)
@@ -78,8 +82,11 @@ async def open_rooms() -> list[dict[str, Any]]:
     return [current for current in await _host_shares() if current["workpieceId"]]
 
 
-async def read(room_id: str) -> dict[str, Any]:
-    """The share of a room with verified groups; a room without a share is a 404."""
+async def read(room_id: str, known: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+    """The share of a room with verified groups; a room without a share is a 404.
+
+    `known` are groups already loaded by ID; a group missing there is asked from CK, both at once.
+    """
     room = await client.get_room(room_id)
     share = _share_of(room["settings"])
     # Only the service creates rooms; anything else has no share.
@@ -88,9 +95,13 @@ async def read(room_id: str) -> dict[str, Any]:
     groups = share.get("groups") if isinstance(share.get("groups"), dict) else {}
     if not {HOSTS, VISITORS} <= groups.keys():
         raise share_invalid()
+    async def group_of(group_id: str) -> dict[str, Any]:
+        return known[group_id] if known and group_id in known else await client.get_group(group_id)
+
+    found = await asyncio.gather(*(group_of(group_id) for group_id in groups.values()))
     host_id = None
-    for role, group_id in groups.items():
-        belongs = _share_of((await client.get_group(group_id))["settings"])
+    for role, group in zip(groups, found):
+        belongs = _share_of(group["settings"])
         if belongs.get("role") != role or belongs.get("roomId") != room_id:
             raise share_invalid()
         if role == HOSTS:

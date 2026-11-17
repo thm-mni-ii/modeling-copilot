@@ -71,13 +71,13 @@ async def leave(user_id: str, room_id: str) -> None:
     except ApiError as error:
         if error.status != 404:
             raise
-        # Ohne Raum ist die Arbeitskopie erst recht verwaist.
+        # Without a room the working copy is orphaned all the more.
         await models.delete_room_models(room_id, user_id)
         return
     visitors = await client.get_group(current["groups"][store.VISITORS])
     if user_id in visitors["members"]:
         await client.remove_member(visitors["_id"], user_id)
-    # Die Arbeitskopie des Hosts geht erst mit `close`.
+    # The working copy of the host goes only with `close`.
     if user_id != current["hostId"]:
         await models.delete_room_models(room_id, user_id)
 
@@ -100,7 +100,7 @@ async def share(
     Returns the room, the workpiece and whether it was newly created. If the host is already
     sharing, everything stays as it is, including the rights they have changed in the room since.
     """
-    # Ein halb angelegter Raum (abgebrochen beim Anlegen) wird schon in find_by_owner übersprungen.
+    # A half-created room (aborted while creating) is already skipped in find_by_owner.
     current = await store.find_by_owner(host_id) or await _create_room(host_id, name)
     room_id = current["roomId"]
 
@@ -111,7 +111,7 @@ async def share(
         current["groups"][store.VISITORS], visitor_rights(edit, comment), room_id, anonymous
     )
     workpiece_id, task_workpiece_id = await create_model_workpiece(room_id, name, contract, units, task)
-    # Auffangnetz: Kopien früherer Shares dieses Raums, die beim Schließen noch offen waren und liegen blieben.
+    # Safety net: copies of earlier shares of this room that were still open when it closed and were left behind.
     await models.delete_room_models(room_id, keep_workpiece_id=workpiece_id)
     # A new share starts clean: nothing remembered from a lock before may carry over.
     await store.save(
@@ -188,7 +188,7 @@ async def close(host_id: str) -> None:
     """
     current = await own_share(host_id)
     room_id = current["roomId"]
-    # Wer gerade verbunden ist, hat seine Arbeitskopie noch offen; sie geht erst mit seinem `leave`.
+    # Whoever is connected right now still has their working copy open; it goes only with their `leave`.
     try:
         here: set[str] | None = {entry["actorId"] for entry in await client.room_presence(room_id)}
     except ApiError:
@@ -202,12 +202,12 @@ async def close(host_id: str) -> None:
     for workpiece_id in (current["workpieceId"], current["taskWorkpieceId"]):
         if workpiece_id in room["workpieces"]:
             await client.remove_workpiece_from_room(room_id, workpiece_id)
-    # Die Kopie des Hosts geht immer, er hat gespeichert; die der Visitors nur, wenn sie nicht mehr verbunden sind.
-    # Antwortet CK nicht, bleiben die der Visitors stehen, die nächste Share räumt sie auf.
+    # The copy of the host always goes, they have saved; those of the visitors only if they are no longer connected.
+    # If CK does not answer, the visitors' copies stay, and the next share cleans them up.
     if here is None:
         await models.delete_room_models(room_id, host_id)
     else:
         await models.delete_room_models(room_id, except_owners=here - {host_id})
-    # Vor dem Vergessen der IDs, so holt ein wiederholter Aufruf auch das Archivieren nach.
+    # Before forgetting the IDs, so that a repeated call also catches up on archiving.
     await archive.archive_closed_share([current["workpieceId"], current["taskWorkpieceId"]])
     await store.save(room_id, workpieceId=None, taskWorkpieceId=None, before=None, autoLocked=False)

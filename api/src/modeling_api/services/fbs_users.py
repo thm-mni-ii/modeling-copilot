@@ -38,7 +38,7 @@ def users_uri() -> str:
 
 
 def _headers(token: str | None) -> dict[str, str]:
-    """Bearer-Token des Aufrufers; hinter Docker zusätzlich der öffentliche Host."""
+    """Bearer token of the caller; behind Docker also the public host."""
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     if not settings.fbs_users_uri and settings.oidc_token_host:
         headers["Host"] = settings.oidc_token_host
@@ -46,7 +46,7 @@ def _headers(token: str | None) -> dict[str, str]:
 
 
 async def ids_by_username(token: str | None) -> dict[str, str]:
-    """Anmeldename → ID aller Konten im FBS, mit dem Token des Aufrufers; das FBS zeigt die Liste nur Admins, Moderatoren und Dozenten."""
+    """Username → ID of all FBS accounts, with the caller's token; the FBS lists them only for admins, moderators and lecturers."""
     try:
         async with httpx.AsyncClient(timeout=10, headers=_headers(token), follow_redirects=False) as http:
             response = await http.get(users_uri())

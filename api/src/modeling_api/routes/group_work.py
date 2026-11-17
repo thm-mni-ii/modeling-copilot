@@ -1,4 +1,4 @@
-"""HTTP-Endpunkte für die Gruppenarbeit in Collab-Kit."""
+"""HTTP endpoints for group work in Collab-Kit."""
 
 from fastapi import APIRouter
 
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/group-work", tags=["Group work"])
 async def preview_group_work(body: CreateGroupWork, user: CurrentUser, token: CurrentBearer) -> GroupWorkPlan:
     groups = [group.model_dump(mode="json", by_alias=True) for group in body.groups]
     planned = await service.plan(user, body.course, groups, token)
-    # Gruppe und IDs der Mitglieder braucht nur das Anlegen; der Browser bekommt die Anmeldenamen.
+    # Only creating needs the group and the member IDs; the browser gets the login names.
     shown = ("name", "roomId", "newMembers", "newTasks", "missing")
     return GroupWorkPlan.model_validate({"rooms": [{key: entry[key] for key in shown} for entry in planned]})
 
