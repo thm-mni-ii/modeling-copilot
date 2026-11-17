@@ -36,7 +36,6 @@ interface RoomRead {
 const NOTHING: RoomRead = { versions: [], rest: [], task: { steps: [], marks: {}, seen: null } }
 
 /** States of versions read at once from collab-kit. */
-const BATCH = 6
 
 const xmlAt = async (ck: CollabKitApi, workpieceId: string, at?: string) => (at ? xmlOf((await ck.workpieces.unitsAt<ModelUnit>(workpieceId, { at, map: CELLS_MAP })).units) : null) ?? EMPTY_MODEL_XML
 
@@ -46,8 +45,8 @@ const readRoom = async (ck: CollabKitApi, linked: Model, workpiece: Workpiece, b
   if (!room) return before
   const known = new Map(before.versions.map(({ info, xml }) => [info.id, xml]))
   const versions: RoomRead['versions'] = []
-  for (let start = 0; start < room.versions.length; start += BATCH) {
-    const batch = room.versions.slice(start, start + BATCH)
+  for (let start = 0; start < room.versions.length; start += collabSettings.sharing.apiBatch) {
+    const batch = room.versions.slice(start, start + collabSettings.sharing.apiBatch)
     const states = await Promise.all(batch.map(({ info, at }) => known.get(info.id) ?? xmlAt(ck, workpiece._id, at)))
     batch.forEach(({ info }, index) => versions.push({ info, xml: states[index] }))
   }

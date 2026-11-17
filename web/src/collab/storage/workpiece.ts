@@ -2,6 +2,7 @@ import type { JsonObject } from '@/services/api/types/common'
 import type { WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { CollabKitApi, NewWorkpiece, Session, UpdateSummary, Workpiece } from '@/collab/kit/collabKitV1'
 import type { HistoryMode } from '@/collab/converters/model/modelHistory'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** The top map of the doc, one cell per key; named as units, so a conflict names its cell. */
 export const CELLS_MAP = 'cells'
@@ -62,12 +63,11 @@ export const historyModeOf = (workpiece: Workpiece): HistoryMode => {
 }
 
 /** States read at once from collab-kit while catching up on stored changes. */
-const BATCH = 6
 
 /** Reads the units after each of these updates, a batch at a time, and hands them on in their order. */
 export const forEachState = async <Value, Update extends UpdateSummary>(ck: CollabKitApi, workpieceId: string, updates: readonly Update[], map: string, each: (update: Update, units: ReadonlyMap<string, Value>) => void) => {
-  for (let start = 0; start < updates.length; start += BATCH) {
-    const batch = updates.slice(start, start + BATCH)
+  for (let start = 0; start < updates.length; start += collabSettings.sharing.apiBatch) {
+    const batch = updates.slice(start, start + collabSettings.sharing.apiBatch)
     const states = await Promise.all(batch.map((update) => ck.workpieces.unitsAt<Value>(workpieceId, { at: update._id, map })))
     batch.forEach((update, index) => each(update, states[index].units))
   }

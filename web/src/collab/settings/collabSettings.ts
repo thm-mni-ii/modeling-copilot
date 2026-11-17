@@ -25,7 +25,18 @@ export const COLLAB_LIMITS = {
     // How often the sweep looks; shorter keeps the waits more exact and asks collab-kit more often.
     sweepSeconds: { default: 30, min: 10, max: 120 },
     // How often a visitor reads what the room added; once it is closed there is nothing left to read.
-    followMs: { default: 30_000, min: 10_000, max: 300_000 }
+    followMs: { default: 30_000, min: 10_000, max: 300_000 },
+    // How long a new tab waits for an answer of another tab of this browser before it counts as the only one.
+    tabCheckMs: { default: 300, min: 50, max: 5000 },
+    // How often and for how long collab-kit is asked whether it holds what was written, while the history goes into a room.
+    roomPollMs: { default: 50, min: 10, max: 1000 },
+    roomWaitMs: { default: 10_000, min: 1000, max: 120_000 },
+    // How often and how long a checkpoint waits for collab-kit to hold the own changes.
+    checkpointAttempts: { default: 10, min: 1, max: 100 },
+    checkpointPauseMs: { default: 200, min: 50, max: 2000 },
+    // How many versions or changes are read or written at once, and how many models or versions the API lists per page.
+    apiBatch: { default: 6, min: 1, max: 20 },
+    apiPage: { default: 100, min: 10, max: 200 }
   },
   presence: {
     // After this long without activity a client gives up its selection and with it its locks.

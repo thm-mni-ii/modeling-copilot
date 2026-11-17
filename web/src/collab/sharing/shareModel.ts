@@ -99,7 +99,7 @@ export const askSharedTab = () => {
   sharedTabOpen.value = null
   if (!tabs) return void (sharedTabOpen.value = false)
   tabs.postMessage('ping')
-  setTimeout(() => (sharedTabOpen.value ??= false), 300)
+  setTimeout(() => (sharedTabOpen.value ??= false), collabSettings.sharing.tabCheckMs)
 }
 
 /** Announces the tab while it has the shared model in the editor, and signs it off on closing or leaving; for CollabConnector. */

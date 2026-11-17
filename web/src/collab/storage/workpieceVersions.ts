@@ -11,6 +11,7 @@ import { cellElement, type SharedCell } from '@/collab/converters/model/modelCel
 import { sharedTaskHistory } from '@/collab/worksheet/sharedTask'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { CELLS_MAP, forEachState, isHeld, languagesOf, linkOf, pause } from './workpiece'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** The version methods of model.service for a model shared through a workpiece, in the shapes of the API. */
 export interface ModelVersions {
@@ -26,9 +27,6 @@ export interface ModelVersions {
 
 /** The release every shared model starts from; never stored, so all own models of the workpiece share it. */
 const INITIAL = 'initial'
-/** How often and how long a checkpoint waits for collab-kit to hold the own changes. */
-const ATTEMPTS = 10
-const PAUSE_MS = 200
 /** The presence field through which a save reports its checkpoint to the others at the workpiece; collab-kit does not report checkpoints itself. */
 const CHECKPOINT_FIELD = 'checkpoint'
 
@@ -221,7 +219,7 @@ export const versionsOf = (model: Model): ModelVersions | null => {
   const privateAll = async () => {
     const items: ModelVersionInfo[] = []
     for (let total = 1; items.length < total; ) {
-      const page = await privatePage(items.length, 100)
+      const page = await privatePage(items.length, collabSettings.sharing.apiPage)
       if (page.items.length === 0) break
       items.push(...page.items)
       total = page.total
@@ -251,9 +249,9 @@ export const versionsOf = (model: Model): ModelVersions | null => {
     const session = liveSession<ModelUnit>(workpieceId)
     if (!session || session.status !== 'connected') throw new Error('Not connected to collab-kit.')
     const ck = await loadCollabKit()
-    for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
+    for (let attempt = 0; attempt < collabSettings.sharing.checkpointAttempts; attempt += 1) {
       if (await isHeld(ck, session, CELLS_MAP)) break
-      await pause(PAUSE_MS)
+      await pause(collabSettings.sharing.checkpointPauseMs)
     }
     return ck.workpieces.checkpoint(workpieceId, version.kind === 'release' ? { label: version.releaseName ?? undefined, reason: version.description ?? undefined } : {})
   }

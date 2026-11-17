@@ -4,17 +4,16 @@ import modelService from '@/services/model/model.service'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { Room, Workpiece } from '@/collab/kit/collabKitV1'
 import { languagesOf, linkOf, type HostLink } from '@/collab/storage/workpiece'
-
-const PAGE = 100
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** The own model that shares this workpiece, searched through all own models. */
 const findLinkedModel = async (workpieceId: string): Promise<Model | null> => {
-  for (let skip = 0; ; skip += PAGE) {
+  for (let skip = 0; ; skip += collabSettings.sharing.apiPage) {
     // Only the shells; "My Models" does not show them, they open only through their room.
-    const page = (await modelService.list(skip, PAGE, { linked: true })).data
+    const page = (await modelService.list(skip, collabSettings.sharing.apiPage, { linked: true })).data
     const found = page.items.find((model) => linkOf(model.preferences)?.workpieceId === workpieceId)
     if (found) return found
-    if (skip + PAGE >= page.total) return null
+    if (skip + collabSettings.sharing.apiPage >= page.total) return null
   }
 }
 

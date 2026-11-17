@@ -13,6 +13,7 @@ import { taskStepsOf, type PrivateTaskState, type TaskHistoryStep } from '@/coll
 import { MARKS_MAP, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { baseOf } from '@/collab/worksheet/roomTaskHistory'
 import { CELLS_MAP, isHeld, pause, type HostLink } from '@/collab/storage/workpiece'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** What the host shares: the private model, how much of its history, and the state as it is now. */
 export interface ShareSource {
@@ -27,19 +28,11 @@ export interface ShareSource {
 /** One thing to write, in the order of the private history. */
 type PlanItem = { target: 'model'; change: UnitChange<ModelUnit> } | { target: 'task'; change: UnitChange<SharedMark> } | { target: 'checkpoint'; checkpoint: NonNullable<HistoryStep['checkpoint']> }
 
-/** The versions read at once from the API, and per page. */
-const BATCH = 6
-const PAGE = 100
-
-/** How often collab-kit is asked whether it holds what was written, and for how long. */
-const POLL_MS = 50
-const WAIT_MS = 10000
-
 /** The versions of the private model with their whole state and task state, oldest first. */
 const readPrivateVersions = async (model: Model): Promise<PrivateVersion[]> => {
   const ids: string[] = []
   for (let total = 1; ids.length < total; ) {
-    const { items, total: all } = (await modelService.listVersions(model, ids.length, PAGE)).data
+    const { items, total: all } = (await modelService.listVersions(model, ids.length, collabSettings.sharing.apiPage)).data
     if (items.length === 0) break
     ids.push(...items.map((item) => item.id))
     total = all
@@ -47,8 +40,8 @@ const readPrivateVersions = async (model: Model): Promise<PrivateVersion[]> => {
   // The API lists the newest first; a version builds on the one before it.
   ids.reverse()
   const versions: PrivateVersion[] = []
-  for (let start = 0; start < ids.length; start += BATCH) {
-    const batch = await Promise.all(ids.slice(start, start + BATCH).map((id) => modelService.getVersion(model, id)))
+  for (let start = 0; start < ids.length; start += collabSettings.sharing.apiBatch) {
+    const batch = await Promise.all(ids.slice(start, start + collabSettings.sharing.apiBatch).map((id) => modelService.getVersion(model, id)))
     for (const { data } of batch) versions.push({ info: data, xml: (data.data as ModelSnapshot).xml, task: data.taskEditSnapshot })
   }
   return versions
@@ -69,8 +62,8 @@ const readTaskStates = async (model: Model, mode: HistoryMode, versions: readonl
     if (mode === 'versions') return [...versions.flatMap(({ task }) => (task ? [{ revision: task.revision, createdAt: task.updatedAt, document: task.document }] : [])), now]
     const history = await loadTaskEditHistory(model.id)
     const states: PrivateTaskState[] = []
-    for (let start = 0; start < history.length; start += BATCH) {
-      const batch = history.slice(start, start + BATCH)
+    for (let start = 0; start < history.length; start += collabSettings.sharing.apiBatch) {
+      const batch = history.slice(start, start + collabSettings.sharing.apiBatch)
       const read = await Promise.all(batch.map((step) => modelService.getTaskEditVersion(model.id, step.id)))
       batch.forEach(({ revision, createdAt }, index) => states.push({ revision, createdAt, document: read[index].data.document }))
     }
@@ -109,10 +102,10 @@ const planOf = (modelSteps: readonly HistoryStep[], taskSteps: readonly TaskHist
 
 /** Waits until collab-kit holds every unit the session has, so a checkpoint marks exactly that state. */
 const waitUntilHeld = async <Value>(ck: CollabKitApi, session: Session<Value>, map: string) => {
-  const until = Date.now() + WAIT_MS
+  const until = Date.now() + collabSettings.sharing.roomWaitMs
   while (!(await isHeld(ck, session, map))) {
     if (Date.now() > until) throw new Error('collab-kit did not take the history in time.')
-    await pause(POLL_MS)
+    await pause(collabSettings.sharing.roomPollMs)
   }
 }
 

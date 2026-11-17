@@ -70,7 +70,7 @@ interface Field {
   readonly label: string
   readonly hint: string
   readonly items?: readonly { readonly value: string; readonly title: string }[]
-  readonly unit?: 'ms' | 'days' | 'px' | 'people'
+  readonly unit?: 'ms' | 'days' | 'px' | 'people' | 'tries' | 'requests' | 'items'
   readonly advanced?: boolean
 }
 
@@ -103,7 +103,14 @@ const SECTIONS: readonly Section[] = [
       { key: 'hostEndSeconds', label: 'Host away until all visitors leave', hint: 'The model stays for the host.' },
       { key: 'hostAwayMs', label: 'Host away until visitors are told', hint: 'Visitors see "The host is disconnected."' },
       { key: 'sweepSeconds', label: 'Backend checks every', hint: 'How often the backend looks who is away. Shorter keeps the times above more exact and asks collab-kit more often.', advanced: true },
-      { key: 'followMs', label: 'Visitors fetch the room history every', hint: 'What a visitor takes along on leaving is at most this old.', advanced: true }
+      { key: 'followMs', label: 'Visitors fetch the room history every', hint: 'What a visitor takes along on leaving is at most this old.', advanced: true },
+      { key: 'tabCheckMs', label: 'Other-tab check waits', hint: 'How long a new tab waits for an answer of another tab of this browser before it counts as the only one.', unit: 'ms', advanced: true },
+      { key: 'roomPollMs', label: 'Room write check every', hint: 'How often collab-kit is asked whether it holds what was written, while the history goes into a room.', unit: 'ms', advanced: true },
+      { key: 'roomWaitMs', label: 'Room write waits at most', hint: 'After this the write counts as failed.', advanced: true },
+      { key: 'checkpointAttempts', label: 'Checkpoint tries', hint: 'How often a save asks whether collab-kit holds the own changes before it marks the checkpoint.', unit: 'tries', advanced: true },
+      { key: 'checkpointPauseMs', label: 'Checkpoint pause between tries', hint: 'Together with the tries it makes how long a save waits for collab-kit.', unit: 'ms', advanced: true },
+      { key: 'apiBatch', label: 'Requests at once', hint: 'Versions or changes read or written at once when sharing; higher is faster and loads the API more.', unit: 'requests', advanced: true },
+      { key: 'apiPage', label: 'API page size', hint: 'How many models or versions are listed per request.', unit: 'items', advanced: true }
     ]
   },
   {
