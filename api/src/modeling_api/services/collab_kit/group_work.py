@@ -12,16 +12,12 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-import httpx
-
 from modeling_api.core.auth import User
-from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
-from modeling_api.services import models
+from modeling_api.services import fbs_users, models
 from modeling_api.services.collab_kit import archive, client
 from modeling_api.services.collab_kit.errors import archive_disabled
 from modeling_api.services.collab_kit.workpieces import MODEL_UNITS, TASK_FORMAT, create_model_workpiece, model_contract
-from modeling_api.services.fbs_users import users_uri
 from modeling_api.services.submissions import is_moderator, require
 
 logger = logging.getLogger(__name__)
@@ -29,27 +25,6 @@ logger = logging.getLogger(__name__)
 KEY = "groupWork"
 # Alle in der Gruppe sehen, kommentieren und bearbeiten; Aufgaben, Entscheidungen und Rechte bleiben bei den Tutoren.
 MEMBER_RIGHTS = ["see", "speak", "edit"]
-
-
-async def fbs_ids(token: str | None) -> dict[str, str]:
-    """Anmeldename → ID aller Konten im FBS, mit dem Token des Tutors; das FBS zeigt die Liste nur Admins, Moderatoren und Dozenten."""
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    if not settings.fbs_users_uri and settings.oidc_token_host:
-        headers["Host"] = settings.oidc_token_host
-    try:
-        async with httpx.AsyncClient(timeout=10, headers=headers, follow_redirects=False) as http:
-            response = await http.get(users_uri())
-    except httpx.HTTPError as error:
-        raise ApiError(502, "FBS_UNAVAILABLE", "The Feedbacksystem could not be reached.") from error
-    if response.status_code in (401, 403):
-        raise ApiError(403, "FBS_FORBIDDEN", "The Feedbacksystem does not list its users for you.")
-    if response.status_code != 200:
-        raise ApiError(502, "FBS_UNAVAILABLE", "The Feedbacksystem did not list its users.")
-    return {
-        str(user["username"]): str(user["id"])
-        for user in response.json()
-        if isinstance(user, dict) and user.get("username") and user.get("id") is not None
-    }
 
 
 def same(text: str) -> str:
@@ -99,7 +74,7 @@ async def existing_rooms(course: str) -> dict[str, dict[str, Any]]:
 async def plan(user: User, course: str, groups: list[dict[str, Any]], token: str | None) -> list[dict[str, Any]]:
     """Was ein Import täte, ohne etwas zu schreiben: je Gruppe ein neuer Raum, oder nur die neuen Personen und fehlenden Aufgaben des vorhandenen."""
     require(is_moderator(user))
-    ids = await fbs_ids(token)
+    ids = await fbs_users.ids_by_username(token)
     rooms = await existing_rooms(course)
     planned = []
     for group in groups:

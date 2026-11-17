@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from modeling_api.core.auth import User
 from modeling_api.core.errors import ApiError
 from modeling_api.schemas.group_work import MAX_GROUPS, MAX_MEMBERS, MAX_TASKS, CreateGroupWork
-from modeling_api.services import models
+from modeling_api.services import fbs_users, models
 from modeling_api.services.collab_kit import group_work, store
 from modeling_api.services.collab_kit.workpieces import MODEL_UNITS, TASK_FORMAT
 
@@ -51,7 +51,7 @@ def fbs(monkeypatch, ck):
         loaded.append(reference)
         return task_of(reference)
 
-    monkeypatch.setattr(group_work, "fbs_ids", fbs_ids)
+    monkeypatch.setattr(fbs_users, "ids_by_username", fbs_ids)
     monkeypatch.setattr(models, "task_for_room", task_for_room)
     return loaded
 
@@ -147,14 +147,14 @@ def fbs_answering(monkeypatch, status, users):
         return httpx.Response(status, json=users)
 
     real = httpx.AsyncClient
-    monkeypatch.setattr(group_work.httpx, "AsyncClient", lambda **options: real(transport=httpx.MockTransport(handle), **options))
+    monkeypatch.setattr(fbs_users.httpx, "AsyncClient", lambda **options: real(transport=httpx.MockTransport(handle), **options))
     return seen
 
 
 def test_the_fbs_list_maps_login_names_to_ids_with_the_tutors_token(monkeypatch):
     seen = fbs_answering(monkeypatch, 200, [{"id": 2254, "username": "malb76"}, {"id": 3, "username": ""}, "broken"])
 
-    assert asyncio.run(group_work.fbs_ids("secret")) == {"malb76": "2254"}
+    assert asyncio.run(fbs_users.ids_by_username("secret")) == {"malb76": "2254"}
     assert seen == ["Bearer secret"]
 
 
@@ -162,7 +162,7 @@ def test_an_fbs_that_refuses_the_list_is_a_403(monkeypatch):
     fbs_answering(monkeypatch, 403, {})
 
     with pytest.raises(ApiError) as error:
-        asyncio.run(group_work.fbs_ids("secret"))
+        asyncio.run(fbs_users.ids_by_username("secret"))
 
     assert error.value.status == 403
 
