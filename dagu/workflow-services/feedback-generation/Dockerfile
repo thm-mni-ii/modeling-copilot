@@ -3,4 +3,5 @@ WORKDIR /app
 COPY workflow_io.py ./src/workflow_io.py
 COPY feedback-generation/src/ ./src/
 COPY analytical-feedback/src/analysis_contract.py ./src/analysis_contract.py
+COPY workflow_server.py ./workflow_server.py
 ENTRYPOINT ["python", "/app/src/main.py"]

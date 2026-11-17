@@ -1,8 +1,11 @@
 # Dagu
 
-Dagu `2.16.6` orchestriert die Workflows des Modeling Copilot. Workflow-Schritte
-laufen als Kubernetes Jobs im Namespace `workflow-runtime` mit dem Service
-Account `workflow-runner`.
+Dagu `2.16.6` orchestriert die Workflows des Modeling Copilot. Die Workflow-Dienste
+laufen dauerhaft („warm“) als Deployments im Namespace `workflow-runtime`
+(`infra/workflow-services.yaml`). Dagu ruft sie je Schritt per `http.request` auf,
+statt pro Schritt einen Kubernetes Job zu starten. Jeder Dienst führt dabei sein
+unverändertes CLI-`main()` aus (`workflow-services/workflow_server.py`). Der
+Response-Body ist die bisherige stdout-Ausgabe und wird wie zuvor zum Dagu-Artefakt.
 
 ## Struktur
 
@@ -11,8 +14,11 @@ Account `workflow-runner`.
   zeigt den vorgesehenen Vertrag für JSON-Eingabe, JSON-Ausgabe und Exit-Codes.
 - `infra/base.yaml`: gemeinsame Kubernetes-Vorgaben für Dev und Prod inklusive
   Namespace, Service Account und Ressourcenlimits.
-- `infra/dev/`: Namespace-/Service-Account-Setup für Docker Desktop sowie die
-  Anpassung der lokalen Kubeconfig für den Dagu-Container.
+- `infra/workflow-services.yaml`: warme Dienste (Deployments) und ein Service mit
+  festem Port je Dienst (30081–30087) für Dev und Prod.
+- `infra/dev/`: Namespace-/Service-Account-Setup für Docker Desktop, der
+  NodePort-Zugang zu den Diensten sowie die Anpassung der lokalen Kubeconfig für
+  den Dagu-Container.
 - `infra/prod/k3s-dagu.yaml`: K3s-Deployment mit RBAC, PVC, Service und
   Traefik-Ingress.
 
@@ -23,9 +29,14 @@ Kubeconfig unter `~/.kube/config`.
 
 ```bash
 kubectl config use-context docker-desktop
-kubectl apply -f dagu/infra/dev/kubernetes.yaml
+kubectl apply -f dagu/infra/dev/kubernetes.yaml -f dagu/infra/workflow-services.yaml
 docker compose up -d dagu
 ```
+
+Dagu tritt dem Docker-Netz `kind` des Docker-Desktop-Kubernetes bei und erreicht
+die Dienste über `WORKFLOW_SERVICES_HOST=desktop-control-plane` und die NodePorts.
+Ohne Docker Desktop im kind-Modus fehlt dieses Netz; dann den Host und das Netz in
+`docker-compose.yaml` anpassen.
 
 Die Kubeconfig wird nur im Container angepasst: `127.0.0.1` beziehungsweise
 `localhost` wird durch `host.docker.internal` ersetzt; die TLS-Prüfung verwendet
@@ -66,13 +77,13 @@ Inventare unter `labels/<modelKey>.json` und semantische Kandidaten unter
 `analysis/<referenceKey>/<analysisKey>.json`. Die Abgabe wird nur einmal vorbereitet.
 Alle benötigten Modell- und Paarabläufe sind intern in derselben Datei eingebettet.
 Dagu registriert ausschließlich `model-evaluation-graph-matching`. Die Workflowversion
-ist `v21` (der interne Analyse-/Feedbackablauf ist `v13`), der Graphvergleich verwendet
-intern `v13`, Synonym Matching `v4`. Graph Matching verwendet Serviceversion
-`2.7.1`, Analytical Feedback `2.3.0`, Synonym Matching `1.3.0`, Feedback Generation
+ist `v22` (der interne Analyse-/Feedbackablauf ist `v14`), der Graphvergleich verwendet
+intern `v14`, Synonym Matching `v5`, Parser und Inventar `v2`. Graph Matching verwendet Serviceversion
+`2.7.1`, Analytical Feedback `2.3.0`, Synonym Matching `1.3.1`, Feedback Generation
 `2.2.1`, die übrigen Dienste `1.0.0`. Graphvergleich verwendet
 `reference-comparison/v2`, Analyse/Feedback `/v3`, übrige Artefakte und vollständige
 stdout-Envelopes `/v1`; Matcher-Fakten `1.1`, Identitätsevidenzen `1.1`.
-Image-Tags: Analyse `v11`, Feedback `v10`, Matcher `v13`, Workflow-Data `v5`, Synonym `v4`, übrige `v1`.
+Image-Tags: Analyse `v12`, Feedback `v11`, Matcher `v14`, Workflow-Data `v6`, Synonym `v5`, Parser und Inventar `v2`.
 Jede Auswertung verwendet die Evidenzstufen: `workflow-data` friert vor dem Eingabehash
 `graphMatching.textEvidence.tiers` (kanonisch gleich → Schreibvariante → Bedeutung) mit
 `semantics.methods: [damerau_canonical, multilingual_expanded]` in `comparisonConfig` ein.
@@ -149,9 +160,11 @@ docker compose up -d --no-deps --build api
 Die benötigten Image-Tags stehen in `docker-compose.yaml` und stimmen mit dem
 Workflow überein. Der Synonym-Service verwendet den eigenen Ordner
 `workflow-services/synonym-matching`; der Methodenreferenzordner bleibt unverändert.
-Das Embedding-Modell wird beim Image-Build vorbereitet und während der Auswertung
-offline geladen. Modellpaare laufen zunächst nacheinander mit eigenem
-Speicherlimit von 2 GiB, Modellvorbereitung mit höchstens vier parallelen Läufen.
+Das Embedding-Modell wird beim Image-Build vorbereitet und beim Start des warmen
+Synonym-Dienstes einmal offline geladen; erst danach meldet der Pod Bereitschaft.
+Modellpaare laufen nacheinander, Modellvorbereitung mit höchstens vier parallelen
+Läufen. Jede Replik bearbeitet Anfragen strikt nacheinander; Parallelität entsteht
+über weitere Repliken hinter dem Service.
 
 **Docker Desktop mit separatem Kubernetes-Image-Speicher:** Lokal gebaute Images
 müssen zusätzlich im Kubernetes-Knoten verfügbar sein. Im vorhandenen
@@ -160,8 +173,11 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v5 modeling-copilot/graph-parser:v1 modeling-copilot/model-label-extraction:v1 modeling-copilot/synonym-matching:v4 modeling-copilot/one-to-one-graph-matching:v13 modeling-copilot/analytical-feedback:v11 modeling-copilot/feedback-generation:v10 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v6 modeling-copilot/graph-parser:v2 modeling-copilot/model-label-extraction:v2 modeling-copilot/synonym-matching:v5 modeling-copilot/one-to-one-graph-matching:v14 modeling-copilot/analytical-feedback:v12 modeling-copilot/feedback-generation:v11 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
+
+Danach `kubectl apply -f dagu/infra/workflow-services.yaml`; bei geänderten Tags
+rollen die Deployments automatisch neu aus.
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre
 Image-Daten beim Weiterreichen als Text beschädigen. Nach jedem lokalen Build
@@ -184,6 +200,12 @@ Das Manifest `infra/prod/k3s-dagu.yaml` stellt folgende Ressourcen bereit:
 - Dagu Deployment, 5-GiB-PVC und ClusterIP-Service
 - Traefik-Ingress unter `https://ikarus.mni.thm.de/dagu`
 
+Die warmen Workflow-Dienste kommen aus `infra/workflow-services.yaml` (nur
+ClusterIP, nicht von außen erreichbar). Dagu erreicht sie über
+`WORKFLOW_SERVICES_HOST=workflow-services.workflow-runtime.svc.cluster.local`.
+Die Images müssen auf dem Knoten vorhanden sein. Das PVC ist `ReadWriteOnce`;
+alle Repliken müssen daher auf dem Knoten laufen, der es eingebunden hat.
+
 Der Init-Container klont den Branch `feat-add-dagu-as-workflow-manager` von
 `https://github.com/thm-mni-ii/modeling-copilot.git`. Bei einem Wechsel des
 Standard-Branches ist der Wert von `--branch` im Deployment anzupassen. Ein
@@ -198,7 +220,7 @@ Zusätzlich wird im Namespace `dagu` folgendes Objekt erwartet:
 Deployment:
 
 ```bash
-kubectl apply -f dagu/infra/prod/k3s-dagu.yaml
+kubectl apply -f dagu/infra/prod/k3s-dagu.yaml -f dagu/infra/workflow-services.yaml
 ```
 
 Produktive Zugangsdaten werden ausschließlich über das Secret `dagu-auth`

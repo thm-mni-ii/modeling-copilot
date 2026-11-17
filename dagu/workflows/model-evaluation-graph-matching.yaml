@@ -1,19 +1,17 @@
 description: Vorläufiger Graphvergleich und Feedback je Musterlösung. Noch keine vollständige fachliche Bewertung.
+# Dagu does not pass its process environment to steps; read the host at load time.
+# Sub-DAGs do not inherit env, so every document declares it.
+env:
+  - SERVICES_HOST: ${WORKFLOW_SERVICES_HOST}
 artifacts:
   enabled: true
-kubernetes:
-  volumes:
-    - name: workflow-data
-      persistent_volume_claim:
-        claim_name: workflow-data
-  volume_mounts:
-    - name: workflow-data
-      mount_path: /work/evaluations
+# Every service step calls a warm service (dagu/infra/workflow-services.yaml) with
+# http.request; the response body is the service's unchanged CLI stdout.
 labels:
   purpose: evaluation
   domain: generic
   visibility: frontend
-  version: v21
+  version: v22
   phase: '6'
 params:
   schema:
@@ -54,17 +52,16 @@ steps:
     description: Validiert und speichert den vollständigen Snapshot einmalig.
     stdout:
       artifact: initialization.json
-    action: k8s.run
+    action: http.request
     with:
-      image: modeling-copilot/workflow-data:v5
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${evaluation_id}
-        - name: EVALUATION_INPUT_GZIP_BASE64
-          value: ${evaluation_input}
-        - name: TEXT_EVIDENCE
-          value: ${text_evidence}
+      method: POST
+      url: http://${env.SERVICES_HOST}:30081/run
+      form:
+        WORKFLOW_EVALUATION_ID: ${evaluation_id}
+        EVALUATION_INPUT_GZIP_BASE64: ${evaluation_input}
+        TEXT_EVIDENCE: ${text_evidence}
+      silent: true
+      timeout: 300
 
   - name: parse_models
     description: Ein eigener Parserlauf für das aktuelle Modell und jede Musterlösung.
@@ -159,20 +156,16 @@ steps:
 
 ---
 name: graph-parser-model
-description: Parst genau einen Modell-Snapshot als eigenen Kubernetes Job.
+description: Parst genau einen Modell-Snapshot über den warmen Parser-Dienst.
 tags:
   - visibility=internal
-  - version=v1
+  - version=v2
+# Dagu does not pass its process environment to steps; read the host at load time.
+# Sub-DAGs do not inherit env, so every document declares it.
+env:
+  - SERVICES_HOST: ${WORKFLOW_SERVICES_HOST}
 artifacts:
   enabled: true
-kubernetes:
-  volumes:
-    - name: workflow-data
-      persistent_volume_claim:
-        claim_name: workflow-data
-  volume_mounts:
-    - name: workflow-data
-      mount_path: /work/evaluations
 params:
   schema:
     type: object
@@ -193,17 +186,16 @@ steps:
     description: Speichert den normalisierten Graphen mit Quelle und Diagnosen als Workflow-Artefakt.
     stdout:
       artifact: parser-result.json
-    action: k8s.run
+    action: http.request
     with:
-      image: modeling-copilot/graph-parser:v1
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${EVALUATION_ID}
-        - name: MODEL_KEY
-          value: ${MODEL_KEY}
-        - name: WORKFLOW_OUTPUT_PATH
-          value: ${OUTPUT_PREFIX}/${MODEL_KEY}.json
+      method: POST
+      url: http://${env.SERVICES_HOST}:30082/run
+      form:
+        WORKFLOW_EVALUATION_ID: ${EVALUATION_ID}
+        MODEL_KEY: ${MODEL_KEY}
+        WORKFLOW_OUTPUT_PATH: ${OUTPUT_PREFIX}/${MODEL_KEY}.json
+      silent: true
+      timeout: 300
 
   - name: publish_graph
     description: Veröffentlicht Modellschlüssel und Graphreferenz.
@@ -218,20 +210,16 @@ steps:
 
 ---
 name: model-label-extraction-model
-description: Erstellt das vollständige Elementinventar genau eines Modellgraphen als eigenen Kubernetes Job.
+description: Erstellt das vollständige Elementinventar genau eines Modellgraphen über den warmen Extraktionsdienst.
 tags:
   - visibility=internal
-  - version=v1
+  - version=v2
+# Dagu does not pass its process environment to steps; read the host at load time.
+# Sub-DAGs do not inherit env, so every document declares it.
+env:
+  - SERVICES_HOST: ${WORKFLOW_SERVICES_HOST}
 artifacts:
   enabled: true
-kubernetes:
-  volumes:
-    - name: workflow-data
-      persistent_volume_claim:
-        claim_name: workflow-data
-  volume_mounts:
-    - name: workflow-data
-      mount_path: /work/evaluations
 params:
   schema:
     type: object
@@ -255,17 +243,16 @@ steps:
     description: Speichert das vollständige Elementinventar mit Original-IDs, Vergleichstexten und Herkunft als Workflow-Artefakt.
     stdout:
       artifact: labels-result.json
-    action: k8s.run
+    action: http.request
     with:
-      image: modeling-copilot/model-label-extraction:v1
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${EVALUATION_ID}
-        - name: WORKFLOW_INPUT_PATH
-          value: ${INPUT_PREFIX}/${MODEL_KEY}.json
-        - name: WORKFLOW_OUTPUT_PATH
-          value: ${OUTPUT_PREFIX}/${MODEL_KEY}.json
+      method: POST
+      url: http://${env.SERVICES_HOST}:30083/run
+      form:
+        WORKFLOW_EVALUATION_ID: ${EVALUATION_ID}
+        WORKFLOW_INPUT_PATH: ${INPUT_PREFIX}/${MODEL_KEY}.json
+        WORKFLOW_OUTPUT_PATH: ${OUTPUT_PREFIX}/${MODEL_KEY}.json
+      silent: true
+      timeout: 300
 
   - name: publish_labels
     description: Veröffentlicht Modellschlüssel und Referenz auf die Bezeichnungsliste.
@@ -284,24 +271,13 @@ name: synonym-matching-pair
 description: Berechnet semantische Kandidaten für die Abgabe und genau eine Musterlösung.
 tags:
   - visibility=internal
-  - version=v4
+  - version=v5
+# Dagu does not pass its process environment to steps; read the host at load time.
+# Sub-DAGs do not inherit env, so every document declares it.
+env:
+  - SERVICES_HOST: ${WORKFLOW_SERVICES_HOST}
 artifacts:
   enabled: true
-kubernetes:
-  resources:
-    requests:
-      cpu: "250m"
-      memory: "512Mi"
-    limits:
-      cpu: "2"
-      memory: "2Gi"
-  volumes:
-    - name: workflow-data
-      persistent_volume_claim:
-        claim_name: workflow-data
-  volume_mounts:
-    - name: workflow-data
-      mount_path: /work/evaluations
 params:
   schema:
     type: object
@@ -322,17 +298,16 @@ steps:
     description: Speichert die vollständige semantische Kandidatenevidenz für ein Referenzpaar.
     stdout:
       artifact: candidates-result.json
-    action: k8s.run
+    action: http.request
     with:
-      image: modeling-copilot/synonym-matching:v4
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${EVALUATION_ID}
-        - name: REFERENCE_KEY
-          value: ${REFERENCE_KEY}
-        - name: WORKFLOW_OUTPUT_PATH
-          value: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
+      method: POST
+      url: http://${env.SERVICES_HOST}:30084/run
+      form:
+        WORKFLOW_EVALUATION_ID: ${EVALUATION_ID}
+        REFERENCE_KEY: ${REFERENCE_KEY}
+        WORKFLOW_OUTPUT_PATH: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
+      silent: true
+      timeout: 300
 
   - name: publish_candidates
     description: Veröffentlicht Referenzschlüssel und Kandidatenartefakt.
@@ -350,17 +325,13 @@ name: one-to-one-graph-matching-pair
 description: Vergleicht die Abgabe vorläufig mit genau einer Musterlösung.
 tags:
   - visibility=internal
-  - version=v13
+  - version=v14
+# Dagu does not pass its process environment to steps; read the host at load time.
+# Sub-DAGs do not inherit env, so every document declares it.
+env:
+  - SERVICES_HOST: ${WORKFLOW_SERVICES_HOST}
 artifacts:
   enabled: true
-kubernetes:
-  volumes:
-    - name: workflow-data
-      persistent_volume_claim:
-        claim_name: workflow-data
-  volume_mounts:
-    - name: workflow-data
-      mount_path: /work/evaluations
 params:
   schema:
     type: object
@@ -381,17 +352,16 @@ steps:
     description: Speichert den vorläufigen Vergleich und seine Herkunftsdaten.
     stdout:
       artifact: comparison-result.json
-    action: k8s.run
+    action: http.request
     with:
-      image: modeling-copilot/one-to-one-graph-matching:v13
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${EVALUATION_ID}
-        - name: REFERENCE_KEY
-          value: ${REFERENCE_KEY}
-        - name: WORKFLOW_OUTPUT_PATH
-          value: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
+      method: POST
+      url: http://${env.SERVICES_HOST}:30085/run
+      form:
+        WORKFLOW_EVALUATION_ID: ${EVALUATION_ID}
+        REFERENCE_KEY: ${REFERENCE_KEY}
+        WORKFLOW_OUTPUT_PATH: ${OUTPUT_PREFIX}/${REFERENCE_KEY}.json
+      silent: true
+      timeout: 300
 
   - name: publish_comparison
     description: Veröffentlicht Referenzschlüssel und Vergleichsartefakt.
@@ -409,17 +379,13 @@ name: analytical-feedback-pair
 description: Erzeugt analytische Profile und die kompakte Feedbackprojektion je Musterlösung.
 tags:
   - visibility=internal
-  - version=v13
+  - version=v14
+# Dagu does not pass its process environment to steps; read the host at load time.
+# Sub-DAGs do not inherit env, so every document declares it.
+env:
+  - SERVICES_HOST: ${WORKFLOW_SERVICES_HOST}
 artifacts:
   enabled: true
-kubernetes:
-  volumes:
-    - name: workflow-data
-      persistent_volume_claim:
-        claim_name: workflow-data
-  volume_mounts:
-    - name: workflow-data
-      mount_path: /work/evaluations
 params:
   schema:
     type: object
@@ -437,15 +403,15 @@ steps:
     description: Validiert den Artefaktsatz und veröffentlicht eine unveränderliche Analyse.
     stdout:
       artifact: analysis-result.json
-    action: k8s.run
+    action: http.request
     with:
-      image: modeling-copilot/analytical-feedback:v11
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${EVALUATION_ID}
-        - name: REFERENCE_KEY
-          value: ${REFERENCE_KEY}
+      method: POST
+      url: http://${env.SERVICES_HOST}:30086/run
+      form:
+        WORKFLOW_EVALUATION_ID: ${EVALUATION_ID}
+        REFERENCE_KEY: ${REFERENCE_KEY}
+      silent: true
+      timeout: 300
 
   - name: read_analysis_metadata
     id: read_analysis_metadata
@@ -478,19 +444,17 @@ steps:
     depends: [read_analysis_metadata]
     stdout:
       artifact: feedback-result.json
-    action: k8s.run
+    action: http.request
     with:
-      image: modeling-copilot/feedback-generation:v10
-      image_pull_policy: IfNotPresent
-      env:
-        - name: WORKFLOW_EVALUATION_ID
-          value: ${EVALUATION_ID}
-        - name: REFERENCE_KEY
-          value: ${REFERENCE_KEY}
-        - name: ANALYSIS_INPUT_PATH
-          value: ${steps.read_analysis_metadata.outputs.analysisPath}
-        - name: WORKFLOW_OUTPUT_PATH
-          value: feedback/${REFERENCE_KEY}.json
+      method: POST
+      url: http://${env.SERVICES_HOST}:30087/run
+      form:
+        WORKFLOW_EVALUATION_ID: ${EVALUATION_ID}
+        REFERENCE_KEY: ${REFERENCE_KEY}
+        ANALYSIS_INPUT_PATH: ${steps.read_analysis_metadata.outputs.analysisPath}
+        WORKFLOW_OUTPUT_PATH: feedback/${REFERENCE_KEY}.json
+      silent: true
+      timeout: 300
 
   - name: publish_analysis
     description: Veröffentlicht den konkreten Analysepfad dieses Unterlaufs.

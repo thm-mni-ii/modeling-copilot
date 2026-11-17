@@ -5,6 +5,35 @@ from pathlib import Path
 
 import numpy as np
 
+# Verified models per (name, revision); a warm service process loads each pinned model once.
+_MODELS = {}
+
+
+def _load_model(name, revision):
+    from sentence_transformers import SentenceTransformer
+    from sentence_transformers.util import load_file_path
+
+    modules = load_file_path(name, "modules.json", token=None, revision=revision, local_files_only=True)
+    if modules is None:
+        # SentenceTransformer would otherwise fall back to a different pooling pipeline.
+        raise ValueError("required cached SentenceTransformer modules.json is unavailable")
+    cached_revision = Path(modules).parent.name
+    if cached_revision != revision:
+        raise ValueError("cached multilingual resource does not match the pinned revision")
+    model = SentenceTransformer(name, revision=revision, device="cpu", local_files_only=True)
+    model_config = model[0].auto_model.config
+    resolved = getattr(model_config, "_commit_hash", None) or cached_revision
+    if resolved != revision:
+        raise ValueError("loaded multilingual model does not match the pinned revision")
+    return model, resolved
+
+
+def preload():
+    """Load the pinned default model before a warm service accepts requests."""
+    from .registry import MULTILINGUAL_PARAMETERS
+
+    MultilingualMethod(deepcopy(MULTILINGUAL_PARAMETERS))._load()
+
 
 class MultilingualMethod:
     def __init__(self, config):
@@ -14,22 +43,10 @@ class MultilingualMethod:
         self.embeddings = {}
 
     def _load(self):
-        from sentence_transformers import SentenceTransformer
-        from sentence_transformers.util import load_file_path
-
-        name, revision = self.config["model"], self.config["revision"]
-        modules = load_file_path(name, "modules.json", token=None, revision=revision, local_files_only=True)
-        if modules is None:
-            # SentenceTransformer would otherwise fall back to a different pooling pipeline.
-            raise ValueError("required cached SentenceTransformer modules.json is unavailable")
-        cached_revision = Path(modules).parent.name
-        if cached_revision != revision:
-            raise ValueError("cached multilingual resource does not match the pinned revision")
-        self.model = SentenceTransformer(name, revision=revision, device="cpu", local_files_only=True)
-        model_config = self.model[0].auto_model.config
-        self.revision = getattr(model_config, "_commit_hash", None) or cached_revision
-        if self.revision != revision:
-            raise ValueError("loaded multilingual model does not match the pinned revision")
+        key = (self.config["model"], self.config["revision"])
+        if key not in _MODELS:
+            _MODELS[key] = _load_model(*key)
+        self.model, self.revision = _MODELS[key]
 
     def compute(self, left, right):
         if not left or not right:

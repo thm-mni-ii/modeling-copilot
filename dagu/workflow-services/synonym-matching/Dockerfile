@@ -16,4 +16,5 @@ COPY synonym-matching/scripts/prepare_model.py ./scripts/prepare_model.py
 # Provision the pinned model once; pair processing never downloads resources.
 RUN python scripts/prepare_model.py
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+COPY workflow_server.py ./workflow_server.py
 ENTRYPOINT ["python", "/app/src/main.py"]

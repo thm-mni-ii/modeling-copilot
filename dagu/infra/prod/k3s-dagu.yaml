@@ -147,6 +147,9 @@ spec:
               value: https://ikarus.mni.thm.de/dagu
             - name: DAGU_AUTH_MODE
               value: builtin
+            # Warm workflow services from infra/workflow-services.yaml.
+            - name: WORKFLOW_SERVICES_HOST
+              value: workflow-services.workflow-runtime.svc.cluster.local
             - name: DAGU_AUTH_TOKEN_SECRET
               valueFrom:
                 secretKeyRef:

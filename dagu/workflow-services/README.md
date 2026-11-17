@@ -23,6 +23,12 @@ Historische Analyserevisionen bleiben lesbar.
 Die benötigten Modell- und Paarabläufe sind
 intern in der einzigen Workflowdatei eingebettet.
 
+Jedes Image enthält zusätzlich `workflow_server.py`. Der Server hält den Dienst
+warm und führt pro `POST /run` dessen unverändertes `main()` aus. Die Workflow-
+Variablen kommen als Formularfelder (nur eine feste Allowlist). Antwort ist
+`200` mit der stdout-Ausgabe oder `422` mit der Fehlermeldung. Der CLI-Einstieg
+(`ENTRYPOINT`) bleibt für Einzelaufrufe erhalten.
+
 Build und lokale Kubernetes-Bereitstellung sind in [dagu/README.md](../README.md)
 beschrieben. Die übrigen Serviceordner enthalten frühere Vorlagen oder
 Forschungsressourcen und werden vom Auswertungsworkflow nicht verwendet.
