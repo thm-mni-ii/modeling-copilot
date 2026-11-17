@@ -9,9 +9,11 @@ import pytest
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
 from modeling_api.services import models
-from modeling_api.services.collab_kit import archive, client, share, store, sweep
+from modeling_api.services.collab_kit import archive, client, collab_settings, share, store, sweep
 
 ARGS = dict(name="Model", contract={"tool": "x"}, units=[{"path": ["cells"]}])
+# Die Standardzeiten des Sweeps.
+SHARING = collab_settings.defaults("sharing")
 
 
 @pytest.fixture
@@ -162,7 +164,7 @@ def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, arch
     monkeypatch.setattr(models, "delete_room_models", delete_room_models)
     sweep._missing.clear()
     sweep._host_missing.clear()
-    monkeypatch.setattr(sweep, "_sleep_seconds", sweep.SWEEP_SECONDS)
+    monkeypatch.setattr(sweep, "_sleep_seconds", SHARING["sweepSeconds"])
     monkeypatch.setattr(settings, "service_actor", "service-modeling-copilot")
     return rooms, groups, grants, workpieces
 
@@ -610,16 +612,16 @@ def test_a_visitor_who_stays_away_is_taken_out_after_the_grace_period_and_one_wh
 
     # 98 comes back in time and loses the time; 99 stays away.
     here("98")
-    asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS - 1))
+    asyncio.run(sweep.sweep_once(now=SHARING["visitorGraceSeconds"] - 1))
     assert members_of(groups, "visitors") == ["99", "98"]
-    asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS))
+    asyncio.run(sweep.sweep_once(now=SHARING["visitorGraceSeconds"]))
     assert members_of(groups, "visitors") == ["98"]
     assert deleted[1:] == [(room_id, "99", [], None)]
 
     # The host is no visitor and is never touched; 98 may be gone for a shorter time again.
     here()
-    asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS + 10))
-    asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS + 10 + sweep.VISITOR_GRACE_SECONDS - 1))
+    asyncio.run(sweep.sweep_once(now=SHARING["visitorGraceSeconds"] + 10))
+    asyncio.run(sweep.sweep_once(now=SHARING["visitorGraceSeconds"] + 10 + SHARING["visitorGraceSeconds"] - 1))
     assert members_of(groups, "visitors") == ["98"] and members_of(groups, "hosts") == ["42"]
 
 
@@ -641,13 +643,13 @@ def test_a_time_out_of_bounds_of_another_type_or_unreadable_counts_as_its_defaul
     defaults = {"sweepSeconds": 30, "visitorGraceSeconds": 120, "hostGraceSeconds": 120, "hostEndSeconds": 300}
     # Zu kurz, ein Wahrheitswert statt einer Zahl, eine Zahl als Text und zu lang.
     sharing.update(visitorGraceSeconds=5, hostGraceSeconds=True, hostEndSeconds="600", sweepSeconds=500)
-    assert asyncio.run(sweep._times()) == defaults
+    assert asyncio.run(collab_settings.read("sharing")) == defaults
 
     async def failing(key):
         raise ApiError(503, "CK_UNAVAILABLE", "Collab-Kit is currently unavailable.")
 
     monkeypatch.setattr(client, "get_settings", failing)
-    assert asyncio.run(sweep._times()) == defaults
+    assert asyncio.run(collab_settings.read("sharing")) == defaults
 
 
 def test_the_sweep_sleeps_between_two_rounds_as_long_as_the_collab_settings_say(ck, sharing):
@@ -670,7 +672,7 @@ def test_no_visitor_is_taken_out_while_collab_kit_does_not_answer_and_a_room_wit
 
     client.room_presence, original = failing, client.room_presence
     try:
-        asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS * 5))
+        asyncio.run(sweep.sweep_once(now=SHARING["visitorGraceSeconds"] * 5))
     finally:
         client.room_presence = original
     assert members_of(groups, "visitors") == ["99"] and sweep._missing == {}
@@ -685,10 +687,10 @@ def test_a_host_who_stays_away_locks_the_room_and_is_never_locked_out_again_when
 
     # The host is missing: the time starts, nothing happens before the grace period is over.
     asyncio.run(sweep.sweep_once(now=0))
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS - 1))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"] - 1))
     assert shared()["open"] is True and not shared().get("autoLocked")
 
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"]))
     assert (shared()["open"], shared()["autoLocked"]) == (False, True)
     assert visitor_grant(grants, groups)["rights"] == ["see", "speak"]
     with pytest.raises(ApiError):
@@ -696,7 +698,7 @@ def test_a_host_who_stays_away_locks_the_room_and_is_never_locked_out_again_when
 
     # The host is back: the room opens again and the visitors get what they had.
     presence.append({"workpieceId": "W0", "actorId": "42", "connections": 1})
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS + 30))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"] + 30))
     assert (shared()["open"], shared()["autoLocked"], shared()["before"]) == (True, False, None)
     assert visitor_grant(grants, groups)["rights"] == ["see", "speak", "edit"]
 
@@ -710,18 +712,18 @@ def test_the_sweep_never_opens_a_lock_of_the_host_and_never_locks_a_locked_room_
 
     # Host away past the grace period in a room the host has locked: nothing changes.
     asyncio.run(sweep.sweep_once(now=0))
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS * 3))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"] * 3))
     assert (shared()["open"], shared().get("autoLocked"), shared()["before"]) == (False, False, before)
 
     # Host back, still in their own dialog: the sweep leaves the room locked.
     presence.append({"workpieceId": "W0", "actorId": "42", "connections": 1})
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS * 3 + 30))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"] * 3 + 30))
     assert shared()["open"] is False
 
     # A lock of the host replaces one of the sweep, so the sweep does not open it either.
     presence.clear()
     asyncio.run(sweep.sweep_once(now=1000))
-    asyncio.run(sweep.sweep_once(now=1000 + sweep.HOST_GRACE_SECONDS))
+    asyncio.run(sweep.sweep_once(now=1000 + SHARING["hostGraceSeconds"]))
     assert shared()["open"] is False
 
 
@@ -734,11 +736,11 @@ def test_after_the_end_period_the_visitors_go_but_the_share_stays_for_the_host_a
 
     # The host is gone, a visitor is still there: the sweep keeps looking after the share.
     assert asyncio.run(sweep.sweep_once(now=0)) == 1
-    assert asyncio.run(sweep.sweep_once(now=sweep.HOST_END_SECONDS - 1)) == 1
+    assert asyncio.run(sweep.sweep_once(now=SHARING["hostEndSeconds"] - 1)) == 1
     assert members_of(groups, "visitors") == ["99"]
 
     # Past the end period the visitors are out; the share and its workpiece stay, locked by the sweep.
-    assert asyncio.run(sweep.sweep_once(now=sweep.HOST_END_SECONDS)) == 0
+    assert asyncio.run(sweep.sweep_once(now=SHARING["hostEndSeconds"])) == 0
     assert members_of(groups, "visitors") == []
     assert (shared()["open"], shared()["autoLocked"], shared()["workpieceId"]) == (False, True, "W0")
     assert rooms[room_id]["workpieces"] == ["W0"]
@@ -749,14 +751,14 @@ def test_the_orderly_end_of_the_host_clears_every_mark_of_the_sweep_and_the_swee
     room_id = start()
     shared = lambda: rooms[room_id]["settings"]["share"]
     asyncio.run(sweep.sweep_once(now=0))
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"]))
     assert shared()["autoLocked"] is True
 
     # The host takes over while the sweep's lock is on: the lock is theirs now and stays theirs.
     asyncio.run(share.set_open("42", False))
     assert shared()["autoLocked"] is False
     presence.append({"workpieceId": "W0", "actorId": "42", "connections": 1})
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS + 30))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"] + 30))
     assert shared()["open"] is False
 
     # Ending the share clears everything; the sweep has nothing to look at, and an old picture of the room does not bring anything back.
@@ -765,10 +767,10 @@ def test_the_orderly_end_of_the_host_clears_every_mark_of_the_sweep_and_the_swee
     assert (shared()["workpieceId"], shared()["before"], shared()["autoLocked"]) == (None, None, False)
     assert asyncio.run(sweep.sweep_once(now=5000)) == 0
     presence.clear()
-    times = asyncio.run(sweep._times())
+    times = asyncio.run(collab_settings.read("sharing"))
     asyncio.run(sweep._sweep_host(stale, {"42"}, 6000, times))
     asyncio.run(sweep._sweep_host(stale, set(), 6000, times))
-    asyncio.run(sweep._sweep_host(stale, set(), 6000 + sweep.HOST_GRACE_SECONDS, times))
+    asyncio.run(sweep._sweep_host(stale, set(), 6000 + SHARING["hostGraceSeconds"], times))
     assert (shared()["workpieceId"], shared()["before"], shared()["autoLocked"]) == (None, None, False)
     assert shared()["open"] is False
 
@@ -778,7 +780,7 @@ def test_a_new_share_starts_clean_after_one_the_sweep_had_locked(ck):
     room_id = start()
     shared = lambda: rooms[room_id]["settings"]["share"]
     asyncio.run(sweep.sweep_once(now=0))
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"]))
     assert (shared()["autoLocked"], shared()["before"] is not None) == (True, True)
 
     asyncio.run(share.close("42"))

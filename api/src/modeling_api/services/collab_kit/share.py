@@ -9,6 +9,7 @@ from typing import Any
 from modeling_api.core.errors import ApiError, not_found
 from modeling_api.services import models
 from modeling_api.services.collab_kit import archive, client, store
+from modeling_api.services.collab_kit.errors import link_closed, not_sharing
 
 # The host may do everything in the room.
 HOST_RIGHTS = ["see", "speak", "edit", "plan", "decide", "manage"]
@@ -50,7 +51,7 @@ async def join(user_id: str, room_id: str) -> tuple[str, str, str]:
     """
     current = await store.read(room_id)
     if not current["open"] or not current["workpieceId"]:
-        raise ApiError(403, "SHARE_CLOSED", "The host is not sharing in this room.")
+        raise not_sharing(403)
     hosts = await client.get_group(current["groups"][store.HOSTS])
     visitors = await client.get_group(current["groups"][store.VISITORS])
     if user_id in hosts["members"]:
@@ -58,7 +59,7 @@ async def join(user_id: str, room_id: str) -> tuple[str, str, str]:
     if user_id in visitors["members"]:
         return current["workpieceId"], "visitor", current["hostId"]
     if not current["joinable"]:
-        raise ApiError(403, "SHARE_CLOSED", "The host has closed the link for new visitors.")
+        raise link_closed()
     await client.add_member(visitors["_id"], user_id)
     return current["workpieceId"], "visitor", current["hostId"]
 
@@ -220,7 +221,7 @@ async def set_open(host_id: str, open_: bool, auto: bool = False) -> None:
         await client.set_grant(visitors, frozen, room_id, before.get("anonymous") is True)
         return
     if not current["workpieceId"]:
-        raise ApiError(409, "SHARE_CLOSED", "The host is not sharing in this room.")
+        raise not_sharing()
     if current["before"] is not None:
         await client.set_grant(
             visitors, _restored(current["before"]), room_id, current["before"].get("anonymous") is True
@@ -232,7 +233,7 @@ async def set_joinable(host_id: str, joinable: bool) -> None:
     """Closes the link for new visitors or opens it again; whoever is already in stays, rights stay."""
     current = await _own_share(host_id)
     if not current["workpieceId"]:
-        raise ApiError(409, "SHARE_CLOSED", "The host is not sharing in this room.")
+        raise not_sharing()
     await store.save(current["roomId"], joinable=joinable)
 
 

@@ -16,6 +16,7 @@ from typing import Any
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError, not_found
 from modeling_api.services.collab_kit import client
+from modeling_api.services.collab_kit.errors import share_invalid
 
 KEY = "share"
 HOSTS = "hosts"
@@ -89,12 +90,12 @@ async def read(room_id: str) -> dict[str, Any]:
         raise not_found()
     groups = share.get("groups") if isinstance(share.get("groups"), dict) else {}
     if not {HOSTS, VISITORS} <= groups.keys():
-        raise ApiError(409, "SHARE_INVALID", "The share of this room is inconsistent.")
+        raise share_invalid()
     host_id = None
     for role, group_id in groups.items():
         belongs = _share_of((await client.get_group(group_id))["settings"])
         if belongs.get("role") != role or belongs.get("roomId") != room_id:
-            raise ApiError(409, "SHARE_INVALID", "The share of this room is inconsistent.")
+            raise share_invalid()
         if role == HOSTS:
             host_id = belongs.get("ownerId")
     return {

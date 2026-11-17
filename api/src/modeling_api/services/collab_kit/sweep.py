@@ -20,47 +20,23 @@ import time
 
 from modeling_api.core.errors import ApiError
 from modeling_api.services import models
-from modeling_api.services.collab_kit import client, share, store
+from modeling_api.services.collab_kit import client, collab_settings, share, store
+from modeling_api.services.collab_kit.errors import SHARING_DISABLED
 
 logger = logging.getLogger(__name__)
 
-# How often the open shares are looked at, and how long a visitor or the host may be gone before the sweep acts.
-SWEEP_SECONDS = 30
-VISITOR_GRACE_SECONDS = 120
-HOST_GRACE_SECONDS = 120
-HOST_END_SECONDS = 300
-# Die Zeiten stellt der Reiter „Collab settings“ im Bereich sharing von CK ein: Standard, kleinster und größter
-# Wert, dieselben Grenzen wie in web/src/collab/connection/collabSettings.ts.
-SHARING_LIMITS = {
-    "sweepSeconds": (SWEEP_SECONDS, 10, 120),
-    "visitorGraceSeconds": (VISITOR_GRACE_SECONDS, 30, 3600),
-    "hostGraceSeconds": (HOST_GRACE_SECONDS, 30, 3600),
-    "hostEndSeconds": (HOST_END_SECONDS, 30, 7200),
-}
+# Die Zeiten stellt der Reiter „Collab settings“ im Bereich sharing ein (collab_settings.py).
+AREA = "sharing"
 
 _task: asyncio.Task | None = None
 # So lange schläft die Task bis zur nächsten Runde, wie die letzte Runde es aus den Einstellungen gelesen hat.
-_sleep_seconds = SWEEP_SECONDS
+_sleep_seconds = collab_settings.defaults(AREA)["sweepSeconds"]
 # Set when a share starts while a sweep may already have missed it; the task then looks once more before it ends.
 _again = False
 # Since when a visitor is missing, as (room, actor) -> time.monotonic().
 _missing: dict[tuple[str, str], float] = {}
 # Since when the host of a room is missing, as room -> time.monotonic().
 _host_missing: dict[str, float] = {}
-
-
-async def _times() -> dict[str, int]:
-    """Die Wartezeiten dieser Runde; fehlt ein Wert oder liegt er außerhalb der Grenzen, gilt sein Standard."""
-    try:
-        values = await client.get_settings("sharing")
-    except ApiError:
-        logger.warning("Collab settings could not be read; the sweep takes the defaults.", exc_info=True)
-        values = {}
-    # type() statt isinstance(), denn auch True und False wären sonst Zahlen.
-    return {
-        key: value if type(value := values.get(key)) is int and low <= value <= high else default
-        for key, (default, low, high) in SHARING_LIMITS.items()
-    }
 
 
 async def _sweep_host(room: dict, here: set[str], now: float, times: dict[str, int]) -> None:
@@ -116,7 +92,7 @@ async def sweep_once(now: float | None = None) -> int:
     active = 0
     rooms = await store.open_rooms()
     # Einmal je Runde gelesen, so gilt eine Änderung im Reiter spätestens ab der nächsten.
-    times = await _times() if rooms else {}
+    times = await collab_settings.read(AREA) if rooms else {}
     _sleep_seconds = times.get("sweepSeconds", _sleep_seconds)
     for room in rooms:
         try:
@@ -138,7 +114,7 @@ async def _run() -> None:
         try:
             count = await sweep_once()
         except ApiError as error:
-            if error.code == "SHARING_DISABLED":
+            if error.code == SHARING_DISABLED:
                 _task = None
                 return
             logger.warning("Sweep failed.", exc_info=True)

@@ -19,6 +19,7 @@ from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
 from modeling_api.services import models
 from modeling_api.services.collab_kit import archive, client
+from modeling_api.services.collab_kit.errors import archive_disabled
 from modeling_api.services.collab_kit.share import TASK_FORMAT, create_model_workpiece
 from modeling_api.services.fbs_users import users_uri
 from modeling_api.services.submissions import is_moderator, require
@@ -184,7 +185,7 @@ async def archive_course(user: User, course: str) -> dict[str, Any]:
     """
     require(is_moderator(user))
     if not await archive.enabled():
-        raise ApiError(409, "ARCHIVE_DISABLED", "The archive is turned off in the collab settings.")
+        raise archive_disabled()
     reason = f"course archived: {course}"
     rooms = await client.list_rooms()
     ours = [room for room in rooms if in_course(room, course)]

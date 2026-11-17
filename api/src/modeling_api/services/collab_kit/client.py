@@ -10,7 +10,8 @@ from urllib.parse import quote
 import httpx
 
 from modeling_api.core.config import settings
-from modeling_api.core.errors import ApiError, not_found
+from modeling_api.core.errors import not_found
+from modeling_api.services.collab_kit.errors import ck_request_failed, ck_unavailable
 from modeling_api.services.collab_kit.token import service_token
 
 # For tests only: another transport instead of the network.
@@ -26,7 +27,7 @@ async def _request(method: str, path: str, body: dict[str, Any] | None = None) -
                 method, path, json=body, headers={"Authorization": f"Bearer {service_token()}"}
             )
     except httpx.HTTPError as error:
-        raise ApiError(503, "CK_UNAVAILABLE", "Collab-Kit is currently unavailable.") from error
+        raise ck_unavailable() from error
     # An unknown object (room, group) is just as unknown to the caller.
     if response.status_code == 404:
         raise not_found()
@@ -36,9 +37,7 @@ async def _request(method: str, path: str, body: dict[str, Any] | None = None) -
             reason = response.json().get("error", "")
         except ValueError:
             reason = ""
-        raise ApiError(
-            502, "CK_REQUEST_FAILED", f"Collab-Kit refused the request ({response.status_code}): {reason}"
-        )
+        raise ck_request_failed(response.status_code, reason)
     return response.json()
 
 

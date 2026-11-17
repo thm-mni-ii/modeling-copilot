@@ -15,35 +15,23 @@ from datetime import datetime, timedelta, timezone
 
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
-from modeling_api.services.collab_kit import client
+from modeling_api.services.collab_kit import client, collab_settings
+from modeling_api.services.collab_kit.errors import SHARING_DISABLED
 
 logger = logging.getLogger(__name__)
 
+# Die Schalter und die Frist stehen im Bereich archive (collab_settings.py); nicht lesbar gilt alles als aus.
 AREA = "archive"
 SHARE_CLOSED = "share closed"
 # So oft sieht der Job nach; die Frist zählt in Tagen, eine Stunde Verzug fällt nicht ins Gewicht.
 JOB_SECONDS = 3600
-# Standard, kleinster und größter Wert von archiveUnusedAfterDays, dieselben Grenzen wie in collabSettings.ts; 0 heißt nie.
-UNUSED_DAYS = (0, 0, 365)
 
 _task: asyncio.Task | None = None
 
 
-async def _settings() -> dict:
-    """Die Werte des Bereichs archive; sind sie nicht lesbar, gilt alles als aus."""
-    try:
-        return await client.get_settings(AREA)
-    except ApiError as error:
-        # Ohne Teilen auf diesem Server gibt es nichts zu archivieren; daran endet der Job.
-        if error.code == "SHARING_DISABLED":
-            raise
-        logger.warning("Archive settings could not be read; nothing is archived.", exc_info=True)
-        return {}
-
-
 async def enabled() -> bool:
     """Ob das Archiv in den Collab-Einstellungen an ist; nicht lesbar gilt aus."""
-    return (await _settings()).get("enabled") is True
+    return (await collab_settings.read(AREA))["enabled"]
 
 
 async def archive_closed_share(workpiece_ids: list[str | None]) -> None:
@@ -52,8 +40,8 @@ async def archive_closed_share(workpiece_ids: list[str | None]) -> None:
     Erst aufrufen, wenn die Werkstücke aus dem Raum sind: zurückgeholt kämen sie sonst in den Raum des
     Hosts, den seine nächste Share wieder nutzt. Scheitert es, bleibt das Werkstück wie bisher ohne Raum.
     """
-    values = await _settings()
-    if values.get("enabled") is not True or values.get("archiveOnShareClose") is not True:
+    values = await collab_settings.read(AREA)
+    if not (values["enabled"] and values["archiveOnShareClose"]):
         return
     for workpiece_id in filter(None, workpiece_ids):
         try:
@@ -63,21 +51,15 @@ async def archive_closed_share(workpiece_ids: list[str | None]) -> None:
             logger.warning("Workpiece %s could not be archived.", workpiece_id, exc_info=True)
 
 
-def _unused_days(values: dict) -> int:
-    """Die Frist in Tagen; ohne Archiv, ohne Wert oder außerhalb der Grenzen gilt der Standard, also nie."""
-    default, low, high = UNUSED_DAYS
-    days = values.get("archiveUnusedAfterDays")
-    # type() statt isinstance(), denn auch True und False wären sonst Zahlen.
-    return days if values.get("enabled") is True and type(days) is int and low <= days <= high else default
-
-
 async def archive_unused(now: datetime | None = None) -> int:
     """Archiviert Werkstücke des Copilots ohne Raum, die seit der Frist niemand benutzt hat; gibt zurück, wie viele.
 
     Laufende Shares und Gruppenarbeit liegen in Räumen, Werkstücke von Personen tragen deren Namen in
     `createdBy`; beides bleibt. Ohne jede Spur am Werkstück zählt sein Anlegen.
     """
-    days = _unused_days(await _settings())
+    values = await collab_settings.read(AREA)
+    # Ohne Archiv gilt die Frist nicht, also nie.
+    days = values["archiveUnusedAfterDays"] if values["enabled"] else 0
     if days == 0:
         return 0
     now = now or datetime.now(timezone.utc)
@@ -104,7 +86,7 @@ async def _run() -> None:
         try:
             await archive_unused()
         except ApiError as error:
-            if error.code == "SHARING_DISABLED":
+            if error.code == SHARING_DISABLED:
                 _task = None
                 return
             logger.warning("Archiving unused workpieces failed.", exc_info=True)

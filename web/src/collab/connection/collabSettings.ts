@@ -9,8 +9,8 @@ const HEX = /^#[0-9a-f]{6}$/i
 
 /**
  * Die Collab-Einstellungen, ein Bereich je Dokument in collab-kit (ck.settings). collab-kit kennt
- * weder Bereiche noch Schlüssel; die Grenzen prüft nur der Copilot. Die Zeiten des Sweeps stehen mit
- * denselben Grenzen auch in api/src/modeling_api/services/collab_kit/sweep.py (SHARING_LIMITS).
+ * weder Bereiche noch Schlüssel; die Grenzen prüft nur der Copilot. Die Bereiche, die das Backend liest
+ * (sharing, archive), stehen mit denselben Grenzen auch in api/src/modeling_api/services/collab_kit/collab_settings.py (LIMITS).
  */
 export const COLLAB_LIMITS = {
   sharing: {
@@ -49,10 +49,9 @@ export const COLLAB_LIMITS = {
   archive: {
     // Das Archiv von collab-kit im Copilot; aus fehlt der Reiter „Archive“, die Knöpfe zum Archivieren zeigt collab-kit weiter.
     enabled: { default: false },
-    // Ob eine beendete Share ihre Werkstücke (Modell und Aufgabe) archiviert, statt sie ohne Raum liegen zu lassen; nur mit enabled. Das Backend liest beide in api/src/modeling_api/services/collab_kit/archive.py.
+    // Ob eine beendete Share ihre Werkstücke (Modell und Aufgabe) archiviert, statt sie ohne Raum liegen zu lassen; nur mit enabled.
     archiveOnShareClose: { default: false },
     // Nach so vielen Tagen ohne Aktivität archiviert das Backend Werkstücke beendeter Shares, die ohne Raum liegen; 0 heißt nie, nur mit enabled.
-    // Dieselben Grenzen stehen in archive.py (UNUSED_DAYS).
     archiveUnusedAfterDays: { default: 0, min: 0, max: 365 }
   }
 } as const satisfies Record<string, Record<string, CollabLimit>>
