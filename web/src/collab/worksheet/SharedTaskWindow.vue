@@ -1,7 +1,7 @@
 <template>
   <div v-if="content" class="shared-task-window">
     <TaskEditEditor :base-html="content.contentHtml" :model-value="sharedTaskEdit?.document ?? null" mode="edit" shared :history="content.history" :notes="content.notes" :element-options="elementOptions" :connection-options="connectionOptions" @select-connection="emit('select-connection', $event)" @select-edits="emit('select-edits', $event)" @update:model-value="writeSharedTask?.($event)" />
-    <!-- Im Gruppenraum: die Notizen unter dem Text, wie in der Leiste. -->
+    <!-- In a group room: the notes below the text, as in the bar. -->
     <div v-if="content.notes" class="shared-task-window__notes">
       <div class="shared-task-window__divider">
         <v-icon size="14">mdi-note-text-outline</v-icon>

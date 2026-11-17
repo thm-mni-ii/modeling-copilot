@@ -192,7 +192,7 @@ const share = () =>
     shareDialog.value = 'link'
   })
 
-// Was der Host im Dialog davor gewählt hat; der Dialog mit dem Link öffnet direkt nach dem Teilen.
+// What the host picked in the dialog before; the dialog with the link opens right after sharing.
 const summary = computed(() =>
   visitorSettings.map(({ key, open, on, off }) => {
     const value = options[key]
@@ -259,7 +259,7 @@ const drop = () =>
   font-weight: 500;
 }
 
-/* Auch gewählt bleibt die Schrift dunkel und die Karte hellgrün (rot bei "Do not save"), nur die Icons tragen die Farbe; grüne Schrift auf grünem Grund ist schlecht lesbar. */
+/* Selected, the text stays dark and the card light green (red for "Do not save"), only the icons carry the color; green text on green is hard to read. */
 .share-history__title,
 .share-history :deep(.v-field) {
   color: rgba(var(--v-theme-on-surface), 0.87);
@@ -285,7 +285,7 @@ const drop = () =>
   color: color-mix(in srgb, rgb(var(--v-theme-error)) 75%, black);
 }
 
-/* Grün für das, was die Besucher dürfen, Grau für das, was eingeschränkt ist; Schrift dunkel, damit sie lesbar bleibt. */
+/* Green for what the visitors may do, gray for what is restricted; dark text, so it stays readable. */
 .share-chip {
   background: rgba(var(--v-theme-on-surface), 0.08);
   color: rgba(var(--v-theme-on-surface), 0.7);

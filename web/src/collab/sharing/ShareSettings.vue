@@ -6,7 +6,7 @@
     </div>
     <v-expand-transition>
       <div v-show="open" class="share-settings__body">
-        <!-- Dieselben Schalter wie in der ModeBar; das Präsentieren wartet nicht auf geladene Einstellungen. -->
+        <!-- The same switches as in the ModeBar; presenting does not wait for the settings to load. -->
         <button v-for="item in hostToggles" :key="item.key" type="button" class="share-toggle" :class="{ 'share-toggle--on': item.on, 'share-toggle--present': item.key === 'present' }" :title="item.title" :aria-label="item.title" :aria-pressed="item.on" :disabled="item.key === 'present' ? shareDialog === 'quit' : disabled" @click="item.toggle()">
           <v-icon :icon="item.icon" size="20" />
           <span>{{ item.label }}</span>
@@ -61,7 +61,7 @@ onMounted(loadShareSettings)
   border-top: 1px solid rgba(var(--v-theme-outline), 0.15);
 }
 
-/* In der Sidebar grün in der Primärfarbe, in der ModeBar blau; Präsentieren an beiden Stellen rot. */
+/* Green in the primary color in the sidebar, blue in the ModeBar; presenting is red in both. */
 .share-toggle {
   display: flex;
   flex-direction: column;
@@ -79,7 +79,7 @@ onMounted(loadShareSettings)
 .share-toggle--on {
   background: rgba(var(--v-theme-primary), 0.12);
   border-color: rgba(var(--v-theme-primary), 0.35);
-  /* Dunkleres Grün, damit die Schrift auf dem hellen Grund gut lesbar ist. */
+  /* A darker green, so the text reads well on the light background. */
   color: color-mix(in srgb, rgb(var(--v-theme-primary)) 65%, black);
 }
 

@@ -10,7 +10,7 @@ const PAGE = 100
 /** The own model that shares this workpiece, searched through all own models. */
 const findLinkedModel = async (workpieceId: string): Promise<Model | null> => {
   for (let skip = 0; ; skip += PAGE) {
-    // Nur die Hüllen; „My Models“ zeigt sie nicht, sie sind nur über ihren Raum zu öffnen.
+    // Only the shells; "My Models" does not show them, they open only through their room.
     const page = (await modelService.list(skip, PAGE, { linked: true })).data
     const found = page.items.find((model) => linkOf(model.preferences)?.workpieceId === workpieceId)
     if (found) return found
@@ -21,8 +21,8 @@ const findLinkedModel = async (workpieceId: string): Promise<Model | null> => {
 /**
  * Opens the own model of the workpiece, creating and linking it on first use. The editor only
  * loads a model when it mounts, and it writes its canvas into the workspace store meanwhile, so it
- * is left first; the new model is set up in between. Gibt die ID des geöffneten Modells zurück: Der Store
- * kennt sie erst, wenn der Editor geladen hat.
+ * is left first; the new model is set up in between. Gives back the ID of the opened model: the store
+ * knows it only once the editor has loaded.
  */
 export const openWorkpiece = async (router: Router, room: Room, workpiece: Workpiece, host?: HostLink): Promise<string | null> => {
   const workspace = useModelWorkspaceStore()

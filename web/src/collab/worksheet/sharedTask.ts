@@ -4,7 +4,7 @@ import type { JsonObject, TaskVersionReference } from '@/services/api/types/comm
 import type { TaskEditDocument, TaskEditVersionInfo } from '@/services/api/types/model'
 import type { AutonomyMode } from '@/model/Autonomy'
 
-// Hier und nicht in der Komponente, weil Editor und Sidebar die Task des Raums beide brauchen und beim Teilen neu aufgebaut werden.
+// Here and not in the component, as editor and sidebar both need the task of the room and are rebuilt while sharing.
 
 /** The task edits of the room as the editor shows them; null while no task of a room is shown. */
 export const sharedTaskEdit = shallowRef<TaskEditDocument | null>(null)
@@ -41,7 +41,7 @@ export const sharedTaskHistory = shallowRef<TaskHistorySource | null>(null)
 export interface SharedTaskContent {
   title: string
   contentHtml: string
-  /** Im Gruppenraum der Editor der Notizen; er zieht ins Fenster, solange es offen ist. */
+  /** In a group room the editor of the notes; it moves into the window while that is open. */
   notes: Editor | null
   history: TaskEditHistory
 }

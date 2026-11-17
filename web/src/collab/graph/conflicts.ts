@@ -18,7 +18,7 @@ export const frameCell = (graph: Graph, id: string, color: string, ms = FRAME_MS
   const frame = new CellHighlight(graph, color, 3, true)
   frame.spacing = 6
   frame.highlight(state)
-  // Ohne Zeit bleibt er, bis ihn der Aufrufer wegnimmt.
+  // Without a time it stays until the caller takes it away.
   const timer = Number.isFinite(ms) ? setTimeout(() => frame.destroy(), ms) : undefined
   return () => {
     clearTimeout(timer)
@@ -34,7 +34,7 @@ export const showConflicts = (graph: Graph, session: Session, log: Log) => {
   const stop = session.on('conflict', ({ unit, cause, loser, winner, mine, names }) => {
     const name = (id: string) => names[id] ?? id
     log(`conflict · ${cause} · cell ${unit ?? '?'} · ${name(loser)} lost to ${name(winner)}`)
-    // Das Element mit seiner Beschriftung, wie maxGraph sie zeigt; ohne eine bleibt es allgemein.
+    // The element with its label as maxGraph shows it; without one it stays general.
     const cell = unit ? graph.getDataModel().getCell(unit) : null
     const label = cell ? graph.convertValueToString(cell).trim() : ''
     const element = label ? `"${label}"` : 'an element'

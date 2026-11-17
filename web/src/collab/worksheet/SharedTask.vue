@@ -17,10 +17,10 @@
       @pop-out="emit('pop-out')"
       @update:task-edit-document="write"
     >
-      <!-- Ein Editor lässt sich nur an einer Stelle zeigen; bei offenem Fenster stehen die Notizen dort. -->
+      <!-- An editor can show in one place only; while the window is open, the notes are there. -->
       <template v-if="notesEnabled && !windowOpen" #default>
         <div class="shared-notes">
-          <!-- Trennlinie mit Beschriftung statt eigener Leiste; formatiert wird über die Leiste des Textes. -->
+          <!-- A labeled divider instead of a bar of their own; formatting goes through the bar of the text. -->
           <div class="shared-notes__divider">
             <v-icon size="14">mdi-note-text-outline</v-icon>
             <span>Notes</span>
@@ -54,10 +54,10 @@ import { currentShare } from '@/collab/sharing/shareModel'
 import type { TaskVersionReference } from '@/services/api/types/common'
 import { sharedTaskContent, sharedTaskEdit, sharedTaskHistory, sharedTaskReference, sharedTaskSettings, writeSharedTask, type SharedTaskSettings } from './sharedTask'
 
-// Notizen beim Teilen vorerst aus: Sie gehen beim Beenden des Teilens noch nicht ins private Modell zurück.
-// Ohne Notizen bleibt der Text `notes` im Task-Workpiece leer und die Leiste wirkt nur auf die Task.
+// Notes are off for sharing for now: they do not go back into the private model yet when sharing ends.
+// Without notes the text `notes` in the task workpiece stays empty and the bar acts on the task only.
 const NOTES_ENABLED = false
-// Im Gruppenraum bleibt alles in collab-kit, es gibt nichts zurückzuführen; dort sind die Notizen an.
+// In a group room everything stays in collab-kit, with nothing to take back; there the notes are on.
 const notesEnabled = ref(NOTES_ENABLED)
 
 /**
@@ -102,7 +102,7 @@ watch(taskEdit, (value) => (sharedTaskEdit.value = value), { immediate: true })
 // Undo and redo take back the own steps only; what others set since stays.
 const canUndo = ref(false)
 const canRedo = ref(false)
-// Die Notizen haben ihren eigenen Verlauf im geteilten Text; die Leiste nimmt ihn, wenn die Notizen aktiv sind.
+// The notes have a history of their own in the shared text; the bar takes it while the notes are active.
 const canUndoNotes = ref(false)
 const canRedoNotes = ref(false)
 const refreshHistory = () => {
@@ -131,7 +131,7 @@ const history = computed(() => ({
   ...(notesEnabled.value ? { notes: { canUndo: canUndoNotes.value, canRedo: canRedoNotes.value, undo: () => stepNotes('undo'), redo: () => stepNotes('redo') } } : {})
 }))
 
-// Das Fenster der Task zeigt dieselbe Task mit Notizen und Verlauf.
+// The window of the task shows the same task with notes and history.
 watch([task, contentHtml, history, notes, notesEnabled], () => (sharedTaskContent.value = task.value ? { title: task.value.title, contentHtml: contentHtml.value, notes: notesEnabled.value ? notes.value ?? null : null, history: history.value } : null), { immediate: true })
 
 let base: JsonObject = { type: 'doc' }
@@ -225,7 +225,7 @@ onMounted(async () => {
     )
     if (notesEnabled.value) {
       notesText = opened.text(NOTES_TEXT)
-      // Der Verlauf trägt den Schritt erst nach der Änderung ein, daher einen Takt später lesen.
+      // The history records the step only after the change, so it is read a tick later.
       stops.push(notesText.onChange(() => queueMicrotask(refreshHistory)))
       if (notes.value) unbindNotes = bindNotes(notes.value, notesText, () => opened.mayWrite)
     }

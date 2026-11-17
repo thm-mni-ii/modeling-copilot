@@ -1,20 +1,20 @@
 <template>
   <div class="group-work-import">
-    <!-- Derselbe Kurs und derselbe Gruppenname sind derselbe Raum; ein anderer Kurs, etwa ein anderes Semester, gibt neue Räume. -->
+    <!-- The same course and group name are the same room; another course, such as another semester, gives new rooms. -->
     <v-text-field v-model="course" label="Course" :placeholder="`Course name ${currentSemester()}`" prepend-icon="mdi-school-outline" density="compact" hint="Same course and group name is the same room; another course, such as another semester, gets rooms of its own." persistent-hint class="mb-2" />
-    <!-- Die Kurse früherer Importe zum Anklicken statt Tippen, damit derselbe Kurs gleich geschrieben wird. -->
+    <!-- The courses of earlier imports to click instead of typing, so the same course is written the same way. -->
     <div v-if="courses.length" class="d-flex align-center flex-wrap ga-2 mb-4 ml-10">
       <span class="text-caption text-medium-emphasis">Already used:</span>
       <v-chip v-for="known in courses" :key="known" size="small" :color="known === course?.trim() ? 'primary' : undefined" :variant="known === course?.trim() ? 'flat' : 'tonal'" @click="course = known">{{ known }}</v-chip>
     </div>
-    <!-- Ohne Datei eine Fläche zum Ablegen oder Anklicken; mit Datei das Feld mit Name, Größe und Entfernen. -->
+    <!-- Without a file an area to drop or click; with a file the field with name, size and remove. -->
     <label v-if="!file.length" class="drop-zone mb-4" :class="{ 'drop-zone--over': dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="drop">
       <v-icon icon="mdi-file-upload-outline" size="28" class="mb-1" />
       <span>{{ dragging ? 'Release to load the CSV' : 'Drop the participant list from Moodle (CSV) here or' }} <u v-if="!dragging">choose a file</u></span>
       <input type="file" accept=".csv,.txt,text/csv" hidden @change="file = [...(($event.target as HTMLInputElement).files ?? [])]" />
     </label>
     <v-file-input v-else v-model="file" label="Participant list from Moodle (CSV)" accept=".csv,.txt,text/csv" prepend-icon="mdi-file-delimited-outline" density="compact" show-size :loading="reading" />
-    <!-- Beispieldatei und Regeln des Imports; die Regeln entsprechen parseGroupWorkCsv in groupWorkCsv.ts. -->
+    <!-- Example file and rules of the import; the rules match parseGroupWorkCsv in groupWorkCsv.ts. -->
     <v-expansion-panels v-if="!csv" variant="accordion" class="mb-4">
       <v-expansion-panel title="CSV format">
         <v-expansion-panel-text>
@@ -31,7 +31,7 @@
         </v-expansion-panel-text>
       </v-expansion-panel>
     </v-expansion-panels>
-    <!-- Dieselbe Beispieldatei als Tabelle, wie Excel sie zeigt, und als Text; die Pflichtspalten sind fett. -->
+    <!-- The same example file as a table, as Excel shows it, and as text; the required columns are bold. -->
     <v-dialog v-model="showExample" max-width="760">
       <v-card title="Example CSV">
         <v-card-text>
@@ -43,7 +43,7 @@
               </tr>
             </thead>
             <tbody>
-              <!-- Eine Person in mehreren Gruppen (Komma in Gruppen) wird übersprungen und ist hier ausgegraut. -->
+              <!-- A person in several groups (comma in Gruppen) is skipped and grayed out here. -->
               <tr v-for="(cells, index) in EXAMPLE_ROWS.slice(1)" :key="index" :class="{ 'example-csv--skipped': cells[4].includes(',') }">
                 <td v-for="(cell, column) in cells" :key="column">{{ cell }}</td>
               </tr>
@@ -64,7 +64,7 @@
       </v-card>
     </v-dialog>
     <v-alert v-if="failure" type="error" variant="tonal" density="compact" class="mb-4">{{ failure }}</v-alert>
-    <!-- Außerhalb der CSV: Nach dem Anwenden ist die Datei weg, das Ergebnis bleibt bis zur nächsten Datei. -->
+    <!-- Outside the CSV: after applying, the file is gone, the result stays until the next file. -->
     <v-alert v-if="appliedRooms.length" type="success" variant="tonal" density="compact" class="mb-4" :title="appliedTitle">
       <template v-if="missingPeople.length">
         Not in the Feedbacksystem, so not in their room:
@@ -100,7 +100,7 @@
             <td>{{ group.name }}</td>
             <td>{{ group.caseStudies.map(taskLabel).join(', ') || '—' }}</td>
             <td>
-              <!-- Wer noch kein FBS-Konto hat, kommt nicht in den Raum: blass und gestrichelt, mit Erklärung. -->
+              <!-- Whoever has no FBS account yet does not get into the room: faded and dashed, with an explanation. -->
               <v-chip
                 v-for="member in group.members"
                 :key="member.username"
@@ -166,23 +166,23 @@ import taskService from '@/services/task/task.service'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
 import { decodeCsv, parseGroupWorkCsv, type CsvGroup, type GroupWorkCsv } from './groupWorkCsv'
 
-/** `courses`: die Kurse früherer Importe, zum Auswählen, damit derselbe Kurs gleich geschrieben wird. */
+/** `courses`: the courses of earlier imports to pick from, so the same course is written the same way. */
 withDefaults(defineProps<{ courses?: string[] }>(), { courses: () => [] })
 
-/** Meldet, dass Räume angelegt oder ergänzt wurden, damit <ck-management> und die Übersicht neu laden. */
+/** Reports that rooms were created or completed, so <ck-management> and the overview reload. */
 const emit = defineEmits<{ created: [] }>()
 
-/** Wie viele Gruppen eine Anfrage höchstens anlegt; dieselbe Grenze wie MAX_GROUPS in api/…/schemas/group_work.py. */
+/** How many groups one request creates at most; the same limit as MAX_GROUPS in api/…/schemas/group_work.py. */
 const BATCH = 10
 
-/** Beispiel im Format der Moodle-Teilnehmerliste; Semikolon, damit ein deutsches Excel die Spalten trennt. */
+/** An example in the format of the Moodle participant list; semicolons, so a German Excel splits the columns. */
 const EXAMPLE_CSV = ['Vorname;Nachname;Anmeldename;E-Mail-Adresse;Gruppen;Fallstudie', 'Alice;Beispiel;alice;alice@example.org;GW 01;1', 'Bob;Beispiel;bob;bob@example.org;GW 01;F1', 'Max;Mustermann;max;max@example.org;GW 02;Fallstudie 2', 'Erika;Musterfrau;erika;erika@example.org;GW 02;2, 3', 'Tom;Test;tom;tom@example.org;GW 01, GW 02;1'].join('\n')
-// Die Tabelle im Dialog kommt aus demselben Text, damit beide gleich bleiben.
+// The table in the dialog comes from the same text, so both stay the same.
 const EXAMPLE_ROWS = EXAMPLE_CSV.split('\n').map((line) => line.split(';'))
 const EXAMPLE_REQUIRED = ['Anmeldename', 'Gruppen', 'Fallstudie']
 const showExample = ref(false)
 
-/** Ein Raum, wie das Backend ihn angelegt oder ergänzt hat. */
+/** A room as the backend created or completed it. */
 interface AppliedRoom {
   name: string
   roomId: string
@@ -202,7 +202,7 @@ const failure = ref('')
 const reading = ref(false)
 const tasks = shallowRef<Task[]>([])
 const loadingTasks = ref(false)
-// Je Fallstudie die Aufgabe und ihr Release; die Releases je Aufgabe werden einmal geladen.
+// Per case study the task and its release; the releases of each task are loaded once.
 const choices = reactive<Record<string, Choice>>({})
 const versions = reactive<Record<string, TaskVersionInfo[]>>({})
 
@@ -218,7 +218,7 @@ const load = async (files: File | File[] | null | undefined) => {
   reading.value = true
   try {
     const parsed = parseGroupWorkCsv(decodeCsv(await file.arrayBuffer()))
-    // Eine Wahl bleibt, wenn dieselbe Fallstudie in der nächsten Datei wieder vorkommt.
+    // A choice stays if the same case study comes up again in the next file.
     for (const caseStudy of parsed.caseStudies) choices[caseStudy] ??= { taskId: null, versionId: null }
     csv.value = parsed
     assignByNumber()
@@ -229,7 +229,7 @@ const load = async (files: File | File[] | null | undefined) => {
   }
 }
 
-/** Das laufende Semester als Beispiel für den Kurs: Oktober bis März „WS 26/27“, April bis September „SS 27“. */
+/** The current semester as an example for the course: October to March "WS 26/27", April to September "SS 27". */
 const currentSemester = (date = new Date()) => {
   const year = date.getFullYear() % 100
   const month = date.getMonth() + 1
@@ -239,12 +239,12 @@ const currentSemester = (date = new Date()) => {
   return `SS ${pad(year)}`
 }
 
-// Die gewählte Datei, ob abgelegt oder ausgewählt; ihr Wechsel lädt sie, Leeren setzt den Import zurück.
+// The chosen file, dropped or picked; changing it loads it, clearing it resets the import.
 const file = shallowRef<File[]>([])
 const dragging = ref(false)
 watch(file, (files) => void load(files))
 
-/** Nimmt die erste abgelegte Datei; mehrere Dateien gibt es beim Import nicht. */
+/** Takes the first dropped file; the import knows no several files. */
 const drop = (event: DragEvent) => {
   dragging.value = false
   const dropped = event.dataTransfer?.files[0]
@@ -262,17 +262,17 @@ const chooseTask = async (caseStudy: string, taskId: string | null) => {
     notifyError('The releases of this task could not be loaded.')
     return
   }
-  // Wie bei „From task“: das neueste Release, solange niemand inzwischen eine andere Aufgabe gewählt hat.
+  // As in "From task": the latest release, unless another task was chosen meanwhile.
   if (choice.taskId === taskId) choice.versionId = tasks.value.find((task) => task.id === taskId)?.latestReleaseId ?? versions[taskId][0]?.id ?? null
 }
 
-/** Die Nummer im Namen einer Aufgabe: „F1 – Einzelhandel“ ist Fallstudie 1. */
+/** The number in the name of a task: "F1 – Einzelhandel" is case study 1. */
 const numberOf = (task: Task) => {
   const number = task.name.match(/^\s*F\s*(\d+)/i)?.[1]
   return number ? String(Number(number)) : null
 }
 
-/** Ordnet jeder Fallstudie ohne Wahl die Aufgabe mit ihrer Nummer zu; eine Wahl von Hand bleibt. */
+/** Gives each case study without a choice the task with its number; a choice made by hand stays. */
 const assignByNumber = () => {
   for (const caseStudy of csv.value?.caseStudies ?? []) {
     const task = tasks.value.find((item) => numberOf(item) === caseStudy)
@@ -282,13 +282,13 @@ const assignByNumber = () => {
 
 const taskLabel = (caseStudy: string) => tasks.value.find((task) => task.id === choices[caseStudy]?.taskId)?.name ?? `F${caseStudy}`
 
-/** Was eine Gruppe noch vom Anlegen abhält; null, wenn sie bereit ist. Wie viele Fallstudien sie hat, ist frei. */
+/** What still keeps a group from being created; null when it is ready. Any number of case studies is fine. */
 const problemOf = (group: CsvGroup) => {
   if (!group.caseStudies.length) return 'no case study'
   const missing = group.caseStudies.filter((caseStudy) => !choices[caseStudy]?.versionId)
   return missing.length ? `no task for ${missing.map((caseStudy) => `F${caseStudy}`).join(', ')}` : null
 }
-/** Was das Backend für eine Gruppe vorhat: neuer Raum, oder was dem vorhandenen Raum dieses Kurses fehlt. */
+/** What the backend plans for a group: a new room, or what the existing room of this course lacks. */
 interface PlannedRoom {
   name: string
   roomId: string | null
@@ -313,18 +313,18 @@ const createFailure = ref('')
 const progress = ref(0)
 const progressTotal = ref(0)
 
-/** Die Gruppen ohne Problem in der Datei; nur sie prüft und schickt der Reiter. */
+/** The groups without a problem in the file; only these are checked and sent. */
 const valid = computed(() => csv.value?.groups.filter((group) => !problemOf(group)) ?? [])
 const additionsOf = (plan: PlannedRoom) => plan.newMembers.length + plan.newTasks.length
-/** Was „Apply“ schickt: neue Räume und vorhandene, denen etwas fehlt. */
-/** Wer laut Prüfung kein FBS-Konto hat; ohne Prüfung niemand. */
+/** What "Apply" sends: new rooms and existing ones that lack something. */
+/** Who has no FBS account according to the check; nobody without a check. */
 const missingOf = (group: CsvGroup) => plans.value[group.name]?.missing ?? []
 const isMissing = (group: CsvGroup, username: string) => missingOf(group).includes(username)
 const missingTotal = computed(() => valid.value.reduce((total, group) => total + missingOf(group).length, 0))
 const changes = computed(() => valid.value.filter((group) => plans.value[group.name] && (!plans.value[group.name].roomId || additionsOf(plans.value[group.name]))))
 
 const count = (n: number, one: string, many: string) => `+${n} ${n === 1 ? one : many}`
-/** Die Prüfspalte: erst Fehler der Datei, dann was der Import mit der Gruppe täte. */
+/** The check column: first errors of the file, then what the import would do with the group. */
 const statusOf = (group: CsvGroup) => {
   const problem = problemOf(group)
   if (problem) return { text: problem, tone: 'text-error' }
@@ -337,19 +337,19 @@ const statusOf = (group: CsvGroup) => {
   return { text: `exists · ${parts.join(' · ')}`, tone: 'text-warning' }
 }
 
-/** Die Gruppe, wie das Backend sie annimmt: Anmeldenamen und je Fallstudie die gewählte Aufgabe. */
+/** The group as the backend takes it: login names and per case study the chosen task. */
 const requestOf = (group: CsvGroup) => ({
   name: group.name,
   usernames: group.members.map((member) => member.username),
-  // Der Name aus der Liste; die Übersicht zeigt ihn, bis CK die Person selbst kennt.
+  // The name from the list; the overview shows it until CK knows the person itself.
   names: Object.fromEntries(group.members.map((member) => [member.username, member.name])),
   tasks: group.caseStudies.map((caseStudy) => ({ taskId: choices[caseStudy].taskId, versionId: choices[caseStudy].versionId }))
 })
 const messageOf = (error: unknown) => (error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message
 
-// Nur die Antwort auf die letzte Prüfung zählt; eine ältere kann später ankommen.
+// Only the answer to the last check counts; an older one may arrive later.
 let planRun = 0
-/** Fragt das Backend, was mit den Gruppen geschähe, in denselben Paketen wie beim Anwenden; geschrieben wird nichts. */
+/** Asks the backend what would happen to the groups, in the same batches as when applying; nothing is written. */
 const preview = async () => {
   const run = ++planRun
   const groups = valid.value
@@ -374,7 +374,7 @@ const preview = async () => {
   }
 }
 
-// Kurs, Datei und Aufgaben ändern sich oft kurz nacheinander; geprüft wird erst, wenn es eine Weile ruhig ist.
+// Course, file and tasks often change in quick succession; the check runs only once it has been quiet for a while.
 let planTimer: ReturnType<typeof setTimeout> | undefined
 watch(
   () => JSON.stringify([course.value?.trim(), valid.value.map(requestOf)]),
@@ -385,7 +385,7 @@ watch(
   }
 )
 
-/** Wendet den Plan in Paketen an; bricht eines ab, bleibt das Vorige, und ein neuer Versuch schickt nur, was noch fehlt. */
+/** Applies the plan in batches; if one fails, what came before stays, and another try sends only what is still missing. */
 const create = async () => {
   const groups = changes.value
   const name = course.value?.trim()
@@ -401,11 +401,11 @@ const create = async () => {
       appliedRooms.value = [...appliedRooms.value, ...data.rooms]
       progress.value += data.rooms.length
     }
-    // Alles angewendet: Die Datei geht raus, der Import steht wieder auf der Ablagefläche.
+    // All applied: the file goes, the import is back at the drop area.
     file.value = []
   } catch (error) {
     createFailure.value = messageOf(error)
-    // Die Datei bleibt; die Prüfung zeigt den neuen Stand, also „up to date“ für alles schon Angewendete.
+    // The file stays; the check shows the new state, so "up to date" for everything applied already.
     void preview()
   } finally {
     creating.value = false
@@ -417,7 +417,7 @@ onMounted(async () => {
   loadingTasks.value = true
   try {
     tasks.value = (await taskService.list(0, 100, { visibility: 'published' })).data.items
-    // Die CSV kann schon geladen sein, bevor die Aufgaben da sind.
+    // The CSV may be loaded before the tasks are there.
     assignByNumber()
   } catch {
     notifyError('Tasks could not be loaded.')
@@ -444,7 +444,7 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-/* Kinder fangen keine Drag-Ereignisse, sonst flackert die Hervorhebung beim Überfahren. */
+/* Children catch no drag events, or the highlight flickers while moving over them. */
 .drop-zone > * {
   pointer-events: none;
 }
@@ -464,7 +464,7 @@ onMounted(async () => {
   max-width: 220px;
 }
 
-/* Die Tabelle liegt im getönten Hinweis und übernimmt dessen Farbe. */
+/* The table lies in the tinted alert and takes its color. */
 .skipped {
   background: transparent;
   color: inherit;
@@ -479,7 +479,7 @@ onMounted(async () => {
   font-family: monospace;
 }
 
-/* Der Dateiinhalt wie im Editor, lange Zeilen scrollen statt umzubrechen. */
+/* The file content as in an editor, long lines scroll instead of wrapping. */
 .example-csv {
   font-family: monospace;
   font-size: 13px;

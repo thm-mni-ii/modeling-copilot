@@ -126,7 +126,7 @@ export const applyCells = (graph: Graph, keys: readonly string[], shared: Readon
         continue
       }
       if (!cell) {
-        // Der Codec setzt als Parent schon die eben eingefügte Zelle; maxGraph hielte die neue dann für vorhanden und trüge sie nicht ein (GraphDataModel.parentForCellChanged).
+        // The codec already sets the parent it just inserted; maxGraph would then take the new cell as present and not add it (GraphDataModel.parentForCellChanged).
         decoded.setParent(null)
         model.add(parent, decoded, positionIn(parent, decoded))
         continue

@@ -66,7 +66,7 @@ import { elementName, hideEdits, showEdits, SOMEONE_COLOR, type LogEntry, type L
 
 const props = defineProps<{ entries: LogEntry[] }>()
 
-/** Aufeinanderfolgende Einträge derselben Person, unter ihrem Namen; Änderungen ohne Person unter Someone. */
+/** Consecutive entries of the same person, under their name; changes without a person under Someone. */
 interface Block {
   by?: string
   color?: string
@@ -84,14 +84,14 @@ const blocks = computed(() =>
 )
 
 const keyOf = (entry: LogEntry) => `${entry.at}-${entry.kind}-${entry.text}`
-// Gelöschtes ist nicht mehr im Modell, also nichts zu zeigen.
+// What was deleted is no longer in the model, so there is nothing to show.
 const showable = (entry: LogEntry) => Boolean(entry.edits) && entry.kind !== 'deleted'
 const countOf = (entry: LogEntry) => new Set(entry.edits?.map(({ id }) => id)).size
 const lastOf = (entry: LogEntry) => entry.edits![entry.edits!.length - 1]
-// Ein Eintrag, der beim Wegräumen noch gehovert ist, nimmt seine Rahmen mit.
+// An entry still hovered when the log goes takes its frames along.
 onBeforeUnmount(hideEdits)
 
-/** Icon und Farbe je Art. */
+/** Icon and color per kind. */
 const ICONS: Record<LogKind, { icon: string; color?: string }> = {
   failed: { icon: 'mdi-alert-circle-outline', color: 'error' },
   joined: { icon: 'mdi-account-plus-outline' },
@@ -111,7 +111,7 @@ const ICONS: Record<LogKind, { icon: string; color?: string }> = {
   undo: { icon: 'mdi-undo', color: 'warning' }
 }
 
-// Die relative Zeit geht mit, solange das Log zu sehen ist.
+// The relative time keeps up while the log is shown.
 const now = ref(Date.now())
 const timer = setInterval(() => (now.value = Date.now()), 30_000)
 onBeforeUnmount(() => clearInterval(timer))
@@ -220,7 +220,7 @@ const ago = (at: number) => {
   color: rgba(var(--v-theme-on-surface), 0.87);
 }
 
-/* Eine Zeile je Tat, eingerückt unter den Namen; zeigbare werden beim Hovern hell und nennen Show. */
+/* One line per action, indented under the name; showable ones light up on hover and offer Show. */
 .collab-log__line {
   display: flex;
   align-items: flex-start;
@@ -244,7 +244,7 @@ const ago = (at: number) => {
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
-/* Vue nimmt den Umbruch zwischen Verb und Name weg, also der Abstand hier. */
+/* Vue drops the line break between verb and name, so the gap is set here. */
 .collab-log__text > .collab-log__verb {
   margin-right: 0.3em;
 }

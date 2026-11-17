@@ -3,29 +3,29 @@ import type { Session } from '@/collab/kit/collabKitV1'
 import { colorOf, nameOf } from '@/collab/presence/presence'
 import { cellAuthors } from '@/collab/storage/workpieceVersions'
 
-/** Größe des Punkts in px; maxGraph skaliert ihn mit dem Zoom. */
+/** Size of the dot in px; maxGraph scales it with the zoom. */
 const SIZE = 14
-/** So lange nach einer Änderung wird gewartet, damit collab-kit sie gespeichert hat und mehrere zusammen gelesen werden. */
+/** How long to wait after a change, so collab-kit has stored it and several are read together. */
 const WAIT_MS = 1500
 
-/** Der Punkt an einer Zelle; eine eigene Klasse, damit nur diese Overlays entfernt werden, nicht die Warnungen. */
+/** The dot at a cell; a class of its own, so only these overlays are removed, not the warnings. */
 class AuthorOverlay extends CellOverlay {
-  /** Kein Hover-Tooltip, die Namen zeigt ein Klick (useCanvasOverlays, OverlayAwareTooltipHandler in DrawingCanvas). */
+  /** No hover tooltip, a click shows the names (useCanvasOverlays, OverlayAwareTooltipHandler in DrawingCanvas). */
   readonly hoverTooltip = false
 }
 
-/** Füllung in der Farbe des Erstellers, Rand in der des letzten Bearbeiters, auf weißem Grund für jeden Hintergrund. */
+/** Fill in the color of the creator, ring in that of the last editor, on white for any background. */
 const imageOf = (fill: string, ring: string) => new ImageBox(`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}"><circle cx="7" cy="7" r="7" fill="#fff"/><circle cx="7" cy="7" r="4.75" fill="${fill}" stroke="${ring}" stroke-width="2.5"/></svg>`)}`, SIZE, SIZE)
 
 /**
- * Ob die Zelle ein Teil ihres Elements ist, etwa die Attributliste unter einem E-Typ: maxGraph legt solche Zellen
- * mit relativer Geometrie zum Parent an (Geometry.relative), sie existieren nicht ohne ihr Element.
+ * Whether the cell is a part of its element, such as the attribute list below an entity type: maxGraph creates such
+ * cells with a geometry relative to the parent (Geometry.relative), they do not exist without their element.
  */
 const isPart = (cell: Cell | null) => Boolean(cell?.isVertex() && cell.getGeometry()?.relative)
 
 /**
- * Wo der Punkt sitzt (CellOverlay.getBounds): bei Kanten in der Mitte, in einem Teil-Container wie der Attributliste
- * links neben dem Element, damit er keinen Text verdeckt, sonst links unten ins Element gerückt.
+ * Where the dot sits (CellOverlay.getBounds): on edges in the middle, in a part container such as the attribute list
+ * left of the element, so it covers no text, otherwise moved into the element at the bottom left.
  */
 const placeOf = (cell: Cell) => {
   if (cell.isEdge()) return { vertical: 'bottom' as const, offset: new Point() }
@@ -33,7 +33,7 @@ const placeOf = (cell: Cell) => {
   return { vertical: 'bottom' as const, offset: new Point(SIZE / 2 + 3, -(SIZE / 2 + 3)) }
 }
 
-/** Eine Zeile des Fensters: Beschriftung, darunter Farbpunkt und Name. */
+/** A row of the popup: caption, below it color dot and name. */
 const rowOf = (label: string, name: string, color: string) => {
   const row = document.createElement('div')
   row.style.cssText = 'margin-top: 2px'
@@ -50,23 +50,23 @@ const rowOf = (label: string, name: string, color: string) => {
 }
 
 /**
- * Zeigt an jeder Zelle, wer sie angelegt und wer sie zuletzt bearbeitet hat; ein Klick auf den Punkt öffnet ein
- * kleines Fenster mit beiden Namen. Teil-Container bekommen keinen Punkt, sie gehören zu ihrem Element. Liest nach
- * jeder Änderung die neuen Updates von collab-kit nach. Gibt zurück, wie die Punkte wieder verschwinden.
+ * Shows at every cell who created it and who last edited it; a click on the dot opens a small popup with both
+ * names. Part containers get no dot, they belong to their element. Reads the new updates of collab-kit after
+ * every change. Gives back how the dots go again.
  */
 export const showAuthors = (graph: Graph, session: Session) => {
   const drawn = new Map<Cell, AuthorOverlay>()
   let stopped = false
   let timer: ReturnType<typeof setTimeout> | undefined
 
-  // Neben dem Container des Canvas, nicht darin: beim Verschieben der Ansicht bewegt maxGraph alle Kinder des Containers mit.
+  // Next to the container of the canvas, not in it: while panning, maxGraph moves every child of the container along.
   const popup = document.createElement('div')
   popup.style.cssText = 'position: absolute; z-index: 6; display: none; min-width: 150px; padding: 6px 10px; font-size: 12px; line-height: 1.6; border-radius: 6px; background: rgb(var(--v-theme-surface)); color: rgb(var(--v-theme-on-surface)); border: 1px solid rgba(var(--v-theme-on-surface), 0.15); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15)'
   const host = graph.container.parentElement
   host?.append(popup)
   const close = () => (popup.style.display = 'none')
 
-  /** Ohne Änderung durch jemand anderen nur der Ersteller. */
+  /** Without a change by someone else, the creator only. */
   const open = (event: MouseEvent, created: [string, string], changed: [string, string] | null) => {
     if (!host) return
     popup.replaceChildren(rowOf('Created by', ...created), ...(changed ? [rowOf('Last changed by', ...changed)] : []))
@@ -76,7 +76,7 @@ export const showAuthors = (graph: Graph, session: Session) => {
     popup.style.display = 'block'
   }
 
-  // Schließt bei einem Klick daneben, mit Esc und sobald sich die Ansicht verschiebt oder zoomt.
+  // Closes on a click outside, on Esc and as soon as the view pans or zooms.
   const onPointer = (event: PointerEvent) => !popup.contains(event.target as Node) && close()
   const onKey = (event: KeyboardEvent) => event.key === 'Escape' && close()
   document.addEventListener('pointerdown', onPointer, true)
@@ -85,9 +85,9 @@ export const showAuthors = (graph: Graph, session: Session) => {
   graph.view.addListener(InternalEvent.TRANSLATE, close)
   graph.view.addListener(InternalEvent.SCALE_AND_TRANSLATE, close)
 
-  // removeCellOverlays (OverlaysMixin.js:55) leert die ganze Liste einer Zelle, so auch die Syntaxprüfung über
-  // setCellWarning(cell, null) bei jeder Änderung. Solange die Punkte an sind, setzt diese Hülle den eigenen gleich
-  // wieder ein; alles andere entfernt sie wie bisher.
+  // removeCellOverlays (OverlaysMixin.js:55) empties the whole list of a cell, as the syntax check does through
+  // setCellWarning(cell, null) on every change. While the dots are on, this wrapper puts the own one back at once;
+  // it removes everything else as before.
   const removeAll = graph.removeCellOverlays
   graph.removeCellOverlays = (cell: Cell) => {
     const removed = removeAll.call(graph, cell)

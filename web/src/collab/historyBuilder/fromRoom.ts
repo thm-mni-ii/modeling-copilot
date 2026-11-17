@@ -293,9 +293,9 @@ export interface RoomBranchTask {
 }
 
 /**
- * Die Task eines Raums für einen Branch: die Freigabe, sofern die API sie dieser Person gibt und die
- * Pflichtsprachen im Stand stehen, dazu die Markierungen über ihrem Text. Null außerhalb eines Raums.
- * Ohne Freigabe oder mit abweichenden Sprachen wird der Branch ein Modell ohne Task, der Stand bleibt.
+ * The task of a room for a branch: the release, if the API gives it to this person and the required
+ * languages are in the state, with the marks over its text. Null outside a room. Without the release
+ * or with other languages the branch becomes a model without a task, the state stays.
  */
 export const roomBranchTask = async (languages: WorkspaceLanguageReference[], atPosition: TaskEditDocument | null): Promise<RoomBranchTask | null> => {
   const reference = sharedTaskReference.value
@@ -311,7 +311,7 @@ export const roomBranchTask = async (languages: WorkspaceLanguageReference[], at
   const required = version.workspaceLanguages.filter((language) => language.source === 'required')
   const isRequired = (language: LanguageVersionReference) => required.some((item) => item.languageId === language.languageId && item.versionId === language.versionId)
   if (!required.every((item) => languages.some((language) => language.languageId === item.languageId && language.versionId === item.versionId))) return without
-  // Die Markierungen der Gruppe über dem Text der Freigabe, wie beim Behalten (publishTaskSteps).
+  // The marks of the group over the text of the release, as when keeping (publishTaskSteps).
   const edit = atPosition ?? sharedTaskEdit.value
   const base = version.data.contentDocument
   return {

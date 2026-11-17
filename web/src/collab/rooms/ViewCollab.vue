@@ -3,8 +3,8 @@
     <!-- Properties of the element, set as they are named there; a hyphen would name another one. -->
     <!-- eslint-disable-next-line vue/attribute-hyphenation -->
     <ck-management v-if="ck" ref="management" lang="en" theme="light" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" .tabs="tabs" .extraTabs="extraTabs" @ck-open="open">
-      <!-- Der Reiter „Group work“ zeigt diesen Slot; der Inhalt bleibt im Light DOM, also mit Vuetify. -->
-      <!-- Der native Slot der Web Component, nicht der alte Slot von Vue 2. -->
+      <!-- The "Group work" tab shows this slot; the content stays in the light DOM, so with Vuetify. -->
+      <!-- The native slot of the web component, not the old slot of Vue 2. -->
       <!-- eslint-disable-next-line vue/no-deprecated-slot-attribute -->
       <GroupWork slot="group-work" @created="reload" />
       <!-- eslint-disable-next-line vue/no-deprecated-slot-attribute -->
@@ -29,13 +29,13 @@ const ck = shallowRef<CollabKitApi>()
 const management = shallowRef<ManagementElement>()
 const { openFromRoom } = useCollabConnection()
 
-/** Ob die Person überall manage hat; nur dann lässt collab-kit sie die Collab-Einstellungen schreiben. */
+/** Whether the person has manage everywhere; only then does collab-kit let them write the collab settings. */
 const manager = ref(false)
-/** Reiter des Copilots nach denen von collab-kit, jeder zeigt den Slot seiner ID. */
+/** Tabs of the Copilot after those of collab-kit, each shows the slot of its ID. */
 const extraTabs = computed<ManagementTab[]>(() => [{ id: 'group-work', label: 'Group work' }, ...(manager.value ? [{ id: 'collab-settings', label: 'Collab settings' }] : [])])
-/** Die eigenen Reiter von collab-kit; ohne Archiv in den Collab-Einstellungen fehlt der Reiter „Archive“, undefined zeigt alle. */
+/** The own tabs of collab-kit; without the archive in the collab settings the "Archive" tab is missing, undefined shows all. */
 const tabs = computed<readonly ManagementOwnTab[] | undefined>(() => (collabSettings.archive.enabled ? undefined : ['rooms', 'groups', 'workpieces']))
-/** Räume, die das Backend angelegt hat, kennt das Element erst nach dem Neuladen. */
+/** Rooms the backend created are known to the element only after reloading. */
 const reload = () => void management.value?.reload()
 
 /** A workpiece created in a room is a class diagram of the Copilot. */
@@ -56,12 +56,12 @@ const open = async ({ detail }: CustomEvent<ManagementOpen>) => {
 onMounted(async () => {
   try {
     const api = await loadCollabKit()
-    // Vor dem Element gefragt, damit der Reiter von Anfang an dabei ist; ohne Antwort bleibt er weg.
+    // Asked before the element, so the tab is there from the start; without an answer it stays away.
     manager.value = await api.me.rights().then(
       (rights) => rights.includes('manage'),
       () => false
     )
-    // Ebenso vor dem Element, damit der Reiter „Archive“ nicht kurz erscheint; ohne Antwort gilt der Standard, also aus.
+    // Also before the element, so the "Archive" tab does not show briefly; without an answer the default applies, which is off.
     await loadCollabSettings(api, 'archive').catch(() => undefined)
     ck.value = api
   } catch (error) {
@@ -72,7 +72,7 @@ onMounted(async () => {
 
 <style scoped>
 .collab-view {
-  /* Bis zur Fußzeile: Fensterhöhe ohne Kopf- und Fußzeile und ohne das Padding des Containers (pa-3). */
+  /* Down to the footer: window height without header and footer and without the padding of the container (pa-3). */
   --ck-height: calc(100dvh - var(--v-layout-top) - var(--v-layout-bottom) - 24px);
   --ck-accent: rgb(var(--v-theme-primary));
   --ck-on-accent: rgb(var(--v-theme-on-primary));

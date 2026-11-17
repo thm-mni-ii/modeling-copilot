@@ -10,13 +10,13 @@ import { cellsOf, isCellKey, type ModelUnit } from '@/collab/converters/model/mo
 import { lockGraph } from './readOnly'
 import { sharedHistory } from './sharedHistory'
 
-/** Was eine Änderung eines anderen mit einem Element gemacht hat; name ist die Beschriftung, leer ohne eine. */
+/** What a change by someone else did to an element; name is the label, empty without one. */
 export interface RemoteEdit {
   kind: 'added' | 'deleted' | 'renamed' | 'moved' | 'changed'
   id: string
   name: string
   edge: boolean
-  /** Bei renamed der Name davor. */
+  /** For renamed, the name before. */
   from?: string
 }
 
@@ -29,7 +29,7 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: Log, o
   let stopped = false
   let unlock: (() => void) | null = null
   let warned = false
-  // Das eigene Undo und Redo kommt wie eine Änderung von außen; es ist aber keine eines anderen.
+  // The own undo and redo come in like a change from outside; but they are not someone else's.
   let stepping = false
   // Text another changed while it is edited here, with the text before; the own text wins.
   const heldBack = new Map<Cell, unknown>()
@@ -44,7 +44,7 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: Log, o
   }
   takePrefix()
 
-  // Ohne what geht es nicht ins Log.
+  // Without what it does not go into the log.
   const applyRemote = (what?: string) => {
     const xml = joinModel(known())
     if (!xml) return
@@ -61,7 +61,7 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: Log, o
   }
 
   // Only the cells a change touched, so the selection and an edit in progress stay; what it cannot read loads the whole model.
-  // Ein Neuladen geht immer ins Log, sonst nur mit logged.
+  // A reload always goes into the log, anything else only with logged.
   const applyChanged = (keys: string[], what: string, logged = true) => {
     applyingRemote = true
     let held: HeldText | null
@@ -96,7 +96,7 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: Log, o
   const onEditingStopped = () => setTimeout(takeOverHeld)
   graph.addListener(InternalEvent.EDITING_STOPPED, onEditingStopped)
 
-  // Was an einer Zelle zum Einordnen einer Änderung zählt, als Text, damit es das Übernehmen übersteht.
+  // What of a cell counts for telling a change, as text, so it survives taking the change in.
   const shapeOf = (cell: Cell | null | undefined) => {
     if (!cell) return null
     const geometry = cell.getGeometry()
@@ -111,9 +111,9 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: Log, o
   type Shape = ReturnType<typeof shapeOf>
 
   /**
-   * Was die Änderung mit den Zellen gemacht hat, verglichen mit dem Stand davor. Ohne das, was nur mitging:
-   * die Kinder eines Elements, das ebenso hinzukam oder ging, die Kanten neben hinzugefügten oder gelöschten
-   * Elementen und Kanten, die beim Bewegen nur mitgezogen wurden.
+   * What the change did to the cells, compared with the state before. Without what only came along: the
+   * children of an element that was added or removed as well, the edges next to added or deleted elements,
+   * and edges only dragged along by a move.
    */
   const describe = (before: Map<string, Shape>) => {
     const all = Array.from(before).flatMap(([id, was]) => {
@@ -164,7 +164,7 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: Log, o
     })
     if (changed.length === 0 && removed.length === 0) return
     session.units.update({ set: Object.fromEntries(changed), delete: removed }, { undoable })
-    // Nur was auf die Verbindung wartet; das Senden selbst wäre bei jeder Änderung eine Zeile.
+    // Only what waits for the connection; the sending itself would be a line on every change.
     if (session.status !== 'connected') log(`kept for connect · ${changed.length} of ${cells.size} cells · ${removed.length} removed`)
     showHistory()
   }

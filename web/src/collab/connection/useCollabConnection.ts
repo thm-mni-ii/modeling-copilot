@@ -42,33 +42,33 @@ let stopCheckpoints: (() => void) | null = null
 let session: Session<ModelUnit> | null = null
 let lastLiveStatus = ''
 let lastOnline = ''
-// Die Personen, wie die Presence sie zuletzt nannte; null bis zur ersten Liste nach dem Verbinden.
+// The people as the presence last named them; null until the first list after connecting.
 let lastPeople: Map<string, Person> | null = null
-// Wer gegangen ist, bis das left fällig wird; kommt die Person vorher zurück, war sie nie weg.
+// Who has gone, until their left is due; a person back before that was never gone.
 const leaving = new Map<string, ReturnType<typeof setTimeout>>()
-// Ob die Verbindung weg ist, verloren oder getrennt; das nächste connected meldet sie dann wieder.
+// Whether the connection is gone, lost or disconnected; the next connected then reports it again.
 let away = false
-// Das Werkstück, zu dem das Log gehört, und wie die Verbindungs-Einträge es nennen: Modell und Raum.
+// The workpiece the log belongs to, and how the connection entries name it: model and room.
 let loggedWorkpiece = ''
 let place = 'the model'
 
-/** Die Art eines Eintrags im Log. */
+/** The kind of an entry in the log. */
 export type LogKind = 'failed' | 'joined' | 'left' | RemoteEdit['kind'] | 'saved' | 'release' | 'conflict' | 'connected' | 'offline' | 'closed' | 'rights' | 'undo'
 export interface LogEntry {
   kind: LogKind
-  /** Bei Einträgen einer Person nur, was sie tat; ihr Name steht im Log über ihrem Block. */
+  /** For entries of a person only what they did; their name stands above their block in the log. */
   text: string
   at: number
-  /** Wer es war, soweit bekannt, mit der Farbe, die die Person im Modell trägt. */
+  /** Who it was, if known, with the color the person wears in the model. */
   by?: string
   color?: string
-  /** Bei Änderungen: was alles zusammengefasst ist. */
+  /** For changes: everything merged into it. */
   edits?: RemoteEdit[]
 }
-/** Ohne Art ist es Technik: sie geht nur in die Konsole, Studierende brauchen sie nicht. */
+/** Without a kind it is technical: it goes to the console only, students do not need it. */
 export type Log = (text: string, kind?: LogKind) => void
 
-/** Reiht einen Eintrag nach seiner Zeit ein, das Neueste oben; meist ist er selbst der neueste. */
+/** Puts an entry in place by its time, the newest on top; mostly it is the newest itself. */
 const addEntry = (entry: LogEntry) => {
   const index = logEntries.value.findIndex(({ at }) => at <= entry.at)
   logEntries.value.splice(index < 0 ? logEntries.value.length : index, 0, entry)
@@ -79,20 +79,20 @@ const log: Log = (text, kind) => {
   else console.debug(`[collab] ${text}`)
 }
 
-/** Ein Eintrag einer Person; ohne Farbe die, die sie gerade im Modell trägt. */
+/** An entry of a person; without a color, the one they wear in the model now. */
 const logBy = (kind: LogKind, by: string, text: string, at = Date.now(), color = people.value.find((person) => person.name === by)?.color) => addEntry({ kind, text, at, by, color })
 
-/** Wie lange nach dem Sync die Presence der anderen noch eintrifft und als Stand beim Verbinden gilt. */
+/** How long after the sync the presence of the others still arrives and counts as the state on connecting. */
 const SETTLE_MS = 3000
-/** Wie lange eine Person weg sein muss, bis sie als gegangen gilt; Hintergrund-Tabs melden sich gedrosselt nur etwa jede Minute. */
+/** How long a person must be away to count as gone; background tabs are throttled and report only about once a minute. */
 const LEAVE_MS = 90_000
 
-/** Wie lange Änderungen derselben Person in einem Eintrag zusammenlaufen. */
+/** How long changes of the same person merge into one entry. */
 const MERGE_MS = 2 * 60_000
 /**
- * Wer eine Änderung gemacht hat; collab-kit sagt es nicht. Gesperrt ist, was ein anderer ausgewählt hat, also
- * war es die eine andere Person, deren Auswahl in der Presence eine der Zellen hat. Sonst, etwa nach einem
- * Löschen mit schon leerer Auswahl, die einzige andere Person, wenn nur eine da ist.
+ * Who made a change; collab-kit does not tell. What another selected is locked, so it was the one other
+ * person whose selection in the presence holds one of the cells. Otherwise, such as after deleting with
+ * the selection already empty, the only other person, if just one is there.
  */
 const authorOf = (keys: string[]) => {
   const others = people.value.filter((person) => !person.self)
@@ -102,10 +102,10 @@ const authorOf = (keys: string[]) => {
   return selecting.length === 0 && others.length === 1 ? others[0] : undefined
 }
 
-/** Ein Element beim Namen, ohne einen allgemein. */
+/** An element by its name, without one in general terms. */
 export const elementName = ({ name, edge }: { name?: string; edge: boolean }) => name || (edge ? 'a connection' : 'an element')
 
-/** Ein Element nennt es beim Namen, mehrere zählt es; ein Umbenennen zeigt den ersten und den letzten Namen. */
+/** Names one element, counts several; a rename shows the first and the last name. */
 const editText = (kind: RemoteEdit['kind'], edits: RemoteEdit[]) => {
   const elements = new Set(edits.map(({ id }) => id)).size
   if (elements > 1) return `${kind} ${elements} elements`
@@ -113,7 +113,7 @@ const editText = (kind: RemoteEdit['kind'], edits: RemoteEdit[]) => {
   return kind === 'renamed' ? `renamed ${elementName({ ...last, name: edits[0].from })} to ${elementName(last)}` : `${kind} ${elementName(last)}`
 }
 
-/** Eine Änderung eines anderen, ein Eintrag je Art; gleiche Art derselben Person kurz davor läuft dort weiter. */
+/** A change by someone else, one entry per kind; the same kind by the same person shortly before goes on there. */
 const logChange = (keys: string[], edits: RemoteEdit[]) => {
   const author = authorOf(keys)
   const now = Date.now()
@@ -125,7 +125,7 @@ const logChange = (keys: string[], edits: RemoteEdit[]) => {
   }
 }
 
-/** Die Close-Codes von collab-kit in Worten; 4000 plus Status eines Aufrufs vor dem Verbinden. */
+/** The close codes of collab-kit in words; 4000 plus the status of a call before connecting. */
 const CLOSE_REASONS: Record<number, string> = {
   4401: 'your sign-in expired',
   4403: 'your access was withdrawn',
@@ -135,15 +135,15 @@ const CLOSE_REASONS: Record<number, string> = {
 
 const rightsText = (mayWrite: boolean) => (mayWrite ? 'you can edit' : 'you can only view')
 
-/** Die Farbe für Änderungen, die keiner Person zuzuordnen sind. */
+/** The color for changes that belong to no known person. */
 export const SOMEONE_COLOR = '#757575'
-// Die Rahmen des zuletzt gezeigten Eintrags; ein neuer nimmt sie weg, die des Hoverns auch das Verlassen.
+// The frames of the entry shown last; a new one takes them away, those of hovering also leaving it.
 let unframeShown: (() => void)[] = []
 let hovering = false
 
 /**
- * Zeigt die Elemente eines Eintrags im Editor, eingerahmt in der Farbe der Person und nicht ausgewählt, denn
- * eine Auswahl sperrte sie für die anderen. Beim Hovern bleibt der Rahmen bis hideEdits, ein Klick scrollt hin.
+ * Shows the elements of an entry in the editor, framed in the person's color and not selected, as a
+ * selection would lock them for the others. On hover the frame stays until hideEdits, a click scrolls there.
  */
 export const showEdits = (entry: LogEntry, hover = false) => {
   const graph = editorGraph.value
@@ -157,7 +157,7 @@ export const showEdits = (entry: LogEntry, hover = false) => {
   unframeShown = ids.flatMap((id) => frameCell(graph, id, entry.color ?? SOMEONE_COLOR, hover ? Infinity : undefined) ?? [])
 }
 
-/** Nimmt die Rahmen des Hoverns weg; die eines Klicks bleiben ihre Zeit. */
+/** Takes away the frames of hovering; those of a click stay their time. */
 export const hideEdits = () => {
   if (!hovering) return
   unframeShown.forEach((unframe) => unframe())
@@ -165,9 +165,9 @@ export const hideEdits = () => {
   hovering = false
 }
 
-/** Wie lange die Leiste über dem Modell ein Release eines anderen zeigt. */
+/** How long the bar above the model shows a release by someone else. */
 const RELEASE_NOTICE_MS = 10_000
-/** Das Release, das ein anderer eben gemacht hat; die Leiste zeigt es kurz, das Log behält es. */
+/** The release someone else just made; the bar shows it briefly, the log keeps it. */
 const recentRelease = ref<{ by: string; label: string } | null>(null)
 let releaseTimer: ReturnType<typeof setTimeout> | undefined
 const announceRelease = (release: { by: string; label: string }) => {
@@ -205,7 +205,7 @@ const closeSession = () => {
   roomRole.value = null
 }
 
-/** Der Raum des offenen Modells, wenn es mit diesem Werkstück verknüpft ist; das Modell kennt ihn aus seiner Verknüpfung. */
+/** The room of the open model if it is linked to this workpiece; the model knows it from its link. */
 const roomIdOf = (id: string) => {
   const link = linkOf(useModelWorkspaceStore().model?.preferences)
   return link?.workpieceId === id ? link.roomId : null
@@ -218,7 +218,7 @@ const writeLanguages = (id: string | null, languages: WorkspaceLanguageReference
   session.units.update(languagesChange(languages), { undoable: false })
 }
 
-/** Liest einen Bereich der Collab-Einstellungen; scheitert das, bleibt es bei den bisherigen Werten. */
+/** Reads an area of the collab settings; if that fails, the values so far stay. */
 const loadSettings = (ck: CollabKitApi, area: CollabArea) => loadCollabSettings(ck, area).catch((error) => log(`collab-kit · settings ${area}: ${collabErrorMessage(error)}`))
 
 const connect = async (id: string) => {
@@ -234,7 +234,7 @@ const connect = async (id: string) => {
     return
   }
 
-  // Ein Log je Werkstück: Einträge eines anderen Modells, ihre Personen und Elemente gehören nicht hierher.
+  // One log per workpiece: entries of another model, its people and elements do not belong here.
   if (loggedWorkpiece !== id) {
     logEntries.value = []
     loggedWorkpiece = id
@@ -246,19 +246,19 @@ const connect = async (id: string) => {
   connecting.value = true
   try {
     ck = await loadCollabKit()
-    // Prüfen Anmeldung und Zugang zum Werkstück; scheitern sie, sagt es der Fehler unten.
+    // Check sign-in and access to the workpiece; if they fail, the error below tells.
     await ck.me.who()
-    // Die Collab-Einstellungen gelten für die ganze Instanz; die Verbindung wartet nicht auf sie.
+    // The collab settings apply to the whole instance; the connection does not wait for them.
     for (const area of COLLAB_AREAS) void loadSettings(ck, area)
     const workpiece = await ck.workpieces.get(id)
     anonymousHere = await ck.me.anonymous({ kind: 'workpiece', id })
     if (anonymousHere) log('collab-kit · anonymous at this workpiece')
-    // Ohne lesbaren Raum bleibt es beim Verhalten der Share; die Verbindung hängt nicht daran.
+    // Without a readable room the behavior of a share stays; the connection does not depend on it.
     const roomId = roomIdOf(id)
     role = roomId ? await ck.rooms.get(roomId).then(roleOf, () => null) : null
     place = `"${workpiece.name}"${role ? ` in ${role.name}` : ''}`
     // A host who is back wakes the sweep of the backend, which then opens a room it had locked.
-    // Im Gruppenraum gibt es keine Share, die das Backend wecken könnte.
+    // A group room has no share that could wake the backend.
     if (role?.kind !== 'group') void resumeShare()
   } catch (error) {
     log(`collab-kit · workpiece ${id}: ${collabErrorMessage(error)}`)
@@ -277,7 +277,7 @@ const connect = async (id: string) => {
   localStorage.setItem(WORKPIECE_KEY, id)
   lastLiveStatus = ''
   closeSession()
-  // Vor der Presence, denn die Namen hängen an der Rolle.
+  // Before the presence, as the names depend on the role.
   roomRole.value = role
   // The session asks for token and rights itself before every connection.
   const opened = ck.open<ModelUnit>(id, { map: CELLS_MAP })
@@ -290,7 +290,7 @@ const connect = async (id: string) => {
   opened.on('status', (status) => {
     const before = lastLiveStatus
     logLiveStatus(status)
-    // Das erste connected meldet synced; danach nur, wenn die Verbindung weg war.
+    // The first connected is reported by synced; after that only if the connection was gone.
     if (!synced) return
     if (status === 'connected' && away) {
       away = false
@@ -302,7 +302,7 @@ const connect = async (id: string) => {
   })
   // The library asks again on every reconnect and tells the new value only when it changed.
   opened.on('anonymityChanged', (value) => (anonymous.value = value))
-  // Im Reiter „Collab settings“ geändert oder zurückgesetzt: den Bereich neu lesen, er gilt bei der nächsten Verwendung.
+  // Changed or reset in the "Collab settings" tab: read the area again, it applies on its next use.
   opened.on('settingsChanged', (key) => {
     if (isCollabArea(key)) void loadSettings(ck, key)
   })
@@ -314,7 +314,7 @@ const connect = async (id: string) => {
     if (synced) isConnected.value = false
     else closeSession()
     // Ends the stay of a visitor whose room is gone, also when the host left without the lock.
-    // Ein Gruppenraum ist keine Share; eine laufende Share in einem anderen Tab geht ihn nichts an.
+    // A group room is no share; a running share in another tab does not concern it.
     if (role?.kind !== 'group') void checkShareGone()
   })
   // Rejected when the session ends before; closed tells why.
@@ -329,7 +329,7 @@ const connect = async (id: string) => {
   unbind = bindGraph(graph, opened, log, logChange)
   stopConflicts = showConflicts(graph, opened, log)
   stopShare = watchShare(opened)
-  // Beim Beenden einer Share sperrt der Host den Raum; ein Abgleich mittendrin wäre ein Ablauf zu viel.
+  // On ending a share the host locks the room; a rebase in the middle of it would be one run too many.
   stopCheckpoints = watchCheckpoints(
     opened,
     () => shareDialog.value === 'quit',
@@ -346,7 +346,7 @@ const connect = async (id: string) => {
   lastPeople = null
   stopPresence = startPresence(graph, opened, (list, clients) => {
     people.value = list
-    // Wer kam und ging, außer einem selbst; bis kurz nach dem Sync ist es nur der Stand beim Verbinden.
+    // Who came and went, except oneself; until shortly after the sync it is only the state on connecting.
     const now = new Map(list.flatMap((person) => (person.self ? [] : [[person.id, person] as const])))
     if (lastPeople && Date.now() > settledAt) {
       for (const [id, person] of now) {

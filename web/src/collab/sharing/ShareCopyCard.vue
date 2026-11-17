@@ -56,7 +56,7 @@ onBeforeUnmount(() => {
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
-/* Schrift dunkel, nur die Icons tragen das Grün; so bleibt es lesbar. */
+/* Dark text, only the icons carry the green; that keeps it readable. */
 .copy-card :deep(.v-icon) {
   color: color-mix(in srgb, rgb(var(--v-theme-primary)) 75%, black);
 }

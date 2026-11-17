@@ -20,7 +20,7 @@ export interface ModelVersions {
   createVersion(version: CreateModelVersion): Promise<{ data: ModelVersion }>
   /** What the room holds for the way back: its versions with the change each stands at, and the changes after the last of them. */
   roomHistory(): Promise<{ versions: Entry[]; rest: ModelPatch[] }>
-  /** Die neueste Version, nur aus den Checkpoints gelesen, ohne Verlauf; für den Abgleich nach dem Save eines anderen. */
+  /** The latest version, read from the checkpoints only, without the history; for the rebase after someone else's save. */
   latestVersion(): Promise<ModelVersionInfo | null>
 }
 
@@ -46,28 +46,28 @@ interface History {
   steps: Step[]
   /** The model XML after the last step, the base of the next patch. */
   xml: string
-  /** Der Inhalt jeder Zelle nach dem letzten Schritt, ohne Geometrie; so zählt Verschieben nicht als Bearbeiten. */
+  /** The content of every cell after the last step, without geometry; so moving does not count as editing. */
   contents: Map<string, string>
-  /** Wer jede Zelle angelegt und wer ihren Inhalt zuletzt geändert hat. */
+  /** Who created each cell and who last changed its content. */
   authors: Map<string, CellAuthors>
-  /** Die Namen zu den Personen der Änderungen, soweit collab-kit sie nennt. */
+  /** The names of the people of the changes, as far as collab-kit names them. */
   names: Record<string, string>
 }
 
-/** Ersteller und letzter Bearbeiter einer Zelle, als Schlüssel der Personen wie in collab-kit. */
+/** Creator and last editor of a cell, as keys of the people as in collab-kit. */
 export interface CellAuthors {
   createdBy: string
   changedBy: string
 }
 
-/** Die Zelle ohne ihre Geometrie: Name, Style und Enden bleiben, Lage, Größe und Wegpunkte nicht. */
+/** The cell without its geometry: name, style and ends stay, position, size and waypoints do not. */
 const contentOf = (cell: SharedCell) => {
   const element = cellElement(cell)
   element.querySelectorAll(':scope > Geometry').forEach((geometry) => geometry.remove())
   return new XMLSerializer().serializeToString(element)
 }
 
-/** Schreibt fort, wer welche Zelle angelegt und zuletzt bearbeitet hat; eine gelöschte und wieder angelegte Zelle beginnt neu. */
+/** Keeps track of who created and last edited each cell; a cell deleted and created again starts anew. */
 const trackAuthors = (history: History, units: ReadonlyMap<string, ModelUnit>, by: string) => {
   const cells = cellsOf(units)
   for (const key of [...history.contents.keys()]) {
@@ -121,7 +121,7 @@ const historyOf = (ck: CollabKitApi, workpieceId: string) => {
   return read
 }
 
-/** Wer jede Zelle des Werkstücks angelegt und zuletzt bearbeitet hat, mit den Namen dazu; liest nur die Änderungen seit dem letzten Mal. */
+/** Who created and last edited each cell of the workpiece, with the names; reads only the changes since the last time. */
 export const cellAuthors = async (workpieceId: string) => {
   const history = await historyOf(await loadCollabKit(), workpieceId)
   return { authors: history.authors, names: history.names }
@@ -265,7 +265,7 @@ export const versionsOf = (model: Model): ModelVersions | null => {
   return {
     listVersions: async (skip, limit) => {
       const room = (await read(true)).entries.map(({ info }) => info).reverse()
-      // Ein anderer im Raum hat seit dem eigenen Save gespeichert: dessen Version wird die Basis des offenen Modells.
+      // Someone else in the room saved since the own save: their version becomes the base of the open model.
       const workspace = useModelWorkspaceStore()
       if (room[0] && workspace.model?.id === model.id) await workspace.rebaseOnVersion(room[0])
       const items = host ? [...room, ...(await privateAll())] : room
@@ -294,7 +294,7 @@ export const versionsOf = (model: Model): ModelVersions | null => {
         return { data: withState(model, workpiece, first) }
       }
       const checkpoint = await mark(version)
-      // Die anderen am Werkstück übernehmen ihn gleich als Basis (watchCheckpoints); ein Release nennt seinen Namen.
+      // The others at the workpiece take it as their base at once (watchCheckpoints); a release names itself.
       liveSession<ModelUnit>(workpieceId)?.presence.set({ [CHECKPOINT_FIELD]: { id: checkpoint._id, label: checkpoint.label ?? null } })
       const { workpiece, entries } = await read(false)
       const entry = entries.find(({ info }) => info.id === checkpoint._id)
@@ -309,14 +309,14 @@ export const versionsOf = (model: Model): ModelVersions | null => {
   }
 }
 
-/** Das Feld der Presence, mit dem ein Save den anderen am Werkstück seinen Checkpoint meldet; collab-kit meldet Checkpoints nicht selbst. */
+/** The presence field through which a save reports its checkpoint to the others at the workpiece; collab-kit does not report checkpoints itself. */
 const CHECKPOINT_FIELD = 'checkpoint'
 
 /**
- * Hört auf die Checkpoints, die andere in ihrer Presence melden, und nimmt den neuesten als Basis des offenen
- * Modells, wie es das Öffnen der Timeline tut; danach gilt nur noch als ungespeichert, was nach ihm kam.
- * Gemeldetes vor dem Verbinden zählt nicht, das hat das Laden schon. `paused` hält den Abgleich an. Ein Release
- * wird auch der Vergleichsstand für das nächste. `onCheckpoint` erfährt, wer gespeichert hat, bei einem Release mit dessen Namen.
+ * Listens to the checkpoints others report in their presence and takes the latest as the base of the open model,
+ * as opening the timeline does; after that only what came later counts as unsaved. What was reported before
+ * connecting does not count, loading has it already. `paused` holds the rebase. A release also becomes the state
+ * the next one is compared with. `onCheckpoint` learns who saved, for a release with its name.
  */
 export const watchCheckpoints = (session: Session, paused: () => boolean, onCheckpoint: (by: string, label: string | null) => void) => {
   const announced = () =>

@@ -2,7 +2,7 @@
   <div v-if="loading" class="d-flex justify-center py-8"><v-progress-circular indeterminate color="primary" /></div>
   <p v-else-if="!groupRooms.length" class="text-medium-emphasis text-center py-8 mb-0">{{ imported ? 'No group work imported yet. Import a CSV to create the rooms.' : 'No group models yet.' }}</p>
   <p v-else-if="!shown.length" class="text-medium-emphasis text-center py-8 mb-0">No room matches the search.</p>
-  <!-- Im Management nur der Überblick: je Kurs eine Tabelle, je Raum eine Zeile mit Aufgaben und Mitgliedern. -->
+  <!-- In the management only the overview: one table per course, one row per room with tasks and members. -->
   <template v-else-if="imported">
     <template v-for="{ key, mark, rooms } in byCourse" :key="key ?? ''">
       <div class="d-flex align-center mt-4 mb-2">
@@ -28,7 +28,7 @@
               <span v-if="!models.length" class="text-medium-emphasis">—</span>
             </td>
             <td>
-              <!-- Wer noch nie da war, steht mit dem Namen aus der Liste da, blass und gestrichelt. -->
+              <!-- Whoever has never been there shows with the name from the list, faded and dashed. -->
               <v-chip v-for="member in members" :key="member.name" size="small" class="mr-1 my-1" :class="{ 'member--new': !member.visited }" :variant="member.visited ? 'tonal' : 'outlined'" :prepend-icon="member.visited ? undefined : 'mdi-account-clock-outline'" :title="member.visited ? undefined : 'Hasn\'t opened the Modeling Copilot yet – the name is the one from the participant list'">{{
                 member.name
               }}</v-chip>
@@ -41,7 +41,7 @@
   </template>
   <template v-else>
     <template v-for="({ room, models, imported: mark, members }, index) in shown" :key="room._id">
-      <!-- Importierte Räume stehen nach Kurs, der zuletzt importierte oben; jeder Kurs bekommt eine Zeile darüber. -->
+      <!-- Imported rooms go by course, the one imported last on top; each course gets a line above it. -->
       <p v-if="mark && courseKey(mark) !== courseKey(shown[index - 1]?.imported)" class="text-subtitle-2 mt-4 mb-2">
         {{ mark.course || 'Without course' }} <span class="text-medium-emphasis font-weight-regular">· {{ roomsPerCourse.get(courseKey(mark)) }} {{ roomsPerCourse.get(courseKey(mark)) === 1 ? 'room' : 'rooms' }} · last import {{ formattedDate(lastImport.get(courseKey(mark)) ?? mark.importedAt) }}</span>
       </p>
@@ -52,14 +52,14 @@
           <v-chip v-for="member in members" :key="member.name" size="small" prepend-icon="mdi-account-outline">{{ member.name }}</v-chip>
         </v-card-title>
         <v-data-table :headers="headers" :items="models" :items-per-page="-1" item-value="workpiece._id" no-data-text="No models in this room yet.">
-          <!-- Das Modell heißt wie seine Aufgabe; ohne Aufgabe, etwa von Hand angelegt, steht sein Name da. -->
+          <!-- The model is named like its task; without a task, such as when created by hand, its name shows. -->
           <template #[`item.task`]="{ item }">{{ item.task ?? item.workpiece.name }}</template>
           <template #[`item.people`]="{ item }"
             ><v-chip v-for="name in item.people" :key="name" size="small" class="mr-1">{{ name }}</v-chip
             ><span v-if="!item.people.length" class="text-medium-emphasis">—</span></template
           >
           <template #[`item.actions`]="{ item }"><v-btn size="small" color="primary" @click="openFromRoom(room, item.workpiece)">Open</v-btn></template>
-          <!-- Vuetify 3.5 kennt hide-default-footer noch nicht; ein leerer Slot ersetzt die Fußzeile. -->
+          <!-- Vuetify 3.5 does not know hide-default-footer yet; an empty slot replaces the footer. -->
           <template #bottom />
         </v-data-table>
       </v-card>
@@ -87,15 +87,15 @@ import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { collabSettings } from '@/collab/connection/collabSettings'
 import { loadGroupRooms, type GroupRoom, type GroupWorkMark } from '@/collab/groups/groupRooms'
 
-/** `imported`: nur die Räume aus einer Teilnehmerliste, mit Import und Mitgliedern, wie der Reiter „Group work“ sie zeigt. */
+/** `imported`: only the rooms from a participant list, with import and members, as the "Group work" tab shows them. */
 const props = withDefaults(defineProps<{ imported?: boolean; search?: string }>(), { imported: false, search: '' })
-/** Meldet, dass ein Kurs ins Archiv ging, damit auch <ck-management> neu lädt. */
+/** Reports that a course went to the archive, so <ck-management> reloads too. */
 const emit = defineEmits<{ archived: [] }>()
 
 const headers = [
   { title: 'Task', key: 'task', sortable: false },
   { title: 'Working now', key: 'people', sortable: false },
-  // Rechtsbündig: Der Button ändert seine Breite nie.
+  // Right-aligned: the button never changes its width.
   { title: 'Actions', key: 'actions', sortable: false, align: 'end' as const }
 ]
 
@@ -105,17 +105,17 @@ const loading = ref(true)
 
 const formattedDate = (value: string) => new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 
-/** Wie das Backend Kurse vergleicht: Groß- und Kleinschreibung und Leerzeichen zählen nicht. */
+/** How the backend compares courses: case and spaces do not count. */
 const courseKey = (mark: GroupWorkMark | undefined) => (mark ? mark.course.split(/\s+/).filter(Boolean).join(' ').toLowerCase() : null)
 
-/** Der jüngste Import je Kurs; danach stehen die Kurse, der zuletzt importierte oben. */
+/** The latest import per course; the courses go by it, the one imported last on top. */
 const lastImport = computed(() => {
   const last = new Map<string | null, string>()
   for (const { imported } of groupRooms.value) if (imported && (last.get(courseKey(imported)) ?? '') < imported.importedAt) last.set(courseKey(imported), imported.importedAt)
   return last
 })
 
-// Gesucht wird in Raum, Kurs, Mitgliedern und Modellen; importierte Räume nach Kurs, darin nach Namen.
+// The search covers room, course, members and models; imported rooms by course, within it by name.
 const shown = computed(() => {
   const text = props.search.trim().toLowerCase()
   const matches = (group: GroupRoom) => !text || [group.room.name, group.imported?.course ?? '', ...(group.members ?? []).map((member) => member.name), ...group.models.flatMap((model) => [model.workpiece.name, model.task ?? ''])].some((value) => value.toLowerCase().includes(text))
@@ -123,7 +123,7 @@ const shown = computed(() => {
   const byCourse = (a: GroupRoom, b: GroupRoom) => recency(b).localeCompare(recency(a)) || (courseKey(a.imported) ?? '').localeCompare(courseKey(b.imported) ?? '') || a.room.name.localeCompare(b.room.name, undefined, { numeric: true })
   return groupRooms.value.filter(matches).sort(byCourse)
 })
-/** Die gezeigten importierten Räume je Kurs, in der Reihenfolge von `shown`. */
+/** The imported rooms shown, per course, in the order of `shown`. */
 const byCourse = computed(() => {
   const blocks: { key: string | null; mark: GroupWorkMark; rooms: GroupRoom[] }[] = []
   for (const group of shown.value) {
@@ -140,14 +140,14 @@ const roomsPerCourse = computed(() => {
   for (const { imported } of shown.value) if (imported) counts.set(courseKey(imported), (counts.get(courseKey(imported)) ?? 0) + 1)
   return counts
 })
-/** Die Kurse früherer Importe, wie sie zuerst geschrieben wurden, der zuletzt importierte zuerst; der Import schlägt sie vor. */
+/** The courses of earlier imports as first written, the one imported last first; the import offers them. */
 const courses = computed(() => {
   const labels = new Map<string | null, string>()
   for (const { imported } of [...groupRooms.value].sort((a, b) => (a.imported?.importedAt ?? '').localeCompare(b.imported?.importedAt ?? ''))) if (imported?.course && !labels.has(courseKey(imported))) labels.set(courseKey(imported), imported.course)
   return [...labels.entries()].sort(([a], [b]) => (lastImport.value.get(b) ?? '').localeCompare(lastImport.value.get(a) ?? '')).map(([, label]) => label)
 })
 
-/** Lädt die Räume neu, etwa nachdem ein Import welche angelegt hat. */
+/** Reloads the rooms, such as after an import created some. */
 const reload = async () => {
   try {
     groupRooms.value = await loadGroupRooms(await loadCollabKit(), { imported: props.imported })
@@ -158,7 +158,7 @@ const reload = async () => {
   }
 }
 
-/** Der Kurs, nach dessen Archivieren gefragt wird, gezählt mit allen seinen Räumen, auch denen, die die Suche ausblendet. */
+/** The course asked to be archived, counted with all its rooms, also those the search hides. */
 const asked = ref<{ course: string; rooms: number; models: number } | null>(null)
 const archiving = ref(false)
 
@@ -167,7 +167,7 @@ const askArchive = (key: string | null, course: string) => {
   asked.value = { course, rooms: all.length, models: all.reduce((sum, group) => sum + group.models.length, 0) }
 }
 
-/** Gibt den Kurs ins Archiv; einen Raum, den collab-kit ablehnte, erledigt ein zweiter Versuch. */
+/** Sends the course to the archive; a room collab-kit refused is done by another try. */
 const archiveCourse = async () => {
   if (!asked.value) return
   archiving.value = true
@@ -187,7 +187,7 @@ const archiveCourse = async () => {
 
 defineExpose({ reload, courses })
 
-// Der Reiter lädt bei jedem Öffnen neu; wer gerade woran arbeitet, gilt für diesen Moment.
+// The tab reloads on every opening; who works on what holds for that moment.
 onMounted(reload)
 </script>
 

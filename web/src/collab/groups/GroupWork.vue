@@ -6,7 +6,7 @@
       <v-spacer />
       <v-btn color="primary" :variant="importing ? 'tonal' : 'flat'" :prepend-icon="importing ? 'mdi-close' : 'mdi-file-upload-outline'" @click="importing = !importing">{{ importing ? 'Close import' : 'Import CSV' }}</v-btn>
     </div>
-    <!-- Was man über Gruppen, Räume und den Import wissen sollte; auf und zu wie die Infos von collab-kit oben rechts. -->
+    <!-- What to know about groups, rooms and the import; opens and closes like the info of collab-kit at the top right. -->
     <v-expand-transition>
       <v-sheet v-show="info" border rounded="lg" class="info pa-4 mb-6">
         <div class="info__grid">
@@ -31,7 +31,7 @@
         </div>
       </v-sheet>
     </v-expand-transition>
-    <!-- Der Import bleibt offen, solange er gebraucht wird; seine Räume erscheinen danach sofort darunter. -->
+    <!-- The import stays open as long as it is needed; its rooms show right below it afterwards. -->
     <v-expand-transition>
       <v-sheet v-show="importing" border rounded="lg" class="pa-4 mb-6"><GroupWorkImport :courses="overview?.courses ?? []" @created="created" /></v-sheet>
     </v-expand-transition>
@@ -44,7 +44,7 @@ import { ref, shallowRef } from 'vue'
 import GroupModels from './GroupModels.vue'
 import GroupWorkImport from './GroupWorkImport.vue'
 
-/** Meldet, dass Räume angelegt oder archiviert wurden, damit auch <ck-management> neu lädt. */
+/** Reports that rooms were created or archived, so <ck-management> reloads too. */
 const emit = defineEmits<{ created: [] }>()
 
 const search = ref<string | null>('')

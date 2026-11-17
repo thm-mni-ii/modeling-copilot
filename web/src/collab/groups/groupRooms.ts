@@ -2,14 +2,14 @@ import type { CollabKitApi, Room, Workpiece } from '@/collab/kit/collabKitV1'
 import { TASK_FORMAT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { roleOf } from '@/collab/rooms/roomRole'
 
-/** Ein Modell im Gruppenraum: der Titel seiner Aufgabe, falls es eine hat, und wer gerade daran arbeitet. */
+/** A model in a group room: the title of its task, if it has one, and who is working on it now. */
 export interface GroupModel {
   workpiece: Workpiece
   task: string | null
   people: string[]
 }
 
-/** Ein Raum der Gruppe mit seinen Modellen; bei importierten Räumen dazu der Import und die Namen der Mitglieder. */
+/** A room of the group with its models; for imported rooms also the import and the names of the members. */
 export interface GroupRoom {
   room: Room
   models: GroupModel[]
@@ -17,29 +17,29 @@ export interface GroupRoom {
   members?: GroupMember[]
 }
 
-/** Ein Mitglied eines importierten Raums; `visited`: CK kennt die Person, sie war also schon einmal da. */
+/** A member of an imported room; `visited`: CK knows the person, so they have been there before. */
 export interface GroupMember {
   name: string
   visited: boolean
 }
 
-/** Wie das Backend einen importierten Raum markiert (services/collab_kit/group_work.py). */
+/** How the backend marks an imported room (services/collab_kit/group_work.py). */
 export interface GroupWorkMark {
-  /** Kurs und Semester, wie der Tutor sie beim Import angab; Räume vor dieser Angabe haben keinen. */
+  /** Course and semester as the tutor gave them on import; rooms from before this field have none. */
   course: string
   importedAt: string
   importedBy: string
 }
 
-/** Der Import eines Raums; ein Raum ohne Markierung kommt nicht aus einer Teilnehmerliste. */
+/** The import of a room; a room without the mark does not come from a participant list. */
 export const groupWorkOf = (room: Room): GroupWorkMark | null => {
   const mark = room.settings.groupWork as Partial<GroupWorkMark> | undefined
   return typeof mark?.importedAt === 'string' && typeof mark.importedBy === 'string' ? { course: typeof mark.course === 'string' ? mark.course : '', importedAt: mark.importedAt, importedBy: mark.importedBy } : null
 }
 
 /**
- * Die Mitglieder je importiertem Raum, aus der CK-Gruppe, die auf ihn verweist; ohne Recht an den Gruppen keine.
- * CK kennt einen Namen erst nach dem ersten Besuch; bis dahin gilt der Name aus der Liste, den der Import ablegt.
+ * The members per imported room, from the CK group that points to it; without rights on the groups none.
+ * CK knows a name only after the first visit; until then the name from the list, stored by the import, applies.
  */
 const membersByRoom = async (ck: CollabKitApi) => {
   const members = new Map<string, GroupMember[]>()
@@ -54,12 +54,12 @@ const membersByRoom = async (ck: CollabKitApi) => {
         )
     }
   } catch {
-    // Ohne Gruppen bleiben nur die Namen weg, die Räume zeigt der Reiter trotzdem.
+    // Without groups only the names are missing, the tab still shows the rooms.
   }
   return members
 }
 
-/** Der Titel der Aufgabe; ohne Aufgabe oder ohne Recht an ihr keiner. */
+/** The title of the task; none without a task or without rights on it. */
 const taskTitle = async (ck: CollabKitApi, workpiece: Workpiece) => {
   const link = taskLinkOf(workpiece)
   if (!link) return null
@@ -70,7 +70,7 @@ const taskTitle = async (ck: CollabKitApi, workpiece: Workpiece) => {
   }
 }
 
-/** Wer gerade an welchem Werkstück des Raums verbunden ist; collab-kit schickt das nur auf Anfrage, nie von selbst. */
+/** Who is connected to which workpiece of the room now; collab-kit sends this only when asked, never by itself. */
 const peopleByWorkpiece = async (ck: CollabKitApi, roomId: string) => {
   const people = new Map<string, string[]>()
   try {
@@ -78,15 +78,15 @@ const peopleByWorkpiece = async (ck: CollabKitApi, roomId: string) => {
       people.set(entry.workpieceId, [...(people.get(entry.workpieceId) ?? []), entry.names?.[entry.actorId] ?? entry.actorId])
     }
   } catch {
-    // Ohne Presence bleibt nur die Spalte leer, die Modelle zeigt der Reiter trotzdem.
+    // Without presence only the column stays empty, the tab still shows the models.
   }
   return people
 }
 
 /**
- * Die Räume, die man sieht, mit ihren Modellen. Räume aus dem Teilen fehlen, sie gehören dem Host und enden mit ihm;
- * ebenso die Aufgaben-Werkstücke, denn eine Aufgabe zeigt das Modell, das auf sie verweist. Mit `imported` nur die
- * Räume aus einer Teilnehmerliste, mit ihrem Import und ihren Mitgliedern.
+ * The rooms one sees, with their models. Rooms from sharing are left out, they belong to the host and end with them;
+ * so are the task workpieces, as the model that points to a task shows it. With `imported` only the rooms from a
+ * participant list, with their import and their members.
  */
 export const loadGroupRooms = async (ck: CollabKitApi, { imported = false } = {}): Promise<GroupRoom[]> => {
   const [rooms, visible, members] = await Promise.all([ck.me.rooms(), ck.workpieces.list(), imported ? membersByRoom(ck) : new Map<string, GroupMember[]>()])
@@ -95,7 +95,7 @@ export const loadGroupRooms = async (ck: CollabKitApi, { imported = false } = {}
     rooms
       .filter((room) => roleOf(room).kind === 'group' && (!imported || groupWorkOf(room)))
       .map(async (room) => {
-        // Wer gerade woran arbeitet, zeigt nur „Group models“; die Übersicht im Management braucht es nicht.
+        // Who works on what is shown by "Group models" only; the overview in the management does not need it.
         const people = imported ? new Map<string, string[]>() : await peopleByWorkpiece(ck, room._id)
         const own = room.workpieces.flatMap((id) => {
           const workpiece = workpieces.get(id)

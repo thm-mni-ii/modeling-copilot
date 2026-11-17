@@ -15,7 +15,7 @@ export interface Person {
   name: string
   color: string
   self: boolean
-  /** Ob die Person die Share des offenen Werkstücks hostet. */
+  /** Whether the person hosts the share of the open workpiece. */
   host: boolean
   /** Whether a session of the person may only read; each announces it, CK tells no one the rights of others. */
   readOnly: boolean
@@ -35,7 +35,7 @@ interface PresenceState {
   colors?: Record<string, string>
 }
 
-/** Der Host der Share, nur wenn sie zu dem Werkstück gehört, das der Editor offen hat; eine alte Share im Browser machte sonst einen anderen zum Host. */
+/** The host of the share, only if it belongs to the workpiece open in the editor; an old share in the browser would otherwise make someone else the host. */
 const hostId = () => {
   const share = currentShare.value
   return share && liveSession(share.workpieceId) ? share.hostId : ''
@@ -43,7 +43,7 @@ const hostId = () => {
 
 /** The host's color, else what the host handed out; without the host a hash, so a person still has the same color on every screen. */
 export const colorOf = (id: string) => {
-  // Host-Farbe und Palette stehen in den Collab-Einstellungen und werden bei jedem Zeichnen gelesen.
+  // Host color and palette come from the collab settings and are read on every draw.
   const { hostColor, palette } = collabSettings.colors
   return id !== '' && id === hostId() ? hostColor : personColors.value[id] ?? palette[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % palette.length]
 }
@@ -394,7 +394,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   sendHostState()
   const stopPresentingWatch = watch([presenting, settingsLoaded, () => ({ ...shareSettings })], sendHostState)
   const stopAnonymityWatch = session.on('anonymityChanged', sendHostState)
-  // Neue Farben in den Collab-Einstellungen: Der Host verteilt neu, wer eine Farbe trägt, die es nicht mehr gibt, und schickt das; alle zeichnen neu.
+  // New colors in the collab settings: the host hands out anew to whoever wears a color that is gone and sends it; everyone draws anew.
   const stopColorsWatch = watch(
     () => collabSettings.colors,
     () => {

@@ -53,7 +53,7 @@ import { textOn } from '@/collab/presence/cursors'
 
 const props = defineProps<{ ck: CollabKitApi }>()
 
-/** Ein Feld im Reiter; mit items eine Auswahl, sonst je nach Standard ein Schalter oder eine Zahl in Sekunden, mit unit in ms oder Tagen. Technisches steht unter „Advanced“. */
+/** A field in the tab; with items a choice, otherwise by its default a switch or a number in seconds, with unit in ms or days. Technical ones are under "Advanced". */
 interface Field {
   readonly key: string
   readonly label: string
@@ -72,7 +72,7 @@ interface Section {
 
 type FormValue = number | string | boolean | string[]
 
-/** Ein Abschnitt je Bereich in collab-kit; Grenzen und Standards stehen in collabSettings.ts. */
+/** One section per area in collab-kit; limits and defaults are in collabSettings.ts. */
 const SECTIONS: readonly Section[] = [
   {
     area: 'sharing',
@@ -127,7 +127,7 @@ const SECTIONS: readonly Section[] = [
   }
 ]
 
-/** Im Formular stehen Sekunden, außer bei Feldern mit eigener unit; Schlüssel auf Ms ohne unit speichert collab-kit in Millisekunden. */
+/** The form shows seconds, except for fields with a unit of their own; keys ending in Ms without a unit are stored in milliseconds in collab-kit. */
 const UNITS = new Map(SECTIONS.flatMap((section) => section.fields.flatMap((field) => (field.unit ? [[field.key, field.unit] as const] : []))))
 const unitOf = (key: string) => UNITS.get(key) ?? 's'
 const factorOf = (key: string) => (key.endsWith('Ms') && !UNITS.has(key) ? 1000 : 1)
@@ -141,7 +141,7 @@ const hintOf = (area: CollabArea, field: Field) => {
   const [factor, unit] = [factorOf(field.key), unitOf(field.key)]
   return `${field.hint} Default ${limit.default / factor} ${unit}, allowed ${limit.min / factor}–${limit.max / factor} ${unit}.`
 }
-// Listen als Kopie: das Formular darf die geltenden Werte nicht vor dem Speichern ändern.
+// Lists as a copy: the form must not change the values in effect before saving.
 const formOf = (area: CollabArea): Record<string, FormValue> => Object.fromEntries(Object.entries(collabSettings[area]).map(([key, value]) => [key, typeof value === 'number' ? value / factorOf(key) : Array.isArray(value) ? [...value] : value]))
 
 const form = reactive(Object.fromEntries(COLLAB_AREAS.map((area) => [area, formOf(area)])) as Record<CollabArea, Record<string, FormValue>>)
@@ -156,7 +156,7 @@ const randomColor = () =>
     .toString(16)
     .padStart(6, '0')}`
 
-/** Grenzen je Zahl und Farbliste und die Abhängigkeiten; Schalter, Auswahl und eine einzelne Farbe können nichts Falsches enthalten. */
+/** Limits per number and color list, and the dependencies; switches, choices and a single color cannot hold anything wrong. */
 const problemOf = (area: CollabArea, key: string): string | undefined => {
   const limit = limitOf(area, key)
   if ('minItems' in limit) {
@@ -176,11 +176,11 @@ const problemOf = (area: CollabArea, key: string): string | undefined => {
   if (area !== 'sharing' || typeof grace !== 'number') return undefined
   if (key === 'hostEndSeconds' && value < grace) return 'At least as long as until the room locks.'
   if (key === 'hostAwayMs' && value >= grace) return 'Shorter than until the room locks.'
-  // Sieht der Sweep seltener nach, als jemand fehlen darf, verliert die Wartezeit ihre Wirkung.
+  // If the sweep looks less often than someone may be away, the wait loses its effect.
   if (key === 'sweepSeconds' && typeof visitor === 'number' && value > Math.min(visitor, grace)) return 'At most as long as the shorter wait of a visitor or the host.'
   return undefined
 }
-/** Farbabstand in Lab (CIE76); die Standardfarben liegen mindestens 18 auseinander, unter 15 warnt der Reiter, ohne das Speichern zu sperren. */
+/** Color distance in Lab (CIE76); the default colors are at least 18 apart, below 15 the tab warns without blocking saving. */
 const labOf = (hex: string) => {
   const [red, green, blue] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255).map((value) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4))
   const [x, y, z] = [(0.4124 * red + 0.3576 * green + 0.1805 * blue) / 0.95047, 0.2126 * red + 0.7152 * green + 0.0722 * blue, (0.0193 * red + 0.1192 * green + 0.9505 * blue) / 1.08883].map((value) => (value > 0.008856 ? Math.cbrt(value) : 7.787 * value + 16 / 116))
@@ -194,7 +194,7 @@ const warningOf = (area: CollabArea) => {
   return undefined
 }
 
-/** Technisches zeigt sich aufgeklappt, mit einem Fehler, der sonst unsichtbar das Speichern sperrte, und geändert bis zum Speichern. */
+/** Technical fields show when expanded, with an error that would otherwise block saving unseen, and when changed until saved. */
 const shown = (area: CollabArea, field: Field) => !field.advanced || open[area] || Boolean(problemOf(area, field.key)) || form[area][field.key] !== formOf(area)[field.key]
 const invalid = (section: Section) => section.fields.some((field) => problemOf(section.area, field.key))
 const changed = (area: CollabArea) => JSON.stringify(form[area]) !== JSON.stringify(formOf(area))
@@ -202,7 +202,7 @@ const changed = (area: CollabArea) => JSON.stringify(form[area]) !== JSON.string
 const save = async (section: Section) => {
   busy.value = section.area
   try {
-    // PUT ersetzt den ganzen Bereich, also gehen immer alle seine Werte mit.
+    // PUT replaces the whole area, so all its values always go along.
     const values = Object.fromEntries(Object.entries(form[section.area]).map(([key, value]) => [key, 'min' in limitOf(section.area, key) ? Number(value) * factorOf(key) : value]))
     applyCollabSettings(section.area, await props.ck.settings.set(section.area, values))
     form[section.area] = formOf(section.area)
@@ -214,7 +214,7 @@ const save = async (section: Section) => {
   }
 }
 
-/** Löscht den Bereich in collab-kit; ohne Dokument gelten überall die Standards. */
+/** Deletes the area in collab-kit; without a document the defaults apply everywhere. */
 const reset = async (section: Section) => {
   busy.value = section.area
   try {
@@ -229,7 +229,7 @@ const reset = async (section: Section) => {
   }
 }
 
-// Gespeicherte Werte außerhalb der Grenzen zeigt das Formular als Standard, so wie sie auch gelten.
+// Stored values outside the limits show as the default in the form, as that is what applies.
 onMounted(async () => {
   const failed = (await Promise.allSettled(COLLAB_AREAS.map((area) => loadCollabSettings(props.ck, area)))).some((result) => result.status === 'rejected')
   if (failed) notifyError('The collab settings could not be loaded; the form shows the defaults.')
@@ -266,7 +266,7 @@ onMounted(async () => {
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
-/* Ein Farbfeld: das native Feld in voller Größe, Nummer und Entfernen darüber. */
+/* A color field: the native field at full size, number and remove on top of it. */
 .swatch {
   position: relative;
   display: inline-flex;

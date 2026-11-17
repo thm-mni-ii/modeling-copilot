@@ -9,14 +9,14 @@
         <button v-for="button in buttons" :key="button.key" type="button" class="mode-button" :class="{ 'mode-button--on': button.on, 'mode-button--present': button.key === 'present', 'mode-button--info': button.kind === 'info' }" :title="button.title" :aria-label="button.title" :disabled="isHost && locked" @click="button.toggle()">
           <v-icon :icon="button.icon" size="18" />
         </button>
-        <!-- Ein Release eines anderen steht kurz hier; nachzulesen bleibt es im Event log im Reiter „Collab“. -->
+        <!-- A release by someone else shows here for a moment; the event log in the "Collab" tab keeps it. -->
         <v-fade-transition>
           <div v-if="recentRelease" class="mode-release" :title="`${recentRelease.by} created release ${recentRelease.label}`">
             <v-icon icon="mdi-tag-outline" size="14" />
             {{ recentRelease.label }} by {{ recentRelease.by }}
           </div>
         </v-fade-transition>
-        <!-- Eine Gruppe verlässt man nicht; zurück geht es über „Group models“. -->
+        <!-- A group is not left; the way back is "Group models". -->
         <div v-if="!group" class="mode-separator" />
         <button v-if="!group" type="button" class="mode-button mode-button--exit" :title="exit.title" :aria-label="exit.title" :disabled="isHost && locked" @click="exit.toggle()">
           <v-icon :icon="exit.icon" size="18" />
@@ -44,13 +44,13 @@ const GREEN = 'rgb(var(--v-theme-primary))'
 const { graph } = useGraphContext()
 const route = useRoute()
 const { isConnected, anonymous, linkedWorkpieceId, recentRelease } = useCollabConnection()
-// Wie in der Sidebar „Collab“: Das Modell liegt in einem Gruppenraum, nicht in einer Share; dann grün und ohne Schalter.
+// As in the "Collab" sidebar: the model lies in a group room, not in a share; then green and without switches.
 const group = computed(() => Boolean(linkedWorkpieceId.value) && roomRole.value?.kind === 'group')
 
 // The frame and the bar are no part of the model. They lie next to the container of the canvas, not in it:
 // while panning, maxGraph moves every child of the container with the canvas (panGraph in PanningMixin.js).
 const container = computed(() => graph.value?.container.parentElement)
-// Nur am geteilten Modell; ein zweiter Tab mit einem anderen Modell zeigt keinen Rahmen.
+// Only at the shared model; a second tab with another model shows no frame.
 const shared = computed(() => !group.value && isSharedModel(route.params.modelId))
 const visible = computed(() => (group.value || shared.value) && isConnected.value)
 const isHost = computed(() => shared.value && Boolean(currentShare.value?.privateModelId))
@@ -62,7 +62,7 @@ const locked = computed(() => shareSettingsBusy() || shareDialog.value === 'quit
 
 watch([visible, isHost], ([shown, host]) => shown && host && void loadShareSettings(), { immediate: true })
 
-// Wer welches Element angelegt und zuletzt bearbeitet hat: eine eigene Ansicht, nur auf diesem Bildschirm, im Browser gemerkt.
+// Who created and last edited each element: a view of one's own, only on this screen, remembered in the browser.
 const AUTHORS_KEY = 'collab:showAuthors'
 const authorsShown = ref(localStorage.getItem(AUTHORS_KEY) === 'true')
 watch(authorsShown, (shown) => localStorage.setItem(AUTHORS_KEY, String(shown)))
@@ -80,7 +80,7 @@ watch(
 onBeforeUnmount(() => hideAuthors?.())
 
 const chip = computed(() => {
-  // Ohne den Namen der Gruppe, der kann lang sein; er steht in der Sidebar „Collab“.
+  // Without the name of the group, which can be long; the "Collab" sidebar shows it.
   if (group.value) return { icon: 'mdi-account-group-outline', text: 'Group model' }
   if (away.value) return { icon: 'mdi-lan-disconnect', text: 'Host disconnected' }
   if (!presentingNow.value) return { icon: 'mdi-account-group-outline', text: 'Collaborating' }
@@ -99,7 +99,7 @@ interface ModeButton {
 
 /** The host switches each setting; a visitor sees only what they may do, and nothing of what they may not. */
 const buttons = computed<ModeButton[]>(() => {
-  // Im Gruppenraum dürfen alle dasselbe: sehen, kommentieren, bearbeiten.
+  // In a group room everyone may do the same: see, comment, edit.
   if (group.value)
     return [
       { key: 'edit', kind: 'info', on: true, icon: 'mdi-pencil', title: 'Everyone in the group can edit', toggle: () => undefined },

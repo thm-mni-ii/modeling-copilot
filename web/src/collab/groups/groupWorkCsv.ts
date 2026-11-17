@@ -1,19 +1,19 @@
-/** Eine Person aus der CSV; row ist die Zeile in der Datei, die Kopfzeile ist 1. */
+/** A person from the CSV; row is the line in the file, the header is 1. */
 export interface CsvPerson {
   row: number
   username: string
   name: string
 }
 
-/** Eine Gruppe der CSV, aus der ein Raum wird. */
+/** A group of the CSV, which becomes a room. */
 export interface CsvGroup {
   name: string
-  /** Die Nummern der Fallstudien ihrer Mitglieder; jede wird ein Modell im Raum. */
+  /** The case study numbers of its members; each becomes a model in the room. */
   caseStudies: string[]
   members: CsvPerson[]
 }
 
-/** Eine Zeile, die nicht in eine Gruppe kommt, und warum; Anmeldename und Gruppe wie in der Datei. */
+/** A row that goes into no group, and why; login name and group as in the file. */
 export interface CsvSkipped {
   row: number
   name: string
@@ -29,11 +29,11 @@ export interface GroupWorkCsv {
   people: number
 }
 
-/** Die Spalten der Teilnehmerliste aus Moodle; die drei ersten braucht der Import. */
+/** The columns of the participant list from Moodle; the import needs the first three. */
 const COLUMNS = { username: 'Anmeldename', group: 'Gruppen', caseStudy: 'Fallstudie', firstName: 'Vorname', lastName: 'Nachname' } as const
 const REQUIRED = ['username', 'group', 'caseStudy'] as const
 
-/** Moodle schreibt UTF-8, ein in Excel gespeichertes CSV Windows-1252; ein BOM fällt beim Dekodieren weg. */
+/** Moodle writes UTF-8, a CSV saved in Excel Windows-1252; a BOM is dropped on decoding. */
 export const decodeCsv = (buffer: ArrayBuffer) => {
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(buffer)
@@ -42,13 +42,13 @@ export const decodeCsv = (buffer: ArrayBuffer) => {
   }
 }
 
-/** Das Trennzeichen, das in der Kopfzeile am häufigsten vorkommt: Tab, Semikolon oder Komma. */
+/** The separator most frequent in the header: tab, semicolon or comma. */
 const delimiterOf = (text: string) => {
   const header = text.split(/\r?\n/, 1)[0] ?? ''
   return ['\t', ';', ','].reduce((best, candidate) => (header.split(candidate).length > header.split(best).length ? candidate : best))
 }
 
-/** Zerlegt den Text in Zeilen und Zellen; Zellen in Anführungszeichen dürfen Trennzeichen und Umbrüche enthalten. */
+/** Splits the text into rows and cells; quoted cells may hold separators and line breaks. */
 const rowsOf = (text: string, delimiter: string) => {
   const rows: string[][] = []
   let row: string[] = []
@@ -79,7 +79,7 @@ const rowsOf = (text: string, delimiter: string) => {
 
 const naturally = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true })
 
-/** Die Nummern einer Zelle, ob „1“, „F1“ oder „Fallstudie 1“, ohne führende Nullen; mehrere getrennt durch Komma oder Semikolon. */
+/** The numbers of a cell, whether "1", "F1" or "Fallstudie 1", without leading zeros; several separated by comma or semicolon. */
 const caseStudiesOf = (cell: string) =>
   cell
     .split(/[,;]/)
@@ -87,7 +87,7 @@ const caseStudiesOf = (cell: string) =>
     .filter((number): number is string => Boolean(number))
     .map((number) => String(Number(number)))
 
-/** Liest die Teilnehmerliste: Anmeldename wird die Person, Gruppen der Raum, Fallstudie die Aufgabe. */
+/** Reads the participant list: Anmeldename becomes the person, Gruppen the room, Fallstudie the task. */
 export const parseGroupWorkCsv = (text: string): GroupWorkCsv => {
   const [header = [], ...rows] = rowsOf(text, delimiterOf(text))
   const titles = header.map((title) => title.trim())
@@ -97,7 +97,7 @@ export const parseGroupWorkCsv = (text: string): GroupWorkCsv => {
 
   const groups = new Map<string, CsvGroup>()
   const skipped: CsvSkipped[] = []
-  // Je Anmeldename die Zeile, in der er zuerst steht.
+  // Per login name the row it first appears in.
   const seen = new Map<string, number>()
   rows.forEach((cells, index) => {
     const row = index + 2
@@ -107,7 +107,7 @@ export const parseGroupWorkCsv = (text: string): GroupWorkCsv => {
     const group = value('group')
     const name = `${value('firstName')} ${value('lastName')}`.trim()
     const first = seen.get(username)
-    // Moodle trennt mehrere Gruppen einer Person mit Komma; welche gemeint ist, entscheidet der Tutor in Moodle.
+    // Moodle separates several groups of a person with commas; which one is meant, the tutor decides in Moodle.
     const reason = !username ? 'No login name' : first ? `Listed twice, first in row ${first}` : !group ? 'No group' : group.includes(',') ? 'In several groups' : null
     if (reason) {
       skipped.push({ row, name, username, group, reason })
@@ -116,7 +116,7 @@ export const parseGroupWorkCsv = (text: string): GroupWorkCsv => {
     seen.set(username, row)
     const entry = groups.get(group) ?? { name: group, caseStudies: [], members: [] }
     groups.set(group, entry)
-    // Meist eine Nummer je Person; die Gruppe bearbeitet die Fallstudien all ihrer Mitglieder.
+    // Mostly one number per person; the group works on the case studies of all its members.
     for (const caseStudy of caseStudiesOf(value('caseStudy'))) if (!entry.caseStudies.includes(caseStudy)) entry.caseStudies.push(caseStudy)
     entry.members.push({ row, username, name: name || username })
   })
