@@ -48,7 +48,7 @@ import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import { collabErrorMessage } from '@/collab/kit/collabKit'
 import type { CollabKitApi } from '@/collab/kit/collabKitV1'
 import { applyCollabSettings, COLLAB_AREAS, COLLAB_LIMITS, collabSettings, loadCollabSettings, type CollabArea, type CollabLimit } from '@/collab/connection/collabSettings'
-import { historyChoices } from '@/collab/sharing/shareModel'
+import { historyChoices } from '@/collab/sharing/shareChoices'
 import { textOn } from '@/collab/presence/cursors'
 
 const props = defineProps<{ ck: CollabKitApi }>()

@@ -5,18 +5,7 @@
         <div class="share-section">Visitors</div>
         <v-switch v-for="setting in visitorSettings" :key="setting.key" v-model="options[setting.key]" color="primary" density="compact" :label="setting.label" :hint="setting.hint" persistent-hint />
         <div class="share-section">Share history</div>
-        <v-item-group v-model="options.history" mandatory :class="{ 'share-history--busy': busy }">
-          <v-item v-for="choice in historyChoices" :key="choice.value" v-slot="{ isSelected, toggle }" :value="choice.value">
-            <v-card :variant="isSelected ? 'tonal' : 'outlined'" :color="isSelected ? 'primary' : undefined" class="share-history mb-2" role="radio" tabindex="0" :aria-checked="isSelected" @click="toggle" @keydown.enter.prevent="toggle" @keydown.space.prevent="toggle">
-              <v-icon :icon="choice.icon" class="mr-3" />
-              <div class="flex-grow-1">
-                <div class="share-history__title">{{ choice.title }}</div>
-                <div class="text-caption share-history__hint">{{ choice.hint }}</div>
-              </div>
-              <v-icon v-if="isSelected" icon="mdi-check" />
-            </v-card>
-          </v-item>
-        </v-item-group>
+        <ChoiceCards v-model="options.history" :choices="historyChoices" :busy="busy" />
         <div v-if="shareProgress && options.history !== 'none'" class="mt-3">
           <v-progress-linear :model-value="shareProgress.total ? (shareProgress.done / shareProgress.total) * 100 : 0" color="primary" height="4" />
           <div class="text-caption mt-1">Writing history · {{ shareProgress.done }} of {{ shareProgress.total }}</div>
@@ -53,19 +42,9 @@
         <v-chip v-if="visitors" prepend-icon="mdi-account-multiple-outline" size="small" variant="flat" class="share-chip share-chip--warn mr-1">{{ visitors === 1 ? '1 visitor' : `${visitors} visitors` }} will be disconnected</v-chip>
         <v-chip prepend-icon="mdi-lock-outline" size="small" variant="flat" class="share-chip share-chip--open">Room is locked while you decide</v-chip>
         <div class="share-section">Current state</div>
-        <v-item-group v-model="target" mandatory :class="{ 'share-history--busy': busy }">
-          <v-item v-for="choice in leaveChoices" :key="choice.value" v-slot="{ isSelected, toggle }" :value="choice.value">
-            <v-card :variant="isSelected ? 'tonal' : 'outlined'" :color="isSelected ? (choice.danger ? 'error' : 'primary') : undefined" class="share-history mb-2" :class="{ 'share-history--danger': choice.danger }" role="radio" tabindex="0" :aria-checked="isSelected" @click="toggle" @keydown.enter.prevent="toggle" @keydown.space.prevent="toggle">
-              <v-icon :icon="choice.icon" class="mr-3" />
-              <div class="flex-grow-1">
-                <div class="share-history__title">{{ choice.title }}</div>
-                <div class="text-caption share-history__hint">{{ choice.hint }}</div>
-                <v-text-field v-if="isSelected && choice.value === 'model'" v-model="name" label="Name of the new model" density="compact" variant="outlined" hide-details class="mt-2" @click.stop @keydown.stop />
-              </div>
-              <v-icon v-if="isSelected" icon="mdi-check" />
-            </v-card>
-          </v-item>
-        </v-item-group>
+        <ChoiceCards v-slot="{ choice }" v-model="target" :choices="leaveChoices" :busy="busy">
+          <v-text-field v-if="choice.value === 'model'" v-model="name" label="Name of the new model" density="compact" variant="outlined" hide-details class="mt-2" @click.stop @keydown.stop />
+        </ChoiceCards>
         <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mt-3">{{ error }} Nothing was closed, so you can try again.</v-alert>
       </v-card-text>
       <v-card-actions>
@@ -98,19 +77,9 @@
         </div>
       </v-card-text>
       <v-card-text>
-        <v-item-group v-model="visitorChoice" mandatory :class="{ 'share-history--busy': busy }">
-          <v-item v-for="option in visitorChoices" :key="option.value" v-slot="{ isSelected, toggle }" :value="option.value">
-            <v-card :variant="isSelected ? 'tonal' : 'outlined'" :color="isSelected ? (option.danger ? 'error' : 'primary') : undefined" class="share-history mb-2" :class="{ 'share-history--danger': option.danger }" role="radio" tabindex="0" :aria-checked="isSelected" @click="toggle" @keydown.enter.prevent="toggle" @keydown.space.prevent="toggle">
-              <v-icon :icon="option.icon" class="mr-3" />
-              <div class="flex-grow-1">
-                <div class="share-history__title">{{ option.title }}</div>
-                <div v-if="option.hint" class="text-caption share-history__hint">{{ option.hint }}</div>
-                <v-text-field v-if="isSelected && option.value === 'keep'" v-model="name" label="Name of the model" density="compact" variant="outlined" hide-details class="mt-2" @click.stop @keydown.stop />
-              </div>
-              <v-icon v-if="isSelected" icon="mdi-check" />
-            </v-card>
-          </v-item>
-        </v-item-group>
+        <ChoiceCards v-slot="{ choice }" v-model="visitorChoice" :choices="visitorChoices" :busy="busy">
+          <v-text-field v-if="choice.value === 'keep'" v-model="name" label="Name of the model" density="compact" variant="outlined" hide-details class="mt-2" @click.stop @keydown.stop />
+        </ChoiceCards>
         <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mt-3">{{ error }}</v-alert>
       </v-card-text>
       <v-card-actions>
@@ -136,9 +105,11 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
+import ChoiceCards from './ChoiceCards.vue'
 import ShareCopyCard from './ShareCopyCard.vue'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
-import { currentShare, historyChoices, hostClosed, leaveAsVisitor, leaveChoices, leaveShare, pendingTarget, reopenShare, shareChoice as options, shareDialog, shareLink, shareModel, shareProgress, visitorCase, visitorChoices, visitorCases, visitorSettings, type LeaveTarget, type VisitorChoice } from './shareModel'
+import { historyChoices, leaveChoices, visitorCase, visitorCases, visitorChoices, visitorSettings, type LeaveTarget, type VisitorChoice } from './shareChoices'
+import { currentShare, hostClosed, leaveAsVisitor, leaveShare, pendingTarget, reopenShare, shareChoice as options, shareDialog, shareLink, shareModel, shareProgress } from './shareModel'
 
 const router = useRouter()
 const workspace = useModelWorkspaceStore()
@@ -247,42 +218,12 @@ const drop = () =>
   color: rgba(var(--v-theme-on-surface), 0.55);
 }
 
-.share-history {
-  display: flex;
-  align-items: flex-start;
-  padding: 10px 12px;
-  cursor: pointer;
-}
-
-.share-history__title {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-/* Selected, the text stays dark and the card light green (red for "Do not save"), only the icons carry the color; green text on green is hard to read. */
-.share-history__title,
-.share-history :deep(.v-field) {
-  color: rgba(var(--v-theme-on-surface), 0.87);
-}
-
-.share-history__hint {
-  color: rgba(var(--v-theme-on-surface), 0.7);
-}
-
-.share-history :deep(.v-icon) {
-  color: color-mix(in srgb, rgb(var(--v-theme-primary)) 75%, black);
-}
-
 .visitor-icon--ok {
   color: color-mix(in srgb, rgb(var(--v-theme-primary)) 75%, black);
 }
 
 .visitor-icon--warn {
   color: color-mix(in srgb, rgb(var(--v-theme-warning)) 70%, black);
-}
-
-.share-history--danger :deep(.v-icon) {
-  color: color-mix(in srgb, rgb(var(--v-theme-error)) 75%, black);
 }
 
 /* Green for what the visitors may do, gray for what is restricted; dark text, so it stays readable. */
@@ -303,10 +244,5 @@ const drop = () =>
 
 .share-chip--open :deep(.v-icon) {
   color: color-mix(in srgb, rgb(var(--v-theme-primary)) 75%, black);
-}
-
-.share-history--busy {
-  pointer-events: none;
-  opacity: 0.6;
 }
 </style>
