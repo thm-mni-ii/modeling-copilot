@@ -1,7 +1,7 @@
 import { CellHighlight, type Graph } from '@maxgraph/core'
 import { notifyWarning } from '@/composables/useNotifications'
 import type { Session } from '@/collab/kit/collabKitV1'
-import type { Log } from '@/collab/connection/useCollabConnection'
+import type { Log } from '@/collab/connection/collabLog'
 
 /** How long a framed cell stays framed. */
 const FRAME_MS = 4000

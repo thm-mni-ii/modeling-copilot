@@ -62,7 +62,8 @@ const open = ref(false)
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount } from 'vue'
-import { elementName, hideEdits, showEdits, SOMEONE_COLOR, type LogEntry, type LogKind } from './useCollabConnection'
+import { elementName, SOMEONE_COLOR, type LogEntry, type LogKind } from './collabLog'
+import { hideEdits, showEdits } from './useCollabConnection'
 
 const props = defineProps<{ entries: LogEntry[] }>()
 

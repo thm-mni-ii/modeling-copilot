@@ -9,7 +9,7 @@ import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabKitApi, Room, Session, Workpiece } from '@/collab/kit/collabKitV1'
 import { holdSession } from '@/collab/kit/liveSession'
 import { frameCell, showConflicts } from '@/collab/graph/conflicts'
-import { bindGraph, type RemoteEdit } from '@/collab/graph/graphBinding'
+import { bindGraph } from '@/collab/graph/graphBinding'
 import { LANGUAGES_KEY, languagesChange, type ModelUnit } from '@/collab/converters/model/modelUnits'
 import { CELLS_MAP, linkOf } from '@/collab/storage/workpiece'
 import { checkShareGone, resumeShare, shareDialog } from '@/collab/sharing/shareModel'
@@ -19,6 +19,7 @@ import { roleOf, roomRole, type RoomRole } from '@/collab/rooms/roomRole'
 import { openWorkpiece } from './openWorkpiece'
 import { startPresence, type Person } from '@/collab/presence/presence'
 import { COLLAB_AREAS, isCollabArea, loadCollabSettings, type CollabArea } from './collabSettings'
+import { log, logBy, logChange, logEntries, SOMEONE_COLOR, trackPeople, type LogEntry, type LogKind } from './collabLog'
 
 const WORKPIECE_KEY = 'collabWorkpieceId'
 const LIVE_CLASS = 'collab-live'
@@ -29,7 +30,6 @@ const LANGUAGE_ACTIONS = new Set(['addLanguage', 'changeLanguageVersion', 'remov
 const isConnected = ref(false)
 const connecting = ref(false)
 const workpieceId = ref(localStorage.getItem(WORKPIECE_KEY) ?? '')
-const logEntries = ref<LogEntry[]>([])
 const people = ref<Person[]>([])
 // Whether the own person writes anonymously at the workpiece, so others see a pseudonym.
 const anonymous = ref(false)
@@ -39,56 +39,19 @@ let stopPresence: (() => void) | null = null
 let stopConflicts: (() => void) | null = null
 let stopShare: (() => void) | null = null
 let stopCheckpoints: (() => void) | null = null
+let stopPeopleLog: (() => void) | null = null
 let session: Session<ModelUnit> | null = null
 let lastLiveStatus = ''
 let lastOnline = ''
-// The people as the presence last named them; null until the first list after connecting.
-let lastPeople: Map<string, Person> | null = null
-// Who has gone, until their left is due; a person back before that was never gone.
-const leaving = new Map<string, ReturnType<typeof setTimeout>>()
 // Whether the connection is gone, lost or disconnected; the next connected then reports it again.
 let away = false
 // The workpiece the log belongs to, and how the connection entries name it: model and room.
 let loggedWorkpiece = ''
 let place = 'the model'
 
-/** The kind of an entry in the log. */
-export type LogKind = 'failed' | 'joined' | 'left' | RemoteEdit['kind'] | 'saved' | 'release' | 'conflict' | 'connected' | 'offline' | 'closed' | 'rights' | 'undo'
-export interface LogEntry {
-  kind: LogKind
-  /** For entries of a person only what they did; their name stands above their block in the log. */
-  text: string
-  at: number
-  /** Who it was, if known, with the color the person wears in the model. */
-  by?: string
-  color?: string
-  /** For changes: everything merged into it. */
-  edits?: RemoteEdit[]
-}
-/** Without a kind it is technical: it goes to the console only, students do not need it. */
-export type Log = (text: string, kind?: LogKind) => void
+/** An entry of a person, in the color they wear in the model now. */
+const logPerson = (kind: LogKind, by: string, text: string) => logBy(kind, by, text, Date.now(), people.value.find((person) => person.name === by)?.color)
 
-/** Puts an entry in place by its time, the newest on top; mostly it is the newest itself. */
-const addEntry = (entry: LogEntry) => {
-  const index = logEntries.value.findIndex(({ at }) => at <= entry.at)
-  logEntries.value.splice(index < 0 ? logEntries.value.length : index, 0, entry)
-}
-
-const log: Log = (text, kind) => {
-  if (kind) addEntry({ kind, text, at: Date.now() })
-  else console.debug(`[collab] ${text}`)
-}
-
-/** An entry of a person; without a color, the one they wear in the model now. */
-const logBy = (kind: LogKind, by: string, text: string, at = Date.now(), color = people.value.find((person) => person.name === by)?.color) => addEntry({ kind, text, at, by, color })
-
-/** How long after the sync the presence of the others still arrives and counts as the state on connecting. */
-const SETTLE_MS = 3000
-/** How long a person must be away to count as gone; background tabs are throttled and report only about once a minute. */
-const LEAVE_MS = 90_000
-
-/** How long changes of the same person merge into one entry. */
-const MERGE_MS = 2 * 60_000
 /**
  * Who made a change; collab-kit does not tell. What another selected is locked, so it was the one other
  * person whose selection in the presence holds one of the cells. Otherwise, such as after deleting with
@@ -102,29 +65,6 @@ const authorOf = (keys: string[]) => {
   return selecting.length === 0 && others.length === 1 ? others[0] : undefined
 }
 
-/** An element by its name, without one in general terms. */
-export const elementName = ({ name, edge }: { name?: string; edge: boolean }) => name || (edge ? 'a connection' : 'an element')
-
-/** Names one element, counts several; a rename shows the first and the last name. */
-const editText = (kind: RemoteEdit['kind'], edits: RemoteEdit[]) => {
-  const elements = new Set(edits.map(({ id }) => id)).size
-  if (elements > 1) return `${kind} ${elements} elements`
-  const last = edits[edits.length - 1]
-  return kind === 'renamed' ? `renamed ${elementName({ ...last, name: edits[0].from })} to ${elementName(last)}` : `${kind} ${elementName(last)}`
-}
-
-/** A change by someone else, one entry per kind; the same kind by the same person shortly before goes on there. */
-const logChange = (keys: string[], edits: RemoteEdit[]) => {
-  const author = authorOf(keys)
-  const now = Date.now()
-  for (const kind of new Set(edits.map((edit) => edit.kind))) {
-    const index = logEntries.value.findIndex((entry) => entry.kind === kind && entry.by === author?.name && now - entry.at < MERGE_MS)
-    const merged = [...(logEntries.value[index]?.edits ?? []), ...edits.filter((edit) => edit.kind === kind)]
-    if (index >= 0) logEntries.value.splice(index, 1)
-    logEntries.value.unshift({ kind, text: editText(kind, merged), at: now, by: author?.name, color: author?.color, edits: merged })
-  }
-}
-
 /** The close codes of collab-kit in words; 4000 plus the status of a call before connecting. */
 const CLOSE_REASONS: Record<number, string> = {
   4401: 'your sign-in expired',
@@ -135,8 +75,6 @@ const CLOSE_REASONS: Record<number, string> = {
 
 const rightsText = (mayWrite: boolean) => (mayWrite ? 'you can edit' : 'you can only view')
 
-/** The color for changes that belong to no known person. */
-export const SOMEONE_COLOR = '#757575'
 // The frames of the entry shown last; a new one takes them away, those of hovering also leaving it.
 let unframeShown: (() => void)[] = []
 let hovering = false
@@ -195,8 +133,8 @@ const closeSession = () => {
   stopShare = null
   stopCheckpoints?.()
   stopCheckpoints = null
-  for (const timer of leaving.values()) clearTimeout(timer)
-  leaving.clear()
+  stopPeopleLog?.()
+  stopPeopleLog = null
   session?.close()
   session = null
   holdSession(null)
@@ -285,7 +223,8 @@ const connect = async (id: string) => {
   holdSession(opened)
   anonymous.value = anonymousHere
   let synced = false
-  let settledAt = Infinity
+  const peopleLog = trackPeople()
+  stopPeopleLog = peopleLog.stop
   away = false
   opened.on('status', (status) => {
     const before = lastLiveStatus
@@ -321,12 +260,12 @@ const connect = async (id: string) => {
   opened.synced.then(
     () => {
       synced = true
-      settledAt = Date.now() + SETTLE_MS
+      peopleLog.settle()
       log(`Connected to ${place} · ${rightsText(opened.mayWrite)}`, 'connected')
     },
     () => undefined
   )
-  unbind = bindGraph(graph, opened, log, logChange)
+  unbind = bindGraph(graph, opened, log, (keys, edits) => logChange(authorOf(keys), edits))
   stopConflicts = showConflicts(graph, opened, log)
   stopShare = watchShare(opened)
   // On ending a share the host locks the room; a rebase in the middle of it would be one run too many.
@@ -335,39 +274,17 @@ const connect = async (id: string) => {
     () => shareDialog.value === 'quit',
     (by, label) => {
       if (!label) {
-        logBy('saved', by, 'saved')
+        logPerson('saved', by, 'saved')
         return
       }
-      logBy('release', by, `created release ${label}`)
+      logPerson('release', by, `created release ${label}`)
       announceRelease({ by, label })
     }
   )
   lastOnline = ''
-  lastPeople = null
   stopPresence = startPresence(graph, opened, (list, clients) => {
     people.value = list
-    // Who came and went, except oneself; until shortly after the sync it is only the state on connecting.
-    const now = new Map(list.flatMap((person) => (person.self ? [] : [[person.id, person] as const])))
-    if (lastPeople && Date.now() > settledAt) {
-      for (const [id, person] of now) {
-        if (lastPeople.has(id)) continue
-        if (!leaving.has(id)) logBy('joined', person.name, 'joined', Date.now(), person.color)
-        clearTimeout(leaving.get(id))
-        leaving.delete(id)
-      }
-      for (const [id, person] of lastPeople) {
-        if (now.has(id)) continue
-        const at = Date.now()
-        leaving.set(
-          id,
-          setTimeout(() => {
-            leaving.delete(id)
-            logBy('left', person.name, 'left', at, person.color)
-          }, LEAVE_MS)
-        )
-      }
-    }
-    lastPeople = now
+    peopleLog.update(list)
     // Selections change often; the log notes only who is there and how many clients announce themselves.
     const online = `${list.map((person) => (person.self ? `${person.name} (you)` : person.name)).join(', ') || 'nobody'} · ${clients} clients`
     if (online === lastOnline) return
