@@ -1,3 +1,5 @@
+import type { Task } from '@/services/api/types/task'
+
 /** A person from the CSV; row is the line in the file, the header is 1. */
 export interface CsvPerson {
   row: number
@@ -124,4 +126,20 @@ export const parseGroupWorkCsv = (text: string): GroupWorkCsv => {
   const sorted = [...groups.values()].sort((a, b) => naturally(a.name, b.name))
   for (const group of sorted) group.caseStudies.sort(naturally)
   return { groups: sorted, caseStudies: [...new Set(sorted.flatMap((group) => group.caseStudies))].sort(naturally), skipped, people: seen.size }
+}
+
+/** The current semester as an example for the course: October to March "WS 26/27", April to September "SS 27". */
+export const currentSemester = (date = new Date()) => {
+  const year = date.getFullYear() % 100
+  const month = date.getMonth() + 1
+  const pad = (n: number) => String(n % 100).padStart(2, '0')
+  if (month >= 10) return `WS ${pad(year)}/${pad(year + 1)}`
+  if (month <= 3) return `WS ${pad(year - 1 + 100)}/${pad(year)}`
+  return `SS ${pad(year)}`
+}
+
+/** The number in the name of a task: "F1 – Einzelhandel" is case study 1. */
+export const numberOf = (task: Task) => {
+  const number = task.name.match(/^\s*F\s*(\d+)/i)?.[1]
+  return number ? String(Number(number)) : null
 }
