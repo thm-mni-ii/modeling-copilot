@@ -1,3 +1,4 @@
+import type { AxiosError } from 'axios'
 import { useBearerToken } from '@/composables/useBearerToken'
 import type { CollabKitApi } from './collabKitV1'
 
@@ -40,3 +41,6 @@ export const collabErrorMessage = (error: unknown) => {
   // A request the browser blocks for CORS looks the same to the page, it hides the reason.
   return `not reachable at ${collabUrl} or blocked by CORS`
 }
+
+/** The reason the backend names for a refused call (`{ code, message }`), else the message of the error. */
+export const apiErrorMessage = (error: unknown) => (error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message

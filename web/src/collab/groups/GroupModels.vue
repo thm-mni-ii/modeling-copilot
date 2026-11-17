@@ -79,10 +79,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
-import type { AxiosError } from 'axios'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import httpClient from '@/services/api/httpClient'
-import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
+import { apiErrorMessage, collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 import { collabSettings } from '@/collab/connection/collabSettings'
 import { loadGroupRooms, type GroupRoom, type GroupWorkMark } from '@/collab/groups/groupRooms'
@@ -179,7 +178,7 @@ const archiveCourse = async () => {
     await reload()
     emit('archived')
   } catch (error) {
-    notifyError(`The course could not be archived: ${(error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message}`)
+    notifyError(`The course could not be archived: ${apiErrorMessage(error)}`)
   } finally {
     archiving.value = false
   }

@@ -20,6 +20,7 @@ import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabKitApi, ManagementElement, ManagementOpen, ManagementOwnTab, ManagementTab, Room } from '@/collab/kit/collabKitV1'
 import GroupWork from '@/collab/groups/GroupWork.vue'
 import CollabSettings from './CollabSettings.vue'
+import { mayManageAll } from './access'
 import { newWorkpiece, UML_CLASS_DIAGRAM } from '@/collab/storage/workpiece'
 import { TASK_FORMAT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
@@ -57,10 +58,7 @@ onMounted(async () => {
   try {
     const api = await loadCollabKit()
     // Asked before the element, so the tab is there from the start; without an answer it stays away.
-    manager.value = await api.me.rights().then(
-      (rights) => rights.includes('manage'),
-      () => false
-    )
+    manager.value = await mayManageAll()
     // Also before the element, so the "Archive" tab does not show briefly; without an answer the default applies, which is off.
     await loadCollabSettings(api, 'archive').catch(() => undefined)
     ck.value = api

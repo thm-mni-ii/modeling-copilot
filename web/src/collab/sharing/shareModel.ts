@@ -7,7 +7,7 @@ import { cloneJson } from '@/model/ModelSnapshot'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
 import type { Model } from '@/services/api/types/model'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import { loadCollabKit } from '@/collab/kit/collabKit'
+import { apiErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import type { Right } from '@/collab/kit/collabKitV1'
 import { openWorkpiece } from '@/collab/connection/openWorkpiece'
 import type { HistoryMode } from '@/collab/converters/model/modelHistory'
@@ -128,7 +128,7 @@ const request = async <Value>(run: () => Promise<{ data: Value }>) => {
   try {
     return (await run()).data
   } catch (error) {
-    throw new Error((error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message)
+    throw new Error(apiErrorMessage(error))
   }
 }
 

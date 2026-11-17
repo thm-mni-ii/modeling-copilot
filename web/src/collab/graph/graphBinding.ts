@@ -180,7 +180,7 @@ export const bindGraph = (graph: Graph, session: Session<ModelUnit>, log: Log, o
   // The Copilot swaps the whole model when it loads one, restores a version or takes a draft back;
   // that is no edit to share, so the shared state is shown again once the Copilot is done with it.
   // A reader's edit passes the lock only through the Copilot's own buttons, and is taken back the same way.
-  const stopWatching = watchGraphChanges(graph, (_cellCount, replaced, edit) => {
+  const stopWatching = watchGraphChanges(graph, (replaced, edit) => {
     if (!ready || applyingRemote) return
     // The Copilot's undo took back a change of another; nothing goes out, the shared state of those cells comes back.
     const undone = cellsOfUndoneEdit(edit)

@@ -29,6 +29,8 @@ const INITIAL = 'initial'
 /** How often and how long a checkpoint waits for collab-kit to hold the own changes. */
 const ATTEMPTS = 10
 const PAUSE_MS = 200
+/** The presence field through which a save reports its checkpoint to the others at the workpiece; collab-kit does not report checkpoints itself. */
+const CHECKPOINT_FIELD = 'checkpoint'
 
 /** One stored change: when, what it did to the cells, and the languages after it. */
 interface Step {
@@ -302,9 +304,6 @@ export const versionsOf = (model: Model): ModelVersions | null => {
     latestVersion: async () => latestOf((await read(false)).entries)
   }
 }
-
-/** The presence field through which a save reports its checkpoint to the others at the workpiece; collab-kit does not report checkpoints itself. */
-const CHECKPOINT_FIELD = 'checkpoint'
 
 /**
  * Listens to the checkpoints others report in their presence and takes the latest as the base of the open model,

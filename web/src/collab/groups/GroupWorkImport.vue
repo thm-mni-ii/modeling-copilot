@@ -159,8 +159,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, shallowRef, watch } from 'vue'
-import type { AxiosError } from 'axios'
 import { notifyError } from '@/composables/useNotifications'
+import { apiErrorMessage } from '@/collab/kit/collabKit'
 import httpClient from '@/services/api/httpClient'
 import taskService from '@/services/task/task.service'
 import type { Task, TaskVersionInfo } from '@/services/api/types/task'
@@ -345,7 +345,6 @@ const requestOf = (group: CsvGroup) => ({
   names: Object.fromEntries(group.members.map((member) => [member.username, member.name])),
   tasks: group.caseStudies.map((caseStudy) => ({ taskId: choices[caseStudy].taskId, versionId: choices[caseStudy].versionId }))
 })
-const messageOf = (error: unknown) => (error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message
 
 // Only the answer to the last check counts; an older one may arrive later.
 let planRun = 0
@@ -368,7 +367,7 @@ const preview = async () => {
     }
     if (run === planRun) plans.value = next
   } catch (error) {
-    if (run === planRun) planFailure.value = messageOf(error)
+    if (run === planRun) planFailure.value = apiErrorMessage(error)
   } finally {
     if (run === planRun) planning.value = false
   }
@@ -404,7 +403,7 @@ const create = async () => {
     // All applied: the file goes, the import is back at the drop area.
     file.value = []
   } catch (error) {
-    createFailure.value = messageOf(error)
+    createFailure.value = apiErrorMessage(error)
     // The file stays; the check shows the new state, so "up to date" for everything applied already.
     void preview()
   } finally {
