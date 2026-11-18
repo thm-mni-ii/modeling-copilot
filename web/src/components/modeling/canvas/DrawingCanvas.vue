@@ -9,6 +9,8 @@
             :connections="languageConnections"
             :connection-groups="props.connectionGroups"
             :connection-preferences="props.connectionPreferences"
+            :type-switch-languages="typeSwitchLanguages"
+            :can-change-type="props.allowEdit && !props.helpSelectionMode"
             @select-all="selectAll"
             @clear-selection="clearSelection"
             @delete-selected="deleteSelected"
@@ -47,6 +49,8 @@
           :connections="languageConnections"
           :connection-groups="props.connectionGroups"
           :connection-preferences="props.connectionPreferences"
+          :type-switch-languages="typeSwitchLanguages"
+          :can-change-type="props.allowEdit && !props.helpSelectionMode"
           @select-all="selectAll"
           @clear-selection="clearSelection"
           @delete-selected="deleteSelected"
@@ -475,7 +479,7 @@ const props = withDefaults(
     connectionGroups?: DiagramConnectionGroup[]
     connectionPreferences?: JsonObject
     languageSyntax?: DiagramSyntax[]
-    languages?: (SidebarLanguage & Partial<ValidationLanguage>)[]
+    languages?: (SidebarLanguage & Partial<ValidationLanguage> & { evaluation?: import('@/model/DiagramLanguage').DiagramEvaluationConfig })[]
     autonomyMode?: AutonomyMode
     connectionPreviewAllowed?: boolean
     lockAutonomyMode?: boolean
@@ -552,6 +556,7 @@ const openModelLanguages = async () => {
   void rightSidebar.value?.openLanguages()
 }
 const rightSidebarId = `model-tools-${globalThis.crypto.randomUUID()}`
+const typeSwitchLanguages = computed(() => props.languages?.map((language) => ({ elements: language.elements, connections: language.connections ?? [], syntax: language.syntax ?? [], evaluation: language.evaluation })) ?? [{ elements: props.languageElements ?? [], connections: props.languageConnections ?? [], syntax: props.languageSyntax ?? [] }])
 const showRightSidebar = computed(() => props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement)
 
 // Reaktive Variablen für Konfiguration
