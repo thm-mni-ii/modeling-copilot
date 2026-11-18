@@ -329,8 +329,20 @@ async def feedback(evaluation_id: UUID, user: User) -> Document:
         # A succeeded run whose feedback artifact could not be read yet is retried on the next call.
         if result["state"] in {"failed", "cancelled"} or (result["state"] == "succeeded" and recognitions):
             await db.evaluations.update_one({"_id": str(evaluation_id)}, {"$set": {"studentFeedback": stored}})
+    # The workflow reports no score; the learner score is the best overall recognition across sample solutions.
+    scores = [recognition_percent(item["recognition"].get("overall")) for item in stored["recognitions"]]
+    score = max((value for value in scores if value is not None), default=stored.get("scorePercent"))
     return {"id": evaluation["_id"], "startedAt": evaluation["startedAt"], "workflowName": evaluation["workflow"]["name"],
-            "submission": evaluation["submission"], **stored}
+            "submission": evaluation["submission"], **stored, "scorePercent": score}
+
+
+def recognition_percent(row: Any) -> float | None:
+    if not isinstance(row, dict):
+        return None
+    recognized, expected = row.get("recognized"), row.get("expected")
+    if type(recognized) is not int or type(expected) is not int or expected <= 0:
+        return None
+    return 100 * recognized / expected
 
 
 async def _model_run_steps(

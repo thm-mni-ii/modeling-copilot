@@ -94,4 +94,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v15_laboratory_synonym_models.migration",
         ("14_laboratory_structure_models",),
     ),
+    Migration(
+        "16_completion_score_categories",
+        "modeling_api.db.migrations.versions.v16_completion_score_categories.migration",
+        ("15_laboratory_synonym_models",),
+    ),
 )

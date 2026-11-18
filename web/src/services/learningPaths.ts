@@ -2,9 +2,10 @@ import type { SurveyVersion, SurveyResponse } from '@/services/surveys'
 import http from '@/services/api/httpClient'
 import type { TaskVersionReference, ApiPage } from '@/services/api/types/common'
 import type { ChallengeConfig, ChallengeAttempt } from '@/services/challenges'
-// Temporary until the laboratory task's automatic assessment is available.
-export const laboratoryCompletionBlockedStepId = '90633637-a890-597e-bfc6-682ed472b020'
-export const laboratoryCompletionUnavailableMessage = 'Tut uns leid, die automatische Bewertung ist vorübergehend nicht verfügbar. Du kannst dein Modell weiter bearbeiten, die Aufgabe aber noch nicht abschließen. Die Funktion wird in den nächsten Tagen ergänzt.'
+export type ScoreScope = 'overall' | 'eachCategory'
+/** Minimum for one recognition category, matched by its displayed label (e.g. "Attribute"). */
+export interface CategoryMinimum { label: string; minimumPercent: number }
+export interface CompletionGate { minimumScorePercent?: number | null; scoreScope?: ScoreScope; categoryMinimums?: CategoryMinimum[] }
 export interface Condition {
   type: 'completed' | 'score' | 'at' | 'after'
   stepId: string | null
@@ -13,7 +14,7 @@ export interface Condition {
   timezone: string
   seconds: number | null
 }
-export interface PathStep {
+export interface PathStep extends CompletionGate {
   id: string
   title: string
   type?: 'task' | 'survey'
@@ -24,7 +25,6 @@ export interface PathStep {
   required?: boolean
   unlock: { mode: 'sequence' | 'all' | 'any'; conditions: Condition[] }
   challenge?: ChallengeConfig | null
-  minimumScorePercent?: number | null
 }
 export interface PulseSurveyConfig {
   enabled: boolean
@@ -101,7 +101,7 @@ export interface PathRun {
   skipped?: number
   finished?: boolean
 }
-export interface PathModelContext {
+export interface PathModelContext extends CompletionGate {
   id: string
   runId: string
   stepId: string
@@ -118,7 +118,6 @@ export interface PathModelContext {
   afterSurvey: { surveyId: string; completed: boolean } | null
   challenge: ChallengeAttempt | null
   helpRequests: HelpRequestConfig
-  minimumScorePercent?: number | null
 }
 export interface PathProgressSummary {
   id: string

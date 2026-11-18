@@ -54,6 +54,16 @@ class UnlockRule(ApiSchema):
         return self
 
 
+ScoreScope = Literal["overall", "eachCategory"]
+
+
+class CategoryMinimum(ApiSchema):
+    """Minimum for one recognition category, matched by its displayed label (e.g. "Attribute")."""
+
+    label: str = Field(min_length=1, max_length=200)
+    minimum_percent: float = Field(ge=0, le=100, allow_inf_nan=False)
+
+
 class LearningPathStep(ApiSchema):
     id: UUID
     title: Name
@@ -66,12 +76,18 @@ class LearningPathStep(ApiSchema):
     unlock: UnlockRule = Field(default_factory=UnlockRule)
     challenge: ChallengeConfig | None = None
     minimum_score_percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    score_scope: ScoreScope = "overall"
+    category_minimums: list[CategoryMinimum] = Field(default_factory=list, max_length=50)
 
     @model_validator(mode="after")
     def valid_activity(self):
         if self.type == "task":
             if not self.task_version or self.survey_id or not self.required:
                 raise ValueError("Tasks require a task release and must be required.")
+            if self.minimum_score_percent is None and (self.score_scope != "overall" or self.category_minimums):
+                raise ValueError("Category minimums require a minimum evaluation score.")
+            if len({row.label for row in self.category_minimums}) != len(self.category_minimums):
+                raise ValueError("Each category may only have one minimum.")
         elif (
             not self.survey_id
             or self.task_version
@@ -79,6 +95,7 @@ class LearningPathStep(ApiSchema):
             or self.before_survey_id
             or self.after_survey_id
             or self.minimum_score_percent is not None
+            or self.category_minimums
         ):
             raise ValueError(
                 "Questionnaires require a survey and cannot have task settings."
@@ -380,3 +397,5 @@ class PathModelContext(ApiSchema):
     after_survey: TaskSurveyProgress | None = None
     help_requests: HelpRequestConfig = Field(default_factory=HelpRequestConfig)
     minimum_score_percent: float | None = Field(default=None, ge=0, le=100)
+    score_scope: ScoreScope = "overall"
+    category_minimums: list[CategoryMinimum] = Field(default_factory=list)

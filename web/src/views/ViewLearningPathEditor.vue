@@ -138,9 +138,22 @@
             <v-progress-linear v-if="loadingEvaluationRelease" indeterminate color="info" class="mb-2" />
             <v-alert v-if="evaluationReleaseError" type="error" density="compact" variant="tonal" class="mb-2">{{ evaluationReleaseError }}<v-btn size="small" variant="text" @click="loadEvaluationRelease">Retry</v-btn></v-alert>
             <p v-else-if="!loadingEvaluationRelease && !selectedEvaluationAvailable" class="text-caption mb-2">Add a released sample solution to this task release to enable automatic evaluation.</p>
-            <v-switch :model-value="selected.minimumScorePercent != null" :disabled="loadingEvaluationRelease || !selectedEvaluationAvailable && selected.minimumScorePercent == null" label="Require a minimum evaluation score to complete this task" color="primary" hide-details @update:model-value="selected.minimumScorePercent = $event ? 50 : null" />
-            <v-text-field v-if="selected.minimumScorePercent != null" :model-value="selected.minimumScorePercent" type="number" min="0" max="100" step="1" label="Minimum score" suffix="%" variant="outlined" class="mt-3" hide-details="auto" :rules="[(value) => (value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100) || 'Enter a percentage between 0 and 100.']" @update:model-value="selected.minimumScorePercent = $event === '' ? Number.NaN : Number($event)" />
-            <p v-if="selected.minimumScorePercent != null" class="text-caption mt-2">Completion starts an evaluation of the current model. A final model score is required to meet this minimum. The score integration is being prepared.</p>
+            <v-switch :model-value="selected.minimumScorePercent != null" :disabled="loadingEvaluationRelease || !selectedEvaluationAvailable && selected.minimumScorePercent == null" label="Require a minimum evaluation score to complete this task" color="primary" hide-details @update:model-value="Object.assign(selected, { minimumScorePercent: $event ? 50 : null, scoreScope: 'overall', categoryMinimums: [] })" />
+            <template v-if="selected.minimumScorePercent != null">
+              <v-text-field :model-value="selected.minimumScorePercent" type="number" min="0" max="100" step="1" label="Minimum score" suffix="%" variant="outlined" class="mt-3" hide-details="auto" :rules="[percentRule]" @update:model-value="selected.minimumScorePercent = $event === '' ? Number.NaN : Number($event)" />
+              <v-radio-group :model-value="selected.scoreScope ?? 'overall'" class="mt-2" hide-details @update:model-value="selected.scoreScope = $event as ScoreScope">
+                <v-radio value="overall" label="Across all objects of the sample solution" />
+                <v-radio value="eachCategory" label="In every category (e.g. entities, attributes, relationships)" />
+              </v-radio-group>
+              <h4 class="text-body-2 font-weight-medium mt-3 mb-2">Category minimums</h4>
+              <div v-for="(row, index) in selected.categoryMinimums" :key="index" class="d-flex ga-2 align-center mb-2">
+                <v-combobox v-model="row.label" :items="categorySuggestions" label="Category" density="compact" variant="outlined" hide-details />
+                <v-text-field :model-value="row.minimumPercent" type="number" min="0" max="100" step="1" suffix="%" density="compact" variant="outlined" hide-details="auto" class="category-minimum" :rules="[percentRule]" :aria-label="`Minimum for ${row.label || 'category'}`" @update:model-value="row.minimumPercent = $event === '' ? Number.NaN : Number($event)" />
+                <v-btn icon="mdi-delete-outline" variant="text" size="small" aria-label="Remove category minimum" @click="selected.categoryMinimums!.splice(index, 1)" />
+              </div>
+              <v-btn variant="text" size="small" prepend-icon="mdi-plus" @click="(selected.categoryMinimums ??= []).push({ label: '', minimumPercent: selected.minimumScorePercent })">Add category minimum</v-btn>
+              <p class="text-caption mt-2">Completion evaluates the current model. {{ selected.scoreScope === 'eachCategory' ? 'Every category must reach the minimum score' : 'The share of recognized objects must reach the minimum score' }}; a category minimum replaces or adds the requirement for that category. Categories absent from the sample solution are ignored.</p>
+            </template>
           </div>
           <div v-if="selected.type !== 'survey'" class="mt-5">
             <h3 class="text-subtitle-1 mb-2">Task questionnaires</h3>
@@ -228,9 +241,10 @@ import PulseSurveySettings from '@/components/learningPaths/PulseSurveySettings.
 import HelpRequestSettings from '@/components/learningPaths/HelpRequestSettings.vue'
 import LearningPathSurveyPicker from '@/components/learningPaths/LearningPathSurveyPicker.vue'
 import TreasurePathBoard from '@/components/learningPaths/TreasurePathBoard.vue'
-import paths, { pathVisibilityOptions, pathVisibilityLabel, type PathRun, type PathStep, type PathTemplate } from '@/services/learningPaths'
+import paths, { pathVisibilityOptions, pathVisibilityLabel, type PathRun, type PathStep, type PathTemplate, type ScoreScope } from '@/services/learningPaths'
 import surveys, { type Survey } from '@/services/surveys'
 import taskService from '@/services/task/task.service'
+import languageService from '@/services/language/language.service'
 import type { Task, TaskVersion, TaskVersionInfo } from '@/services/api/types/task'
 import { availabilitySummary, conditionSummary, validatePathSteps, validatePulseConfig } from '@/utils/learningPathEditor'
 import { releaseVersionLabel } from '@/utils/versions'
@@ -248,6 +262,8 @@ const evaluationRelease = ref<TaskVersion | null>(null)
 const loadingEvaluationRelease = ref(false)
 const evaluationReleaseError = ref('')
 const selectedEvaluationAvailable = computed(() => Boolean(evaluationRelease.value?.data.sampleSolutions.length))
+const categorySuggestions = ref<string[]>([])
+const percentRule = (value: unknown) => (value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100) || 'Enter a percentage between 0 and 100.'
 let evaluationReleaseGeneration = 0
 const loadEvaluationRelease = async () => {
   const reference = selected.value?.taskVersion
@@ -258,7 +274,11 @@ const loadEvaluationRelease = async () => {
   if (!reference) return
   try {
     const result = (await taskService.getVersion(reference.taskId, reference.versionId)).data
-    if (generation === evaluationReleaseGeneration) evaluationRelease.value = result
+    if (generation !== evaluationReleaseGeneration) return
+    evaluationRelease.value = result
+    // Category suggestions are the comparison groups of the task languages; missing languages just yield none.
+    const languages = await Promise.all(result.workspaceLanguages.map((language) => languageService.getVersion<{ evaluation?: { comparisonGroups?: { name: string }[] } }>(language.languageId, language.versionId).then((response) => response.data.data, () => null)))
+    if (generation === evaluationReleaseGeneration) categorySuggestions.value = [...new Set(languages.flatMap((data) => data?.evaluation?.comparisonGroups?.map((group) => group.name) ?? []))]
   } catch (error) {
     if (generation === evaluationReleaseGeneration) evaluationReleaseError.value = message(error)
   } finally {
@@ -866,5 +886,9 @@ onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload))
   .task-source {
     flex-wrap: wrap;
   }
+}
+
+.category-minimum {
+  flex: 0 0 110px;
 }
 </style>

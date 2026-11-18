@@ -88,7 +88,7 @@
           <v-progress-linear :model-value="progressPercent" :indeterminate="!showServiceView" height="6" rounded color="info" aria-label="Fortschritt des Auswertungsdurchlaufs" />
         </div>
 
-        <v-select v-if="referenceOptions.length > 1" v-model="referenceKey" :items="referenceOptions" item-title="label" item-value="key" label="Musterlösung" density="compact" variant="outlined" hide-details class="mt-3" />
+        <v-select v-if="showServiceView && referenceOptions.length > 1" v-model="referenceKey" :items="referenceOptions" item-title="label" item-value="key" label="Musterlösung" density="compact" variant="outlined" hide-details class="mt-3" />
 
         <v-tabs v-if="showServiceView" v-model="serviceTab" density="compact" grow color="primary" class="evaluation-tabs mt-2">
           <v-tab value="overview">Überblick</v-tab>
@@ -97,12 +97,23 @@
         </v-tabs>
         <v-divider v-else class="my-2" />
 
-        <section v-if="!showServiceView" aria-label="Ergebnis der Auswertung" aria-live="polite">
+        <section v-if="!showServiceView && feedback?.state !== 'succeeded'" aria-label="Ergebnis der Auswertung" aria-live="polite">
           <h3 class="text-body-2 font-weight-medium mb-2">Dein Ergebnis</h3>
           <p class="text-caption text-medium-emphasis mb-0">{{ studentResultMessage }}</p>
         </section>
 
-        <section v-if="!showServiceView || serviceTab === 'overview'" class="my-3" aria-label="Erkennungsübersicht" aria-live="polite">
+        <!-- Learners see exactly what the completion check shows: percentages and, in learning paths, the thresholds. -->
+        <section v-if="!showServiceView && feedback?.state === 'succeeded'" class="my-3" aria-label="Dein Ergebnis" aria-live="polite">
+          <div class="d-flex align-center ga-2 mb-3">
+            <h3 class="text-body-2 font-weight-medium">Dein Ergebnis</h3>
+            <v-spacer />
+            <v-chip v-if="studentGate?.gated" :color="studentGate.passed ? 'success' : 'error'" size="small" variant="tonal" label>{{ studentGate.passed ? 'Abgabebereit' : 'Noch nicht abgabebereit' }}</v-chip>
+          </div>
+          <CompletionGateBars v-if="studentGate" :result="studentGate" dense />
+          <p v-else class="text-caption text-medium-emphasis">Für diese Auswertung ist noch kein Ergebnis verfügbar.</p>
+        </section>
+
+        <section v-if="showServiceView && serviceTab === 'overview'" class="my-3" aria-label="Erkennungsübersicht" aria-live="polite">
           <h3 class="text-body-2 font-weight-medium mb-1">Erkennung</h3>
           <p class="text-caption text-medium-emphasis">Anteil der Musterlösungsobjekte mit eindeutig erkanntem Gegenstück. Keine Korrektheitsquote oder Note.</p>
           <p v-if="selectedRecognition?.recognition.buckets" class="text-caption text-medium-emphasis">Eine Zeile je Vergleichsgruppe bzw. nicht gruppiertem Typ der Musterlösung.</p>
@@ -174,6 +185,9 @@ import JsonResultViewer from './JsonResultViewer.vue'
 import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
 import AnalyticalFeedbackPanel from './AnalyticalFeedbackPanel.vue'
 import { semanticComparisonResult } from '@/utils/semanticComparison'
+import CompletionGateBars from '@/components/learningPaths/CompletionGateBars.vue'
+import { completionGate } from '@/utils/completionGate'
+import { useModelFileContext } from '@/composables/useModelFileContext'
 import { adaptRecognition, analysisCategories, analysisValueLabel, categoryLabels, recognitionReportsFromEvaluation, type RecognitionCount } from '@/utils/analysisFeedback'
 
 const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null; evaluationPerspective?: 'service' | 'student' }>()
@@ -214,6 +228,11 @@ const recognitionRows = computed(() => selectedRecognition.value ? [
   ...(selectedRecognition.value.recognition.buckets?.map(row => ({ key: row.id, label: row.label, row })) ??
     analysisCategories.map(key => ({ key, label: categoryLabels[key], row: selectedRecognition.value!.recognition.categories![key] })))
 ] : [])
+const files = useModelFileContext()
+const studentGate = computed(() => {
+  try { return feedback.value ? completionGate(files?.completionGate.value ?? null, feedback.value) : null }
+  catch { return null }
+})
 const unmatchedCount = computed(() => selectedRecognition.value?.recognition.unmatchedSubmission.length ?? 0)
 const recognitionPercent = (row: RecognitionCount) => row.percent === null ? 'nicht bestimmbar' : `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(row.percent)} %`
 const selectedId = ref<ApiId | null>(null)
@@ -260,9 +279,9 @@ const studentResultMessage = computed(() => {
       if (feedback.value.scorePercent != null) return `Dein Modell erreicht ${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(feedback.value.scorePercent)} %.`
       return 'Die Auswertung ist abgeschlossen. Eine Ergebnisanzeige für Studierende ist für diese Auswertung noch nicht eingerichtet.'
     case 'failed':
-      return 'Die Auswertung ist fehlgeschlagen. Fordere erneut automatisch erzeugtes Feedback an oder versuche den Aufgabenabschluss erneut.'
+      return 'Die Auswertung ist fehlgeschlagen. Bitte starte sie erneut.'
     case 'cancelled':
-      return 'Die Auswertung wurde abgebrochen. Fordere erneut automatisch erzeugtes Feedback an oder versuche den Aufgabenabschluss erneut.'
+      return 'Die Auswertung wurde abgebrochen. Bitte starte sie erneut.'
     case 'queued':
       return 'Deine Auswertung wartet auf den Start.'
     case 'running':
