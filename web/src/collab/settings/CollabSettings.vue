@@ -54,6 +54,7 @@
             </div>
             <PaletteEditor v-if="!filtering && entry.section.area === 'colors'" :colors="form.colors" :problem="problemOf('colors', 'palette')" :changed="(key) => fieldChanged('colors', key)" @update="(key, value) => (form.colors[key] = value)" />
             <PresenceCanvas v-if="!filtering && entry.section.area === 'presence'" class="mb-3" :presence="form.presence" :colors="form.colors" :changed="fieldChanged" :problem="problemOf" @update="(area, key, value) => (form[area][key] = value)" />
+            <ActivityCanvas v-if="!filtering && (entry.section.area === 'log' || entry.section.area === 'hints')" :area="entry.section.area" class="mb-3" :values="form[entry.section.area]" :colors="form.colors" :changed="fieldChanged" :problem="problemOf" @update="(key, value) => (form[entry.section.area][key] = value)" />
             <ShareDefaultsPreview v-if="!filtering && entry.section.area === 'shareDefaults'" :values="form.shareDefaults" :resettable="SHARE_KEYS.some((key) => nonDefault('shareDefaults', key))" @update="(key, value) => (form.shareDefaults[key] = value)" @reset="SHARE_KEYS.forEach((key) => resetField('shareDefaults', key))" />
             <div class="card__parts">
               <div v-for="part in partsOf(entry)" :key="String(part.advanced)" :class="part.advanced ? 'advanced' : 'part'">
@@ -159,6 +160,7 @@ import type { CollabKitApi } from '@/collab/kit/collabKitV1'
 import { applyCollabSettings, COLLAB_AREAS, COLLAB_LIMITS, collabSettings, loadCollabSettings, type CollabArea, type CollabLimit } from '@/collab/settings/collabSettings'
 import { historyChoices } from '@/collab/sharing/shareChoices'
 import { labOf, textOn } from '@/collab/settings/colorMath'
+import ActivityCanvas from '@/collab/settings/ActivityCanvas.vue'
 import PaletteEditor from '@/collab/settings/PaletteEditor.vue'
 import PresenceCanvas from '@/collab/settings/PresenceCanvas.vue'
 import ShareDefaultsPreview from '@/collab/settings/ShareDefaultsPreview.vue'
@@ -439,8 +441,8 @@ const defaultOf = (area: CollabArea, key: string) => {
 }
 const nonDefault = (area: CollabArea, key: string) => JSON.stringify(form[area][key]) !== JSON.stringify(defaultOf(area, key))
 /** The settings the timeline and the dialog preview show, so they can be reset from there. */
-/** The canvas of the presence settings and the palette editor hold every presence and color field, so they are no rows. */
-const onCanvas = (area: CollabArea) => area === 'presence' || area === 'colors'
+/** The canvases of the presence, log and hints settings and the palette editor hold every field of these areas, so they are no rows. */
+const onCanvas = (area: CollabArea) => ['presence', 'colors', 'log', 'hints'].includes(area)
 const WAIT_KEYS = ['hostAwayMs', 'hostGraceSeconds', 'hostEndSeconds', 'visitorGraceSeconds']
 const SHARE_KEYS = ['anonymous', 'edit', 'task', 'history']
 const labelOfKey = (area: CollabArea, key: string) => SECTIONS.find((section) => section.area === area)?.fields.find((field) => field.key === key)?.label ?? key
