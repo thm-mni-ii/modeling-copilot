@@ -4,8 +4,8 @@
       <v-btn v-if="view === 'detail'" icon size="x-small" variant="text" title="Zurück zur Liste" @click="view = 'list'">
         <v-icon size="18">mdi-arrow-left</v-icon>
       </v-btn>
-      <span v-if="view === 'detail' && current" class="evaluation-sidebar__toolbar-title">{{ current.name }}</span>
-      <span v-else class="text-caption text-medium-emphasis">{{ evaluations.length ? `${evaluations.length} Auswertung(en)` : '\u00A0' }}</span>
+      <span v-if="view === 'detail' && current" class="evaluation-sidebar__toolbar-title" :title="showServiceView ? current.name : feedbackTitle">{{ showServiceView ? current.name : feedbackTitle }}</span>
+      <span v-else class="text-caption text-medium-emphasis">{{ evaluations.length ? `${evaluations.length} ${evaluations.length === 1 ? 'Auswertung' : 'Auswertungen'}` : '\u00A0' }}</span>
       <v-spacer />
       <v-btn icon size="x-small" variant="text" title="Aktualisieren" :loading="view === 'list' ? loading : detailLoading" @click="view === 'list' ? loadList() : reload()">
         <v-icon size="16">mdi-refresh</v-icon>
@@ -26,18 +26,20 @@
         <p class="text-caption text-medium-emphasis mb-0">{{ userStore.globalRole === 'ADMIN' ? 'Starte eine Auswertung über den Task-Header.' : 'Hier erscheint dein automatisch erzeugtes Feedback.' }}</p>
       </div>
       <v-list v-else density="compact" nav class="pa-0">
-        <template v-for="(evaluation, index) in evaluations" :key="evaluation.id">
+        <template v-for="({ evaluation, summary }, index) in navigationEntries" :key="evaluation.id">
           <v-list-item :active="selectedId === evaluation.id" class="evaluation-item" @click="openDetail(evaluation.id)">
             <template #prepend
-              ><v-icon size="20" :color="stateColor(evaluation.state)">{{ stateIcon(evaluation.state) }}</v-icon></template
+              ><v-icon size="20" :color="evaluation.state === 'succeeded' && !showServiceView ? 'primary' : stateColor(evaluation.state)" aria-hidden="true">{{ evaluation.state === 'succeeded' && !showServiceView ? 'mdi-comment-text-outline' : stateIcon(evaluation.state) }}</v-icon></template
             >
             <template #title>
               <div class="d-flex align-center ga-2">
-                <span class="evaluation-item__name">{{ evaluation.workflow.name }}</span>
+                <span class="evaluation-item__name" :title="showServiceView ? evaluation.workflow.name : feedbackTitle">{{ showServiceView ? evaluation.workflow.name : feedbackTitle }}</span>
                 <span v-if="isPolling && selectedId === evaluation.id" class="live-dot" title="Wird live aktualisiert" />
               </div>
             </template>
             <template #subtitle>
+              <span v-if="showServiceView || evaluation.state !== 'succeeded'" class="evaluation-item__status" :class="{ 'text-error': evaluation.state === 'failed', 'text-warning': evaluation.state === 'cancelled' }">{{ showServiceView ? stateLabel(evaluation.state) : studentStateLabel(evaluation.state) }}</span>
+              <span v-if="evaluation.state === 'succeeded'" class="evaluation-item__summary">{{ summary }}</span>
               <span class="evaluation-item__meta" :title="absoluteTime(evaluation.startedAt)">{{ relativeTime(evaluation.startedAt) }}</span>
             </template>
           </v-list-item>
@@ -61,12 +63,12 @@
           <v-btn value="student" size="small">Studierende</v-btn>
         </v-btn-toggle>
 
-        <div class="d-flex align-center ga-2">
-          <v-chip :color="stateColor(current.state)" size="small" variant="tonal" label aria-label="Status des Auswertungsdurchlaufs"
+        <div class="d-flex flex-wrap align-center ga-2">
+          <v-chip v-if="showServiceView" :color="stateColor(current.state)" size="small" variant="tonal" label class="evaluation-run-status" aria-label="Technischer Workflowstatus"
             ><v-icon start size="14">{{ stateIcon(current.state) }}</v-icon
             >{{ stateLabel(current.state) }}</v-chip
           >
-          <span v-if="isPolling" class="live-dot" title="Wird live aktualisiert" />
+          <span v-if="showServiceView && isPolling" class="live-dot" title="Wird live aktualisiert" />
           <v-spacer />
           <span class="text-caption text-medium-emphasis" :title="absoluteTime(current.startedAt)">{{ relativeTime(current.startedAt) }}</span>
         </div>
@@ -93,24 +95,27 @@
         <v-tabs v-if="showServiceView" v-model="serviceTab" density="compact" grow color="primary" class="evaluation-tabs mt-2">
           <v-tab value="overview">Überblick</v-tab>
           <v-tab value="findings">Befunde</v-tab>
+          <v-tab value="feedback">Feedback</v-tab>
           <v-tab value="technical">Technik</v-tab>
         </v-tabs>
-        <v-divider v-else class="my-2" />
 
-        <section v-if="!showServiceView && feedback?.state !== 'succeeded'" aria-label="Ergebnis der Auswertung" aria-live="polite">
-          <h3 class="text-body-2 font-weight-medium mb-2">Dein Ergebnis</h3>
+        <v-alert v-if="!showServiceView && feedback?.state !== 'succeeded'" :type="current.state === 'failed' ? 'error' : current.state === 'cancelled' ? 'warning' : 'info'" density="compact" variant="tonal" class="mt-3" :title="studentStateLabel(current.state)" aria-live="polite">
           <p class="text-caption text-medium-emphasis mb-0">{{ studentResultMessage }}</p>
-        </section>
+        </v-alert>
 
         <!-- Learners see exactly what the completion check shows: percentages and, in learning paths, the thresholds. -->
-        <section v-if="!showServiceView && feedback?.state === 'succeeded'" class="my-3" aria-label="Dein Ergebnis" aria-live="polite">
-          <div class="d-flex align-center ga-2 mb-3">
+        <section v-if="!showServiceView && feedback?.state === 'succeeded' && !hasCheckFeedback" class="my-3" aria-label="Dein Ergebnis" aria-live="polite">
+          <div class="d-flex flex-wrap align-center ga-2 mb-3">
             <h3 class="text-body-2 font-weight-medium">Dein Ergebnis</h3>
             <v-spacer />
-            <v-chip v-if="studentGate?.gated" :color="studentGate.passed ? 'success' : 'error'" size="small" variant="tonal" label>{{ studentGate.passed ? 'Abgabebereit' : 'Noch nicht abgabebereit' }}</v-chip>
+            <v-chip v-if="studentGate?.gated" :color="studentGate.passed ? 'success' : 'warning'" size="small" variant="tonal" label class="evaluation-result-status">{{ studentGate.passed ? 'Abgabebereit' : 'Noch nicht abgabebereit' }}</v-chip>
           </div>
           <CompletionGateBars v-if="studentGate" :result="studentGate" dense />
-          <p v-else class="text-caption text-medium-emphasis">Für diese Auswertung ist noch kein Ergebnis verfügbar.</p>
+          <p v-else class="text-caption text-medium-emphasis">{{ studentResultMessage }}</p>
+        </section>
+        <section v-if="!showServiceView && feedback?.state === 'succeeded' && feedback.feedback?.length" class="my-3" aria-label="Dein Hilfe-Feedback">
+          <h3 class="text-body-2 font-weight-medium mb-2">Dein Hilfe-Feedback</h3>
+          <FeedbackView :entries="feedback.feedback" />
         </section>
 
         <section v-if="showServiceView && serviceTab === 'overview'" class="my-3" aria-label="Erkennungsübersicht" aria-live="polite">
@@ -133,7 +138,9 @@
           <p v-else class="text-caption text-medium-emphasis">Für diese Auswertung und Musterlösung ist noch keine Erkennungsübersicht verfügbar.</p>
         </section>
 
-        <AnalyticalFeedbackPanel v-if="showServiceView && detail" v-model:reference-key="referenceKey" v-model:tab="serviceTab" :detail="detail" />
+        <AnalyticalFeedbackPanel v-if="showServiceView && detail" v-model:reference-key="referenceKey" v-model:tab="serviceTab" :detail="detail" @feedback-object="id => catalogFocus = { id, seq: (catalogFocus?.seq ?? 0) + 1 }" />
+
+        <FeedbackCatalogPanel v-if="showServiceView && detail && serviceTab === 'feedback'" :detail="detail" :reference-key="referenceKey" :focus="catalogFocus" />
 
         <div v-if="showServiceView && detail && serviceTab === 'technical'" class="mt-3">
         <p class="text-caption text-medium-emphasis mb-2">Auswertungsparameter: {{ parameterSummary }}</p>
@@ -184,9 +191,11 @@ import { useUserStore } from '@/stores/userStore'
 import JsonResultViewer from './JsonResultViewer.vue'
 import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
 import AnalyticalFeedbackPanel from './AnalyticalFeedbackPanel.vue'
+import FeedbackView from '@/components/feedback/FeedbackView.vue'
+import FeedbackCatalogPanel from './FeedbackCatalogPanel.vue'
 import { semanticComparisonResult } from '@/utils/semanticComparison'
 import CompletionGateBars from '@/components/learningPaths/CompletionGateBars.vue'
-import { completionGate } from '@/utils/completionGate'
+import { completionGate, type GateResult } from '@/utils/completionGate'
 import { useModelFileContext } from '@/composables/useModelFileContext'
 import { adaptRecognition, analysisCategories, analysisValueLabel, categoryLabels, recognitionReportsFromEvaluation, type RecognitionCount } from '@/utils/analysisFeedback'
 
@@ -221,7 +230,8 @@ const referenceOptions = computed(() => analyticalOptions.value.length ? analyti
 watch([referenceOptions, () => detail.value?.id ?? feedback.value?.id],([options, evaluationId], [, previousId]) => {
   if (evaluationId !== previousId || !options.some(option => option.key === referenceKey.value)) referenceKey.value = options[0]?.key ?? ''
 }, { immediate: true })
-const serviceTab = ref<'overview' | 'findings' | 'technical'>('overview')
+const catalogFocus = ref<{ id: string; seq: number } | null>(null)
+const serviceTab = ref<'overview' | 'findings' | 'feedback' | 'technical'>('overview')
 const selectedRecognition = computed(() => recognitionState.value.reports.find(report => report.referenceKey === referenceKey.value))
 const recognitionRows = computed(() => selectedRecognition.value ? [
   { key: 'overall', label: 'Insgesamt', row: selectedRecognition.value.recognition.overall },
@@ -229,10 +239,27 @@ const recognitionRows = computed(() => selectedRecognition.value ? [
     analysisCategories.map(key => ({ key, label: categoryLabels[key], row: selectedRecognition.value!.recognition.categories![key] })))
 ] : [])
 const files = useModelFileContext()
-const studentGate = computed(() => {
-  try { return feedback.value ? completionGate(files?.completionGate.value ?? null, feedback.value) : null }
+const feedbackTitle = computed(() => files?.completionGate.value?.minimumScorePercent != null ? 'Abgabeprüfung' : 'Modellfeedback')
+const gateFor = (value: EvaluationFeedback | null | undefined) => {
+  try { return value ? completionGate(files?.completionGate.value ?? null, value) : null }
   catch { return null }
-})
+}
+const studentGate = computed(() => gateFor(feedback.value))
+// Help type "Prüfung" renders these bars itself.
+const hasCheckFeedback = computed(() => Boolean(feedback.value?.feedback?.some(entry => entry.type === 'help.check')))
+// A summary describes the published feedback, independently of technical run success.
+const feedbackSummary = (value: EvaluationFeedback, gate: GateResult | null) => {
+  if (gate) {
+    const recognition = `${Math.floor(gate.overall.percent)} % erkannt`
+    return gate.gated ? `${gate.passed ? 'Abgabebereit' : 'Noch nicht abgabebereit'} · ${recognition}` : recognition
+  }
+  if (value.scorePercent != null) return `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(value.scorePercent)} %${value.recognitions.length ? ' erkannt' : ' erreicht'}`
+  return 'Für diese Auswertung liegt kein Feedback vor.'
+}
+const navigationEntries = computed(() => evaluations.value.map(evaluation => ({
+  evaluation,
+  summary: evaluation.feedback ? feedbackSummary(evaluation.feedback, gateFor(evaluation.feedback)) : 'Feedback öffnen'
+})))
 const unmatchedCount = computed(() => selectedRecognition.value?.recognition.unmatchedSubmission.length ?? 0)
 const recognitionPercent = (row: RecognitionCount) => row.percent === null ? 'nicht bestimmbar' : `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(row.percent)} %`
 const selectedId = ref<ApiId | null>(null)
@@ -246,9 +273,10 @@ let pollTimer: ReturnType<typeof setTimeout> | null = null
 let pollingGeneration = 0
 
 const terminal = (state: string) => ['succeeded', 'failed', 'cancelled'].includes(state)
-const stateLabel = (state: string) => ({ queued: 'Wartet', running: 'Läuft', succeeded: 'Abgeschlossen', failed: 'Fehlgeschlagen', cancelled: 'Abgebrochen', unknown: 'Status wird ermittelt' })[state] ?? state
+const stateLabel = (state: string) => ({ queued: 'Workflow wartet auf Start', running: 'Workflow läuft', succeeded: 'Workflow erfolgreich durchgelaufen', failed: 'Workflow fehlgeschlagen', cancelled: 'Workflow abgebrochen', unknown: 'Workflowstatus unklar' })[state] ?? state
+const studentStateLabel = (state: string) => ({ queued: 'Auswertung wartet auf Start', running: 'Modell wird ausgewertet', failed: 'Auswertung fehlgeschlagen', cancelled: 'Auswertung abgebrochen', unknown: 'Status der Auswertung unklar' })[state] ?? state
 const stateIcon = (state: string) => (state === 'succeeded' ? 'mdi-check-circle' : state === 'running' ? 'mdi-progress-clock' : state === 'failed' ? 'mdi-close-circle' : state === 'cancelled' ? 'mdi-cancel' : state === 'queued' ? 'mdi-clock-outline' : 'mdi-help-circle-outline')
-const stateColor = (state: string) => (state === 'succeeded' || state === 'running' ? 'info' : state === 'failed' ? 'error' : state === 'cancelled' ? 'warning' : undefined)
+const stateColor = (state: string) => (state === 'succeeded' ? 'success' : state === 'running' ? 'info' : state === 'failed' ? 'error' : state === 'cancelled' ? 'warning' : undefined)
 
 const rtf = new Intl.RelativeTimeFormat('de', { numeric: 'auto' })
 const relativeTime = (iso: string) => {
@@ -276,12 +304,11 @@ const progressPercent = computed(() => {
 const studentResultMessage = computed(() => {
   switch (feedback.value?.state) {
     case 'succeeded':
-      if (feedback.value.scorePercent != null) return `Dein Modell erreicht ${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(feedback.value.scorePercent)} %.`
-      return 'Die Auswertung ist abgeschlossen. Eine Ergebnisanzeige für Studierende ist für diese Auswertung noch nicht eingerichtet.'
+      return feedbackSummary(feedback.value, studentGate.value)
     case 'failed':
-      return 'Die Auswertung ist fehlgeschlagen. Bitte starte sie erneut.'
+      return 'Es konnte kein Feedback erstellt werden. Bitte versuche die Auswertung erneut.'
     case 'cancelled':
-      return 'Die Auswertung wurde abgebrochen. Bitte starte sie erneut.'
+      return 'Es liegt kein vollständiges Feedback vor. Bitte versuche die Auswertung erneut.'
     case 'queued':
       return 'Deine Auswertung wartet auf den Start.'
     case 'running':
@@ -360,7 +387,7 @@ const notifiedNoResultIds = new Set<ApiId>()
 watch(detail, (value) => {
   if (showServiceView.value && value && value.state === 'succeeded' && !value.finalResult && !notifiedNoResultIds.has(value.id)) {
     notifiedNoResultIds.add(value.id)
-    notifySuccess('Workflow abgeschlossen; es wurde kein strukturiertes Endergebnis geliefert.')
+    notifySuccess('Workflow erfolgreich durchgelaufen; es wurde kein strukturiertes Endergebnis geliefert.')
   }
 })
 
@@ -393,7 +420,10 @@ const refreshDetail = async () => {
   if (service) detail.value = result as EvaluationDetail
   else feedback.value = result as EvaluationFeedback
   const index = evaluations.value.findIndex((item) => item.id === id)
-  if (index >= 0) evaluations.value[index] = { ...evaluations.value[index], state: result.state }
+  if (index >= 0) evaluations.value[index] = {
+    ...evaluations.value[index], state: result.state,
+    feedback: service ? (result as EvaluationDetail).feedback ?? evaluations.value[index].feedback : result as EvaluationFeedback
+  }
   emit('evaluation-updated', result)
 }
 
@@ -563,6 +593,31 @@ onBeforeUnmount(() => {
   min-height: 40px;
   padding-top: 4px;
   padding-bottom: 4px;
+}
+.evaluation-item :deep(.v-list-item-subtitle) {
+  -webkit-line-clamp: unset;
+  opacity: 1;
+}
+.evaluation-item__status,
+.evaluation-item__summary {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.evaluation-item__summary {
+  color: rgb(var(--v-theme-on-surface));
+}
+.evaluation-run-status,
+.evaluation-result-status {
+  height: auto;
+  min-height: 26px;
+  white-space: normal;
+}
+.evaluation-run-status :deep(.v-chip__content),
+.evaluation-result-status :deep(.v-chip__content) {
+  white-space: normal;
 }
 .evaluation-item__name {
   overflow: hidden;

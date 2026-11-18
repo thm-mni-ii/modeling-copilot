@@ -424,6 +424,7 @@ watch(
   async (stage) => {
     if (stage === 'marking') {
       taskWindowOpen.value = false
+      if (currentHelp.value?.markingPurpose === 'feedback' && !helpCellIds.value.length) helpCellIds.value = [...(currentHelp.value.markings?.cellIds ?? [])]
       await loadHelpSnapshot()
     } else {
       helpSnapshotGeneration++
@@ -517,7 +518,9 @@ const startServiceEvaluation = async (parameters: EvaluationParameters) => {
   if (await startEvaluation('service', parameters)) evaluationDialog.value = false
 }
 const requestAutomaticFeedback = async () => {
-  const evaluation = await startEvaluation('student')
+  const help = currentHelp.value
+  // Help types go into the evaluation with the request; the result shows in the evaluation sidebar.
+  const evaluation = await startEvaluation('student', help?.supportKind?.startsWith('help.') ? { helpRequestId: help.id } : {})
   if (evaluation) closeHelp()
 }
 watch([completionResult, pathBusy], async ([evaluation, busy]) => {

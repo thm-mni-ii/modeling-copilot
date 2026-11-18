@@ -17,7 +17,7 @@ getrennte Fakten und heben eine belegte Identität nicht automatisch auf.
 ## Aktueller Vertrag
 
 [output.schema.json](schemas/output.schema.json) beschreibt aktuelle und gespeicherte
-Altanalysen sowie unter `$defs.feedbackReportV3` den Feedbackbericht.
+Altanalysen sowie unter `$defs.feedbackReportV4` den Feedbackbericht (`feedback-report/v4`, Feedbacktypen siehe `feedback-generation`).
 Python-Validator und TypeScript-Adapter prüfen Status, Original-IDs, Anzeigeziele,
 Zähler und Herkunft. Die Dienstgrenze prüft Snapshot, Graph-, Inventar-, Kandidaten-,
 Vergleichs- und Analysehashes.

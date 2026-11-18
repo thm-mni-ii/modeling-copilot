@@ -27,6 +27,7 @@ def load(name, path):
     return module
 
 
+sys.path.insert(0, str(SERVICES / "feedback-generation/src"))  # main.py imports its sibling modules
 feedback = load("feedback", SERVICES / "feedback-generation/src/main.py")
 service = load("analytical_service", SERVICES / "analytical-feedback/src/main.py")
 matcher = load("matching_fixture", SERVICES / "one-to-one-graph-matching/src/main.py")
@@ -101,8 +102,8 @@ class ServiceTests(unittest.TestCase):
                     envelope = service.run(store, "ref")
                     store.files[envelope["analysisPath"]] = envelope
                     result = feedback.run(store, "ref", envelope["analysisPath"])["result"]
-                    self.assertEqual(result["recognition"], envelope["result"]["recognition"])
-                    recognition = result["recognition"]["overall"]
+                    self.assertEqual(result["feedback"], [{"type": "recognition", "recognition": envelope["result"]["recognition"]}])
+                    recognition = result["feedback"][0]["recognition"]["overall"]
                     self.assertEqual(recognition["recognized"], 0 if scenario == "version_mix" else 4)
                     self.assertEqual(recognition["expected"], 5 if scenario == "unknown" else 4)
                     annotations = {row["target"]["id"]: row for row in envelope["result"]["annotations"]}
@@ -154,8 +155,8 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(envelope["result"]["schema"], "analysis-feedback/v3")
         result = feedback.run(store, "ref", envelope["analysisPath"])["result"]
         self.assertEqual(result["analysisHash"], envelope["result"]["analysisHash"])
-        self.assertEqual(result["recognition"], envelope["result"]["recognition"])
-        self.assertEqual(result["recognition"]["buckets"][0]["recognized"], 1)
+        self.assertEqual(result["feedback"], [{"type": "recognition", "recognition": envelope["result"]["recognition"]}])
+        self.assertEqual(result["feedback"][0]["recognition"]["buckets"][0]["recognized"], 1)
         self.assertFalse({"categories", "totals", "analyticalSummary", "metrics"} & result.keys())
         from test_contract import CHECK, ROOT
         payload = [{"envelope": envelope, "feedback": result, "context": {

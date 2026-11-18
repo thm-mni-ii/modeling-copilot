@@ -172,6 +172,9 @@ export interface HelpRequest {
   nextActionId?: string | null
   surveySessionId?: string | null
   markingRequired: boolean
+  markingPurpose?: 'problem' | 'feedback'
+  supportKind?: string | null
+  evaluationId?: string | null
 }
 export type HelpSurveyPhase = 'topic' | 'reflection' | 'action'
 export interface HelpTextRange { start: number; end: number; text: string }

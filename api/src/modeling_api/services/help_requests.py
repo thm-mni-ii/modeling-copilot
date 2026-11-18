@@ -92,7 +92,9 @@ def view(document):
          "surveyIds": document.get("surveyIds", HELP_SURVEY_IDS),
          "markings": document.get("markings"), "nextAction": document.get("nextAction"),
          "nextActionId": document.get("nextActionId"), "surveySessionId": document.get("surveySessionId"),
-         "markingRequired": document.get("helpConfig", {}).get("markingRequired", True)}
+         "markingRequired": document.get("markingPurpose") == "feedback" or document.get("helpConfig", {}).get("markingRequired", True),
+         "markingPurpose": document.get("markingPurpose", "problem"), "supportKind": document.get("supportKind"),
+         "evaluationId": document.get("evaluationId")}
     )
 
 
@@ -178,6 +180,8 @@ async def advance(request, phase, session):
     else:
         next_stage = "action" if phase == "reflection" else "completed"
     fields = {"stage": next_stage}
+    if phase == "reflection":
+        fields["supportKind"] = help_questionnaire.SUPPORT_KINDS.get(session["answers"].get("support_need"), "recognition")
     if next_stage == "completed":
         fields.update(completedAt=session["completedAt"], nextAction=session["answers"][config.action_question])
         if request.get("surveySessionId"):
@@ -185,6 +189,11 @@ async def advance(request, phase, session):
             question = next(q for q in version["definition"]["elements"] if q["name"] == "next_action")
             value = session["answers"]["next_action"]
             fields.update(nextActionId=value, nextAction=question["choiceLabels"][value])
+        # Object-related automatic feedback needs marked model objects; ask for them now if missing.
+        if (fields.get("nextActionId") == help_questionnaire.AUTOMATIC_FEEDBACK
+                and request.get("supportKind", "recognition") not in help_questionnaire.WHOLE_MODEL_KINDS
+                and not (request.get("markings") or {}).get("cellIds")):
+            fields.update(stage="marking", markingPurpose="feedback")
     await db.learning_path_help_requests.update_one(
         {"_id": request["_id"], "stage": phase}, {"$set": fields}
     )
@@ -192,11 +201,16 @@ async def advance(request, phase, session):
 
 async def save_markings(run_id, step_id, request_id, body, user):
     request = await owned_request(run_id, step_id, request_id, user)
+    feedback_marking = request.get("markingPurpose") == "feedback"
+    if feedback_marking:
+        body = body.model_copy(update={"task_text_ranges": []})  # task text is not mapped to findings
     markings = body.model_dump(mode="json", by_alias=True)
     if request.get("stage") != "marking":
         if request.get("markings") == markings and request.get("stage") in ("reflection", "action", "completed"):
             return view(request)
         raise conflict("Markings can only be submitted after choosing task/model help.")
+    if feedback_marking and not body.cell_ids:
+        raise conflict("Markiere mindestens ein Modellelement, zu dem du Feedback möchtest.")
     if request.get("helpConfig", {}).get("markingRequired", True) and not body.cell_ids and not body.task_text_ranges:
         raise conflict("Markiere mindestens ein Modellelement oder eine Textstelle.")
     version = await models.get_version(UUID(request["modelId"]), UUID(request["modelVersionId"]), user)
@@ -213,13 +227,46 @@ async def save_markings(run_id, step_id, request_id, body, user):
         raise conflict("A selected element is not part of the saved model checkpoint.")
     result = await db.learning_path_help_requests.update_one(
         {"_id": request["_id"], "stage": "marking"},
-        {"$set": {"markings": markings, "markingsSubmittedAt": utcnow(), "stage": "reflection"}},
+        {"$set": {"markings": markings, "markingsSubmittedAt": utcnow(), "stage": "completed" if feedback_marking else "reflection"}},
     )
     if not result.matched_count:
         current = await owned_request(run_id, step_id, request_id, user)
         if current.get("markings") != markings:
             raise conflict()
     return await get(run_id, step_id, request_id, user)
+
+
+async def feedback_request(request_id, model_id, version_id, user):
+    """The frozen feedback order of an automatic check requested through this help request."""
+    request = await db.learning_path_help_requests.find_one({"_id": str(request_id), "ownerId": user.id})
+    if not request:
+        raise not_found()
+    if request.get("stage") != "completed" or request.get("nextActionId") != help_questionnaire.AUTOMATIC_FEEDBACK:
+        raise conflict("This help request did not ask for an automatic model check.")
+    if request["modelId"] != str(model_id) or request["modelVersionId"] != str(version_id):
+        raise conflict("Dein Modell hat sich seit der Hilfeanfrage geändert. Fordere die Hilfe erneut an.")
+    kind = request.get("supportKind", "recognition")
+    if kind in help_questionnaire.WHOLE_MODEL_KINDS:
+        return request, {"types": [kind], "context": {}}
+    cell_ids = (request.get("markings") or {}).get("cellIds")
+    if not cell_ids:
+        raise conflict("Markiere zuerst die Modellelemente, zu denen du Feedback möchtest.")
+    keys = sorted({document["feedbackDelivered"]["focus"]["issueKey"] async for document in db.learning_path_help_requests.find(
+        {"runId": request["runId"], "stepId": request["stepId"], "ownerId": user.id, "_id": {"$ne": request["_id"]},
+         "feedbackDelivered.focus.issueKey": {"$type": "string"}}, {"feedbackDelivered.focus.issueKey": 1})})
+    return request, {"types": [kind], "context": {
+        "markedIds": cell_ids, "previousIssueKeys": keys[-500:]}}
+
+
+async def link_evaluation(request_id, evaluation_id):
+    await db.learning_path_help_requests.update_one({"_id": str(request_id)}, {"$set": {"evaluationId": str(evaluation_id)}})
+
+
+async def record_feedback(request_id, evaluation_id, entries):
+    """Log the help feedback actually shown, once, for the evaluation started by this request."""
+    await db.learning_path_help_requests.update_one(
+        {"_id": str(request_id), "evaluationId": str(evaluation_id), "feedbackDelivered": {"$exists": False}},
+        {"$set": {"feedbackDelivered": entries[0] if entries else None, "feedbackDeliveredAt": utcnow()}})
 
 
 async def cancel(run_id, step_id, request_id, user):

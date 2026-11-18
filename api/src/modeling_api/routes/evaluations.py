@@ -26,7 +26,8 @@ async def list_workflows(user: CurrentUser) -> list[EvaluationWorkflow]:
 @router.post("/models/{model_id}/evaluations", status_code=201, response_model=Evaluation)
 async def start_evaluation(model_id: UUID, body: StartEvaluation, user: CurrentUser) -> Evaluation:
     result = await service.start(
-        model_id, user, text_evidence=body.text_evidence.model_dump(by_alias=True) if body.text_evidence else None)
+        model_id, user, text_evidence=body.text_evidence.model_dump(by_alias=True) if body.text_evidence else None,
+        help_request_id=body.help_request_id)
     return Evaluation.model_validate(result if service.can_view_analysis(user) else service.student_evaluation(result))
 
 

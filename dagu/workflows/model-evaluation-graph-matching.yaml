@@ -11,7 +11,7 @@ labels:
   purpose: evaluation
   domain: generic
   visibility: frontend
-  version: v22
+  version: v24
   phase: '6'
 params:
   schema:
@@ -379,7 +379,7 @@ name: analytical-feedback-pair
 description: Erzeugt analytische Profile und die kompakte Feedbackprojektion je Musterlösung.
 tags:
   - visibility=internal
-  - version=v14
+  - version=v16
 # Dagu does not pass its process environment to steps; read the host at load time.
 # Sub-DAGs do not inherit env, so every document declares it.
 env:

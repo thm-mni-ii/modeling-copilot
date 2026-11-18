@@ -1,5 +1,5 @@
 <template>
-  <div v-if="tab !== 'technical'" class="analysis-panel text-caption">
+  <div v-if="tab === 'overview' || tab === 'findings'" class="analysis-panel text-caption">
     <v-alert v-if="error" type="warning" density="compact" variant="tonal" class="my-2">{{ error }}</v-alert>
 
     <template v-else-if="analysis && tab === 'overview'">
@@ -120,8 +120,10 @@ type FindingGroup = 'warning' | 'unresolved' | 'supported' | 'reference' | 'reco
 interface Finding { key: string; group: FindingGroup; title: string; subtitle: string; icon: string; color: string; annotation?: AnalysisAnnotation; hint?: ReferenceHint }
 
 const props = defineProps<{ detail: EvaluationDetail }>()
+// In the feedback tab a diagram click stays there; the catalog shows the object instead of the findings.
+const emit = defineEmits<{ 'feedback-object': [id: string] }>()
 const referenceKey = defineModel<string>('referenceKey', { default: '' })
-const tab = defineModel<'overview' | 'findings' | 'technical'>('tab', { default: 'overview' })
+const tab = defineModel<'overview' | 'findings' | 'feedback' | 'technical'>('tab', { default: 'overview' })
 const graphContext = useGraphContextOptional()
 const number = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })
 const selectedKey = ref<string | null>(null)
@@ -240,6 +242,7 @@ const openFinding = (finding: Finding) => {
   try { graph.setSelectionCell(cell); graph.scrollCellToVisible(cell) } finally { focusing = false }
 }
 const openSubmission = (id: string) => {
+  if (tab.value === 'feedback') return emit('feedback-object', id)
   const finding = findings.value.find(item => item.key === `submission:${id}`)
   if (finding) openFinding(finding)
 }

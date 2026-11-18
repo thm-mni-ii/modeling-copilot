@@ -1,19 +1,20 @@
 <template>
-  <section v-if="request.stage === 'marking'" class="help-marking-panel" aria-label="Problemstellen markieren">
+  <section v-if="request.stage === 'marking'" class="help-marking-panel" :aria-label="title">
     <div class="d-flex align-center ga-2">
       <v-icon color="warning" size="18">mdi-marker</v-icon>
-      <h2 class="help-marking-title">Problemstellen markieren</h2>
+      <h2 class="help-marking-title">{{ title }}</h2>
     </div>
-    <p class="help-marking-count" role="status">{{ cellIds.length }} {{ cellIds.length === 1 ? 'Element' : 'Elemente' }} · {{ textRanges.length }} {{ textRanges.length === 1 ? 'Textstelle' : 'Textstellen' }}</p>
+    <p class="help-marking-count" role="status">{{ cellIds.length }} {{ cellIds.length === 1 ? 'Element' : 'Elemente' }}<template v-if="!forFeedback"> · {{ textRanges.length }} {{ textRanges.length === 1 ? 'Textstelle' : 'Textstellen' }}</template></p>
     <details class="help-marking-details">
       <summary>So markierst du</summary>
-      <p>Klicke Modellelemente oder Verbindungen an. Wähle im Aufgabentext Text aus und klicke auf „Textstelle markieren“. Erneutes Anklicken entfernt eine Modellmarkierung. Dein Modell bleibt unverändert.</p>
+      <p v-if="forFeedback">Klicke die Modellelemente oder Verbindungen an, zu denen du Feedback möchtest. Erneutes Anklicken entfernt eine Markierung. Dein Modell bleibt unverändert.</p>
+      <p v-else>Klicke Modellelemente oder Verbindungen an. Wähle im Aufgabentext Text aus und klicke auf „Textstelle markieren“. Erneutes Anklicken entfernt eine Modellmarkierung. Dein Modell bleibt unverändert.</p>
     </details>
     <p v-if="request.markingRequired === false" class="help-marking-optional">Markierungen sind optional.</p>
     <div class="help-marking-actions">
-      <v-btn color="primary" size="small" variant="flat" :loading="busy || snapshotLoading" :disabled="request.markingRequired !== false && !cellIds.length && !textRanges.length || snapshotLoading || Boolean(snapshotError)" @click="submitMarkings">Weiter</v-btn>
+      <v-btn color="primary" size="small" variant="flat" :loading="busy || snapshotLoading" :disabled="request.markingRequired !== false && !cellIds.length && (forFeedback || !textRanges.length) || snapshotLoading || Boolean(snapshotError)" @click="submitMarkings">{{ forFeedback ? 'Feedback anfordern' : 'Weiter' }}</v-btn>
     </div>
-    <details v-if="textRanges.length" class="help-marking-details">
+    <details v-if="textRanges.length && !forFeedback" class="help-marking-details">
       <summary>Markierte Textstellen</summary>
       <div class="d-flex ga-1 flex-wrap mt-2">
         <v-chip v-for="(range, index) in textRanges" :key="`${range.start}:${range.end}`" closable :title="range.text" size="x-small" @click:close="emit('remove-text', index)">{{ range.text.length > 35 ? `${range.text.slice(0, 35)}…` : range.text }}</v-chip>
@@ -58,7 +59,8 @@ const renderer = ref<InstanceType<typeof SurveyRenderer> | null>(null)
 const busy = ref(false)
 const error = ref('')
 const phase = computed<HelpSurveyPhase | null>(() => ['topic', 'reflection', 'action'].includes(props.request.stage) ? props.request.stage as HelpSurveyPhase : null)
-const title = computed(() => ({ topic: 'Dein Problem', marking: 'Problemstellen markieren', reflection: 'Was du gerade brauchst', action: 'Dein nächster Schritt', completed: 'Dein nächster Schritt', cancelled: 'Hilfe abgebrochen' })[props.request.stage])
+const forFeedback = computed(() => props.request.markingPurpose === 'feedback')
+const title = computed(() => ({ topic: 'Dein Problem', marking: forFeedback.value ? 'Objekte für dein Feedback markieren' : 'Problemstellen markieren', reflection: 'Was du gerade brauchst', action: 'Dein nächster Schritt', completed: 'Dein nächster Schritt', cancelled: 'Hilfe abgebrochen' })[props.request.stage])
 const nextStep = computed(() => {
   const action = props.request.nextAction ?? ''
   const id = props.request.nextActionId
@@ -82,7 +84,7 @@ const submitMarkings = async () => {
   busy.value = true
   error.value = ''
   try {
-    emit('update:request', (await paths.saveHelpMarkings(props.request.runId, props.request.stepId, props.request.id, { cellIds: props.cellIds, taskTextRanges: props.textRanges })).data)
+    emit('update:request', (await paths.saveHelpMarkings(props.request.runId, props.request.stepId, props.request.id, { cellIds: props.cellIds, taskTextRanges: forFeedback.value ? [] : props.textRanges })).data)
   } catch (e) { error.value = surveyError(e) }
   finally { busy.value = false }
 }

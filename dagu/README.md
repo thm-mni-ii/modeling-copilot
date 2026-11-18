@@ -174,7 +174,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v6 modeling-copilot/graph-parser:v2 modeling-copilot/model-label-extraction:v2 modeling-copilot/synonym-matching:v5 modeling-copilot/one-to-one-graph-matching:v14 modeling-copilot/analytical-feedback:v12 modeling-copilot/feedback-generation:v11 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v6 modeling-copilot/graph-parser:v2 modeling-copilot/model-label-extraction:v2 modeling-copilot/synonym-matching:v5 modeling-copilot/one-to-one-graph-matching:v14 modeling-copilot/analytical-feedback:v12 modeling-copilot/feedback-generation:v38 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Danach `kubectl apply -f dagu/infra/workflow-services.yaml`; bei geänderten Tags

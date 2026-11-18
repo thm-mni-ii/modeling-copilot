@@ -169,6 +169,13 @@ class HelpRequestConfig(ApiSchema):
     marking_required: bool = False
     question_edits: dict[Literal["stuck_duration", "support_need", "next_action"], HelpQuestionEdit] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def keep_feedback_choices(self):
+        edit = self.question_edits.get("support_need")
+        if edit and not {f"support_need_{index}" for index in range(1, 7)} <= {choice.id for choice in edit.choices}:
+            raise ValueError("The six base answers of 'support_need' select the automatic feedback; rename them instead of removing them.")
+        return self
+
 
 class CreateHelpRequest(ApiSchema):
     request_id: UUID
@@ -212,6 +219,9 @@ class HelpRequest(ApiSchema):
     next_action_id: str | None = None
     survey_session_id: UUID | None = None
     marking_required: bool = True
+    marking_purpose: Literal["problem", "feedback"] = "problem"
+    support_kind: str | None = None
+    evaluation_id: UUID | None = None
 
 
 class SaveTemplate(ApiSchema):

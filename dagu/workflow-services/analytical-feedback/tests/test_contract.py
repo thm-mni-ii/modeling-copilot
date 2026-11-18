@@ -20,7 +20,7 @@ const ajv = new Ajv({validateSchema:false, meta:false, allErrors:true});
 const validate = ajv.compile(schema);
 const candidateSchema = JSON.parse(fs.readFileSync('dagu/workflow-services/synonym-matching/schemas/output.schema.json'));
 const validateCandidates = ajv.compile(candidateSchema);
-const validateFeedback = ajv.getSchema('analysis-feedback/v3#/$defs/feedbackReportV3');
+const validateFeedback = ajv.getSchema('analysis-feedback/v3#/$defs/feedbackReportV4');
 const ts = require('./web/node_modules/typescript'), Module = require('node:module');
 const file = require('node:path').resolve('web/src/utils/analysisFeedback.ts'), compiled = new Module(file, module);
 compiled._compile(ts.transpileModule(fs.readFileSync(file,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText, file);
@@ -40,7 +40,7 @@ for (const sample of input) {
   }
   if (sample.feedback) {
     assert.equal(validateFeedback(sample.feedback), true, JSON.stringify(validateFeedback.errors));
-    assert.deepEqual(sample.feedback.recognition, sample.envelope.result.recognition);
+    assert.deepEqual(sample.feedback.feedback, [{type:'recognition', recognition:sample.envelope.result.recognition}]);
   }
   if (sample.envelope.result.schema === 'analysis-feedback/v3') {
     assert.equal(validate(sample.envelope), true, JSON.stringify(validate.errors));
@@ -51,8 +51,8 @@ for (const sample of input) {
     const badPercent = structuredClone(sample.envelope.result.recognition);
     badPercent.overall.percent = null;
     assert.throws(() => adaptRecognition(badPercent));
-    const detail = {id:sample.context.evaluationId, steps:[{status:'succeeded', result:{schema:'feedback-report/v3',
-      evaluationId:sample.context.evaluationId, pair:{studentKey:'submission',referenceKey:'ref'}, recognition:sample.envelope.result.recognition}}]};
+    const detail = {id:sample.context.evaluationId, steps:[{status:'succeeded', result:{schema:'feedback-report/v4',
+      evaluationId:sample.context.evaluationId, pair:{studentKey:'submission',referenceKey:'ref'}, feedback:[{type:'recognition', recognition:sample.envelope.result.recognition}]}}]};
     assert.deepEqual(recognitionReportsFromEvaluation(detail)[0].recognition, sample.envelope.result.recognition);
     detail.steps.push(detail.steps[0]);
     assert.throws(() => recognitionReportsFromEvaluation(detail));

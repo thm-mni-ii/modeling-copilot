@@ -110,12 +110,18 @@ export function adaptRecognition(value: unknown): RecognitionReport {
   return value as unknown as RecognitionReport
 }
 
+// v4 carries only the requested feedback types; v2/v3 carry the recognition directly.
+const recognitionOfReport = (result: Record<string, unknown>): unknown => result.schema !== 'feedback-report/v4'
+  ? result.recognition
+  : Array.isArray(result.feedback) ? result.feedback.find(entry => object(entry) && entry.type === 'recognition')?.recognition : undefined
+
 export function recognitionReportsFromEvaluation(detail: EvaluationDetail) {
-  const reports = detail.steps.filter(step => step.status === 'succeeded' && ['feedback-report/v2', 'feedback-report/v3'].includes(String(step.result?.schema))).map(step => {
-    const result = step.result!
-    requireValue(object(result.pair) && id(result.pair.referenceKey) && result.evaluationId === detail.id)
-    return { referenceKey: result.pair.referenceKey, recognition: adaptRecognition(result.recognition) }
-  })
+  const reports = detail.steps.filter(step => step.status === 'succeeded' && ['feedback-report/v2', 'feedback-report/v3', 'feedback-report/v4'].includes(String(step.result?.schema)))
+    .filter(step => recognitionOfReport(step.result!) !== undefined).map(step => {
+      const result = step.result!
+      requireValue(object(result.pair) && id(result.pair.referenceKey) && result.evaluationId === detail.id)
+      return { referenceKey: result.pair.referenceKey, recognition: adaptRecognition(recognitionOfReport(result)) }
+    })
   requireValue(new Set(reports.map(report => report.referenceKey)).size === reports.length)
   return reports
 }

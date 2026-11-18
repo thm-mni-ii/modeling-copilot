@@ -170,7 +170,7 @@ services:
     profiles: [workflow-services]
 
   workflow-feedback-generation:
-    image: modeling-copilot/feedback-generation:v11
+    image: modeling-copilot/feedback-generation:v38
     build:
       context: ./dagu/workflow-services
       dockerfile: feedback-generation/Dockerfile

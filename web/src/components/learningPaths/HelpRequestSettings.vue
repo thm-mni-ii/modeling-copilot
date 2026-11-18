@@ -34,7 +34,7 @@
                   <div class="help-option-actions">
                     <v-btn icon="mdi-arrow-up" size="x-small" variant="text" :disabled="choiceIndex === 0" :aria-label="`Antwortoption ${choiceIndex + 1} nach oben`" @click="moveChoice(item.name, choiceIndex, -1)" />
                     <v-btn icon="mdi-arrow-down" size="x-small" variant="text" :disabled="choiceIndex === question(item.name).choices.length - 1" :aria-label="`Antwortoption ${choiceIndex + 1} nach unten`" @click="moveChoice(item.name, choiceIndex, 1)" />
-                    <v-btn icon="mdi-close" size="x-small" variant="text" :disabled="question(item.name).choices.length <= 2" :aria-label="`Antwortoption ${choiceIndex + 1} entfernen`" @click="removeChoice(item.name, choice.id)" />
+                    <v-btn icon="mdi-close" size="x-small" variant="text" :disabled="question(item.name).choices.length <= 2 || baseFeedbackChoice(item.name, choice.id)" :aria-label="`Antwortoption ${choiceIndex + 1} entfernen`" :title="baseFeedbackChoice(item.name, choice.id) ? 'Steuert die Art des automatischen Feedbacks; nur umbenennen.' : undefined" @click="removeChoice(item.name, choice.id)" />
                   </div>
                 </li>
               </ol>
@@ -70,6 +70,8 @@ const config = computed(() => ({ ...defaultHelpRequestConfig(), ...props.modelVa
 const blueprint = ref<HelpBlueprint | null>(null)
 const pending = ref(false), loadError = ref(''), preview = ref(false), editing = ref<HelpEditableQuestion>()
 let disposed = false
+// Must match keep_feedback_choices in api/src/modeling_api/schemas/learning_paths.py.
+const baseFeedbackChoice = (name: string, id: string) => name === 'support_need' && /^support_need_[1-6]$/.test(id)
 const update = <K extends keyof HelpRequestConfig>(key: K, value: HelpRequestConfig[K]) => emit('update:modelValue', { ...config.value, [key]: value })
 const load = async () => {
   if (pending.value) return
