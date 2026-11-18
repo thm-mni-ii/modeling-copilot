@@ -33,16 +33,19 @@
     <div class="cards">
       <div class="card card--ok">
         <div class="card__title">After {{ timeLabel(notice) }}: visitors are told</div>
+        <slot name="field" field-key="hostAwayMs" />
         <span class="chip" :style="{ background: away }"><v-icon icon="mdi-lan-disconnect" size="14" />Host disconnected</span>
         <p>The bar above the model changes. Editing goes on.</p>
       </div>
       <div class="card card--warn">
         <div class="card__title">After {{ timeLabel(lock) }}: the room locks</div>
+        <slot name="field" field-key="hostGraceSeconds" />
         <div class="toast"><v-icon icon="mdi-alert-outline" size="14" />The host is disconnected, editing is paused.</div>
         <p>Visitors can look, but not edit, and nobody can join. If the host is back, the room opens again.</p>
       </div>
       <div class="card card--bad">
         <div class="card__title">After {{ timeLabel(end) }}: visitors leave</div>
+        <slot name="field" field-key="hostEndSeconds" />
         <div class="dialog">
           <b>The host has left</b>
           <span>The room is closed. Keep the current state to continue on your own.</span>
@@ -51,6 +54,7 @@
       </div>
       <div class="card">
         <div class="card__title">A visitor away for {{ timeLabel(visitor) }}</div>
+        <slot name="field" field-key="visitorGraceSeconds" />
         <p>Only that visitor is removed from the room, and their working copy is deleted.</p>
       </div>
     </div>
@@ -64,6 +68,8 @@ import { timeLabel } from '@/collab/settings/timeLabel'
 
 /** The waits as the form shows them, in seconds. */
 const props = defineProps<{ values: Record<string, unknown> }>()
+/** The number field of each step comes from the tab, as it owns the form, the limits and the checks. */
+defineSlots<{ field(props: { fieldKey: string }): unknown }>()
 
 const numberOf = (key: string, fallback: number) => {
   const value = props.values[key]
@@ -191,6 +197,11 @@ const stage = computed(() => {
   font-size: 12px;
   line-height: 1.5;
   color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+/* In a step card the chip sits below the number field and its slider, with air between. */
+.card .chip {
+  margin-top: 12px;
 }
 
 .chip {

@@ -35,9 +35,25 @@
             <div v-if="!filtering && entry.section.area === 'sharing'" class="sharing-wrap">
               <div class="sharing-top">
                 <SharingTimeline :values="form.sharing" :resettable="WAIT_KEYS.some((key) => nonDefault('sharing', key))" @update="(key, seconds) => (form.sharing[key] = seconds)" @reset="WAIT_KEYS.forEach((key) => resetField('sharing', key))" />
-                <SharingExplainer :values="form.sharing" />
+                <SharingExplainer :values="form.sharing">
+                  <template #field="{ fieldKey }">
+                    <div class="stepfield">
+                      <div class="stepfield__cap">
+                        <span v-if="fieldChanged('sharing', fieldKey)" class="row__dot" title="Unsaved change" />
+                        {{ labelOfKey('sharing', fieldKey) }}
+                      </div>
+                      <div class="stepfield__row">
+                        <NumberControl v-model="form.sharing[fieldKey]" :label="labelOfKey('sharing', fieldKey)" :suffix="unitWordOf(fieldKey)" :sub="subOf('sharing', fieldKey)" :default-at="barAt('sharing', fieldKey, defaultOf('sharing', fieldKey))" :value-at="barAt('sharing', fieldKey, form.sharing[fieldKey])" :error="Boolean(problemOf('sharing', fieldKey))" :disabled="!loaded" />
+                        <v-btn v-if="nonDefault('sharing', fieldKey)" icon="mdi-restore" size="x-small" density="comfortable" variant="text" :disabled="!loaded" :aria-label="`Reset ${labelOfKey('sharing', fieldKey)} to the default`" title="Reset to the default" @click="resetField('sharing', fieldKey)" />
+                      </div>
+                      <div v-if="problemOf('sharing', fieldKey)" class="stepfield__error">{{ problemOf('sharing', fieldKey) }}</div>
+                    </div>
+                  </template>
+                </SharingExplainer>
               </div>
             </div>
+            <PaletteEditor v-if="!filtering && entry.section.area === 'colors'" :colors="form.colors" :problem="problemOf('colors', 'palette')" :changed="(key) => fieldChanged('colors', key)" @update="(key, value) => (form.colors[key] = value)" />
+            <PresenceCanvas v-if="!filtering && entry.section.area === 'presence'" class="mb-3" :presence="form.presence" :colors="form.colors" :changed="fieldChanged" :problem="problemOf" @update="(area, key, value) => (form[area][key] = value)" />
             <ShareDefaultsPreview v-if="!filtering && entry.section.area === 'shareDefaults'" :values="form.shareDefaults" :resettable="SHARE_KEYS.some((key) => nonDefault('shareDefaults', key))" @update="(key, value) => (form.shareDefaults[key] = value)" @reset="SHARE_KEYS.forEach((key) => resetField('shareDefaults', key))" />
             <div class="card__parts">
               <div v-for="part in partsOf(entry)" :key="String(part.advanced)" :class="part.advanced ? 'advanced' : 'part'">
@@ -88,14 +104,17 @@
                               </span>
                               <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" class="ml-2" :disabled="!loaded" @click="listOf(entry.section.area, field.key).push(randomColor())">Add color</v-btn>
                             </div>
-                            <div v-else class="num">
-                              <v-text-field v-model.number="form[entry.section.area][field.key]" type="number" :suffix="unitWordOf(field.key)" density="compact" variant="outlined" hide-details :error="Boolean(problemOf(entry.section.area, field.key))" :disabled="!loaded" :aria-label="field.label" />
-                              <div class="num__sub">{{ subOf(entry.section.area, field.key) }}</div>
-                              <div class="num__bar" aria-hidden="true">
-                                <i :style="{ left: barAt(entry.section.area, field.key, defaultOf(entry.section.area, field.key)) }" />
-                                <b :style="{ left: barAt(entry.section.area, field.key, form[entry.section.area][field.key]) }" :class="{ 'num__bar--error': Boolean(problemOf(entry.section.area, field.key)) }" />
-                              </div>
-                            </div>
+                            <NumberControl
+                              v-else
+                              v-model="form[entry.section.area][field.key]"
+                              :label="field.label"
+                              :suffix="unitWordOf(field.key)"
+                              :sub="subOf(entry.section.area, field.key)"
+                              :default-at="barAt(entry.section.area, field.key, defaultOf(entry.section.area, field.key))"
+                              :value-at="barAt(entry.section.area, field.key, form[entry.section.area][field.key])"
+                              :error="Boolean(problemOf(entry.section.area, field.key))"
+                              :disabled="!loaded"
+                            />
                           </div>
                           <div class="row__reset">
                             <v-btn v-if="nonDefault(entry.section.area, field.key)" icon="mdi-restore" size="x-small" density="comfortable" variant="text" :disabled="!loaded" :aria-label="`Reset ${field.label} to the default`" title="Reset to the default" @click="resetField(entry.section.area, field.key)" />
@@ -140,7 +159,10 @@ import type { CollabKitApi } from '@/collab/kit/collabKitV1'
 import { applyCollabSettings, COLLAB_AREAS, COLLAB_LIMITS, collabSettings, loadCollabSettings, type CollabArea, type CollabLimit } from '@/collab/settings/collabSettings'
 import { historyChoices } from '@/collab/sharing/shareChoices'
 import { labOf, textOn } from '@/collab/settings/colorMath'
+import PaletteEditor from '@/collab/settings/PaletteEditor.vue'
+import PresenceCanvas from '@/collab/settings/PresenceCanvas.vue'
 import ShareDefaultsPreview from '@/collab/settings/ShareDefaultsPreview.vue'
+import NumberControl from '@/collab/settings/NumberControl.vue'
 import SharingExplainer from '@/collab/settings/SharingExplainer.vue'
 import SharingTimeline from '@/collab/settings/SharingTimeline.vue'
 import SweepDiagram from '@/collab/settings/SweepDiagram.vue'
@@ -189,7 +211,7 @@ const SECTIONS: readonly Section[] = [
   {
     area: 'sharing',
     title: 'Sharing',
-    about: 'Decides what happens when the host or a visitor of a shared model loses the connection: when visitors are told, when the room locks and when people are removed.',
+    about: 'The host is the person who shares their model. This decides what happens when the host or a visitor of a shared model loses the connection: when visitors are told, when the room locks and when people are removed.',
     fields: [
       { key: 'visitorGraceSeconds', label: 'Visitor away until they leave', hint: 'The visitor leaves the room, and their working copy is deleted.' },
       { key: 'hostGraceSeconds', label: 'Host away until the room locks', hint: 'Nobody can edit or join until the host is back.' },
@@ -209,7 +231,7 @@ const SECTIONS: readonly Section[] = [
   {
     area: 'presence',
     title: 'Presence',
-    about: 'Applies to everyone working on a model together, shared or in a group room.',
+    about: 'How people see each other while they work on a model together: shared with a link or in a group room.',
     fields: [
       { key: 'idleMs', label: 'Idle until the selection is released', hint: 'With the selection go the locks on its elements.' },
       { key: 'marksShown', label: 'People shown on an element', hint: 'Others who selected the same element show as marks at its top left; the rest as "+n".', unit: 'people' },
@@ -234,7 +256,7 @@ const SECTIONS: readonly Section[] = [
   {
     area: 'colors',
     title: 'Colors',
-    about: 'The colors of people in a shared model or group room: cursor, selection, locks and the marks of who made what. Everyone sees the same colors; a change reaches open models at once. The status colors are under Advanced.',
+    about: 'Every person in a model gets a color, so others can see who is who: pointer, selection, lock and the dots that show who made what. Everyone sees the same colors, and changes apply in open models right away.',
     fields: [
       { key: 'hostColor', label: 'Host', hint: 'Only the host wears it, so keep it apart from the colors of the others.' },
       { key: 'palette', label: 'Everyone else', hint: 'Handed out in this order, so the first ones should differ the most.' },
@@ -417,8 +439,11 @@ const defaultOf = (area: CollabArea, key: string) => {
 }
 const nonDefault = (area: CollabArea, key: string) => JSON.stringify(form[area][key]) !== JSON.stringify(defaultOf(area, key))
 /** The settings the timeline and the dialog preview show, so they can be reset from there. */
+/** The canvas of the presence settings and the palette editor hold every presence and color field, so they are no rows. */
+const onCanvas = (area: CollabArea) => area === 'presence' || area === 'colors'
 const WAIT_KEYS = ['hostAwayMs', 'hostGraceSeconds', 'hostEndSeconds', 'visitorGraceSeconds']
 const SHARE_KEYS = ['anonymous', 'edit', 'task', 'history']
+const labelOfKey = (area: CollabArea, key: string) => SECTIONS.find((section) => section.area === area)?.fields.find((field) => field.key === key)?.label ?? key
 const resetField = (area: CollabArea, key: string) => (form[area][key] = defaultOf(area, key))
 const invalid = (section: Section) => section.fields.some((field) => problemOf(section.area, field.key))
 
@@ -432,7 +457,8 @@ const visible = computed<Entry[]>(() => {
   const groupOf = (area: CollabArea) => GROUPS.find((group) => group.areas.includes(area)) as Group
   if (filtering.value) return SECTIONS.map((section) => ({ section, group: groupOf(section.area), fields: section.fields.filter((field) => passes(section.area, field)) })).filter((entry) => entry.fields.length > 0)
   const group = GROUPS.find((entry) => entry.id === tab.value) as Group
-  return sectionsOf(group).map((section) => ({ section, group, fields: section.fields.filter((field) => shown(section.area, field)) }))
+  // The four waits of the sharing area stand in the cards of the explainer, not as rows.
+  return sectionsOf(group).map((section) => ({ section, group, fields: section.fields.filter((field) => shown(section.area, field) && !onCanvas(section.area) && !(section.area === 'sharing' && WAIT_KEYS.includes(field.key))) }))
 })
 /** The fields of an entry in two parts: the usual ones, and the technical ones in a panel of their own; a filter lists them all together. */
 const partsOf = (entry: Entry) => {
@@ -455,7 +481,7 @@ const blocksOf = (fields: readonly Field[]) => {
   return blocks
 }
 /** The technical fields of a section, and how many of them differ from the default or are not saved yet. */
-const advancedOf = (section: Section) => section.fields.filter((field) => field.advanced)
+const advancedOf = (section: Section) => section.fields.filter((field) => field.advanced && !onCanvas(section.area))
 const advancedChanged = (section: Section) => advancedOf(section).filter((field) => nonDefault(section.area, field.key) || fieldChanged(section.area, field.key)).length
 const clearFilter = () => (filter.value = 'all')
 
@@ -804,46 +830,27 @@ onMounted(async () => {
   padding-top: 12px;
 }
 
-/* A number field: the value, what it comes to in bigger units and the range, and a bar for the place in that range. */
-.num {
-  width: 100%;
+/* The number field of a step card: the name of the setting, the field and the check beside the reset arrow. */
+.stepfield {
+  margin: 2px 0;
 }
 
-.num__sub {
-  margin-top: 3px;
-  font-size: 11px;
-  text-align: right;
-  color: rgba(var(--v-theme-on-surface), 0.6);
+.stepfield__cap {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
-.num__bar {
-  position: relative;
-  height: 4px;
-  margin: 5px 0 0;
-  border-radius: 2px;
-  background: rgba(var(--v-theme-on-surface), 0.12);
+.stepfield__row {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
 }
 
-.num__bar i {
-  position: absolute;
-  top: -2px;
-  width: 2px;
-  height: 8px;
-  background: rgba(var(--v-theme-on-surface), 0.45);
-}
-
-.num__bar b {
-  position: absolute;
-  top: -3px;
-  width: 10px;
-  height: 10px;
-  margin-left: -5px;
-  border-radius: 50%;
-  background: rgb(var(--v-theme-primary));
-}
-
-.num__bar--error {
-  background: rgb(var(--v-theme-error)) !important;
+.stepfield__error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgb(var(--v-theme-error));
 }
 
 /* A setting: name and explanation on the left, the value on the right, the reset arrow when it differs from the default. */
