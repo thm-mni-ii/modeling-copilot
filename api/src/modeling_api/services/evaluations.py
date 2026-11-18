@@ -291,6 +291,12 @@ async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None
     return _public_evaluation(evaluation)
 
 
+def student_evaluation(item: Document) -> Document:
+    # Workflow step definitions and run parameters are internals; learners only need the name.
+    workflow = item.get("workflow") or {}
+    return {**item, "workflow": {"name": workflow.get("name", ""), "labels": {}, "steps": []}, "parameters": {}}
+
+
 async def list_for_model(model_id: UUID, user: User, skip: int, limit: int) -> Document:
     page = await list_page(
         db.evaluations,
@@ -299,7 +305,32 @@ async def list_for_model(model_id: UUID, user: User, skip: int, limit: int) -> D
         limit,
         omit=("submissionSnapshot",),
     )
-    return {**page, "items": [_public_evaluation(item) for item in page["items"]]}
+    items = [_public_evaluation(item) for item in page["items"]]
+    return {**page, "items": items if can_view_analysis(user) else [student_evaluation(item) for item in items]}
+
+
+async def feedback(evaluation_id: UUID, user: User) -> Document:
+    """The learner-facing result: state, score and recognition overview only.
+
+    Built server-side from the student projection, so no intermediate artifacts, logs, workflow
+    internals or reference-model content ever reach the browser. Persisted once the run is final.
+    """
+    evaluation = await db.evaluations.find_one({"_id": str(evaluation_id), "ownerId": user.id},
+                                               {"startedAt": 1, "workflow.name": 1, "submission": 1, "studentFeedback": 1})
+    if evaluation is None:
+        raise not_found()
+    stored = evaluation.get("studentFeedback")
+    if stored is None:
+        result = await detail(evaluation_id, user, analysis=False)
+        recognitions = [{"referenceKey": step["result"]["pair"]["referenceKey"], "recognition": step["result"]["recognition"]}
+                        for step in result["steps"]
+                        if step["status"] == "succeeded" and isinstance(step.get("result"), dict) and "recognition" in step["result"]]
+        stored = {"state": result["state"], "scorePercent": result.get("scorePercent"), "recognitions": recognitions}
+        # A succeeded run whose feedback artifact could not be read yet is retried on the next call.
+        if result["state"] in {"failed", "cancelled"} or (result["state"] == "succeeded" and recognitions):
+            await db.evaluations.update_one({"_id": str(evaluation_id)}, {"$set": {"studentFeedback": stored}})
+    return {"id": evaluation["_id"], "startedAt": evaluation["startedAt"], "workflowName": evaluation["workflow"]["name"],
+            "submission": evaluation["submission"], **stored}
 
 
 async def _model_run_steps(
@@ -383,7 +414,8 @@ async def _model_run_steps(
     return list(await gather(*(read(source, spec) for source in sources for spec in step_specs)))
 
 
-async def detail(evaluation_id: UUID, user: User) -> Document:
+async def detail(evaluation_id: UUID, user: User, *, analysis: bool = True) -> Document:
+    """`analysis=False` forces the student projection even for administrators."""
     evaluation = await db.evaluations.find_one({"_id": str(evaluation_id), "ownerId": user.id})
     if evaluation is None:
         raise not_found()
@@ -409,14 +441,14 @@ async def detail(evaluation_id: UUID, user: User) -> Document:
                        "error": evaluation.get("startError")},
         }]
         result["finalResult"] = None
-        if not can_view_analysis(user):
+        if not (analysis and can_view_analysis(user)):
             result["steps"] = student_step_results(result["steps"])
         return result
     state = _state(run.get("statusLabel") or run.get("status") or run.get("state"))
     raw_steps = _run_steps(run, evaluation["workflow"])
     # Expand model and reference-pair fan-outs into their persisted artifacts.
     expanded = []
-    allow_analysis = can_view_analysis(user)
+    allow_analysis = analysis and can_view_analysis(user)
     for step in raw_steps:
         children = step.pop("_subRuns", [])
         if step["id"] in {"parse_models", "extract_labels", "match_synonyms", "match_graphs", "generate_analytical_feedback", "generate_feedback"} and evaluation.get("parserModels"):

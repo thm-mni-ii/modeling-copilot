@@ -85,7 +85,7 @@
             :task-edit="workspace.taskEdit"
             :element-options="taskElementOptions"
             :connection-options="taskConnectionOptions"
-            :evaluation-available="Boolean(workspace.taskVersion?.data.sampleSolutions.length)"
+            :evaluation-available="Boolean(workspace.taskVersion?.evaluationAvailable)"
             :help-selection-mode="helpMarking"
             :help-task-document="helpSnapshot?.taskEditSnapshot?.document ?? null"
             :help-text-ranges="helpTextRanges"
@@ -140,7 +140,7 @@ import paths, { laboratoryCompletionBlockedStepId, laboratoryCompletionUnavailab
 import modelService from '@/services/model/model.service'
 import type { ModelVersion } from '@/services/api/types/model'
 import evaluationService from '@/services/evaluation/evaluation.service'
-import type { EvaluationDetail, EvaluationParameters } from '@/services/api/types/evaluation'
+import type { EvaluationOutcome, EvaluationParameters } from '@/services/api/types/evaluation'
 import DialogEvaluationParameters from '@/components/dialog/DialogEvaluationParameters.vue'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import ChallengeOverlay from '@/components/learningPaths/ChallengeOverlay.vue'
@@ -195,12 +195,14 @@ const helpMarking = computed(() => currentHelp.value?.stage === 'marking')
 const fileImportDisabledReason = computed(() => loading.value || hydrating.value || workspace.saving ? 'Wait until the model has finished loading or saving.' : helpMarking.value ? 'This model is currently read-only.' : '')
 provideModelFileContext({
   disabledReason: fileImportDisabledReason,
+  learningPath: computed(() => Boolean(stepRun.value)),
   workspaceLanguages: computed(() => workspace.languages.map(({ languageId, versionId }) => ({ languageId, versionId }))),
   languages: computed(() => workspace.editorLanguages.map(({ language, version }) => ({
     languageId: language.id, versionId: version.id, name: language.name,
     data: version.data, includedLanguageVersions: version.includedLanguageVersions
   }))),
   importModel: async (model, references) => {
+    if (stepRun.value) throw new Error('Models cannot be imported in a learning path.')
     if (fileImportDisabledReason.value) throw new Error(fileImportDisabledReason.value)
     hydrating.value = true
     try {
@@ -232,7 +234,7 @@ const completing = ref(false)
 const completionDialog = ref(false)
 const pendingCompletion = ref(route.query.complete === '1')
 const completionEvaluationId = ref<string | null>(null)
-const completionResult = ref<EvaluationDetail | null>(null)
+const completionResult = ref<EvaluationOutcome | null>(null)
 const completionNotice = ref('')
 const taskSurvey = ref<InstanceType<typeof SurveyRenderer> | null>(null)
 const surveyPhase = computed<'before' | 'after'>(() => (stepRun.value?.beforeSurvey && !stepRun.value.beforeSurvey.completed ? 'before' : 'after'))
@@ -476,7 +478,7 @@ const startEvaluation = async (perspective: 'service' | 'student' = 'service', p
   // In a room only the host evaluates, on the private model that has the task; the state of the room goes in as its newest version.
   const room = !workspace.taskVersion && sharedTaskSettings.value
   if (evaluationStarting.value || !room && (!workspace.model || !workspace.taskVersion)) return null
-  if (!(room ? sharedTaskSettings.value!.evaluationAvailable : workspace.taskVersion!.data.sampleSolutions.length)) {
+  if (!(room ? sharedTaskSettings.value!.evaluationAvailable : workspace.taskVersion!.evaluationAvailable)) {
     notifyWarning('Für diese Aufgabe ist noch keine Musterlösung zur Auswertung hinterlegt.')
     return null
   }

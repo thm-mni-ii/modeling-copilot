@@ -30,7 +30,7 @@
       </v-card-text>
       <v-card-actions>
         <v-btn :disabled="!previewReady || busy" :loading="restoring" prepend-icon="mdi-history" @click="restoreSelected">Restore as checkpoint</v-btn>
-        <v-btn :disabled="!previewReady || busy" :loading="branching" prepend-icon="mdi-source-branch" @click="openBranch">Branch from here</v-btn>
+        <v-btn v-if="!files?.learningPath.value" :disabled="!previewReady || busy" :loading="branching" prepend-icon="mdi-source-branch" @click="openBranch">Branch from here</v-btn>
         <v-spacer />
         <v-btn :disabled="busy" @click="close">Close</v-btn>
       </v-card-actions>
@@ -77,7 +77,9 @@ import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
 import { buildTaskEditTimeline } from '@/utils/taskEditTimeline'
 import { useTaskHistory } from '@/collab/historyBuilder/useTaskHistory'
 import { notifyError } from '@/composables/useNotifications'
+import { useModelFileContext } from '@/composables/useModelFileContext'
 
+const files = useModelFileContext()
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 const workspace = useModelWorkspaceStore()
@@ -304,7 +306,7 @@ const openBranch = () => {
 
 const createBranch = async () => {
   const step = selectedStep.value
-  if (!step || !previewReady.value || !timelineData.value || !branchName.value.trim()) return
+  if (files?.learningPath.value || !step || !previewReady.value || !timelineData.value || !branchName.value.trim()) return
   branching.value = true
   try {
     await workspace.branchSnapshot(timelineData.value, step.workspaceLanguages, branchName.value.trim(), timelineVersion.value?.taskVersion ?? workspace.taskReference, branchEdits.value ? timelineTaskEditSnapshot.value : workspace.taskEdit)

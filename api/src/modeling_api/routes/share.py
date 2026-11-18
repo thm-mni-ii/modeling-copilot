@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter, Response
 
-from modeling_api.core.errors import ApiError
+from modeling_api.core.errors import ApiError, conflict
+from modeling_api.db.client import db
 from modeling_api.routes.deps import CurrentUser
 from modeling_api.schemas.share import JoinedRoom, JoinRoom, SetJoinable, SetOpen, ShareModel, SharedRoom, ShareState
 from modeling_api.services import models
@@ -26,6 +27,8 @@ router = APIRouter(prefix="/share", tags=["Share"])
 )
 async def share_model(body: ShareModel, user: CurrentUser, response: Response) -> SharedRoom:
     task = None
+    if body.model_id is not None and await db.learning_path_run_steps.find_one({"modelId": str(body.model_id)}, {"_id": 1}):
+        raise conflict("Models of a learning-path step cannot be shared.")
     if body.task:
         # The text comes from the DB, never from the browser; get_model checks that the model belongs to the user.
         if body.model_id is None:

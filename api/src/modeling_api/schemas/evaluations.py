@@ -48,6 +48,23 @@ class EvaluationDetail(Evaluation):
                                       description="Final model score. Null until the scoring integration supplies it.")
 
 
+class ReferenceRecognition(ApiSchema):
+    reference_key: str
+    recognition: JsonObject
+
+
+class EvaluationFeedback(ApiSchema):
+    """Learner-facing result; never carries artifacts, logs or reference-model content."""
+
+    id: UUID
+    started_at: datetime
+    workflow_name: str
+    submission: ModelVersionReference
+    state: EvaluationState
+    score_percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    recognitions: list[ReferenceRecognition] = Field(default_factory=list)
+
+
 Threshold = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
 
 

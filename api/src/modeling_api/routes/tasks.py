@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Response
 
+from modeling_api.core.errors import ApiError
 from modeling_api.routes.deps import CurrentUser, Limit, Skip, created_response
 from modeling_api.schemas.common import Page
 from modeling_api.schemas.models import ModelVersion
@@ -138,7 +139,12 @@ async def create_version(
     response_description="The complete task version including task data.",
 )
 async def get_version(task_id: UUID, version_id: UUID, user: CurrentUser) -> TaskVersion:
-    return TaskVersion.model_validate(await service.get_version(task_id, version_id, user))
+    version = await service.get_version(task_id, version_id, user)
+    version["evaluationAvailable"] = bool(version["data"].get("sampleSolutions"))
+    if not user.is_admin:
+        # Sample-solution references are evaluation inputs; learners must not be able to address them.
+        version["data"]["sampleSolutions"] = []
+    return TaskVersion.model_validate(version)
 
 
 @router.get(
@@ -157,6 +163,8 @@ async def get_sample_solution(
     model_version_id: UUID,
     user: CurrentUser,
 ) -> ModelVersion:
+    if not user.is_admin:
+        raise ApiError(403, "FORBIDDEN", "Sample solutions require administrator access.")
     return ModelVersion.model_validate(
         await service.get_sample_solution(task_id, version_id, model_id, model_version_id, user)
     )

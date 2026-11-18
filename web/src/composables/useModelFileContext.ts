@@ -4,6 +4,8 @@ import type { ModelPackage, PackagedLanguage } from '@/utils/modelPackage'
 
 export interface ModelFileContext {
   disabledReason: Ref<string>
+  // Learning-path task: the model must not leave or be copied (no export, import or branch).
+  learningPath: Ref<boolean>
   languages: Ref<PackagedLanguage[]>
   workspaceLanguages: Ref<LanguageVersionReference[]>
   importModel: (model: ModelPackage, languages: LanguageVersionReference[]) => Promise<void>

@@ -4,7 +4,7 @@
       <v-btn v-if="view === 'detail'" icon size="x-small" variant="text" title="Zurück zur Liste" @click="view = 'list'">
         <v-icon size="18">mdi-arrow-left</v-icon>
       </v-btn>
-      <span v-if="view === 'detail' && detail" class="evaluation-sidebar__toolbar-title">{{ detail.workflow.name }}</span>
+      <span v-if="view === 'detail' && current" class="evaluation-sidebar__toolbar-title">{{ current.name }}</span>
       <span v-else class="text-caption text-medium-emphasis">{{ evaluations.length ? `${evaluations.length} Auswertung(en)` : '\u00A0' }}</span>
       <v-spacer />
       <v-btn icon size="x-small" variant="text" title="Aktualisieren" :loading="view === 'list' ? loading : detailLoading" @click="view === 'list' ? loadList() : reload()">
@@ -47,7 +47,7 @@
     </div>
 
     <div v-else class="evaluation-sidebar__body pa-2">
-      <template v-if="detailLoading && !detail">
+      <template v-if="detailLoading && !current">
         <v-skeleton-loader type="list-item-three-line" />
         <v-skeleton-loader type="list-item-three-line" class="mt-2" />
       </template>
@@ -55,38 +55,37 @@
         {{ detailError }}
         <template #append><v-btn size="x-small" variant="text" @click="reload">Erneut versuchen</v-btn></template>
       </v-alert>
-      <template v-else-if="detail">
+      <template v-else-if="current">
         <v-btn-toggle v-if="canViewService" v-model="selectedPerspective" mandatory divided density="compact" variant="outlined" color="primary" class="evaluation-perspective mb-3" aria-label="Auswertungsansicht">
           <v-btn value="service" size="small">Service</v-btn>
           <v-btn value="student" size="small">Studierende</v-btn>
         </v-btn-toggle>
 
         <div class="d-flex align-center ga-2">
-          <v-chip :color="stateColor(detail.state)" size="small" variant="tonal" label aria-label="Status des Auswertungsdurchlaufs"
-            ><v-icon start size="14">{{ stateIcon(detail.state) }}</v-icon
-            >{{ stateLabel(detail.state) }}</v-chip
+          <v-chip :color="stateColor(current.state)" size="small" variant="tonal" label aria-label="Status des Auswertungsdurchlaufs"
+            ><v-icon start size="14">{{ stateIcon(current.state) }}</v-icon
+            >{{ stateLabel(current.state) }}</v-chip
           >
           <span v-if="isPolling" class="live-dot" title="Wird live aktualisiert" />
           <v-spacer />
-          <span class="text-caption text-medium-emphasis" :title="absoluteTime(detail.startedAt)">{{ relativeTime(detail.startedAt) }}</span>
+          <span class="text-caption text-medium-emphasis" :title="absoluteTime(current.startedAt)">{{ relativeTime(current.startedAt) }}</span>
         </div>
 
         <v-divider class="my-2" />
 
-        <v-alert v-if="showServiceView && detail.workflow.labels.phase === '4'" type="info" density="compact" variant="tonal" class="mb-2">
+        <v-alert v-if="showServiceView && detail?.workflow.labels.phase === '4'" type="info" density="compact" variant="tonal" class="mb-2">
           Zwischenergebnisse bis Phase 4: Graphen, Elementinventare und semantische Kandidaten je Musterlösung.
         </v-alert>
-        <v-alert v-else-if="showServiceView && detail.workflow.labels.phase === '5'" type="info" density="compact" variant="tonal" class="mb-2">
+        <v-alert v-else-if="showServiceView && detail?.workflow.labels.phase === '5'" type="info" density="compact" variant="tonal" class="mb-2">
           Vorläufiger Vergleich je Musterlösung. Eine vollständige strukturelle Bewertung liegt noch nicht vor.
         </v-alert>
 
-        <div v-if="!showServiceView || !terminal(detail.state)" class="evaluation-progress mt-2">
+        <div v-if="!terminal(current.state)" class="evaluation-progress mt-2">
           <div class="d-flex align-center justify-space-between text-caption text-medium-emphasis mb-1">
             <span>Durchlauffortschritt</span>
-            <span v-if="showServiceView">{{ doneStepCount }} / {{ detail.steps.length }} Schritte</span>
-            <span v-else>{{ Math.round(progressPercent) }} %</span>
+            <span v-if="showServiceView && detail">{{ doneStepCount }} / {{ detail.steps.length }} Schritte</span>
           </div>
-          <v-progress-linear :model-value="progressPercent" height="6" rounded color="info" aria-label="Fortschritt des Auswertungsdurchlaufs" />
+          <v-progress-linear :model-value="progressPercent" :indeterminate="!showServiceView" height="6" rounded color="info" aria-label="Fortschritt des Auswertungsdurchlaufs" />
         </div>
 
         <v-select v-if="referenceOptions.length > 1" v-model="referenceKey" :items="referenceOptions" item-title="label" item-value="key" label="Musterlösung" density="compact" variant="outlined" hide-details class="mt-3" />
@@ -114,14 +113,18 @@
               <div class="d-flex justify-space-between ga-2 text-caption text-medium-emphasis"><span>{{ analysisValueLabel(entry.row.evaluationStatus) }}</span><span>{{ recognitionPercent(entry.row) }}</span></div>
               <v-progress-linear v-if="entry.row.percent !== null" :model-value="entry.row.percent" height="4" rounded color="primary" :aria-label="`${entry.label}: Erkennungsquote`" :aria-valuetext="`${entry.row.recognized} von ${entry.row.expected} erkannt`" />
             </div>
-            <p class="text-caption">{{ selectedRecognition.recognition.unmatchedSubmission.length }} Abgabeobjekte ohne Zuordnung.</p>
+            <div class="mb-3">
+              <div class="d-flex justify-space-between ga-2 text-caption"><strong>Abgabeobjekte ohne Zuordnung</strong><span>{{ unmatchedCount }}</span></div>
+              <!-- Not a quota: always red, it only signals how many own objects found no counterpart. -->
+              <v-progress-linear v-if="unmatchedCount" :model-value="100" height="4" rounded color="error" :aria-label="`${unmatchedCount} Abgabeobjekte ohne Zuordnung`" />
+            </div>
           </template>
           <p v-else class="text-caption text-medium-emphasis">Für diese Auswertung und Musterlösung ist noch keine Erkennungsübersicht verfügbar.</p>
         </section>
 
-        <AnalyticalFeedbackPanel v-if="showServiceView" v-model:reference-key="referenceKey" v-model:tab="serviceTab" :detail="detail" />
+        <AnalyticalFeedbackPanel v-if="showServiceView && detail" v-model:reference-key="referenceKey" v-model:tab="serviceTab" :detail="detail" />
 
-        <div v-if="showServiceView && serviceTab === 'technical'" class="mt-3">
+        <div v-if="showServiceView && detail && serviceTab === 'technical'" class="mt-3">
         <p class="text-caption text-medium-emphasis mb-2">Auswertungsparameter: {{ parameterSummary }}</p>
         <v-timeline density="compact" side="end" truncate-line="both" class="evaluation-timeline">
           <v-timeline-item v-for="entry in timelineEntries" :key="entry.id" :dot-color="entry.color" size="x-small">
@@ -163,7 +166,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ApiId, JsonObject } from '@/services/api/types/common'
-import type { Evaluation, EvaluationDetail } from '@/services/api/types/evaluation'
+import type { Evaluation, EvaluationDetail, EvaluationFeedback, EvaluationOutcome } from '@/services/api/types/evaluation'
 import evaluationService from '@/services/evaluation/evaluation.service'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import { useUserStore } from '@/stores/userStore'
@@ -171,29 +174,37 @@ import JsonResultViewer from './JsonResultViewer.vue'
 import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
 import AnalyticalFeedbackPanel from './AnalyticalFeedbackPanel.vue'
 import { semanticComparisonResult } from '@/utils/semanticComparison'
-import { analysisCategories, analysisValueLabel, categoryLabels, recognitionReportsFromEvaluation, type RecognitionCount } from '@/utils/analysisFeedback'
+import { adaptRecognition, analysisCategories, analysisValueLabel, categoryLabels, recognitionReportsFromEvaluation, type RecognitionCount } from '@/utils/analysisFeedback'
 
 const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null; evaluationPerspective?: 'service' | 'student' }>()
-const emit = defineEmits<{ 'evaluation-updated': [evaluation: EvaluationDetail]; 'service-detail-opened': [] }>()
+const emit = defineEmits<{ 'evaluation-updated': [evaluation: EvaluationOutcome]; 'service-detail-opened': [] }>()
 const userStore = useUserStore()
 const selectedPerspective = ref<'service' | 'student'>('service')
 const canViewService = computed(() => userStore.globalRole === 'ADMIN' || userStore.globalRole === 'MODERATOR')
 const showServiceView = computed(() => canViewService.value && selectedPerspective.value === 'service')
 const view = ref<'list' | 'detail'>('list')
 const evaluations = ref<Evaluation[]>([])
+// Service view: full run (moderators/admins only). Student view: the learner feedback endpoint, exactly what learners receive.
 const detail = ref<EvaluationDetail | null>(null)
+const feedback = ref<EvaluationFeedback | null>(null)
+const current = computed(() => showServiceView.value
+  ? detail.value && { state: detail.value.state, startedAt: detail.value.startedAt, name: detail.value.workflow.name }
+  : feedback.value && { state: feedback.value.state, startedAt: feedback.value.startedAt, name: feedback.value.workflowName })
 const referenceKey = ref('')
 const recognitionState = computed(() => {
-  try { return { reports: detail.value ? recognitionReportsFromEvaluation(detail.value) : [], error: null } }
+  try {
+    if (!showServiceView.value) return { reports: feedback.value?.recognitions.map(({ referenceKey, recognition }) => ({ referenceKey, recognition: adaptRecognition(recognition) })) ?? [], error: null }
+    return { reports: detail.value ? recognitionReportsFromEvaluation(detail.value) : [], error: null }
+  }
   catch { return { reports: [], error: 'Die Erkennungsübersicht hat ein ungültiges Format.' } }
 })
 const recognitionOptions = computed(() => recognitionState.value.reports.map((report, index) => ({ key: report.referenceKey, label: `Musterlösung ${index + 1}` })))
 // Reference model names are only shown to roles that may see analysis data.
-const analyticalOptions = computed(() => canViewService.value && detail.value ? detail.value.steps.filter(step => step.id.startsWith('generate_analytical_feedback_')).map(step => ({
+const analyticalOptions = computed(() => showServiceView.value && detail.value ? detail.value.steps.filter(step => step.id.startsWith('generate_analytical_feedback_')).map(step => ({
   key: step.id.slice('generate_analytical_feedback_'.length), label: step.label.replace(/^Analytisches Feedback:\s*/, '')
 })) : [])
 const referenceOptions = computed(() => analyticalOptions.value.length ? analyticalOptions.value : recognitionOptions.value)
-watch([referenceOptions, () => detail.value?.id], ([options, evaluationId], [, previousId]) => {
+watch([referenceOptions, () => detail.value?.id ?? feedback.value?.id],([options, evaluationId], [, previousId]) => {
   if (evaluationId !== previousId || !options.some(option => option.key === referenceKey.value)) referenceKey.value = options[0]?.key ?? ''
 }, { immediate: true })
 const serviceTab = ref<'overview' | 'findings' | 'technical'>('overview')
@@ -203,6 +214,7 @@ const recognitionRows = computed(() => selectedRecognition.value ? [
   ...(selectedRecognition.value.recognition.buckets?.map(row => ({ key: row.id, label: row.label, row })) ??
     analysisCategories.map(key => ({ key, label: categoryLabels[key], row: selectedRecognition.value!.recognition.categories![key] })))
 ] : [])
+const unmatchedCount = computed(() => selectedRecognition.value?.recognition.unmatchedSubmission.length ?? 0)
 const recognitionPercent = (row: RecognitionCount) => row.percent === null ? 'nicht bestimmbar' : `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(row.percent)} %`
 const selectedId = ref<ApiId | null>(null)
 const loading = ref(false)
@@ -240,13 +252,12 @@ const parameterSummary = computed(() => {
 })
 const doneStepCount = computed(() => (detail.value ? detail.value.steps.filter((step) => step.status === 'succeeded' || step.status === 'failed').length : 0))
 const progressPercent = computed(() => {
-  if (!showServiceView.value && detail.value?.state === 'succeeded') return 100
   return detail.value && detail.value.steps.length ? (doneStepCount.value / detail.value.steps.length) * 100 : 0
 })
 const studentResultMessage = computed(() => {
-  switch (detail.value?.state) {
+  switch (feedback.value?.state) {
     case 'succeeded':
-      if (detail.value.scorePercent != null) return `Dein Modell erreicht ${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(detail.value.scorePercent)} %.`
+      if (feedback.value.scorePercent != null) return `Dein Modell erreicht ${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(feedback.value.scorePercent)} %.`
       return 'Die Auswertung ist abgeschlossen. Eine Ergebnisanzeige für Studierende ist für diese Auswertung noch nicht eingerichtet.'
     case 'failed':
       return 'Die Auswertung ist fehlgeschlagen. Fordere erneut automatisch erzeugtes Feedback an oder versuche den Aufgabenabschluss erneut.'
@@ -357,12 +368,14 @@ const loadList = async () => {
 const refreshDetail = async () => {
   const id = selectedId.value
   if (!id) return
-  const result = (await evaluationService.get(id)).data
-  if (selectedId.value !== id) return
-  detail.value = result
+  const service = showServiceView.value
+  const result = service ? (await evaluationService.get(id)).data : (await evaluationService.getFeedback(id)).data
+  if (selectedId.value !== id || service !== showServiceView.value) return
+  if (service) detail.value = result as EvaluationDetail
+  else feedback.value = result as EvaluationFeedback
   const index = evaluations.value.findIndex((item) => item.id === id)
-  if (index >= 0) evaluations.value[index] = { ...evaluations.value[index], state: detail.value.state }
-  emit('evaluation-updated', detail.value)
+  if (index >= 0) evaluations.value[index] = { ...evaluations.value[index], state: result.state }
+  emit('evaluation-updated', result)
 }
 
 const poll = async (generation: number) => {
@@ -376,7 +389,7 @@ const poll = async (generation: number) => {
     return
   }
   if (generation === pollingGeneration) {
-    if (detail.value && !terminal(detail.value.state)) pollTimer = setTimeout(() => void poll(generation), 2_000)
+    if (current.value && !terminal(current.value.state)) pollTimer = setTimeout(() => void poll(generation), 2_000)
     else stopPolling()
   }
 }
@@ -385,6 +398,7 @@ const open = async (id: ApiId) => {
   stopPolling()
   if (selectedId.value !== id) {
     detail.value = null
+    feedback.value = null
     serviceTab.value = 'overview'
   }
   selectedId.value = id
@@ -392,7 +406,7 @@ const open = async (id: ApiId) => {
   detailError.value = null
   try {
     await refreshDetail()
-    if (detail.value && !terminal(detail.value.state)) {
+    if (current.value && !terminal(current.value.state)) {
       isPolling.value = true
       pollingGeneration += 1
       pollTimer = setTimeout(() => void poll(pollingGeneration), 2_000)
@@ -442,6 +456,7 @@ watch(
   async () => {
     stopPolling()
     detail.value = null
+    feedback.value = null
     selectedId.value = null
     view.value = 'list'
     await loadList()
@@ -458,6 +473,8 @@ watch(
   },
   { immediate: true }
 )
+// Each perspective loads from its own endpoint.
+watch(showServiceView, () => { if (view.value === 'detail') void reload() })
 // Widen once per opened admin detail; the user may shrink it again afterwards.
 watch(() => view.value === 'detail' && showServiceView.value && selectedId.value, (opened) => { if (opened) emit('service-detail-opened') }, { immediate: true })
 onMounted(() => {

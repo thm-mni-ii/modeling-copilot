@@ -28,7 +28,7 @@ const activeTab = ref<'feedback' | 'persistence' | 'sync' | 'languages' | 'task'
 <script setup lang="ts">
 import { computed, nextTick, watch } from 'vue'
 import type { JsonObject } from '@/services/api/types/common'
-import type { EvaluationDetail } from '@/services/api/types/evaluation'
+import type { EvaluationOutcome } from '@/services/api/types/evaluation'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
 import SidebarLibrary from './SidebarLibrary.vue'
@@ -65,7 +65,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'evaluation-updated': [evaluation: EvaluationDetail]
+  'evaluation-updated': [evaluation: EvaluationOutcome]
   'remove-task-edit': [id: string]
   'update-task-edit-document': [document: JsonObject]
   'focus-task-edit': [target: TaskEditFocus]
@@ -76,8 +76,8 @@ const baseTabs: SidebarTabItem[] = [
   { value: 'sync', icon: 'mdi-sync', label: 'Collab' },
   { value: 'languages', icon: 'mdi-bookshelf', label: 'Languages' }
 ]
-// In learning paths (hasJourney, only set with stepRun) everyone works on the task alone, so there is no sharing.
-const visibleBaseTabs = computed(() => (props.hasJourney ? baseTabs.filter((tab) => tab.value !== 'sync') : baseTabs))
+// In learning paths (hasJourney, only set with stepRun) everyone works on the task alone with the task's languages: no sharing, no model import/export, no language setup.
+const visibleBaseTabs = computed(() => (props.hasJourney ? [] : baseTabs))
 // In a room only the host evaluates, on the private model, and only if the task has a workflow.
 const evaluationsActive = computed(() => !currentShare.value || Boolean(currentShare.value.privateModelId && sharedTaskSettings.value?.evaluationAvailable))
 const evaluationModelId = computed(() => currentShare.value?.privateModelId ?? props.modelId ?? null)
@@ -88,6 +88,7 @@ const sidebarWidth = ref(DEFAULT_WIDTH)
 const maxWidth = computed(() => (props.hasJourney ? 484 : 347))
 const languageLibrary = ref<InstanceType<typeof SidebarLibrary> | null>(null)
 const openLanguages = async () => {
+  if (props.hasJourney) return
   activeTab.value = 'languages'
   await nextTick()
   void languageLibrary.value?.openGuidedDialog()
@@ -96,11 +97,11 @@ defineExpose({ openLanguages })
 watch(() => props.hasJourney, (hasJourney) => {
   sidebarWidth.value = hasJourney ? Math.max(280, sidebarWidth.value) : DEFAULT_WIDTH
 }, { immediate: true })
-// A previously opened collab tab would otherwise stay visible in a learning path without its tab.
+// A previously opened base tab would otherwise stay visible in a learning path without its tab.
 watch(
   () => props.hasJourney,
   (hasJourney) => {
-    if (hasJourney && activeTab.value === 'sync') activeTab.value = 'languages'
+    if (hasJourney && ['sync', 'persistence', 'languages'].includes(activeTab.value)) activeTab.value = 'task'
   },
   { immediate: true }
 )
