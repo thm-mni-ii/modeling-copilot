@@ -102,6 +102,11 @@ async def help_markings(run_id: UUID, step_id: UUID, request_id: UUID, body: Hel
     return await help_requests.save_markings(run_id, step_id, request_id, body, user)
 
 
+@router.post("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}/markings/reopen", response_model=HelpRequest)
+async def reopen_help_markings(run_id: UUID, step_id: UUID, request_id: UUID, user: CurrentUser):
+    return await help_requests.reopen_markings(run_id, step_id, request_id, user)
+
+
 HelpSurveyPhase = Literal["topic", "reflection", "action"]
 
 

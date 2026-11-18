@@ -5,6 +5,21 @@ Uvicorn. Docker Compose and the k3s deployment therefore use the same setup.
 Running Uvicorn directly requires running this command first with `PYTHONPATH=api/src`
 and the intended `MONGODB_URI` and `MONGODB_DATABASE` environment variables.
 
+Help requests created with the revised help flow store `flowVersion: 2`. Requests
+without this field retain flow version 1, including their earlier step order and
+multiple model selections. No backfill of existing requests or survey sessions is
+required. New requests publish and pin the current questionnaire release through
+the existing content-addressed publisher; earlier releases and collected answers
+remain unchanged. The new flow asks about duration and support before marking,
+allows at most one model element and any number of task-text ranges, and finishes
+with the help-source question. Object-related automatic feedback is offered only
+with a selected model element; whole-model feedback needs no selection. The
+feedback types and their prioritization remain unchanged.
+Before confirming the help source, learners can return to the marking step to
+add or change their single model selection. Saved text ranges and the help-source
+draft are retained. Reopening advances the survey revision so stale action saves
+cannot complete the flow while the marking step is being reopened.
+
 ## Code organization
 
 ```text

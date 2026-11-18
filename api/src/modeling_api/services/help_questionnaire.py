@@ -13,7 +13,7 @@ from modeling_api.schemas.surveys import Definition
 from modeling_api.services import surveys
 
 PHASE_QUESTIONS = {
-    "topic": ("problem_area", "other_problem"),
+    "topic": ("problem_area", "other_problem", "tool_problem"),
     "reflection": ("stuck_duration", "support_need"),
     "action": ("next_action",),
 }

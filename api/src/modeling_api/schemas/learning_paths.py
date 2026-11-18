@@ -196,7 +196,7 @@ class HelpTextRange(ApiSchema):
 
 class HelpMarkings(ApiSchema):
     cell_ids: list[str] = Field(default_factory=list, max_length=200)
-    task_text_ranges: list[HelpTextRange] = Field(default_factory=list, max_length=100)
+    task_text_ranges: list[HelpTextRange] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def valid_markings(self):
@@ -212,6 +212,7 @@ class HelpRequest(ApiSchema):
     model_id: UUID
     model_version_id: UUID
     created_at: datetime
+    flow_version: Literal[1, 2] = 1
     stage: Literal["topic", "marking", "reflection", "action", "completed", "cancelled"] = "completed"
     survey_ids: dict[str, UUID] = Field(default_factory=dict)
     markings: HelpMarkings | None = None

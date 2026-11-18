@@ -61,6 +61,7 @@ async def create(run_id, step_id, body: CreateHelpRequest, user):
         "modelVersionId": str(body.model_version_id),
         "createdAt": utcnow(),
         "stage": "topic",
+        "flowVersion": 2,
         "evaluationAvailable": bool(task and task.get("data", {}).get("sampleSolutions")),
         "surveyIds": {phase: questionnaire["surveyId"] for phase in HELP_SURVEY_IDS},
         "surveyReleaseId": questionnaire["_id"],
@@ -89,6 +90,7 @@ def view(document):
                 "runId", "stepId", "modelId", "modelVersionId", "createdAt"
             )
         }, "stage": document.get("stage", "completed"),
+         "flowVersion": document.get("flowVersion", 1),
          "surveyIds": document.get("surveyIds", HELP_SURVEY_IDS),
          "markings": document.get("markings"), "nextAction": document.get("nextAction"),
          "nextActionId": document.get("nextActionId"), "surveySessionId": document.get("surveySessionId"),
@@ -174,14 +176,19 @@ async def save_survey(run_id, step_id, request_id, phase, body, user, action):
 
 async def advance(request, phase, session):
     config = HelpRequestConfig.model_validate(request.get("helpConfig", {}))
+    new_flow = request.get("flowVersion", 1) >= 2
     if phase == "topic":
-        marking = config.marking_enabled and session["answers"].get(config.topic_question) == config.marking_answer
+        marking = not new_flow and config.marking_enabled and session["answers"].get(config.topic_question) == config.marking_answer
         next_stage = "marking" if marking else "reflection"
     else:
         next_stage = "action" if phase == "reflection" else "completed"
     fields = {"stage": next_stage}
     if phase == "reflection":
         fields["supportKind"] = help_questionnaire.SUPPORT_KINDS.get(session["answers"].get("support_need"), "recognition")
+        if (new_flow and config.marking_enabled
+                and session["answers"].get(config.topic_question) == config.marking_answer
+                and fields["supportKind"] not in help_questionnaire.WHOLE_MODEL_KINDS):
+            fields["stage"] = "marking"
     if next_stage == "completed":
         fields.update(completedAt=session["completedAt"], nextAction=session["answers"][config.action_question])
         if request.get("surveySessionId"):
@@ -190,7 +197,7 @@ async def advance(request, phase, session):
             value = session["answers"]["next_action"]
             fields.update(nextActionId=value, nextAction=question["choiceLabels"][value])
         # Object-related automatic feedback needs marked model objects; ask for them now if missing.
-        if (fields.get("nextActionId") == help_questionnaire.AUTOMATIC_FEEDBACK
+        if (not new_flow and fields.get("nextActionId") == help_questionnaire.AUTOMATIC_FEEDBACK
                 and request.get("supportKind", "recognition") not in help_questionnaire.WHOLE_MODEL_KINDS
                 and not (request.get("markings") or {}).get("cellIds")):
             fields.update(stage="marking", markingPurpose="feedback")
@@ -199,8 +206,36 @@ async def advance(request, phase, session):
     )
 
 
+async def reopen_markings(run_id, step_id, request_id, user):
+    request = await owned_request(run_id, step_id, request_id, user)
+    if (request.get("flowVersion", 1) < 2 or request.get("markings") is None
+            or request.get("supportKind", "recognition") in help_questionnaire.WHOLE_MODEL_KINDS):
+        raise conflict("Für diese Hilfeanfrage ist kein Markierungsschritt verfügbar.")
+    if request["stage"] == "marking":
+        return view(request)
+    if request["stage"] != "action":
+        raise conflict("Die Markierung kann nur vor der Auswahl der Hilfequelle geändert werden.")
+    # Invalidate in-flight action saves before returning to the marking step.
+    # If submission won the race, keep the completed answers and refuse to reopen.
+    result = await db.survey_sessions.update_one(
+        {"_id": request["surveySessionId"], "userId": user.id, "status": "draft",
+         "helpCompletedPhases.action": {"$exists": False}, "cancelledAt": {"$exists": False}},
+        {"$inc": {"revision": 1}},
+    )
+    if not result.matched_count:
+        raise conflict("Die Hilfequelle wurde bereits bestätigt. Lade die Hilfeanfrage erneut.")
+    result = await db.learning_path_help_requests.update_one(
+        {"_id": request["_id"], "stage": "action"}, {"$set": {"stage": "marking"}},
+    )
+    current = await owned_request(run_id, step_id, request_id, user)
+    if not result.matched_count and current["stage"] != "marking":
+        raise conflict()
+    return view(current)
+
+
 async def save_markings(run_id, step_id, request_id, body, user):
     request = await owned_request(run_id, step_id, request_id, user)
+    new_flow = request.get("flowVersion", 1) >= 2
     feedback_marking = request.get("markingPurpose") == "feedback"
     if feedback_marking:
         body = body.model_copy(update={"task_text_ranges": []})  # task text is not mapped to findings
@@ -209,6 +244,10 @@ async def save_markings(run_id, step_id, request_id, body, user):
         if request.get("markings") == markings and request.get("stage") in ("reflection", "action", "completed"):
             return view(request)
         raise conflict("Markings can only be submitted after choosing task/model help.")
+    if new_flow and len(body.cell_ids) > 1:
+        raise conflict("Markiere höchstens ein Modellelement, auf das sich dein Problem bezieht.")
+    if not new_flow and len(body.task_text_ranges) > 100:
+        raise conflict("Markiere höchstens 100 Textstellen.")
     if feedback_marking and not body.cell_ids:
         raise conflict("Markiere mindestens ein Modellelement, zu dem du Feedback möchtest.")
     if request.get("helpConfig", {}).get("markingRequired", True) and not body.cell_ids and not body.task_text_ranges:
@@ -227,7 +266,8 @@ async def save_markings(run_id, step_id, request_id, body, user):
         raise conflict("A selected element is not part of the saved model checkpoint.")
     result = await db.learning_path_help_requests.update_one(
         {"_id": request["_id"], "stage": "marking"},
-        {"$set": {"markings": markings, "markingsSubmittedAt": utcnow(), "stage": "completed" if feedback_marking else "reflection"}},
+        {"$set": {"markings": markings, "markingsSubmittedAt": utcnow(),
+                  "stage": "action" if new_flow else "completed" if feedback_marking else "reflection"}},
     )
     if not result.matched_count:
         current = await owned_request(run_id, step_id, request_id, user)
@@ -310,6 +350,15 @@ async def recover_cancellation(request):
     return request
 
 
+def automatic_feedback_available(request):
+    # New flows finish with the help-source question, without a later marking step.
+    return request.get("evaluationAvailable", False) and (
+        request.get("flowVersion", 1) < 2
+        or request.get("supportKind", "recognition") in help_questionnaire.WHOLE_MODEL_KINDS
+        or bool((request.get("markings") or {}).get("cellIds"))
+    )
+
+
 async def open_combined(request, phase):
     if phase not in HELP_SURVEY_IDS or request["stage"] == "cancelled":
         raise conflict("This help questionnaire is not available.")
@@ -325,7 +374,7 @@ async def open_combined(request, phase):
         "answers": {k: v for k, v in session["answers"].items() if k in help_questionnaire.PHASE_QUESTIONS[phase]},
         "status": "submitted" if done else "draft", "releaseChanged": False,
         "version": {"id": version["_id"], **{k: v for k, v in version.items() if k != "_id"},
-                    "definition": help_questionnaire.phase_definition(version, phase, evaluation_available=request.get("evaluationAvailable", False))},
+                    "definition": help_questionnaire.phase_definition(version, phase, evaluation_available=automatic_feedback_available(request))},
     }
 
 
@@ -340,7 +389,7 @@ async def save_combined(request, phase, body, action):
         return survey_sessions.response_view({**session, "completedAt": done[phase]}, version)
     if request["stage"] != phase or session["status"] != "draft" or phase in done:
         raise conflict("Complete the current help step first.")
-    content = help_questionnaire.phase_definition(version, phase, evaluation_available=request.get("evaluationAvailable", False))
+    content = help_questionnaire.phase_definition(version, phase, evaluation_available=automatic_feedback_available(request))
     surveys.validate_answers(content if action == "submit" else {
         "elements": [{**q, "isRequired": False} for q in content["elements"]]
     }, body.answers)

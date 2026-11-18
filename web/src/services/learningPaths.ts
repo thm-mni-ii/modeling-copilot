@@ -165,6 +165,7 @@ export interface HelpRequest {
   modelId: string
   modelVersionId: string
   createdAt: string
+  flowVersion?: 1 | 2
   stage: 'topic' | 'marking' | 'reflection' | 'action' | 'completed' | 'cancelled'
   surveyIds: Record<HelpSurveyPhase, string>
   markings: HelpMarkings | null
@@ -192,6 +193,7 @@ export default {
   help: (runId: string, stepId: string, requestId: string) => http.get<HelpRequest>(helpUrl(runId, stepId, requestId)),
   cancelHelp: (runId: string, stepId: string, requestId: string) => http.post<HelpRequest>(`${helpUrl(runId, stepId, requestId)}/cancel`),
   saveHelpMarkings: (runId: string, stepId: string, requestId: string, markings: HelpMarkings) => http.put<HelpRequest>(`${helpUrl(runId, stepId, requestId)}/markings`, markings),
+  reopenHelpMarkings: (runId: string, stepId: string, requestId: string) => http.post<HelpRequest>(`${helpUrl(runId, stepId, requestId)}/markings/reopen`),
   openHelpSurvey: (runId: string, stepId: string, requestId: string, phase: HelpSurveyPhase) => http.post<SurveySession>(`${helpUrl(runId, stepId, requestId)}/surveys/${phase}/open`),
   saveHelpSurveyDraft: (runId: string, stepId: string, requestId: string, phase: HelpSurveyPhase, answers: Record<string, unknown>, revision: number, sessionId: string) => http.put<{ revision: number }>(`${helpUrl(runId, stepId, requestId)}/surveys/${phase}/draft`, { answers, revision, sessionId }),
   submitHelpSurvey: (runId: string, stepId: string, requestId: string, phase: HelpSurveyPhase, answers: Record<string, unknown>, revision: number, sessionId: string) => http.post<SurveyResponse>(`${helpUrl(runId, stepId, requestId)}/surveys/${phase}/submit`, { answers, revision, sessionId }),

@@ -23,6 +23,7 @@
       :class="{ 'help-snapshot-loading': helpMarking && (!helpSnapshot || helpSnapshotLoading) }"
       :allow-edit="!helpMarking"
       :help-selection-mode="helpMarking"
+      :help-single-selection="currentHelp?.flowVersion === 2"
       :help-flow-active="Boolean(currentHelp)"
       model-management
       :model-id="workspace.model?.id ?? null"
@@ -424,7 +425,10 @@ watch(
   async (stage) => {
     if (stage === 'marking') {
       taskWindowOpen.value = false
-      if (currentHelp.value?.markingPurpose === 'feedback' && !helpCellIds.value.length) helpCellIds.value = [...(currentHelp.value.markings?.cellIds ?? [])]
+      if (currentHelp.value?.flowVersion === 2) {
+        helpCellIds.value = [...(currentHelp.value.markings?.cellIds ?? [])]
+        helpTextRanges.value = [...(currentHelp.value.markings?.taskTextRanges ?? [])]
+      } else if (currentHelp.value?.markingPurpose === 'feedback' && !helpCellIds.value.length) helpCellIds.value = [...(currentHelp.value.markings?.cellIds ?? [])]
       await loadHelpSnapshot()
     } else {
       helpSnapshotGeneration++

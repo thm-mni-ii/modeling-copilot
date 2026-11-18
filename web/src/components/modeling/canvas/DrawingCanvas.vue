@@ -468,6 +468,7 @@ const props = withDefaults(
     helpSelectionMode?: boolean
     helpFlowActive?: boolean
     helpCellIds?: string[]
+    helpSingleSelection?: boolean
     showToolbar?: boolean
     showElements?: boolean
     showModelSidebar?: boolean
@@ -607,7 +608,7 @@ const helpMouseListener: MouseListenerSet = {
     const cell = me.getCell()
     const id = cell?.getId()
     if (cell && id && (cell.isVertex() || cell.isEdge())) {
-      const ids = props.helpCellIds.includes(id) ? props.helpCellIds.filter((value) => value !== id) : [...props.helpCellIds, id]
+      const ids = props.helpCellIds.includes(id) ? props.helpCellIds.filter((value) => value !== id) : props.helpSingleSelection ? [id] : [...props.helpCellIds, id]
       emit('update:helpCellIds', ids)
     }
     me.consume()

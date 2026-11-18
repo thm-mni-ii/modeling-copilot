@@ -4,13 +4,15 @@
       <v-icon color="warning" size="18">mdi-marker</v-icon>
       <h2 class="help-marking-title">{{ title }}</h2>
     </div>
-    <p class="help-marking-count" role="status">{{ cellIds.length }} {{ cellIds.length === 1 ? 'Element' : 'Elemente' }}<template v-if="!forFeedback"> · {{ textRanges.length }} {{ textRanges.length === 1 ? 'Textstelle' : 'Textstellen' }}</template></p>
+    <p class="help-marking-count" role="status">{{ cellIds.length }} {{ cellIds.length === 1 ? 'Element' : 'Elemente' }}<template v-if="singleElement"> (maximal 1)</template><template v-if="!forFeedback"> · {{ textRanges.length }} {{ textRanges.length === 1 ? 'Textstelle' : 'Textstellen' }}</template></p>
     <details class="help-marking-details">
       <summary>So markierst du</summary>
-      <p v-if="forFeedback">Klicke die Modellelemente oder Verbindungen an, zu denen du Feedback möchtest. Erneutes Anklicken entfernt eine Markierung. Dein Modell bleibt unverändert.</p>
+      <p v-if="singleElement">Wähle höchstens ein Modellelement oder eine Verbindung aus. Ein Klick auf ein anderes Element ersetzt die Auswahl. Erneutes Anklicken hebt sie auf. Im Aufgabentext kannst du beliebig viele Textstellen auswählen und jeweils auf „Textstelle markieren“ klicken.</p>
+      <p v-else-if="forFeedback">Klicke die Modellelemente oder Verbindungen an, zu denen du Feedback möchtest. Erneutes Anklicken entfernt eine Markierung. Dein Modell bleibt unverändert.</p>
       <p v-else>Klicke Modellelemente oder Verbindungen an. Wähle im Aufgabentext Text aus und klicke auf „Textstelle markieren“. Erneutes Anklicken entfernt eine Modellmarkierung. Dein Modell bleibt unverändert.</p>
     </details>
     <p v-if="request.markingRequired === false" class="help-marking-optional">Markierungen sind optional.</p>
+    <p v-if="singleElement" class="help-marking-optional">Für automatisches Feedback zu deiner Problemstelle brauchst du ein markiertes Modellelement. Ohne Elementauswahl kannst du anschließend eine andere Hilfequelle wählen.</p>
     <div class="help-marking-actions">
       <v-btn color="primary" size="small" variant="flat" :loading="busy || snapshotLoading" :disabled="request.markingRequired !== false && !cellIds.length && (forFeedback || !textRanges.length) || snapshotLoading || Boolean(snapshotError)" @click="submitMarkings">{{ forFeedback ? 'Feedback anfordern' : 'Weiter' }}</v-btn>
     </div>
@@ -31,11 +33,15 @@
           <p class="help-flow-choice">{{ request.nextActionId === automaticModelCheckChoice.value ? automaticModelCheckChoice.label : request.nextAction }}</p>
           <p class="help-flow-next-step">{{ nextStep }}</p>
         </template>
-        <SurveyRenderer v-else-if="phase" :key="`${request.id}:${phase}`" ref="renderer" compact :survey-id="request.surveyIds[phase]" :new-choice="automaticModelCheckChoice" :activity="{ runId: request.runId, stepId: request.stepId, helpRequestId: request.id, helpPhase: phase }" @completed="refresh" />
+        <template v-else-if="phase">
+          <p v-if="singleElement && phase === 'action' && objectFeedbackWithoutElement" class="help-flow-next-step mb-2">Für automatisches Feedback zu dieser Problemstelle ist genau ein markiertes Modellelement erforderlich. {{ canReopenMarkings ? 'Gehe über „Zurück zur Markierung“ zur Elementauswahl.' : 'Wähle eine der anderen Hilfequellen.' }}</p>
+          <SurveyRenderer :key="`${request.id}:${phase}`" ref="renderer" compact :survey-id="request.surveyIds[phase]" :new-choice="automaticModelCheckChoice" :activity="{ runId: request.runId, stepId: request.stepId, helpRequestId: request.id, helpPhase: phase }" @completed="refresh" />
+        </template>
       </div>
-      <div v-if="request.stage === 'topic' || request.stage === 'completed'" class="help-flow-actions">
+      <div v-if="request.stage === 'topic' || request.stage === 'completed' || canReopenMarkings" class="help-flow-actions">
+        <v-btn v-if="canReopenMarkings" size="small" variant="text" prepend-icon="mdi-arrow-left" :loading="busy" :disabled="busy || renderer?.saving" @click="reopenMarkings">Zurück zur Markierung</v-btn>
         <v-btn v-if="request.stage === 'topic'" size="small" variant="text" :disabled="busy || renderer?.saving" @click="cancel">Abbrechen</v-btn>
-        <template v-else>
+        <template v-else-if="request.stage === 'completed'">
           <v-btn v-if="request.nextActionId === 'automatic_feedback'" color="info" size="small" variant="flat" :loading="feedbackBusy" @click="emit('automatic-feedback')">Überprüfung öffnen</v-btn>
           <v-btn color="primary" size="small" variant="text" :disabled="feedbackBusy" @click="emit('close')">Weiter modellieren</v-btn>
         </template>
@@ -60,6 +66,9 @@ const busy = ref(false)
 const error = ref('')
 const phase = computed<HelpSurveyPhase | null>(() => ['topic', 'reflection', 'action'].includes(props.request.stage) ? props.request.stage as HelpSurveyPhase : null)
 const forFeedback = computed(() => props.request.markingPurpose === 'feedback')
+const singleElement = computed(() => props.request.flowVersion === 2)
+const canReopenMarkings = computed(() => singleElement.value && props.request.stage === 'action' && props.request.markings !== null)
+const objectFeedbackWithoutElement = computed(() => Boolean(props.request.supportKind?.startsWith('help.') && props.request.supportKind !== 'help.check' && !props.request.markings?.cellIds.length))
 const title = computed(() => ({ topic: 'Dein Problem', marking: forFeedback.value ? 'Objekte für dein Feedback markieren' : 'Problemstellen markieren', reflection: 'Was du gerade brauchst', action: 'Dein nächster Schritt', completed: 'Dein nächster Schritt', cancelled: 'Hilfe abgebrochen' })[props.request.stage])
 const nextStep = computed(() => {
   const action = props.request.nextAction ?? ''
@@ -85,6 +94,16 @@ const submitMarkings = async () => {
   error.value = ''
   try {
     emit('update:request', (await paths.saveHelpMarkings(props.request.runId, props.request.stepId, props.request.id, { cellIds: props.cellIds, taskTextRanges: forFeedback.value ? [] : props.textRanges })).data)
+  } catch (e) { error.value = surveyError(e) }
+  finally { busy.value = false }
+}
+const reopenMarkings = async () => {
+  if (!canReopenMarkings.value || busy.value || renderer.value?.saving) return
+  busy.value = true
+  error.value = ''
+  try {
+    if (renderer.value && !(await renderer.value.saveDraft())) return
+    emit('update:request', (await paths.reopenHelpMarkings(props.request.runId, props.request.stepId, props.request.id)).data)
   } catch (e) { error.value = surveyError(e) }
   finally { busy.value = false }
 }
