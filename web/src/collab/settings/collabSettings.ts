@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import type { CollabKitApi } from '@/collab/kit/collabKitV1'
+import backendLimits from '@/collab/settings/backendLimits.json'
 
 /** A value to set: a number from min to max, a switch, a choice of fixed values, a color or a list of distinct colors. */
 export type CollabLimit = { readonly default: number; readonly min: number; readonly max: number } | { readonly default: boolean } | { readonly default: string; readonly options: readonly string[] } | { readonly default: string; readonly color: true } | { readonly default: readonly string[]; readonly minItems: number; readonly maxItems: number }
@@ -9,21 +10,21 @@ const HEX = /^#[0-9a-f]{6}$/i
 
 /**
  * The collab settings, one area per document in collab-kit (ck.settings). collab-kit knows neither
- * areas nor keys; only the Copilot checks the limits. The areas the backend reads (sharing, archive)
- * are also in api/src/modeling_api/services/collab_kit/collab_settings.py (LIMITS), with the same limits.
+ * areas nor keys; only the Copilot checks the limits. The values the backend reads (sharing, archive) come
+ * from backendLimits.json; api/tests/collab_kit/test_collab_limits.py fails if collab_settings.py (LIMITS) differs.
  */
 export const COLLAB_LIMITS = {
   sharing: {
     // How long a visitor may be away before the sweep takes them out of the group.
-    visitorGraceSeconds: { default: 120, min: 30, max: 3600 },
+    visitorGraceSeconds: backendLimits.sharing.visitorGraceSeconds,
     // How long the host may be away before the sweep locks the room.
-    hostGraceSeconds: { default: 120, min: 30, max: 3600 },
+    hostGraceSeconds: backendLimits.sharing.hostGraceSeconds,
     // How long the host may be away before the sweep takes all visitors out.
-    hostEndSeconds: { default: 300, min: 30, max: 7200 },
+    hostEndSeconds: backendLimits.sharing.hostEndSeconds,
     // How long the host is away before a visitor is told; a reload of the host takes less.
     hostAwayMs: { default: 30_000, min: 5_000, max: 600_000 },
     // How often the sweep looks; shorter keeps the waits more exact and asks collab-kit more often.
-    sweepSeconds: { default: 30, min: 10, max: 120 },
+    sweepSeconds: backendLimits.sharing.sweepSeconds,
     // How often a visitor reads what the room added; once it is closed there is nothing left to read.
     followMs: { default: 30_000, min: 10_000, max: 300_000 },
     // How long a new tab waits for an answer of another tab of this browser before it counts as the only one.
@@ -97,12 +98,14 @@ export const COLLAB_LIMITS = {
     importDelayMs: { default: 400, min: 100, max: 5000 }
   },
   archive: {
-    // The archive of collab-kit in the Copilot; off, the "Archive" tab is missing, collab-kit still shows its buttons to archive.
-    enabled: { default: false },
+    // Whether the archive is used at all: the "Archive" tab and the buttons to archive in collab-kit, and what the backend archives by itself. collab-kit also needs ARCHIVE_ENABLED=true on the server.
+    enabled: backendLimits.archive.enabled,
     // Whether an ended share archives its workpieces (model and task) instead of leaving them without a room; only with enabled.
-    archiveOnShareClose: { default: false },
+    archiveOnShareClose: backendLimits.archive.archiveOnShareClose,
+    // Whether the Archive tab offers deleting for good; only with enabled. collab-kit also refuses it unless the server has ARCHIVE_DELETE=true.
+    allowDelete: backendLimits.archive.allowDelete,
     // After this many days without activity the backend archives workpieces of ended shares that lie in no room; 0 means never, only with enabled.
-    archiveUnusedAfterDays: { default: 0, min: 0, max: 365 }
+    archiveUnusedAfterDays: backendLimits.archive.archiveUnusedAfterDays
   }
 } as const satisfies Record<string, Record<string, CollabLimit>>
 

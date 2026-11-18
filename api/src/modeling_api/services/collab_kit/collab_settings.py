@@ -2,7 +2,8 @@
 
 Each area is one document in Collab-Kit (CK); CK knows neither areas nor keys, only the Copilot checks
 the limits. Default, smallest and largest value are the same as in
-web/src/collab/connection/collabSettings.ts (COLLAB_LIMITS); only the areas of the backend are listed here.
+web/src/collab/settings/backendLimits.json; only the areas of the backend are listed here, and
+tests/collab_kit/test_collab_limits.py fails if the two differ.
 """
 
 import logging
@@ -26,6 +27,7 @@ LIMITS: dict[str, dict[str, dict[str, Any]]] = {
     "archive": {
         "enabled": {"default": False},
         "archiveOnShareClose": {"default": False},
+        "allowDelete": {"default": False},
         "archiveUnusedAfterDays": {"default": 0, "min": 0, "max": 365},
     },
 }
