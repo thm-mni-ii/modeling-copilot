@@ -55,6 +55,7 @@
             <PaletteEditor v-if="!filtering && entry.section.area === 'colors'" :colors="form.colors" :problem="problemOf('colors', 'palette')" :changed="(key) => fieldChanged('colors', key)" @update="(key, value) => (form.colors[key] = value)" />
             <PresenceCanvas v-if="!filtering && entry.section.area === 'presence'" class="mb-3" :presence="form.presence" :colors="form.colors" :changed="fieldChanged" :problem="problemOf" @update="(area, key, value) => (form[area][key] = value)" />
             <ActivityCanvas v-if="!filtering && (entry.section.area === 'log' || entry.section.area === 'hints')" :area="entry.section.area" class="mb-3" :values="form[entry.section.area]" :colors="form.colors" :changed="fieldChanged" :problem="problemOf" @update="(key, value) => (form[entry.section.area][key] = value)" />
+            <ArchiveCanvas v-if="!filtering && entry.section.area === 'archive'" class="mb-3" :values="form.archive" :changed="(key) => fieldChanged('archive', key)" :problem="(key) => problemOf('archive', key)" @update="(key, value) => (form.archive[key] = value)" />
             <ShareDefaultsPreview v-if="!filtering && entry.section.area === 'shareDefaults'" :values="form.shareDefaults" :resettable="SHARE_KEYS.some((key) => nonDefault('shareDefaults', key))" @update="(key, value) => (form.shareDefaults[key] = value)" @reset="SHARE_KEYS.forEach((key) => resetField('shareDefaults', key))" />
             <div class="card__parts">
               <div v-for="part in partsOf(entry)" :key="String(part.advanced)" :class="part.advanced ? 'advanced' : 'part'">
@@ -161,6 +162,7 @@ import { applyCollabSettings, COLLAB_AREAS, COLLAB_LIMITS, collabSettings, loadC
 import { historyChoices } from '@/collab/sharing/shareChoices'
 import { labOf, textOn } from '@/collab/settings/colorMath'
 import ActivityCanvas from '@/collab/settings/ActivityCanvas.vue'
+import ArchiveCanvas from '@/collab/settings/ArchiveCanvas.vue'
 import PaletteEditor from '@/collab/settings/PaletteEditor.vue'
 import PresenceCanvas from '@/collab/settings/PresenceCanvas.vue'
 import ShareDefaultsPreview from '@/collab/settings/ShareDefaultsPreview.vue'
@@ -293,10 +295,11 @@ const SECTIONS: readonly Section[] = [
   {
     area: 'archive',
     title: 'Archive',
-    about: 'Archived workpieces, rooms and groups can be restored or deleted for good. Turned off, the Archive tab is hidden, but collab-kit still offers to archive rooms, groups and workpieces.',
+    about: 'Archived workpieces, rooms and groups can be restored or deleted for good. Turned off, there is no archive: no tab, no buttons to archive, and nothing is archived by itself. The collab-kit server must allow it too (ARCHIVE_ENABLED=true).',
     fields: [
-      { key: 'enabled', label: 'Archive', hint: 'Shows the Archive tab here.' },
+      { key: 'enabled', label: 'Use the archive', hint: 'Shows the Archive tab and the buttons to archive, and lets ended shares be archived. collab-kit also needs ARCHIVE_ENABLED=true on the server.' },
       { key: 'archiveOnShareClose', label: 'Archive ended shares', hint: 'The model and the task of a share go to the archive when the host ends it, instead of staying in collab-kit without a room. Only while the archive is on.' },
+      { key: 'allowDelete', label: 'Delete for good', hint: 'The Archive tab offers deleting archived items for good, after a confirmation. collab-kit also needs ARCHIVE_DELETE=true on the server. Only while the archive is on.' },
       { key: 'archiveUnusedAfterDays', label: 'Archive unused shared models after', hint: 'Models and tasks of ended shares that lie in no room and nobody has used for so long; the backend looks once a day at 03:00 UTC. 0 never archives. Only while the archive is on.', unit: 'days' }
     ]
   }
@@ -441,8 +444,8 @@ const defaultOf = (area: CollabArea, key: string) => {
 }
 const nonDefault = (area: CollabArea, key: string) => JSON.stringify(form[area][key]) !== JSON.stringify(defaultOf(area, key))
 /** The settings the timeline and the dialog preview show, so they can be reset from there. */
-/** The canvases of the presence, log and hints settings and the palette editor hold every field of these areas, so they are no rows. */
-const onCanvas = (area: CollabArea) => ['presence', 'colors', 'log', 'hints'].includes(area)
+/** The canvases of the presence, log, hints and archive settings and the palette editor hold every field of these areas, so they are no rows. */
+const onCanvas = (area: CollabArea) => ['presence', 'colors', 'log', 'hints', 'archive'].includes(area)
 const WAIT_KEYS = ['hostAwayMs', 'hostGraceSeconds', 'hostEndSeconds', 'visitorGraceSeconds']
 const SHARE_KEYS = ['anonymous', 'edit', 'task', 'history']
 const labelOfKey = (area: CollabArea, key: string) => SECTIONS.find((section) => section.area === area)?.fields.find((field) => field.key === key)?.label ?? key
