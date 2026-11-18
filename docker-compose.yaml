@@ -106,7 +106,7 @@ services:
     restart: unless-stopped
 
   collab-kit:
-    image: ghcr.io/thm-mni-ii/collab-kit:v0.7.2
+    image: ghcr.io/thm-mni-ii/collab-kit:v0.7.4
     ports:
       - "127.0.0.1:24202:24202"
     environment:
@@ -121,6 +121,8 @@ services:
       TOP_VALUES: ADMIN,MODERATOR
       # Admins keep every right but see no true keys behind pseudonyms.
       TOP_SEES_PSEUDONYMS: "false"
+      # The archive exists on this instance; whether the Copilot uses it is set in the collab settings.
+      ARCHIVE_ENABLED: "true"
       ALLOWED_ORIGINS: http://localhost:8085
       # The api signs its own tokens; only the public key of its local test key lies here,
       # Portainer takes its own. With all four collab-kit creates the group "services"

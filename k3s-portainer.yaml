@@ -669,7 +669,7 @@ spec:
       containers:
         - name: collab-kit
           # Fixed version; an update means changing the tag here and in docker-compose.yaml.
-          image: ghcr.io/thm-mni-ii/collab-kit:v0.7.2
+          image: ghcr.io/thm-mni-ii/collab-kit:v0.7.4
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -706,6 +706,9 @@ spec:
             # Admins keep every right but see no true keys behind pseudonyms.
             - name: TOP_SEES_PSEUDONYMS
               value: "false"
+            # The archive exists on this instance; whether the Copilot uses it is set in the collab settings.
+            - name: ARCHIVE_ENABLED
+              value: "true"
           envFrom:
             - configMapRef:
                 name: collab-kit-config

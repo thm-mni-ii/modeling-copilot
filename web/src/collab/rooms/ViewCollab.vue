@@ -2,7 +2,7 @@
   <v-container fluid class="pa-3">
     <!-- Properties of the element, set as they are named there; a hyphen would name another one. -->
     <!-- eslint-disable-next-line vue/attribute-hyphenation -->
-    <ck-management v-if="ck" ref="management" lang="en" theme="light" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" .tabs="tabs" .extraTabs="extraTabs" @ck-open="open">
+    <ck-management v-if="ck" ref="management" lang="en" theme="light" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" .archive="collabSettings.archive.enabled" .archiveDelete="collabSettings.archive.allowDelete" .extraTabs="extraTabs" @ck-open="open">
       <!-- The "Group work" tab shows this slot; the content stays in the light DOM, so with Vuetify. -->
       <!-- The native slot of the web component, not the old slot of Vue 2. -->
       <!-- eslint-disable-next-line vue/no-deprecated-slot-attribute -->
@@ -17,7 +17,7 @@
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
-import type { CollabKitApi, ManagementElement, ManagementOpen, ManagementOwnTab, ManagementTab, Room } from '@/collab/kit/collabKitV1'
+import type { CollabKitApi, ManagementElement, ManagementOpen, ManagementTab, Room } from '@/collab/kit/collabKitV1'
 import GroupWork from '@/collab/groups/GroupWork.vue'
 import CollabSettings from '@/collab/settings/CollabSettings.vue'
 import { mayManageAll } from './access'
@@ -34,8 +34,6 @@ const { openFromRoom } = useCollabConnection()
 const manager = ref(false)
 /** Tabs of the Copilot after those of collab-kit, each shows the slot of its ID. */
 const extraTabs = computed<ManagementTab[]>(() => [{ id: 'group-work', label: 'Group work' }, ...(manager.value ? [{ id: 'collab-settings', label: 'Collab settings' }] : [])])
-/** The own tabs of collab-kit; without the archive in the collab settings the "Archive" tab is missing, undefined shows all. */
-const tabs = computed<readonly ManagementOwnTab[] | undefined>(() => (collabSettings.archive.enabled ? undefined : ['rooms', 'groups', 'workpieces']))
 /** Rooms the backend created are known to the element only after reloading. */
 const reload = () => void management.value?.reload()
 
