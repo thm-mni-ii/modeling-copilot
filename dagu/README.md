@@ -1,6 +1,6 @@
 # Dagu
 
-Dagu `2.16.6` orchestriert die Workflows des Modeling Copilot. Die Workflow-Dienste
+Dagu `2.27.0` orchestriert die Workflows des Modeling Copilot. Die Workflow-Dienste
 laufen dauerhaft („warm“) als Deployments im Namespace `workflow-runtime`
 (`infra/workflow-services.yaml`). Dagu ruft sie je Schritt per `http.request` auf,
 statt pro Schritt einen Kubernetes Job zu starten. Jeder Dienst führt dabei sein
@@ -44,9 +44,10 @@ weiterhin `localhost`.
 
 - UI: http://localhost:8525
 
-Die Zugangsdaten sind reine Entwicklungswerte aus `docker-compose.yaml`.
-Builtin-Authentifizierung ist aktiviert. Der initiale Admin wird nur beim ersten
-Start des Datenvolumes angelegt.
+Lokal ist die Anmeldung abgeschaltet (`DAGU_AUTH_MODE: none`). Ab Dagu 2.22
+nimmt Dagu in diesem Modus nur bekannte Hostnamen an; IP-Adressen, `localhost`
+und einteilige Namen wie `dagu` (API im Compose-Netz) sind immer erlaubt.
+Weitere Namen bei Bedarf über `DAGU_ALLOWED_HOSTS` (kommagetrennt) freigeben.
 
 ## Workflows und Daten
 
@@ -206,7 +207,7 @@ ClusterIP, nicht von außen erreichbar). Dagu erreicht sie über
 Die Images müssen auf dem Knoten vorhanden sein. Das PVC ist `ReadWriteOnce`;
 alle Repliken müssen daher auf dem Knoten laufen, der es eingebunden hat.
 
-Der Init-Container klont den Branch `feat-add-dagu-as-workflow-manager` von
+Der Init-Container klont den Branch `main` von
 `https://github.com/thm-mni-ii/modeling-copilot.git`. Bei einem Wechsel des
 Standard-Branches ist der Wert von `--branch` im Deployment anzupassen. Ein
 Checkout auf dem Node oder ConfigMaps für Workflows und `base.yaml` sind nicht
@@ -215,7 +216,14 @@ erforderlich.
 Zusätzlich wird im Namespace `dagu` folgendes Objekt erwartet:
 
 - Secret `dagu-auth` mit den Keys `token-secret`, `admin-username` und
-  `admin-password`
+  `admin-password` (Token-Secret mindestens 32, Passwort mindestens 8 Zeichen)
+
+Dagu läuft mit Builtin-Anmeldung. Der initiale Admin aus dem Secret wird nur
+angelegt, solange der Benutzerspeicher auf dem PVC leer ist; spätere Änderungen
+am Secret ändern ihn nicht. Builtin-Login, erster Admin und bis zu zwei API-Keys
+sind ohne Lizenz nutzbar; weitere Benutzer, Rollen und OIDC erfordern eine
+Dagu-Lizenz. Den API-Key für das Backend (`DAGU_API_KEY`) legt der Admin in der
+UI unter Admin > API Keys mit Zugriff auf die REST-API an.
 
 Deployment:
 

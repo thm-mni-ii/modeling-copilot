@@ -118,7 +118,7 @@ spec:
       containers:
         - name: dagu
           # Pinned version - never use "latest" here.
-          image: ghcr.io/dagucloud/dagu:2.16.6
+          image: ghcr.io/dagucloud/dagu:2.27.0
           imagePullPolicy: IfNotPresent
           command: ["dagu", "start-all"]
           ports:
