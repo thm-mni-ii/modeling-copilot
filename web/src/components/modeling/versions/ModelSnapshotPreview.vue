@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch, type Ref } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import type { Graph } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
 import { useZoomOperations } from '@/composables/useZoomOperations'
@@ -25,10 +25,10 @@ const props = withDefaults(
   }
 )
 
-const previewCanvas = ref<{ graph?: Graph & { resetViewOnRootChange: boolean }; loadPersistedModel: (data: JsonObject) => void } | null>(null)
+const previewCanvas = shallowRef<{ graph?: Graph & { resetViewOnRootChange: boolean }; loadPersistedModel: (data: JsonObject) => void } | null>(null)
 const viewport = ref<HTMLElement | null>(null)
 defineExpose({ graph: computed(() => previewCanvas.value?.graph) })
-const { fitToWindow } = useZoomOperations(computed(() => previewCanvas.value?.graph) as Ref<Graph | undefined>)
+const { fitToWindow } = useZoomOperations(computed(() => previewCanvas.value?.graph))
 let resizeFrame = 0
 const resizeObserver = new ResizeObserver(() => {
   cancelAnimationFrame(resizeFrame)

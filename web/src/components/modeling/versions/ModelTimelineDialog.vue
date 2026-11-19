@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGraphContext } from '@/composables/useGraphContext'
 import modelService from '@/services/model/model.service'
@@ -152,7 +152,7 @@ const openFeedbackAt = (index: number) => {
   mobilePane.value = 'feedback'
 }
 const tickHasFeedback = (index: number) => Boolean(evaluationMarkers.value.some(marker => marker.index === index))
-const snapshotPreview = ref<InstanceType<typeof ModelSnapshotPreview> | null>(null)
+const snapshotPreview = shallowRef<InstanceType<typeof ModelSnapshotPreview> | null>(null)
 const selectedPositionId = ref<string | null>(null)
 const timelineData = ref<JsonObject | null>(null)
 const materializedPositionId = ref<string | null>(null)
