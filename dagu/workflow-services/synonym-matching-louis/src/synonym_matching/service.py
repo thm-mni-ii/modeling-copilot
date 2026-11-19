@@ -142,9 +142,10 @@ class MatchingEngine:
         self.backends = {}
         for name in self.config['methods']:
             self.methods[name] = METHODS[name]
-            if name == 'component_matching':
+            if name in {'component_matching', 'component_feature_fusion'}:
                 from .components import ComponentMatching
-                self.backends[name] = ComponentMatching(self.config, self.translator)
+                self.backends[name] = ComponentMatching(
+                    self.config, self.translator, feature_first=name == 'component_feature_fusion')
             elif name in EMBEDDING_MODELS:
                 options = self.config['embedding'].get(name, {})
                 self.backends[name] = EmbeddingMethod(name, options, self.cache)
@@ -244,7 +245,7 @@ class MatchingEngine:
             matrix[~valid] = 0
             matrices[name] = matrix
             processed_labels[name] = {'reference': left, 'student': right}
-            if name == 'component_matching':
+            if name in {'component_matching', 'component_feature_fusion'}:
                 for feature, values in backend.features.items():
                     matrices[f'{name}_{feature}'] = np.where(valid, values, 0)
             if name in self.config['semantic_features']:

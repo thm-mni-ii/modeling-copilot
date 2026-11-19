@@ -208,7 +208,7 @@ def calculate_features(cases, definitions, methods):
                         'eligible': (result['validPairs'] & result['usablePairs'][method]).tolist(),
                     }
                     backend = getattr(engine, 'backends', {}).get(method)
-                    if method == 'component_matching':
+                    if method in {'component_matching', 'component_feature_fusion'}:
                         features[key, case['id']]['component_features'] = {
                             name: values.tolist() for name, values in backend.features.items()}
                         features[key, case['id']]['component_evidence'] = backend.evidence

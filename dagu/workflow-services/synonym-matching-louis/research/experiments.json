@@ -18,6 +18,7 @@
   },
   "methods": {
     "component_matching": {"languages": ["de", "en"], "preprocessing_steps": ["normalize"]},
+    "component_feature_fusion": {"languages": ["de", "en"], "preprocessing_steps": ["normalize"]},
     "levenshtein": {},
     "damerau_levenshtein": {},
     "jaro_winkler": {},
@@ -86,6 +87,7 @@
   },
   "chains": {
     "components": ["normalize", "component_matching"],
+    "component_features": ["normalize", "component_feature_fusion"],
     "lev": ["$pre", "levenshtein"],
     "dam": ["$pre", "damerau_levenshtein"],
     "jw": ["$pre", "jaro_winkler"],

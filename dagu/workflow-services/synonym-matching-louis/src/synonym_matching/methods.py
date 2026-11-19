@@ -111,6 +111,12 @@ def component_matching(left, right, *, backend, left_languages, right_languages)
                           right_languages=right_languages)
 
 
+def component_feature_fusion(left, right, *, backend, left_languages, right_languages):
+    """Führe erst Komponentenmerkmale zusammen, dann einmal die vollständige Fusion."""
+    return component_matching(left, right, backend=backend, left_languages=left_languages,
+                              right_languages=right_languages)
+
+
 def label_part_compatibility(left, right):
     """Liefere 0 bei einem erkannten Nummern-/Raumkonflikt, sonst neutral 1.
 
@@ -212,6 +218,7 @@ def wn_translation(left, right, *, backend, left_languages, right_languages):
 # Diese Namen werden auch in der JSON-Konfiguration verwendet.
 METHODS = {
     'component_matching': component_matching,
+    'component_feature_fusion': component_feature_fusion,
     'levenshtein': levenshtein,
     'damerau_levenshtein': damerau_levenshtein,
     'jaro_winkler': jaro_winkler,
@@ -236,6 +243,7 @@ METHODS = {
 # uses_languages = Sprachen nach dem Preprocessing an die Vergleichsfunktion übergeben.
 METHOD_TRAITS = {
     'component_matching': {'original_text', 'uses_languages'},
+    'component_feature_fusion': {'original_text', 'uses_languages'},
     'translated_string': {'translate'},
     'wordnet': {'translate'},
     'openthesaurus': {'german_only'},

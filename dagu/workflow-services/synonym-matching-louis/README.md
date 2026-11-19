@@ -562,7 +562,7 @@ Lokale Ergebnisse im ignorierten Ordner `results`:
 `semantic-fusion-summary-20261119.json` (Metriken, Ablationsbeiträge, entfernte falsche
 und verlorene richtige Treffer, konkrete Labelpaare und Hashes der Rohdateien).
 
-### Komponentenweise Bewertung: erster Mittelwert-Versuch (19.11.2026)
+### Komponentenweise Bewertung: erster Mittelwert-Versuch (Vergleichsbaseline, 19.11.2026)
 
 Optionales Verfahren `component_matching`, auswählbar in Service und JSON-Baukasten.
 Es verwendet keine neuen Modelle und verändert den Standard nicht:
@@ -637,6 +637,84 @@ und `results/components-summary-20261119.json`. Die gespeicherten Komponenten- u
 Gesamtlabel-Scores wurden nachgerechnet und die öffentlichen Matrixausgaben gegen das
 unveränderte Schema geprüft. `components.py` enthält die neue Berechnung; der
 Service und der Forschungslauf nutzen dasselbe Backend.
+
+### Komponentenmerkmale vor der Fusion (korrigierte Variante, 19.11.2026)
+
+`component_feature_fusion` bildet **keinen fusionierten Score je Bestandteil** mehr.
+String- und Embedding-Werte werden zunächst separat auf Gesamtlabel-Ebene gemittelt;
+erst danach wird einmal die unveränderte `semantic_fusion` angewandt. Ihre Gewichte,
+Lesartenprüfung und bisherige Nummern-/Raumkonfliktregel bleiben ausdrücklich erhalten.
+`component_matching` bleibt als bisheriger, vorzeitig fusionierender Vergleich erhalten.
+
+Die neue Variante erkennt gezielt Endungen/Abkürzungen für Nummer und Raum (DE/EN).
+`GebäudeNr.` wird Gebäude + Nummer, `Geräteraum` Geräte + Raum; normale Labels wie
+`Kunde registrieren`, `Order Item` und `Vorname` bleiben unzerlegt. Mehrwortige
+Objektbezeichnungen vor einem erkannten Zusatz werden als ein Objektteil erhalten.
+Unbekannte Präfixe werden nicht geraten oder verworfen. Es ist keine allgemeine
+Kompositazerlegung oder grammatische Analyse.
+
+| Merkmal | Zusammenführung nach gemeinsamer Komponentenpaarung |
+| --- | --- |
+| Levenshtein/Jaro-Winkler/Trigramme | Jeweils Mittel, fehlender Partner zählt 0 |
+| Embedding | Separater Mittelwert, fehlender Partner zählt 0 |
+| Gemeinsamer Synset | Nur 1, wenn alle Bestandteile vollständig synonym zugeordnet sind |
+| Abdeckung | Pro Seite alle Bestandteile bekannt; `pair_known` erfordert beide Seiten |
+| Mehrdeutigkeit | Maximum der Komponenten-Synsetanzahlen; öffentlich nur Mehrdeutigkeitsflag |
+| Hypernym/Hyponym/Antonym | Objektbeziehung nur bei vollständiger Paarung und synonymem Zusatz |
+| Path/Wu-Palmer | Objektwert nur bei synonymem Zusatz und verfügbarer Taxonomie |
+
+Zur Paarung dienen nur String-/Embedding-Werte, keine vorherige Bedeutungsfusion.
+Objekt wird mit Objekt und Zusatz mit Zusatz gepaart. Das verhindert beispielsweise,
+dass das gemeinsame Nummer den fehlenden Objektpartner ersetzt. Die Rollen stammen
+ausschließlich aus der erkannten Struktur, nicht aus einem neuen Sprachmodell.
+
+Service-Konfiguration: `{"methods": ["component_feature_fusion"], "preprocessing": ["normalize"]}`.
+Im Forschungslauf ist die ID `normalize → component_feature_fusion`. Im Trace stehen
+`alignmentScores`, `whole_label_scores` und `whole_label_semantic_features`; daraus
+lässt sich die einzige abschließende Fusion exakt nachrechnen. Das Outputschema bleibt
+unverändert; neue Werte stehen unter `scores.component_feature_fusion_...`.
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --only 'normalize → translated_embedding' translated_embedding_part_conflicts \
+  semantic_full 'normalize → component_matching' 'normalize → component_feature_fusion' \
+  --output results/component-features-laboratory.json.gz
+```
+
+Ergebnis auf **geänderten Laborlabels**, Seed 42, Threshold 0,5:
+
+| Variante | TP | FP | FN | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Embedding-Baseline | 157 | 100 | 35 | 0,611 | 0,818 | 0,699 |
+| Konfliktregel | 157 | 12 | 35 | 0,929 | 0,818 | 0,870 |
+| Vollständige Fusion | 155 | 7 | 37 | 0,957 | 0,807 | 0,876 |
+| Früherer Komponentenmittelwert | 128 | 606 | 64 | 0,174 | 0,667 | 0,277 |
+| Erst Merkmale zusammenführen, dann Fusion | 167 | 480 | 25 | 0,258 | 0,870 | 0,398 |
+
+Gegenüber der Embedding-Baseline werden 96 falsche Treffer entfernt und zwölf neue
+richtige erkannt; es entstehen aber 476 neue falsche, und zwei richtige gehen verloren.
+In der gezielten 24-Paar-Probe werden dagegen alle fünf Positiven ohne FP erkannt.
+Beispiele: Gebäude/GebäudeNr. 0,2500, GebäudeNr./Gebäudenummer 0,9479,
+Geräte/Geräteraum 0,2359, GeräteNr./Gerätenummer 0,9435.
+
+Ein gemeinsames Nummer kann weiterhin die gemittelten String-/Embedding-Werte
+anheben, auch wenn der zusammengeführte Synsetwert korrekt 0 ist. Die unveränderte
+Fusion wertet fehlende Synonym-Evidenz nicht automatisch negativ. Bei unbekannten
+Objektbestandteilen greifen weder Lexikonkorrektur noch zwingend die alte Konfliktregel.
+Beispiel EtagenNr./GebaeudeNr.: Abdeckung unvollständig, Synset 0, Score dennoch 0,6078.
+
+Auf 33 bekannten Kontrollszenarien erreicht die neue Variante F1 0,695 (TP/FP/FN
+33/19/10), die vollständige Fusion 0,742 und die Konfliktregel 0,723. Der geänderte
+Ablauf allein ist damit keine allgemeine Qualitätsverbesserung. Keine Parameter oder
+Thresholds nachträglich angepasst; Standardpipeline nicht umgestellt. Alle Daten sind
+bekannte Entwicklungsdaten, keine unabhängige Validierung.
+
+Lokal gespeichert: `results/component-features-laboratory-20261119.json.gz`,
+`results/component-features-targeted-20261119.json.gz`,
+`results/component-features-control-20261119.json.gz` sowie
+`results/component-features-summary-20261119.json`. Separate Merkmalsmittelwerte,
+abschließende Fusion und öffentliche Schemakompatibilität wurden nachgeprüft.
 
 ### Explizite Relationsmerkmale (Einzelwerte)
 

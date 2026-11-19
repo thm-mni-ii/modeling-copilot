@@ -10,7 +10,7 @@ import pytest
 
 from synonym_matching import MatchingEngine
 from synonym_matching.combinations import SEMANTIC_FEATURES, SEMANTIC_METHODS, semantic_fusion
-from synonym_matching.components import label_components
+from synonym_matching.components import label_components, merge_component_features
 
 
 @pytest.fixture
@@ -90,4 +90,74 @@ def test_components_handle_order_duplicates_empty_sets_and_empty_labels(componen
     result = engine.match([element('r', '')], [element('s', 'Gebäude')])
     assert result['combinedScores'] == [[0]]
     assert result['synonymMatrix'][0]['matches'] == []
+
+
+def test_targeted_splitting_keeps_phrases_and_non_target_compounds(component_engine):
+    assert label_components('Kunde registrieren', 'de', targeted=True) == ['Kunde registrieren']
+    assert label_components('Vorname', 'de', targeted=True) == ['Vorname']
+    assert label_components('Order Item', 'en', targeted=True) == ['Order Item']
+    assert label_components('GebäudeNr.', 'de', targeted=True) == ['Gebäude', 'Nummer']
+    assert label_components('Geräteraum', 'de', targeted=True) == ['geräte', 'raum']
+    assert label_components('buildingNumber', 'en', targeted=True) == ['building', 'Number']
+    assert label_components('XYZnummer', 'de', targeted=True) == ['XYZ', 'nummer']
+    assert label_components('Laboratory room', 'en', targeted=True) == ['Laboratory', 'room']
+
+
+def test_merge_scores_separately_but_not_synsets_or_relations():
+    values = np.array([[.2, 0], [0, 1.]])
+    matrices = {name: values.copy() for name in SEMANTIC_METHODS}
+    matrices['translated_embedding'][0, 0] = .35
+    matrices['wordnet'] = np.array([[0., 0], [0, 1.]])
+    features = {name: np.zeros((2, 2)) for name in SEMANTIC_FEATURES}
+    for name in SEMANTIC_FEATURES[:3]:
+        features[name][:] = 1
+    features['reference_hypernym'][0, 0] = 1
+    features['antonym'][1, 1] = 1  # Relationsmerkmal nur im Zusatz, nicht im Objekt.
+    features['taxonomy_available'][0, 0] = 1
+    features['path_similarity'][0, 0] = .3
+    features['wup_similarity'][0, 0] = .8
+    raw = {'scores': matrices, 'semantic_features': {'wordnet': features}}
+    indices = np.array([0, 1])
+    head = np.array([True, False])
+    scores, merged = merge_component_features(raw, [0, 1], [0, 1], indices, indices, head)
+    assert scores['levenshtein'] == pytest.approx(.6)
+    assert scores['translated_embedding'] == pytest.approx(.675)
+    assert scores['wordnet'] == 0  # Gemeinsames Nummer reicht nicht.
+    assert merged['reference_hypernym'] == 1
+    assert merged['antonym'] == 0
+    assert merged['path_similarity'] == .3  # Objektwert, kein Mittel mit dem Zusatz.
+    assert merged['wup_similarity'] == .8
+    features['student_synset_count'][0, :] = 0
+    _, merged = merge_component_features(raw, [0, 1], [0, 1], indices, indices, head)
+    assert merged['student_known'] == merged['pair_known'] == 0
+    features['student_synset_count'][0, :] = 1
+    matrices['wordnet'][1, 1] = 0
+    _, merged = merge_component_features(raw, [0, 1], [0, 1], indices, indices, head)
+    assert merged['reference_hypernym'] == merged['taxonomy_available'] == 0
+
+
+def test_feature_first_service_fuses_once_after_aggregation(component_engine, monkeypatch):
+    engine = MatchingEngine({'methods': ['component_feature_fusion']})
+    backend = engine.backends['component_feature_fusion']
+    compute = component_engine.backends['component_matching'].engine.compute_scores
+    monkeypatch.setattr(backend.engine, 'compute_scores', compute)
+    result = engine.match([element('r', 'Gerätenummer')], [element('s', 'Raumnummer')])
+    assert result['scores']['component_feature_fusion_levenshtein'][0][0] == pytest.approx(.6)
+    assert result['scores']['component_feature_fusion_translated_embedding'][0][0] == pytest.approx(.6)
+    assert result['scores']['component_feature_fusion_wordnet_shared_synset'] == [[0]]
+    assert result['combinedScores'][0][0] == pytest.approx(.3)  # Bestehende volle Fusion.
+    evidence = backend.evidence
+    assert 'combinedScores' not in evidence  # Kein vorzeitig fusionierter Komponentenscore.
+    assert 'alignmentScores' in evidence
+    np.testing.assert_allclose(semantic_fusion(
+        {k: np.asarray(v) for k, v in evidence['whole_label_scores'].items()},
+        {k: np.asarray(v) for k, v in evidence['whole_label_semantic_features'].items()}),
+        result['combinedScores'])
+    root = Path(__file__).resolve().parents[1]
+    jsonschema.validate({'synonymMatrix': result['synonymMatrix']},
+                        json.loads((root / 'schemas/output.schema.json').read_text()))
+    unspecified = engine.match([element('r', 'Gerätenummer')], [element('s', 'Nummer')])
+    # Der Zusatz darf nicht statt des eigentlichen Objekts als bester Partner dienen.
+    assert unspecified['combinedScores'][0][0] == pytest.approx(.1)
+    assert engine.match([], [element('s', 'Gebäude')])['combinedScores'] == []
 

@@ -13,6 +13,7 @@ from synonym_matching.combinations import STRINGS, TOKENS
 
 METHOD_NAMES = {
     'component_matching': 'Labelzerlegung → Komponenten-Fusion → optimales Matching → Mittelwert',
+    'component_feature_fusion': 'Gezielte Zerlegung → Merkmale zusammenführen → vollständige Fusion',
     'levenshtein': 'Levenshtein',
     'damerau_levenshtein': 'Damerau-Levenshtein',
     'jaro_winkler': 'Jaro-Winkler',
