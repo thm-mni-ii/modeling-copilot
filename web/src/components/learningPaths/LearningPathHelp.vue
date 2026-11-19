@@ -1,6 +1,6 @@
 <template>
   <section class="learning-path-help" aria-label="Hilfe beim Modellieren">
-    <button type="button" class="help-sign" :class="{ 'help-sign--highlight': highlight }" :disabled="disabled || busy" :aria-busy="busy" @click="emit('request')">
+    <button type="button" class="help-sign" data-help-sign :class="{ 'help-sign--highlight': highlight }" :disabled="disabled || busy" :aria-busy="busy" @click="emit('request')">
       <svg class="help-sign-art" viewBox="0 0 220 70" fill="none" aria-hidden="true" focusable="false">
         <!-- Short rope loops and a brass-edged wooden sign. -->
         <path d="M38 2v12M182 2v12" stroke="#62472e" stroke-width="5" stroke-linecap="round" />

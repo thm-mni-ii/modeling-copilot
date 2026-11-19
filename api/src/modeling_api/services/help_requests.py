@@ -11,9 +11,130 @@ from modeling_api.db.store import utcnow
 from modeling_api.db.help_questionnaires import HELP_SURVEY_IDS
 from modeling_api.schemas.learning_paths import CreateHelpRequest, HelpRequest, HelpRequestConfig
 from modeling_api.services.help_configuration import validate_phase
+from modeling_api.services.learning_path_store import run_step_id
 from modeling_api.services import learning_paths as paths, models, survey_sessions, surveys, help_questionnaire
 
 OPEN_STAGES = ("topic", "marking", "reflection", "action")
+HELP_USAGE_KEYS = {
+    "help.clarify": "clarify",
+    "help.next_step": "nextStep",
+    "help.example": "example",
+    "help.check": "check",
+    "help.solution": "solution",
+}
+
+
+def _empty_usage(config):
+    limits = {
+        "help.clarify": None,
+        "help.next_step": None,
+        "help.example": config.example_limit,
+        "help.check": None,
+        "help.solution": config.solution_limit,
+    }
+    return {
+        kind: {"used": 0, "pending": 0, "limit": limit}
+        for kind, limit in limits.items()
+    }
+
+
+async def usage(run_id, step_id, config):
+    """Return successful uses and in-flight reservations for one task in a run."""
+    state = await db.learning_path_run_steps.find_one(
+        {"runId": str(run_id), "stepId": str(step_id)}
+    )
+    if not state:
+        return _empty_usage(config)
+    if not state.get("helpUsageInitialized"):
+        counts = {key: 0 for key in HELP_USAGE_KEYS.values()}
+        cursor = await db.learning_path_help_requests.aggregate([
+            {"$match": {
+                "runId": str(run_id), "stepId": str(step_id),
+                "supportKind": {"$in": list(HELP_USAGE_KEYS)},
+                "$or": [
+                    {"feedbackSucceeded": True},
+                    {"feedbackSucceeded": {"$exists": False}, "feedbackDelivered": {"$ne": None}},
+                ],
+            }},
+            {"$group": {"_id": "$supportKind", "count": {"$sum": 1}}},
+        ])
+        async for row in cursor:
+            counts[HELP_USAGE_KEYS[row["_id"]]] = row["count"]
+        await db.learning_path_run_steps.update_one(
+            {"_id": state["_id"], "helpUsageInitialized": {"$ne": True}},
+            {"$set": {
+                "helpUsageInitialized": True,
+                "helpUsage": {key: {"used": count, "pending": 0} for key, count in counts.items()},
+            }},
+        )
+        state = await db.learning_path_run_steps.find_one({"_id": state["_id"]}) or state
+    usage_values = state.get("helpUsage", {})
+    defaults = _empty_usage(config)
+    return {
+        kind: {
+            "used": usage_values.get(HELP_USAGE_KEYS[kind], {}).get("used", 0),
+            "pending": usage_values.get(HELP_USAGE_KEYS[kind], {}).get("pending", 0),
+            "limit": defaults[kind]["limit"],
+        }
+        for kind in HELP_USAGE_KEYS
+    }
+
+
+async def reserve_feedback(request):
+    kind = request.get("supportKind")
+    key = HELP_USAGE_KEYS.get(kind)
+    if key not in ("example", "solution"):
+        return
+    config = HelpRequestConfig.model_validate(request.get("helpConfig", {}))
+    limit = config.example_limit if key == "example" else config.solution_limit
+    await usage(request["runId"], request["stepId"], config)
+    reserved = await db.learning_path_help_requests.update_one(
+        {"_id": request["_id"], "feedbackQuotaReservation": {"$exists": False}},
+        {"$set": {"feedbackQuotaReservation": {"key": key, "status": "pending"}}},
+    )
+    if not reserved.matched_count:
+        current = await db.learning_path_help_requests.find_one({"_id": request["_id"]})
+        if current and current.get("feedbackQuotaReservation", {}).get("status") == "pending":
+            raise conflict("Diese automatische Auswertung wird bereits gestartet.")
+        await db.learning_path_help_requests.update_one(
+            {"_id": request["_id"]},
+            {"$set": {"feedbackQuotaReservation": {"key": key, "status": "pending"}}},
+        )
+    state_id = run_step_id(request["runId"], request["stepId"])
+    result = await db.learning_path_run_steps.update_one(
+        {
+            "_id": state_id,
+            "$expr": {
+                "$lt": [
+                    {"$add": [
+                        {"$ifNull": [f"$helpUsage.{key}.used", 0]},
+                        {"$ifNull": [f"$helpUsage.{key}.pending", 0]},
+                    ]},
+                    limit,
+                ]
+            },
+        },
+        {"$inc": {f"helpUsage.{key}.pending": 1}},
+    )
+    if not result.matched_count:
+        await db.learning_path_help_requests.update_one(
+            {"_id": request["_id"], "feedbackQuotaReservation.status": "pending"},
+            {"$unset": {"feedbackQuotaReservation": ""}},
+        )
+        raise conflict(f"Das Kontingent für {kind} ist für diese Aufgabe aufgebraucht.")
+
+
+async def release_feedback_reservation(request_id):
+    request = await db.learning_path_help_requests.find_one_and_update(
+        {"_id": str(request_id), "feedbackQuotaReservation.status": "pending"},
+        {"$set": {"feedbackQuotaReservation.status": "failed"}},
+    )
+    if request:
+        key = request["feedbackQuotaReservation"]["key"]
+        await db.learning_path_run_steps.update_one(
+            {"_id": run_step_id(request["runId"], request["stepId"])},
+            {"$inc": {f"helpUsage.{key}.pending": -1}},
+        )
 
 
 async def create(run_id, step_id, body: CreateHelpRequest, user):
@@ -303,10 +424,39 @@ async def link_evaluation(request_id, evaluation_id):
 
 
 async def record_feedback(request_id, evaluation_id, entries):
-    """Log the help feedback actually shown, once, for the evaluation started by this request."""
-    await db.learning_path_help_requests.update_one(
+    """Record a completed help evaluation and settle any reserved quota once."""
+    evaluation = await db.evaluations.find_one({"_id": str(evaluation_id)}, {"state": 1})
+    succeeded = bool(evaluation and evaluation.get("state") == "succeeded")
+    if not succeeded:
+        await release_feedback_reservation(request_id)
+        return
+    result = await db.learning_path_help_requests.update_one(
         {"_id": str(request_id), "evaluationId": str(evaluation_id), "feedbackDelivered": {"$exists": False}},
-        {"$set": {"feedbackDelivered": entries[0] if entries else None, "feedbackDeliveredAt": utcnow()}})
+        {"$set": {
+            "feedbackDelivered": entries[0] if entries else None,
+            "feedbackDeliveredAt": utcnow(),
+            "feedbackSucceeded": True,
+        }})
+    if not result.matched_count:
+        return
+    request = await db.learning_path_help_requests.find_one({"_id": str(request_id)})
+    kind = request.get("supportKind")
+    key = HELP_USAGE_KEYS.get(kind)
+    if not key:
+        return
+    reservation = request.get("feedbackQuotaReservation", {})
+    increments = {f"helpUsage.{key}.used": 1}
+    if reservation.get("status") == "pending":
+        increments[f"helpUsage.{key}.pending"] = -1
+        await db.learning_path_help_requests.update_one(
+            {"_id": str(request_id), "feedbackQuotaReservation.status": "pending"},
+            {"$set": {"feedbackQuotaReservation.status": "consumed" if succeeded else "failed"}},
+        )
+    if increments:
+        await db.learning_path_run_steps.update_one(
+            {"_id": run_step_id(request["runId"], request["stepId"])},
+            {"$inc": increments},
+        )
 
 
 async def cancel(run_id, step_id, request_id, user):

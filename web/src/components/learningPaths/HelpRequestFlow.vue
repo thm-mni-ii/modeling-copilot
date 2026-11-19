@@ -1,5 +1,5 @@
 <template>
-  <section v-if="request.stage === 'marking'" class="help-marking-panel" :aria-label="title">
+  <section v-if="request.stage === 'marking'" class="help-marking-panel" data-help-marking-panel :aria-label="title">
     <div class="d-flex align-center ga-2">
       <v-icon color="warning" size="18">mdi-marker</v-icon>
       <h2 class="help-marking-title">{{ title }}</h2>
@@ -35,7 +35,7 @@
         </template>
         <template v-else-if="phase">
           <p v-if="singleElement && phase === 'action' && objectFeedbackWithoutElement" class="help-flow-next-step mb-2">Für automatisches Feedback zu dieser Problemstelle ist genau ein markiertes Modellelement erforderlich. {{ canReopenMarkings ? 'Gehe über „Zurück zur Markierung“ zur Elementauswahl.' : 'Wähle eine der anderen Hilfequellen.' }}</p>
-          <SurveyRenderer :key="`${request.id}:${phase}`" ref="renderer" compact :survey-id="request.surveyIds[phase]" :new-choice="automaticModelCheckChoice" :activity="{ runId: request.runId, stepId: request.stepId, helpRequestId: request.id, helpPhase: phase }" @completed="refresh" />
+          <SurveyRenderer :key="`${request.id}:${phase}`" ref="renderer" compact :survey-id="request.surveyIds[phase]" :new-choice="automaticModelCheckChoice" :hidden-choices="hiddenChoices" :activity="{ runId: request.runId, stepId: request.stepId, helpRequestId: request.id, helpPhase: phase }" @completed="refresh" @question-change="emit('question-change', $event)" @tour-answer-change="emit('tour-answer-change', $event)" />
         </template>
       </div>
       <div v-if="request.stage === 'topic' || request.stage === 'completed' || canReopenMarkings" class="help-flow-actions">
@@ -52,12 +52,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
-import paths, { type HelpRequest, type HelpSurveyPhase, type HelpTextRange } from '@/services/learningPaths'
+import paths, { type HelpRequest, type HelpSurveyPhase, type HelpTextRange, type HelpUsage, type HelpTourAnswer } from '@/services/learningPaths'
 import { surveyError } from '@/services/surveys'
 import { automaticModelCheckChoice } from '@/utils/helpQuestionnaire'
 
-const props = defineProps<{ request: HelpRequest; cellIds: string[]; textRanges: HelpTextRange[]; snapshotLoading: boolean; snapshotError: string; feedbackBusy?: boolean }>()
-const emit = defineEmits<{ 'update:request': [request: HelpRequest]; close: []; 'remove-text': [index: number]; 'retry-snapshot': []; 'automatic-feedback': [] }>()
+const props = defineProps<{ request: HelpRequest; cellIds: string[]; textRanges: HelpTextRange[]; snapshotLoading: boolean; snapshotError: string; feedbackBusy?: boolean; helpUsage?: HelpUsage }>()
+const emit = defineEmits<{ 'update:request': [request: HelpRequest]; close: []; 'remove-text': [index: number]; 'retry-snapshot': []; 'automatic-feedback': []; 'question-change': [name: string | null]; 'tour-answer-change': [answer: HelpTourAnswer] }>()
 watch(() => [props.request.stage, props.request.nextActionId], ([stage, action]) => {
   if (stage === 'completed' && action === 'automatic_feedback') emit('automatic-feedback')
 }, { immediate: true })
@@ -69,6 +69,14 @@ const forFeedback = computed(() => props.request.markingPurpose === 'feedback')
 const singleElement = computed(() => props.request.flowVersion === 2)
 const canReopenMarkings = computed(() => singleElement.value && props.request.stage === 'action' && props.request.markings !== null)
 const objectFeedbackWithoutElement = computed(() => Boolean(props.request.supportKind?.startsWith('help.') && props.request.supportKind !== 'help.check' && !props.request.markings?.cellIds.length))
+const hiddenChoices = computed(() => {
+  const hidden: string[] = []
+  for (const [kind, choice] of [['help.example', 'support_need_3'], ['help.solution', 'support_need_5']] as const) {
+    const usage = props.helpUsage?.[kind]
+    if (usage && usage.limit !== null && usage.used + usage.pending >= usage.limit) hidden.push(choice)
+  }
+  return { support_need: hidden }
+})
 const title = computed(() => ({ topic: 'Dein Problem', marking: forFeedback.value ? 'Objekte für dein Feedback markieren' : 'Problemstellen markieren', reflection: 'Was du gerade brauchst', action: 'Dein nächster Schritt', completed: 'Dein nächster Schritt', cancelled: 'Hilfe abgebrochen' })[props.request.stage])
 const nextStep = computed(() => {
   const action = props.request.nextAction ?? ''

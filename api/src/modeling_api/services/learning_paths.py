@@ -634,6 +634,14 @@ async def get_model_context(model_id, user):
             else None
         )
     context["helpRequests"] = template.get("helpRequests", {"enabled": False})
+    if context["helpRequests"].get("enabled"):
+        from modeling_api.services import help_requests
+        from modeling_api.schemas.learning_paths import HelpRequestConfig
+
+        context["helpUsage"] = await help_requests.usage(
+            run["_id"], state["stepId"],
+            HelpRequestConfig.model_validate(context["helpRequests"]),
+        )
     return PathModelContext.model_validate(context)
 
 

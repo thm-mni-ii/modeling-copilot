@@ -15,6 +15,13 @@ allows at most one model element and any number of task-text ranges, and finishe
 with the help-source question. Object-related automatic feedback is offered only
 with a selected model element; whole-model feedback needs no selection. The
 feedback types and their prioritization remain unchanged.
+
+Migration `17_help_feedback_quotas` fills missing example and solution limits
+with 2 and 1, respectively, without replacing configured limits. It initializes
+per-run-step counters from existing delivered help feedback; already initialized
+counters and existing requests are retained. The migration also updates path
+revisions so stale editor drafts cannot overwrite the new settings. Stop older
+API instances and other writers before applying it.
 Before confirming the help source, learners can return to the marking step to
 add or change their single model selection. Saved text ranges and the help-source
 draft are retained. Reopening advances the survey revision so stale action saves

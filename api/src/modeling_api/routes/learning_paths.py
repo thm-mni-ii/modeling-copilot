@@ -27,8 +27,25 @@ from modeling_api.schemas.challenges import StartStep
 from modeling_api.services import learning_paths as service, pulse_surveys, help_requests
 from modeling_api.db.help_questionnaires import HELP_SURVEY_IDS
 from modeling_api.services import learning_path_progress
+from modeling_api.schemas.learning_path_features import FeatureTourEvent, FeatureTourProgress, FeatureTourReport
+from modeling_api.services import learning_path_features
 
 router = APIRouter(tags=["Learning paths"])
+
+
+@router.get("/learning-path-feature-tour", response_model=FeatureTourProgress)
+async def feature_tour_progress(user: CurrentUser):
+    return await learning_path_features.get_progress(user)
+
+
+@router.post("/learning-path-feature-tour/events", response_model=FeatureTourProgress)
+async def feature_tour_event(body: FeatureTourEvent, user: CurrentUser):
+    return await learning_path_features.record_event(user, body)
+
+
+@router.get("/learning-path-feature-tour/report", response_model=FeatureTourReport)
+async def feature_tour_report(user: CurrentUser, token: CurrentBearer):
+    return await learning_path_features.report(user, token=token)
 
 
 @router.get("/learning-path-progress-access")

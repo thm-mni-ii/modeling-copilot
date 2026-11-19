@@ -295,6 +295,8 @@ async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None
         existing = request.get("evaluationId") and await db.evaluations.find_one({"_id": request["evaluationId"], "ownerId": user.id})
         if existing and existing.get("state") not in ("failed", "cancelled"):
             return _public_evaluation(existing)
+        if existing:
+            await help_requests.release_feedback_reservation(help_request_id)
     elif can_view_analysis(user):
         # Staff runs precompute every learner help feedback per object once for the analysis view.
         feedback_request = {"types": ["recognition", "help.catalog"], "context": {}}
@@ -338,16 +340,23 @@ async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None
     if text_evidence is not None:
         # Dagu declares the parameter as a string; workflow-data validates and freezes it.
         params["text_evidence"] = json.dumps(text_evidence, separators=(",", ":"))
-    evaluation = await insert(db.evaluations, {
-        "_id": evaluation_id,
-        "ownerId": user.id, "taskId": task_ref["taskId"], "taskVersionId": task_ref["versionId"],
-        "modelId": str(model_id), "modelVersionId": str(version_id),
-        "task": task_ref, "submission": {"modelId": str(model_id), "versionId": str(version_id)},
-        "submissionSnapshot": snapshot, "parserModels": parser_models, "dagName": workflow_name, "dagRunId": evaluation_id,
-        "startedAt": utcnow(), "state": "unknown", "startStatus": "starting", "workflow": workflow,
-        "parameters": {"textEvidence": text_evidence},
-        "helpRequestId": str(help_request_id) if help_request_id else None, "feedbackRequest": feedback_request,
-    })
+    if help_request_id is not None:
+        await help_requests.reserve_feedback(request)
+    try:
+        evaluation = await insert(db.evaluations, {
+            "_id": evaluation_id,
+            "ownerId": user.id, "taskId": task_ref["taskId"], "taskVersionId": task_ref["versionId"],
+            "modelId": str(model_id), "modelVersionId": str(version_id),
+            "task": task_ref, "submission": {"modelId": str(model_id), "versionId": str(version_id)},
+            "submissionSnapshot": snapshot, "parserModels": parser_models, "dagName": workflow_name, "dagRunId": evaluation_id,
+            "startedAt": utcnow(), "state": "unknown", "startStatus": "starting", "workflow": workflow,
+            "parameters": {"textEvidence": text_evidence},
+            "helpRequestId": str(help_request_id) if help_request_id else None, "feedbackRequest": feedback_request,
+        })
+    except Exception:
+        if help_request_id is not None:
+            await help_requests.release_feedback_reservation(help_request_id)
+        raise
     if help_request_id is not None:
         await help_requests.link_evaluation(help_request_id, evaluation_id)
     try:
@@ -405,7 +414,9 @@ async def feedback(evaluation_id: UUID, user: User) -> Document:
         stored = {"state": result["state"], "scorePercent": result.get("scorePercent"), "recognitions": recognitions,
                   "feedback": [{**chosen[0], "referenceKey": chosen[1]}] if chosen else []}
         # A succeeded run whose feedback artifact could not be read yet is retried on the next call.
-        if result["state"] in {"failed", "cancelled"} or (result["state"] == "succeeded" and (recognitions or chosen)):
+        if result["state"] in {"failed", "cancelled", "succeeded"} and (
+            result["state"] != "succeeded" or recognitions or chosen
+        ):
             await db.evaluations.update_one({"_id": str(evaluation_id)}, {"$set": {"studentFeedback": stored}})
             if evaluation.get("helpRequestId"):
                 from modeling_api.services import help_requests

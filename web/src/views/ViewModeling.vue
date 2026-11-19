@@ -51,7 +51,7 @@
       @focus-task-edit="focusTaskEdit"
     >
       <template v-if="stepRun" #sidebar-top>
-        <LearningJourneyDock v-show="!currentHelp" v-model:completion-dialog="completionDialog" :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy || helpBusy" :evaluation-required="stepRun.minimumScorePercent != null" @leave="returnToPath(false)" @complete="returnToPath(true)">
+        <LearningJourneyDock v-show="!currentHelp" v-model:completion-dialog="completionDialog" :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy || helpBusy" :evaluation-required="stepRun.minimumScorePercent != null" :feature-tour-enabled="helpEnabled" :feedback-available="Boolean(workspace.taskVersion?.evaluationAvailable)" :help-request="currentHelp" :help-question="currentHelpQuestion" :help-answer="currentHelpAnswer" :help-usage="stepRun.helpUsage" @leave="returnToPath(false)" @complete="returnToPath(true)">
           <template #pulse
             ><PulseSurveyPirate
               v-if="stepRun && pulseEnabled"
@@ -71,7 +71,7 @@
               @expired="pulse.expire"
           /></template>
         </LearningJourneyDock>
-        <HelpRequestFlow v-if="currentHelp" v-model:request="currentHelp" :cell-ids="helpCellIds" :text-ranges="helpTextRanges" :snapshot-loading="helpSnapshotLoading" :snapshot-error="helpSnapshotError" :feedback-busy="evaluationStarting" @remove-text="helpTextRanges.splice($event, 1)" @retry-snapshot="loadHelpSnapshot" @close="closeHelp" @automatic-feedback="requestAutomaticFeedback" />
+        <HelpRequestFlow v-if="currentHelp" v-model:request="currentHelp" :cell-ids="helpCellIds" :text-ranges="helpTextRanges" :snapshot-loading="helpSnapshotLoading" :snapshot-error="helpSnapshotError" :feedback-busy="evaluationStarting" :help-usage="stepRun?.helpUsage" @remove-text="helpTextRanges.splice($event, 1)" @retry-snapshot="loadHelpSnapshot" @close="closeHelp" @automatic-feedback="requestAutomaticFeedback" @question-change="setHelpQuestion" @tour-answer-change="setHelpAnswer" />
       </template>
       <template v-if="helpEnabled" #canvas-top-right>
         <LearningPathHelp :busy="helpBusy" :highlight="helpHighlight" :disabled="helpActive || pathBusy || workspace.syncState === 'saving' || recoveryDialog" @request="requestHelp" />
@@ -138,7 +138,7 @@ import type { CanvasWindowDefinition } from '@/model/CanvasWindow'
 import { collectTaskEdits, flashTaskEdits, removeTaskEdit, type TaskEditFocus } from '@/utils/taskEdits'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
-import paths, { type PathModelContext, type HelpRequest, type HelpTextRange } from '@/services/learningPaths'
+import paths, { type PathModelContext, type HelpRequest, type HelpTextRange, type HelpTourAnswer } from '@/services/learningPaths'
 import CompletionCheckDialog from '@/components/learningPaths/CompletionCheckDialog.vue'
 import { completionGate, type GateResult } from '@/utils/completionGate'
 import modelService from '@/services/model/model.service'
@@ -194,6 +194,19 @@ const loading = ref(false)
 const pathBusy = ref(false)
 const helpBusy = ref(false)
 const currentHelp = ref<HelpRequest | null>(null)
+const currentHelpQuestion = ref<string | null>(null)
+const currentHelpAnswer = ref<HelpTourAnswer | null>(null)
+watch(() => [currentHelp.value?.id, currentHelp.value?.stage], () => {
+  currentHelpQuestion.value = null
+  currentHelpAnswer.value = null
+}, { flush: 'sync' })
+const setHelpQuestion = (name: string | null) => {
+  if (currentHelp.value?.stage === 'reflection') currentHelpQuestion.value = name
+}
+const setHelpAnswer = (answer: HelpTourAnswer) => {
+  if ((currentHelp.value?.stage === 'reflection' && answer.question === 'support_need') ||
+      (currentHelp.value?.stage === 'action' && answer.question === 'next_action')) currentHelpAnswer.value = answer
+}
 const helpActive = computed(() => Boolean(currentHelp.value && !['completed', 'cancelled'].includes(currentHelp.value.stage)))
 const helpMarking = computed(() => currentHelp.value?.stage === 'marking')
 const fileImportDisabledReason = computed(() => loading.value || hydrating.value || workspace.saving ? 'Wait until the model has finished loading or saving.' : helpMarking.value ? 'This model is currently read-only.' : '')
@@ -238,6 +251,7 @@ const completing = ref(false)
 const completionDialog = ref(false)
 const pendingCompletion = ref(route.query.complete === '1')
 const completionEvaluationId = ref<string | null>(null)
+const helpEvaluationId = ref<string | null>(null)
 const completionResult = ref<EvaluationOutcome | null>(null)
 const completionNotice = ref('')
 // Completion check: the dialog shows the gate result of the evaluation started by "Abschließen".
@@ -525,8 +539,18 @@ const requestAutomaticFeedback = async () => {
   const help = currentHelp.value
   // Help types go into the evaluation with the request; the result shows in the evaluation sidebar.
   const evaluation = await startEvaluation('student', help?.supportKind?.startsWith('help.') ? { helpRequestId: help.id } : {})
-  if (evaluation) closeHelp()
+  if (evaluation) {
+    helpEvaluationId.value = evaluation.id
+    closeHelp()
+  }
 }
+watch(completionResult, async (evaluation) => {
+  if (!evaluation || evaluation.id !== helpEvaluationId.value || !['succeeded', 'failed', 'cancelled'].includes(evaluation.state)) return
+  helpEvaluationId.value = null
+  try { await evaluationService.getFeedback(evaluation.id) }
+  catch { notifyError('Der Status der automatischen Hilfe konnte nicht gespeichert werden. Die Nutzungsanzeige wird beim nächsten Laden aktualisiert.') }
+  await refreshPathContext()
+})
 watch([completionResult, pathBusy], async ([evaluation, busy]) => {
   if (busy || !evaluation || evaluation.id !== completionEvaluationId.value) return
   if (evaluation.state === 'failed' || evaluation.state === 'cancelled') {

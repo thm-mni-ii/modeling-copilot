@@ -159,6 +159,8 @@ class HelpQuestionEdit(ApiSchema):
 
 class HelpRequestConfig(ApiSchema):
     enabled: bool = False
+    example_limit: int = Field(default=2, ge=0, le=100)
+    solution_limit: int = Field(default=1, ge=0, le=100)
     topic_survey_id: UUID | None = None
     reflection_survey_id: UUID | None = None
     action_survey_id: UUID | None = None
@@ -407,6 +409,7 @@ class PathModelContext(ApiSchema):
     before_survey: TaskSurveyProgress | None = None
     after_survey: TaskSurveyProgress | None = None
     help_requests: HelpRequestConfig = Field(default_factory=HelpRequestConfig)
+    help_usage: dict[str, dict[str, int | None]] = Field(default_factory=dict)
     minimum_score_percent: float | None = Field(default=None, ge=0, le=100)
     score_scope: ScoreScope = "overall"
     category_minimums: list[CategoryMinimum] = Field(default_factory=list)

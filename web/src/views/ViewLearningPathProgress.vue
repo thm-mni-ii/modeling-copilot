@@ -29,6 +29,7 @@
       </div>
     </v-sheet>
     <LearningPathProgressStats v-if="!loading && !error" :records="filtered" :template-id="templateId" />
+    <FeatureTourReport />
     <v-sheet border rounded="lg" class="participants-panel">
       <div class="participants-toolbar d-flex flex-wrap align-center ga-3 pa-4">
         <v-icon color="primary-dark" size="22">mdi-account-group-outline</v-icon>
@@ -104,6 +105,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import paths, { type PathProgressDetail, type PathProgressSummary, type StepRun } from '@/services/learningPaths'
 import LearningPathProgressStats from '@/components/learningPaths/LearningPathProgressStats.vue'
+import FeatureTourReport from '@/components/learningPaths/FeatureTourReport.vue'
 
 const rows = ref<PathProgressSummary[]>([])
 const loading = ref(false)

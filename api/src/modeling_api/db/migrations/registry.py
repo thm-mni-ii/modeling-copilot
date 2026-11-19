@@ -99,4 +99,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v16_completion_score_categories.migration",
         ("15_laboratory_synonym_models",),
     ),
+    Migration(
+        "17_help_feedback_quotas",
+        "modeling_api.db.migrations.versions.v17_help_feedback_quotas.migration",
+        ("16_completion_score_categories",),
+    ),
 )
