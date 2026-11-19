@@ -19,8 +19,8 @@ Response-Body ist die bisherige stdout-Ausgabe und wird wie zuvor zum Dagu-Artef
 - `infra/dev/`: Namespace-/Service-Account-Setup für Docker Desktop, der
   NodePort-Zugang zu den Diensten sowie die Anpassung der lokalen Kubeconfig für
   den Dagu-Container.
-- `infra/prod/k3s-dagu.yaml`: K3s-Deployment mit RBAC, PVC, Service und
-  Traefik-Ingress.
+- `../k3s-portainer.yaml`: zentrales Produktivdeployment inklusive Dagu,
+  Workflow-Runtime, RBAC, PVCs und Traefik-Ingress.
 
 ## Lokaler Betrieb
 
@@ -213,9 +213,14 @@ Elementinventar als vermeintliches Gesamtergebnis verwendet.
 
 ## Produktion (K3s/Portainer)
 
-Das Manifest `infra/prod/k3s-dagu.yaml` stellt folgende Ressourcen bereit:
+Das zentrale Manifest stellt die Anwendung, Dagu und die gemeinsame
+Workflow-Laufzeit bereit. Siehe [`k3s-portainer.yaml`](../k3s-portainer.yaml).
+Die warmen Workflow-Dienste werden zusätzlich über
+`infra/workflow-services.yaml` bereitgestellt.
 
-- Namespaces `dagu` und `workflow-runtime`
+- Namespace `modeling-copilot` für Anwendung und Dagu
+- Namespace `workflow-runtime` für die dynamischen Workflow-Jobs und warmen
+  Workflow-Dienste
 - Service Accounts und namespaced RBAC für Kubernetes Jobs und Pod-Logs
 - Dagu Deployment, 5-GiB-PVC und ClusterIP-Service
 - Traefik-Ingress unter `https://ikarus.mni.thm.de/dagu`
@@ -228,27 +233,50 @@ alle Repliken müssen daher auf dem Knoten laufen, der es eingebunden hat.
 
 Der Init-Container klont den Branch `main` von
 `https://github.com/thm-mni-ii/modeling-copilot.git`. Bei einem Wechsel des
-Standard-Branches ist der Wert von `--branch` im Deployment anzupassen. Ein
-Checkout auf dem Node oder ConfigMaps für Workflows und `base.yaml` sind nicht
-erforderlich.
+Standard-Branches ist der Wert von `--branch` in `k3s-portainer.yaml`
+anzupassen. Ein Checkout auf dem Node oder ConfigMaps für Workflows und
+`base.yaml` sind nicht erforderlich.
 
-Zusätzlich wird im Namespace `dagu` folgendes Objekt erwartet:
+Zusätzlich wird im Namespace `modeling-copilot` folgendes Objekt erwartet:
 
 - Secret `dagu-auth` mit den Keys `token-secret`, `admin-username` und
   `admin-password` (Token-Secret mindestens 32, Passwort mindestens 8 Zeichen)
+- Nach dem ersten Start zusätzlich `api-key` im selben Secret für die API
 
 Dagu läuft mit Builtin-Anmeldung. Der initiale Admin aus dem Secret wird nur
 angelegt, solange der Benutzerspeicher auf dem PVC leer ist; spätere Änderungen
 am Secret ändern ihn nicht. Builtin-Login, erster Admin und bis zu zwei API-Keys
 sind ohne Lizenz nutzbar; weitere Benutzer, Rollen und OIDC erfordern eine
 Dagu-Lizenz. Den API-Key für das Backend (`DAGU_API_KEY`) legt der Admin in der
-UI unter Admin > API Keys mit Zugriff auf die REST-API an.
+UI unter Admin > API Keys mit Rolle `operator` und Zugriff auf die REST-API an.
 
-Deployment:
+In Portainer **Use namespace(s) specified from manifest** aktivieren und das
+zentrale Manifest deployen. Über die Kommandozeile erfolgt das Deployment mit
+folgendem Befehl.
 
 ```bash
-kubectl apply -f dagu/infra/prod/k3s-dagu.yaml -f dagu/infra/workflow-services.yaml
+kubectl apply -f k3s-portainer.yaml -f dagu/infra/workflow-services.yaml
 ```
 
 Produktive Zugangsdaten werden ausschließlich über das Secret `dagu-auth`
-bereitgestellt.
+bereitgestellt. Nach dem ersten Start als Administrator unter
+`https://ikarus.mni.thm.de/dagu` anmelden, unter **API Keys** einen Schlüssel
+mit Rolle `operator` erzeugen und als `api-key` im Secret hinterlegen.
+Anschließend die API neu starten. Bis dahin startet die Anwendung bereits,
+Auswertungen benötigen jedoch den Schlüssel.
+
+Die API verwendet intern `http://dagu:8080/dagu`. Dagu darf Jobs und deren
+Logs ausschließlich in `workflow-runtime` verwalten. Der ServiceAccount der
+Workflow-Jobs erhält kein automatisch eingebundenes Kubernetes-Token.
+
+Die Release-Pipeline veröffentlicht die sechs im Auswertungsworkflow
+verwendeten Service-Images unter `ghcr.io/thm-mni-ii/modeling-copilot-*`.
+Diese GHCR-Pakete müssen für das vorliegende Deployment öffentlich lesbar
+sein. Der produktive Init-Container ersetzt die lokalen Image-Namen in seiner
+geklonten Workflow-Kopie durch die GHCR-Namen und setzt dort die Pull-Policy
+auf `Always`, damit neue Jobs das veröffentlichte `latest`-Image beziehen.
+
+Falls das frühere separate Dagu-Deployment bereits verwendet wurde, müssen
+Secret und persistente Dagu-Daten vor dem Wechsel in den Namespace
+`modeling-copilot` übernommen werden. Das zentrale Manifest überträgt
+vorhandene PVC-Daten aus dem Namespace `dagu` nicht automatisch.
