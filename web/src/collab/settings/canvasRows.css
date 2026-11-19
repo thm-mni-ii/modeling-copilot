@@ -98,6 +98,12 @@
   background: rgb(var(--v-theme-warning));
 }
 
+/* The mark and the reset button keep their room while hidden, so the axis next to them does not move when a value changes. */
+.ctl__dot--off,
+.ctl__reset--off {
+  visibility: hidden;
+}
+
 .ctl__body {
   display: flex;
   flex-wrap: wrap;

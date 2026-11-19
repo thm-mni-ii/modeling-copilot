@@ -110,10 +110,10 @@
               <div v-for="control in row.controls" :key="control.key" class="ctl" :class="{ 'ctl--locked': locked(control), 'ctl--wide': control.ticks }">
                 <div class="ctl__head">
                   <span class="ctl__label">{{ control.label }}</span>
-                  <span v-if="changed(area, control.key)" class="ctl__dot" title="Unsaved change" />
+                  <span class="ctl__dot" :class="{ 'ctl__dot--off': !changed(area, control.key) }" title="Unsaved change" />
                   <v-icon v-if="control.advanced && !locked(control)" icon="mdi-lock-open-variant-outline" size="14" class="ctl__open" title="Advanced setting, unlocked" />
                   <v-icon v-if="locked(control)" icon="mdi-lock-outline" size="14" />
-                  <v-btn v-else-if="numberOf(control.key) !== defaultOf(control)" icon="mdi-restore" size="x-small" density="comfortable" variant="text" :aria-label="`Reset ${control.label} to the default`" title="Reset to the default" @click="set(control, defaultOf(control))" />
+                  <v-btn v-else :class="{ 'ctl__reset--off': !(numberOf(control.key) !== defaultOf(control)) }" icon="mdi-restore" size="x-small" density="comfortable" variant="text" :aria-label="`Reset ${control.label} to the default`" title="Reset to the default" @click="set(control, defaultOf(control))" />
                 </div>
                 <div class="ctl__body" :inert="locked(control)">
                   <!-- A dot on a time axis on a logarithmic scale, so short and long times both fit. -->

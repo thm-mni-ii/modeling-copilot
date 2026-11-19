@@ -562,6 +562,13 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible
 </script>
 
 <style scoped>
+/* All four header controls share one height. */
+.shell__head .v-btn-toggle,
+.shell__head .v-btn-toggle .v-btn,
+.shell__head > .v-btn {
+  height: 36px;
+}
+
 .title {
   font-size: 15px;
   font-weight: 600;

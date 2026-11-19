@@ -106,9 +106,9 @@
             <div class="ctl ctl--wide" :class="{ 'ctl--locked': !enabled }">
               <div class="ctl__head">
                 <span>Archive after being unused for</span>
-                <span v-if="changed('archiveUnusedAfterDays')" class="ctl__dot" title="Unsaved change" />
+                <span class="ctl__dot" :class="{ 'ctl__dot--off': !changed('archiveUnusedAfterDays') }" title="Unsaved change" />
                 <v-icon v-if="!enabled" icon="mdi-lock-outline" size="14" title="Only while the archive is on" />
-                <v-btn v-else-if="days !== DEFAULT" icon="mdi-restore" size="x-small" density="comfortable" variant="text" aria-label="Reset the time to the default" title="Reset to the default" @click="set(DEFAULT)" />
+                <v-btn v-else :class="{ 'ctl__reset--off': !(days !== DEFAULT) }" icon="mdi-restore" size="x-small" density="comfortable" variant="text" aria-label="Reset the time to the default" title="Reset to the default" @click="set(DEFAULT)" />
               </div>
               <div class="ctl__body" :inert="!enabled">
                 <!-- A dot on a day axis; the left end is 0, which never archives, the rest runs on a logarithmic scale. -->
