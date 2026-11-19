@@ -562,6 +562,82 @@ Lokale Ergebnisse im ignorierten Ordner `results`:
 `semantic-fusion-summary-20261119.json` (Metriken, Ablationsbeiträge, entfernte falsche
 und verlorene richtige Treffer, konkrete Labelpaare und Hashes der Rohdateien).
 
+### Komponentenweise Bewertung: erster Mittelwert-Versuch (19.11.2026)
+
+Optionales Verfahren `component_matching`, auswählbar in Service und JSON-Baukasten.
+Es verwendet keine neuen Modelle und verändert den Standard nicht:
+
+1. Eine Zerlegungsebene mit `split_label_parts` (DE) beziehungsweise Identifier-/
+   Worttrennung (EN); ausdrücklich angegebene Sprache `de`/`en` erforderlich.
+2. Alle eindeutigen Bestandteile pro Sprache werden gebündelt verglichen: dieselben
+   String-, Embedding-, Abdeckungs-, Synset-, Lesarten-, Relations- und Taxonomiemerkmale.
+3. Komponentenpaar-Score mit der zuletzt getesteten semantischen Fusion, aber
+   **ohne Nummern-/Raumabschlag**. Deren feste Gewichte werden unverändert übernommen,
+   um zunächst die Wirkung der Zerlegung zu prüfen; sie sind weiterhin nicht kalibriert.
+4. Optimale 1:1-Paarung der Komponenten anhand dieser Scores (Hungarian).
+5. Summe der gewählten Scores geteilt durch die größere Komponentenanzahl.
+   Fehlende Partner zählen als 0, wiederholte Bestandteile werden nicht entfernt.
+
+Der neue Score steht unter `scores.component_matching` und kann allein den
+`combinedScore` bilden. Die einzelnen Merkmale erscheinen zusätzlich als
+`component_matching_...`: jeweils über **dieselbe ausgewählte Paarung** gemittelt,
+einschließlich Nullen für fehlende Partner. Es wird nicht jedes Merkmal separat optimal
+zugeordnet. Abdeckungs-/Relationswerte sind dadurch Anteile, keine neuen Ja/Nein-Urteile.
+Synsetanzahlen bleiben im Forschungstrace; öffentlich werden stattdessen die Anteile
+mehrdeutiger Bestandteile (`..._reference_ambiguous`, `..._student_ambiguous`) ausgegeben.
+So bleibt das bestehende Outputschema unverändert.
+
+Service: `{"methods": ["component_matching"], "preprocessing": ["normalize"]}`.
+Die Methode liest die Originaltexte; Vorverarbeitung der Teilvergleiche ist im
+Backend festgelegt. Bestehende Modelle und deren Cache werden für alle Labelpaare
+wiederverwendet. In der Forschungsdatei stehen Zerlegungen, Komponentenrohmatrizen,
+Konfiguration und gewählte Paarungen unter `features[].component_evidence`.
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --only 'normalize → translated_embedding' translated_embedding_part_conflicts \
+  semantic_full semantic_without_conflicts 'normalize → component_matching' \
+  --output results/components-laboratory.json.gz
+```
+
+Für `research/label-parts-cases.json` und `research/model-cases.json` denselben Aufruf
+mit eigenem Ausgabepfad verwenden. Alle Baselines bleiben auswählbar.
+
+**Geänderte Laborlabels**, Seed 42, Threshold 0,5, bekannte Entwicklungsdaten:
+
+| Verfahren | TP | FP | FN | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Übersetzungs-/Embedding-Baseline | 157 | 100 | 35 | 0,611 | 0,818 | 0,699 |
+| Bisherige Konfliktregel | 157 | 12 | 35 | 0,929 | 0,818 | 0,870 |
+| Vollständige Fusion | 155 | 7 | 37 | 0,957 | 0,807 | 0,876 |
+| Dieselbe Komponentenpaar-Fusion auf unzerlegten Labels (ohne Konflikte) | 155 | 56 | 37 | 0,735 | 0,807 | 0,769 |
+| Komponentenmatching mit Mittelwert | 128 | 606 | 64 | 0,174 | 0,667 | 0,277 |
+
+Gegenüber der Embedding-Baseline: 62 falsche Treffer entfernt, aber 568 neue;
+37 richtige verloren und acht neue erkannt. Beispiel für das verbleibende Problem:
+`GeräteNr. / Raumnummer`: Teilscore Geräte/raum 0,2671, Nummer/nummer 0,9435,
+Mittelwert 0,6053. Ein gemeinsamer Zusatz überdeckt damit weiterhin einen schwachen
+Objektvergleich. Bei 552 der 606 falschen Treffer ist ein Nummernpaar zugeordnet.
+
+Die gezielte 24-Paar-Probe erkennt alle fünf Positiven (Baseline vier), erzeugt aber
+sieben statt sechs falsche Treffer (F1 0,588 statt 0,533). Auf 33 bestehenden
+Kontrollszenarien: TP/FP/FN 32/18/11, F1 0,688; die Konfliktregel erreicht dort 0,723.
+Ein perfekter Teiltreffer bei einem fehlenden Bestandteil ergibt genau 0,5 und wird
+bei Threshold 0,5 noch akzeptiert; Rundung kann zusätzlich Grenzwerte verdecken.
+
+**Keine Verbesserung durch diese konkrete Mittelwertvariante.** Weder Standardpipeline
+noch Threshold wurden an das Ergebnis angepasst. Eine andere Aggregation oder eine
+Unterscheidung von Objekt und Attribut ist ein späteres, gesondertes Experiment.
+Die Ergebnisse erlauben keine pauschale Aussage gegen Komponentenmatching.
+
+Lokal gespeichert: `results/components-laboratory-20261119.json.gz`,
+`results/components-targeted-20261119.json.gz`, `results/components-control-20261119.json.gz`
+und `results/components-summary-20261119.json`. Die gespeicherten Komponenten- und
+Gesamtlabel-Scores wurden nachgerechnet und die öffentlichen Matrixausgaben gegen das
+unveränderte Schema geprüft. `components.py` enthält die neue Berechnung; der
+Service und der Forschungslauf nutzen dasselbe Backend.
+
 ### Explizite Relationsmerkmale (Einzelwerte)
 
 Unter `methods.wordnet` und `methods.odenet` aktiviert `relation_features` die

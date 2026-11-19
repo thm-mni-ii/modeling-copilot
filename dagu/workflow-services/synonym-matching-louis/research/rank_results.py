@@ -12,6 +12,7 @@ from .evaluation import evaluate_case, summarize
 from synonym_matching.combinations import STRINGS, TOKENS
 
 METHOD_NAMES = {
+    'component_matching': 'Labelzerlegung → Komponenten-Fusion → optimales Matching → Mittelwert',
     'levenshtein': 'Levenshtein',
     'damerau_levenshtein': 'Damerau-Levenshtein',
     'jaro_winkler': 'Jaro-Winkler',

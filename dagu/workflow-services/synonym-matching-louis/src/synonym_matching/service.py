@@ -142,7 +142,10 @@ class MatchingEngine:
         self.backends = {}
         for name in self.config['methods']:
             self.methods[name] = METHODS[name]
-            if name in EMBEDDING_MODELS:
+            if name == 'component_matching':
+                from .components import ComponentMatching
+                self.backends[name] = ComponentMatching(self.config, self.translator)
+            elif name in EMBEDDING_MODELS:
                 options = self.config['embedding'].get(name, {})
                 self.backends[name] = EmbeddingMethod(name, options, self.cache)
             elif name == 'wordnet':
@@ -228,8 +231,10 @@ class MatchingEngine:
             else:
                 options = {}
                 if 'uses_languages' in METHOD_TRAITS.get(name, ()):
-                    options = {'left_languages': string_languages[:split],
-                               'right_languages': string_languages[split:]}
+                    source_languages = (languages if 'original_text' in METHOD_TRAITS[name]
+                                        else string_languages)
+                    options = {'left_languages': source_languages[:split],
+                               'right_languages': source_languages[split:]}
                 matrix = function(left, right, backend=backend, **options)
 
             if matrix.shape != shape or not np.isfinite(matrix).all():
@@ -239,6 +244,9 @@ class MatchingEngine:
             matrix[~valid] = 0
             matrices[name] = matrix
             processed_labels[name] = {'reference': left, 'student': right}
+            if name == 'component_matching':
+                for feature, values in backend.features.items():
+                    matrices[f'{name}_{feature}'] = np.where(valid, values, 0)
             if name in self.config['semantic_features']:
                 started = time.perf_counter()
                 features = semantic_features(backend, left, right,

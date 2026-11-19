@@ -17,6 +17,7 @@
     "lemma_cased": ["normalize", "lemmatize"]
   },
   "methods": {
+    "component_matching": {"languages": ["de", "en"], "preprocessing_steps": ["normalize"]},
     "levenshtein": {},
     "damerau_levenshtein": {},
     "jaro_winkler": {},
@@ -84,6 +85,7 @@
     }
   },
   "chains": {
+    "components": ["normalize", "component_matching"],
     "lev": ["$pre", "levenshtein"],
     "dam": ["$pre", "damerau_levenshtein"],
     "jw": ["$pre", "jaro_winkler"],

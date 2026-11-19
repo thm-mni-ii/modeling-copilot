@@ -105,6 +105,12 @@ def exact_match(left, right):
     return _pairwise(left, right, lambda a, b: float(a == b))
 
 
+def component_matching(left, right, *, backend, left_languages, right_languages):
+    """Vergleiche zerlegte Labels über dieselben bestehenden Einzelverfahren."""
+    return backend.matrix(left, right, left_languages=left_languages,
+                          right_languages=right_languages)
+
+
 def label_part_compatibility(left, right):
     """Liefere 0 bei einem erkannten Nummern-/Raumkonflikt, sonst neutral 1.
 
@@ -205,6 +211,7 @@ def wn_translation(left, right, *, backend, left_languages, right_languages):
 
 # Diese Namen werden auch in der JSON-Konfiguration verwendet.
 METHODS = {
+    'component_matching': component_matching,
     'levenshtein': levenshtein,
     'damerau_levenshtein': damerau_levenshtein,
     'jaro_winkler': jaro_winkler,
@@ -228,6 +235,7 @@ METHODS = {
 # original_text = nur normalisierten Originaltext verwenden (Preprocessing ignorieren).
 # uses_languages = Sprachen nach dem Preprocessing an die Vergleichsfunktion übergeben.
 METHOD_TRAITS = {
+    'component_matching': {'original_text', 'uses_languages'},
     'translated_string': {'translate'},
     'wordnet': {'translate'},
     'openthesaurus': {'german_only'},

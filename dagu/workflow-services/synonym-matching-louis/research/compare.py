@@ -91,7 +91,10 @@ def provenance(engines, translator=None):
         except importlib.metadata.PackageNotFoundError:
             packages[name] = None
     models = {}
-    for key, engine in engines.items():
+    all_engines = list(engines.values())
+    all_engines += [backend.engine for engine in engines.values()
+                    for backend in engine.backends.values() if hasattr(backend, 'engine')]
+    for engine in all_engines:
         for name, backend in engine.backends.items():
             if getattr(backend, 'revision', None):
                 models[name] = {'revision': backend.revision,
@@ -205,6 +208,10 @@ def calculate_features(cases, definitions, methods):
                         'eligible': (result['validPairs'] & result['usablePairs'][method]).tolist(),
                     }
                     backend = getattr(engine, 'backends', {}).get(method)
+                    if method == 'component_matching':
+                        features[key, case['id']]['component_features'] = {
+                            name: values.tolist() for name, values in backend.features.items()}
+                        features[key, case['id']]['component_evidence'] = backend.evidence
                     if method == 'wn_translation':
                         features[key, case['id']]['crosslingual_coverage'] = backend['coverage']
                     if isinstance(backend, (WordNet, OdeNet, OpenThesaurus)):
