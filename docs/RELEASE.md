@@ -2,7 +2,7 @@
 
 Docker images are published only when a Git tag in the `vX.Y.Z` format is pushed.
 The workflow verifies that the tagged commit is part of `main`, then publishes
-`ghcr.io/OWNER/REPOSITORY-api`, `ghcr.io/OWNER/REPOSITORY-web`, and the six
+`ghcr.io/OWNER/REPOSITORY-api`, `ghcr.io/OWNER/REPOSITORY-web`, and the seven
 workflow-service images with the release version and `latest` tags.
 
 ## Configure GitHub branches
@@ -33,6 +33,7 @@ the containers at **Repository / Profile / Organization -> Packages**:
 - `REPOSITORY-model-label-extraction`
 - `REPOSITORY-synonym-matching`
 - `REPOSITORY-one-to-one-graph-matching`
+- `REPOSITORY-analytical-feedback`
 - `REPOSITORY-feedback-generation`
 
 Set the packages to `public` for the supplied manifests, which pull images
