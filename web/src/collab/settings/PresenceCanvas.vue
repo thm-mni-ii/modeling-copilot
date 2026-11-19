@@ -765,3 +765,8 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
   }
 }
 </style>
+
+  /* In der Spalte wäre die Basis 200px die Höhe, deshalb nach Inhalt. */
+  .prow__ctls {
+    flex: 0 1 auto;
+  }

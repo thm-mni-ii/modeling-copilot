@@ -7,17 +7,14 @@
         <span class="shell__title">Collab settings</span>
         <v-chip v-if="unsavedCount" size="small" color="warning" variant="tonal">{{ unsavedCount }} unsaved</v-chip>
         <v-spacer />
+        <v-btn-toggle v-model="filter" mandatory variant="outlined" divided color="primary" aria-label="Filter settings">
+          <v-btn value="all">All</v-btn>
+          <v-btn value="changed">Changed</v-btn>
+        </v-btn-toggle>
         <v-btn variant="outlined" :disabled="!unsavedCount || busy !== null" @click="discard">Discard</v-btn>
         <v-btn color="primary" variant="flat" :disabled="!loaded || !unsavedCount || blocked || busy !== null" :loading="busy === 'all'" @click="saveAll">Save all</v-btn>
       </div>
-      <div class="shell__tools">
-        <v-btn-toggle v-model="filter" mandatory density="compact" variant="outlined" divided color="primary" aria-label="Filter settings">
-          <v-btn value="all" size="small">All</v-btn>
-          <v-btn value="changed" size="small">Changed</v-btn>
-          <v-btn value="advanced" size="small">Advanced</v-btn>
-        </v-btn-toggle>
-      </div>
-      <v-tabs v-model="tab" density="compact" color="primary" class="shell__tabs" @update:model-value="clearFilter">
+      <v-tabs v-model="tab" density="compact" color="primary" class="shell__tabs">
         <v-tab v-for="group in GROUPS" :key="group.id" :value="group.id" :prepend-icon="group.icon">
           {{ group.title }}
           <span v-if="group.areas.some((area) => changed(area))" class="tab-dot" title="Unsaved changes" />
@@ -27,8 +24,7 @@
         <p v-if="filtering && visible.length === 0" class="about">No settings match.</p>
         <div v-for="entry in visible" :key="entry.section.area" class="card">
           <h3 v-if="filtering || entry.section.title !== entry.group.title" class="title">{{ filtering && entry.section.title !== entry.group.title ? `${entry.group.title} · ${entry.section.title}` : entry.section.title }}</h3>
-          <div v-if="!filtering" class="callout">
-            <v-icon icon="mdi-information-outline" size="18" />
+          <div v-if="!filtering" class="callout callout--about">
             <span>{{ entry.section.about }}</span>
           </div>
           <div class="card__body" :class="{ 'card__body--split': !filtering && entry.section.area === 'shareDefaults' }">
@@ -389,7 +385,7 @@ const loaded = ref(false)
 const busy = ref<CollabArea | 'all' | null>(null)
 const open = reactive<Partial<Record<CollabArea, boolean>>>({})
 const tab = ref('sharing')
-const filter = ref<'all' | 'changed' | 'advanced'>('all')
+const filter = ref<'all' | 'changed'>('all')
 
 /** A color list is too wide for the column of values; it gets a line of its own. */
 const isWide = (area: CollabArea, key: string) => 'minItems' in limitOf(area, key)
@@ -457,7 +453,7 @@ const shown = (area: CollabArea, field: Field) => !field.advanced || open[area] 
 
 /** With a filter the tab lists the matching fields of all areas, else the sections of the open tab. */
 const filtering = computed(() => filter.value !== 'all')
-const passes = (area: CollabArea, field: Field) => filter.value === 'all' || (filter.value === 'advanced' ? Boolean(field.advanced) : nonDefault(area, field.key) || fieldChanged(area, field.key))
+const passes = (area: CollabArea, field: Field) => filter.value === 'all' || nonDefault(area, field.key) || fieldChanged(area, field.key)
 const visible = computed<Entry[]>(() => {
   const groupOf = (area: CollabArea) => GROUPS.find((group) => group.areas.includes(area)) as Group
   if (filtering.value) return SECTIONS.map((section) => ({ section, group: groupOf(section.area), fields: section.fields.filter((field) => passes(section.area, field)) })).filter((entry) => entry.fields.length > 0)
@@ -488,7 +484,6 @@ const blocksOf = (fields: readonly Field[]) => {
 /** The technical fields of a section, and how many of them differ from the default or are not saved yet. */
 const advancedOf = (section: Section) => section.fields.filter((field) => field.advanced && !onCanvas(section.area))
 const advancedChanged = (section: Section) => advancedOf(section).filter((field) => nonDefault(section.area, field.key) || fieldChanged(section.area, field.key)).length
-const clearFilter = () => (filter.value = 'all')
 
 const unsavedCount = computed(() => SECTIONS.reduce((sum, section) => sum + section.fields.filter((field) => fieldChanged(section.area, field.key)).length, 0))
 /** Saving stops while a changed area holds an error. */
@@ -600,6 +595,14 @@ onMounted(async () => {
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 12px;
 }
+/* Under a heading: grey with a green bar, in the style of the grey part cards. */
+.callout--about {
+  border: 1px solid rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-on-surface), 0.04);
+  font-size: 13px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
 
 .shell__head {
   display: flex;
@@ -612,14 +615,6 @@ onMounted(async () => {
 .shell__title {
   font-size: 16px;
   font-weight: 600;
-}
-
-.shell__tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 0 16px 10px;
 }
 
 .shell__tabs {
