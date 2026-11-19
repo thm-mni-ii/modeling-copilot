@@ -709,6 +709,9 @@ spec:
             # The archive exists on this instance; whether the Copilot uses it is set in the collab settings.
             - name: ARCHIVE_ENABLED
               value: "true"
+            # Lets the archive delete entries for good; the collab settings still decide whether the Copilot offers it.
+            - name: ARCHIVE_DELETE
+              value: "true"
           envFrom:
             - configMapRef:
                 name: collab-kit-config
