@@ -15,7 +15,8 @@ Response-Body ist die bisherige stdout-Ausgabe und wird wie zuvor zum Dagu-Artef
 - `infra/base.yaml`: gemeinsame Kubernetes-Vorgaben für Dev und Prod inklusive
   Namespace, Service Account und Ressourcenlimits.
 - `infra/workflow-services.yaml`: warme Dienste (Deployments) und ein Service mit
-  festem Port je Dienst (30081–30087) für Dev und Prod.
+  festem Port je Dienst (30081–30087) für den lokalen `workflow-sync`; die
+  Produktionsdefinitionen sind in `../k3s-portainer.yaml` gespiegelt.
 - `infra/dev/`: Namespace-/Service-Account-Setup für Docker Desktop, der
   NodePort-Zugang zu den Diensten sowie die Anpassung der lokalen Kubeconfig für
   den Dagu-Container.
@@ -214,9 +215,12 @@ Elementinventar als vermeintliches Gesamtergebnis verwendet.
 ## Produktion (K3s/Portainer)
 
 Das zentrale Manifest stellt die Anwendung, Dagu und die gemeinsame
-Workflow-Laufzeit bereit. Siehe [`k3s-portainer.yaml`](../k3s-portainer.yaml).
-Die warmen Workflow-Dienste werden zusätzlich über
-`infra/workflow-services.yaml` bereitgestellt.
+Workflow-Laufzeit einschließlich der warmen Workflow-Dienste bereit. Siehe
+[`k3s-portainer.yaml`](../k3s-portainer.yaml). Die Service-Definitionen sind
+dort enthalten, damit Portainer das Produktivdeployment mit einem Manifest
+vollständig anlegen kann. Für den lokalen Betrieb verwendet `workflow-sync`
+weiterhin `infra/workflow-services.yaml`; Änderungen an den Service-Deployments
+müssen in beiden Manifesten nachvollzogen werden.
 
 - Namespace `modeling-copilot` für Anwendung und Dagu
 - Namespace `workflow-runtime` für die dynamischen Workflow-Jobs und warmen
@@ -225,8 +229,8 @@ Die warmen Workflow-Dienste werden zusätzlich über
 - Dagu Deployment, 5-GiB-PVC und ClusterIP-Service
 - Traefik-Ingress unter `https://ikarus.mni.thm.de/dagu`
 
-Die warmen Workflow-Dienste kommen aus `infra/workflow-services.yaml` (nur
-ClusterIP, nicht von außen erreichbar). Dagu erreicht sie über
+Die warmen Workflow-Dienste werden als ClusterIP (nicht von außen erreichbar)
+im Namespace `workflow-runtime` bereitgestellt. Dagu erreicht sie über
 `WORKFLOW_SERVICES_HOST=workflow-services.workflow-runtime.svc.cluster.local`.
 Die Images müssen auf dem Knoten vorhanden sein. Das PVC ist `ReadWriteOnce`;
 alle Repliken müssen daher auf dem Knoten laufen, der es eingebunden hat.
@@ -251,11 +255,10 @@ Dagu-Lizenz. Den API-Key für das Backend (`DAGU_API_KEY`) legt der Admin in der
 UI unter Admin > API Keys mit Rolle `operator` und Zugriff auf die REST-API an.
 
 In Portainer **Use namespace(s) specified from manifest** aktivieren und das
-zentrale Manifest deployen. Über die Kommandozeile erfolgt das Deployment mit
-folgendem Befehl.
+zentrale Manifest deployen. Über die Kommandozeile genügt dafür:
 
 ```bash
-kubectl apply -f k3s-portainer.yaml -f dagu/infra/workflow-services.yaml
+kubectl apply -f k3s-portainer.yaml
 ```
 
 Produktive Zugangsdaten werden ausschließlich über das Secret `dagu-auth`
