@@ -128,7 +128,9 @@ def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, arch
             if thing in archive_answers:
                 if archive_answers[thing] is None:
                     raise httpx.ConnectError("Collab-Kit is down.")
-                return httpx.Response(archive_answers[thing], json={"error": "refused"})
+                # Ein Status, oder Status und Code wie bei einer Ablehnung des CK-Servers.
+                status, code = archive_answers[thing] if isinstance(archive_answers[thing], tuple) else (archive_answers[thing], None)
+                return httpx.Response(status, json={"error": "refused", **({"code": code} if code else {})})
             archived.append({"_id": thing, "reason": body.get("reason"), "rooms": [r for r, room in rooms.items() if thing in room["workpieces"]]})
             # Wie CK: ein Werkstück verlässt seine Räume, Raum und Gruppe sind nicht mehr live.
             for room in rooms.values():

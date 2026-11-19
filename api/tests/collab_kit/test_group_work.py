@@ -331,6 +331,19 @@ def test_a_model_that_also_lies_in_a_room_outside_the_course_stays_there(ck, fbs
     assert rooms["R2"]["workpieces"] == ["W6", "W7", "W1"]
 
 
+def test_with_the_archive_off_on_the_collab_kit_server_archiving_a_course_says_so_and_takes_nothing(ck, fbs, archiving, archived, archive_answers):
+    rooms, groups, _, _ = ck
+    archiving["enabled"] = True
+    two_courses()
+    # Der CK-Server hat das Archiv aus (ARCHIVE_ENABLED), auch wenn die Collab settings es anbieten.
+    archive_answers["W0"] = (403, "archive_disabled")
+
+    with pytest.raises(ApiError) as error:
+        asyncio.run(group_work.archive_course(TUTOR, COURSE))
+    assert error.value.code == "CK_ARCHIVE_DISABLED"
+    assert archived == [] and set(rooms) == {"R0", "R1", "R2"} and set(groups) == {"G0", "G1", "G2"}
+
+
 def test_a_room_whose_model_collab_kit_refuses_stays_and_archiving_again_finishes_it(ck, fbs, archiving, archived, archive_answers):
     rooms, groups, _, _ = ck
     archiving["enabled"] = True

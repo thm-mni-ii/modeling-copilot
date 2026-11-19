@@ -11,7 +11,7 @@ import httpx
 
 from modeling_api.core.config import settings
 from modeling_api.core.errors import not_found
-from modeling_api.services.collab_kit.errors import ck_request_failed, ck_unavailable
+from modeling_api.services.collab_kit.errors import ck_refused, ck_request_failed, ck_unavailable
 from modeling_api.services.collab_kit.token import service_token
 
 # For tests only: another transport instead of the network.
@@ -32,12 +32,17 @@ async def _request(method: str, path: str, body: dict[str, Any] | None = None) -
     if response.status_code == 404:
         raise not_found()
     if not response.is_success:
-        # On errors CK answers with {"error": "..."}.
+        # On errors CK answers with {"error": "..."}, for some refusals also with a code.
         try:
-            reason = response.json().get("error", "")
+            answer = response.json()
         except ValueError:
-            reason = ""
-        raise ck_request_failed(response.status_code, reason)
+            answer = {}
+        if not isinstance(answer, dict):
+            answer = {}
+        refused = ck_refused(answer.get("code", ""))
+        if refused:
+            raise refused
+        raise ck_request_failed(response.status_code, answer.get("error", ""))
     return response.json()
 
 

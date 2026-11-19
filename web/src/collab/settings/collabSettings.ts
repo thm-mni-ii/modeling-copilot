@@ -1,5 +1,5 @@
-import { reactive } from 'vue'
-import type { CollabKitApi } from '@/collab/kit/collabKitV1'
+import { reactive, shallowRef } from 'vue'
+import type { ArchiveCapabilities, CollabKitApi } from '@/collab/kit/collabKitV1'
 import backendLimits from '@/collab/settings/backendLimits.json'
 
 /** A value to set: a number from min to max, a switch, a choice of fixed values, a color or a list of distinct colors. */
@@ -141,3 +141,17 @@ export const applyCollabSettings = (area: CollabArea, values: Record<string, unk
 
 /** Reads an area from collab-kit; one never set comes as {} and so counts as the defaults. */
 export const loadCollabSettings = async (ck: CollabKitApi, area: CollabArea) => applyCollabSettings(area, await ck.settings.get(area))
+
+/** What the archive can do on this collab-kit server; unknown until asked, and at a collab-kit without the route. */
+export const archiveCapabilities = shallowRef<ArchiveCapabilities>()
+
+/** Asks collab-kit what its archive can do; an older one without the route leaves it unknown. */
+export const loadArchiveCapabilities = async (ck: CollabKitApi) => {
+  archiveCapabilities.value = await ck.archive.capabilities().catch(() => undefined)
+}
+
+/** Whether the archive is offered: on in the collab settings and, as far as known, on at the server. */
+export const archiveOffered = () => collabSettings.archive.enabled && archiveCapabilities.value?.enabled !== false
+
+/** Whether deleting for good is offered: with the archive, on in the collab settings and, as far as known, allowed for this person. */
+export const deleteOffered = () => archiveOffered() && collabSettings.archive.allowDelete && archiveCapabilities.value?.deleteAllowed !== false

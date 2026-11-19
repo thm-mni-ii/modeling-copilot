@@ -69,6 +69,7 @@
               <span v-if="changed('enabled')" class="ctl__dot" title="Unsaved change" />
               <v-switch :model-value="enabled" density="compact" color="primary" hide-details label="Use the archive" @update:model-value="emit('update', 'enabled', Boolean($event))" />
             </div>
+            <div v-if="serverOff" class="ctl__warn">collab-kit has the archive switched off on the server (ARCHIVE_ENABLED), so it is not offered until it is turned on there.</div>
           </div>
         </div>
 
@@ -144,6 +145,7 @@
               <v-switch :model-value="allowDelete" density="compact" color="primary" hide-details label="Offer deleting in the archive" @update:model-value="emit('update', 'allowDelete', Boolean($event))" />
               <v-icon v-if="!enabled" icon="mdi-lock-outline" size="14" title="Only while the archive is on" />
             </div>
+            <div v-if="deleteHint" class="ctl__warn">{{ deleteHint }}</div>
           </div>
         </div>
       </div>
@@ -153,7 +155,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { COLLAB_LIMITS } from '@/collab/settings/collabSettings'
+import { archiveCapabilities, COLLAB_LIMITS } from '@/collab/settings/collabSettings'
 
 /** The archive settings as the form shows them: two switches and the days. */
 const props = defineProps<{ values: Record<string, unknown>; changed: (key: string) => boolean; problem: (key: string) => string | undefined }>()
@@ -172,6 +174,16 @@ const days = computed(() => {
   return typeof value === 'number' && Number.isFinite(value) && value >= MIN ? Math.min(MAX, Math.round(value)) : DEFAULT
 })
 const never = computed(() => days.value === 0)
+
+// What the collab-kit server refuses although it is turned on here; unknown at a collab-kit without the route, then no hint.
+const serverOff = computed(() => enabled.value && archiveCapabilities.value?.enabled === false)
+const deleteHint = computed(() => {
+  const caps = archiveCapabilities.value
+  if (!enabled.value || !allowDelete.value || !caps?.enabled) return undefined
+  if (!caps.deleteEnabled) return 'The collab-kit server does not allow deleting for good (ARCHIVE_DELETE), so the archive offers no deleting.'
+  if (!caps.deleteAllowed) return 'Deleting for good needs manage everywhere, which you lack, so the archive does not offer it to you.'
+  return undefined
+})
 const daysLabel = (value: number) => (value === 0 ? 'never' : value === 1 ? '1 day' : `${value} days`)
 
 const set = (value: number) => emit('update', 'archiveUnusedAfterDays', Math.min(MAX, Math.max(MIN, Math.round(value))))
@@ -395,6 +407,13 @@ const press = (event: KeyboardEvent) => {
 .ctl__error {
   flex-basis: 100%;
   color: rgb(var(--v-theme-error));
+}
+
+/* The server refuses what is turned on here; a notice, since the setting itself may stay. */
+.ctl__warn {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: rgb(var(--v-theme-warning));
 }
 
 .ctl__exact {

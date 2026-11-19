@@ -16,7 +16,7 @@ from modeling_api.core.auth import User
 from modeling_api.core.errors import ApiError
 from modeling_api.services import fbs_users, models
 from modeling_api.services.collab_kit import archive, client
-from modeling_api.services.collab_kit.errors import archive_disabled
+from modeling_api.services.collab_kit.errors import CK_ARCHIVE_DISABLED, archive_disabled
 from modeling_api.services.collab_kit.workpieces import MODEL_UNITS, TASK_FORMAT, create_model_workpiece, model_contract
 from modeling_api.services.submissions import is_moderator, require
 
@@ -187,7 +187,10 @@ async def archive_course(user: User, course: str) -> dict[str, Any]:
                     done["groups"] += 1
             await client.archive_room(room["_id"], reason)
             done["rooms"] += 1
-        except ApiError:
+        except ApiError as error:
+            # With the archive off on the CK server no room will go: say so instead of failing every one.
+            if error.code == CK_ARCHIVE_DISABLED:
+                raise
             # 409 while CK is moving part of it, or CK does not answer: the room stays for a new call.
             logger.warning("Room %s of course %s could not be archived.", room["_id"], course, exc_info=True)
             done["failed"].append(room["name"])

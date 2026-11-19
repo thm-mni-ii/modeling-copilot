@@ -2,7 +2,7 @@
   <v-container fluid class="pa-3">
     <!-- Properties of the element, set as they are named there; a hyphen would name another one. -->
     <!-- eslint-disable-next-line vue/attribute-hyphenation -->
-    <ck-management v-if="ck" ref="management" lang="en" theme="light" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" .archive="collabSettings.archive.enabled" .archiveDelete="collabSettings.archive.allowDelete" .extraTabs="extraTabs" @ck-open="open">
+    <ck-management v-if="ck" ref="management" lang="en" theme="light" class="collab-view" .ck="ck" .newWorkpiece="createWorkpiece" .archive="archiveOffered()" .archiveDelete="deleteOffered()" .extraTabs="extraTabs" @ck-open="open">
       <!-- The "Group work" tab shows this slot; the content stays in the light DOM, so with Vuetify. -->
       <!-- The native slot of the web component, not the old slot of Vue 2. -->
       <!-- eslint-disable-next-line vue/no-deprecated-slot-attribute -->
@@ -24,7 +24,7 @@ import { mayManageAll } from './access'
 import { newWorkpiece, UML_CLASS_DIAGRAM } from '@/collab/storage/workpiece'
 import { TASK_FORMAT, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
-import { collabSettings, loadCollabSettings } from '@/collab/settings/collabSettings'
+import { archiveOffered, deleteOffered, loadArchiveCapabilities, loadCollabSettings } from '@/collab/settings/collabSettings'
 
 const ck = shallowRef<CollabKitApi>()
 const management = shallowRef<ManagementElement>()
@@ -58,7 +58,7 @@ onMounted(async () => {
     // Asked before the element, so the tab is there from the start; without an answer it stays away.
     manager.value = await mayManageAll()
     // Also before the element, so the "Archive" tab does not show briefly; without an answer the default applies, which is off.
-    await Promise.allSettled([loadCollabSettings(api, 'archive'), loadCollabSettings(api, 'hints')])
+    await Promise.allSettled([loadCollabSettings(api, 'archive'), loadCollabSettings(api, 'hints'), loadArchiveCapabilities(api)])
     ck.value = api
     document.addEventListener('visibilitychange', onVisible)
   } catch (error) {
@@ -67,9 +67,9 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible))
 
-// Without a session /collab hears no settingsChanged: back in the tab, archive and hints are read anew.
+// Without a session /collab hears no settingsChanged: back in the tab, archive, hints and what the server allows are read anew.
 const onVisible = () => {
-  if (document.visibilityState === 'visible' && ck.value) void Promise.allSettled([loadCollabSettings(ck.value, 'archive'), loadCollabSettings(ck.value, 'hints')])
+  if (document.visibilityState === 'visible' && ck.value) void Promise.allSettled([loadCollabSettings(ck.value, 'archive'), loadCollabSettings(ck.value, 'hints'), loadArchiveCapabilities(ck.value)])
 }
 </script>
 

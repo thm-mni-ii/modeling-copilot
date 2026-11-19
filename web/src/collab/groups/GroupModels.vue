@@ -10,7 +10,7 @@
           {{ mark.course || 'Without course' }} <span class="text-medium-emphasis font-weight-regular">· {{ rooms.length }} {{ rooms.length === 1 ? 'room' : 'rooms' }} · last import {{ formattedDate(lastImport.get(key) ?? mark.importedAt) }}</span>
         </p>
         <v-spacer />
-        <v-btn v-if="collabSettings.archive.enabled && mark.course" size="small" variant="text" prepend-icon="mdi-archive-arrow-down-outline" @click="askArchive(key, mark.course)">Archive course</v-btn>
+        <v-btn v-if="archiveOffered() && mark.course" size="small" variant="text" prepend-icon="mdi-archive-arrow-down-outline" @click="askArchive(key, mark.course)">Archive course</v-btn>
       </div>
       <v-table density="compact" class="border rounded-lg mb-4">
         <thead>
@@ -83,7 +83,7 @@ import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import httpClient from '@/services/api/httpClient'
 import { apiErrorMessage, collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
-import { collabSettings } from '@/collab/settings/collabSettings'
+import { archiveOffered } from '@/collab/settings/collabSettings'
 import { loadGroupRooms, type GroupRoom, type GroupWorkMark } from '@/collab/groups/groupRooms'
 
 /** `imported`: only the rooms from a participant list, with import and members, as the "Group work" tab shows them. */
