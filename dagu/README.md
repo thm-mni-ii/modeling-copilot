@@ -220,7 +220,8 @@ Workflow-Laufzeit einschließlich der warmen Workflow-Dienste bereit. Siehe
 dort enthalten, damit Portainer das Produktivdeployment mit einem Manifest
 vollständig anlegen kann. Für den lokalen Betrieb verwendet `workflow-sync`
 weiterhin `infra/workflow-services.yaml`; Änderungen an den Service-Deployments
-müssen in beiden Manifesten nachvollzogen werden.
+müssen in beiden Manifesten nachvollzogen werden. Die lokalen Images und Tags
+unterscheiden sich von den veröffentlichten GHCR-Images in Produktion.
 
 - Namespace `modeling-copilot` für Anwendung und Dagu
 - Namespace `workflow-runtime` für die dynamischen Workflow-Jobs und warmen
@@ -232,7 +233,8 @@ müssen in beiden Manifesten nachvollzogen werden.
 Die warmen Workflow-Dienste werden als ClusterIP (nicht von außen erreichbar)
 im Namespace `workflow-runtime` bereitgestellt. Dagu erreicht sie über
 `WORKFLOW_SERVICES_HOST=workflow-services.workflow-runtime.svc.cluster.local`.
-Die Images müssen auf dem Knoten vorhanden sein. Das PVC ist `ReadWriteOnce`;
+Die Deployments beziehen die öffentlichen GHCR-Images mit `latest` und
+`imagePullPolicy: Always`. Das PVC ist `ReadWriteOnce`;
 alle Repliken müssen daher auf dem Knoten laufen, der es eingebunden hat.
 
 Der Init-Container klont den Branch `main` von
@@ -272,12 +274,12 @@ Die API verwendet intern `http://dagu:8080/dagu`. Dagu darf Jobs und deren
 Logs ausschließlich in `workflow-runtime` verwalten. Der ServiceAccount der
 Workflow-Jobs erhält kein automatisch eingebundenes Kubernetes-Token.
 
-Die Release-Pipeline veröffentlicht die sechs im Auswertungsworkflow
-verwendeten Service-Images unter `ghcr.io/thm-mni-ii/modeling-copilot-*`.
-Diese GHCR-Pakete müssen für das vorliegende Deployment öffentlich lesbar
-sein. Der produktive Init-Container ersetzt die lokalen Image-Namen in seiner
-geklonten Workflow-Kopie durch die GHCR-Namen und setzt dort die Pull-Policy
-auf `Always`, damit neue Jobs das veröffentlichte `latest`-Image beziehen.
+Die Release-Pipeline veröffentlicht die sieben im Auswertungsworkflow
+verwendeten Service-Images unter `ghcr.io/thm-mni-ii/modeling-copilot-*`
+bei einem Release-Tag. Diese GHCR-Pakete müssen für das vorliegende Deployment
+öffentlich lesbar sein. Insbesondere muss `modeling-copilot-analytical-feedback`
+erst durch einen erfolgreichen Release-Lauf veröffentlicht werden, bevor sein
+Deployment starten kann. Ein Merge allein veröffentlicht kein Image.
 
 Falls das frühere separate Dagu-Deployment bereits verwendet wurde, müssen
 Secret und persistente Dagu-Daten vor dem Wechsel in den Namespace

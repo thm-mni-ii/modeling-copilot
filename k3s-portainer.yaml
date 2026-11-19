@@ -983,7 +983,8 @@ spec:
                   number: 8080
 
 ---
-# Keep these production service resources in sync with dagu/infra/workflow-services.yaml.
+# Keep service configuration in sync with dagu/infra/workflow-services.yaml;
+# production uses published GHCR images instead of local development images.
 apiVersion: v1
 kind: Service
 metadata:
@@ -1019,8 +1020,8 @@ spec:
       serviceAccountName: workflow-runner
       containers:
         - name: service
-          image: modeling-copilot/workflow-data:v6
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/thm-mni-ii/modeling-copilot-workflow-data:latest
+          imagePullPolicy: Always
           command: [python, -u, /app/workflow_server.py, /app/src/main.py, --port, "30081"]
           ports: [{name: workflow-data, containerPort: 30081}]
           readinessProbe: {httpGet: {path: /healthz, port: workflow-data}, periodSeconds: 5}
@@ -1048,8 +1049,8 @@ spec:
       serviceAccountName: workflow-runner
       containers:
         - name: service
-          image: modeling-copilot/graph-parser:v2
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/thm-mni-ii/modeling-copilot-graph-parser:latest
+          imagePullPolicy: Always
           command: [python, -u, /app/workflow_server.py, /app/src/main.py, --port, "30082"]
           ports: [{name: graph-parser, containerPort: 30082}]
           readinessProbe: {httpGet: {path: /healthz, port: graph-parser}, periodSeconds: 5}
@@ -1077,8 +1078,8 @@ spec:
       serviceAccountName: workflow-runner
       containers:
         - name: service
-          image: modeling-copilot/model-label-extraction:v2
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/thm-mni-ii/modeling-copilot-model-label-extraction:latest
+          imagePullPolicy: Always
           command: [python, -u, /app/workflow_server.py, /app/src/main.py, --port, "30083"]
           ports: [{name: label-extract, containerPort: 30083}]
           readinessProbe: {httpGet: {path: /healthz, port: label-extract}, periodSeconds: 5}
@@ -1106,8 +1107,8 @@ spec:
       serviceAccountName: workflow-runner
       containers:
         - name: service
-          image: modeling-copilot/synonym-matching:v5
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/thm-mni-ii/modeling-copilot-synonym-matching:latest
+          imagePullPolicy: Always
           # The embedding model is loaded before the port opens, so readiness means warm.
           command: [python, -u, /app/workflow_server.py, /app/src/main.py, --port, "30084",
                     --warmup, "synonym_matching.methods.multilingual:preload"]
@@ -1137,8 +1138,8 @@ spec:
       serviceAccountName: workflow-runner
       containers:
         - name: service
-          image: modeling-copilot/one-to-one-graph-matching:v14
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/thm-mni-ii/modeling-copilot-one-to-one-graph-matching:latest
+          imagePullPolicy: Always
           command: [python, -u, /app/workflow_server.py, /app/src/main.py, --port, "30085"]
           ports: [{name: graph-matching, containerPort: 30085}]
           readinessProbe: {httpGet: {path: /healthz, port: graph-matching}, periodSeconds: 5}
@@ -1166,8 +1167,8 @@ spec:
       serviceAccountName: workflow-runner
       containers:
         - name: service
-          image: modeling-copilot/analytical-feedback:v12
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/thm-mni-ii/modeling-copilot-analytical-feedback:latest
+          imagePullPolicy: Always
           command: [python, -u, /app/workflow_server.py, /app/src/main.py, --port, "30086"]
           ports: [{name: analytical, containerPort: 30086}]
           readinessProbe: {httpGet: {path: /healthz, port: analytical}, periodSeconds: 5}
@@ -1195,8 +1196,8 @@ spec:
       serviceAccountName: workflow-runner
       containers:
         - name: service
-          image: modeling-copilot/feedback-generation:v39
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/thm-mni-ii/modeling-copilot-feedback-generation:latest
+          imagePullPolicy: Always
           command: [python, -u, /app/workflow_server.py, /app/src/main.py, --port, "30087"]
           ports: [{name: feedback, containerPort: 30087}]
           readinessProbe: {httpGet: {path: /healthz, port: feedback}, periodSeconds: 5}
