@@ -150,20 +150,20 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
 
   /**
    * The cells another person holds by selecting them. Per cell the earliest selection wins, on a tie
-   * the lower client ID. Read-only clients hold nothing, and nothing is locked while the host presents.
+   * the lower client ID. Read-only clients hold nothing, and while the host presents only the host holds cells.
    */
   const lockedCells = () => {
     const holders = new Map<string, { since: number; clientId: number; self: boolean }>()
-    if (!presenterActive(session)) {
-      for (const person of session.presence.people()) {
-        for (const { clientId, state } of person.clients) {
-          const { selection = [], selectedSince: since = {}, readOnly, idle: away } = state as PresenceState
-          if (readOnly || away) continue
-          for (const id of selection) {
-            const claim = { since: since[id] ?? 0, clientId, self: person.self }
-            const held = holders.get(id)
-            if (!held || claim.since < held.since || (claim.since === held.since && claim.clientId < held.clientId)) holders.set(id, claim)
-          }
+    const presented = presenterActive(session)
+    for (const person of session.presence.people()) {
+      if (presented && person.id !== hostId()) continue
+      for (const { clientId, state } of person.clients) {
+        const { selection = [], selectedSince: since = {}, readOnly, idle: away } = state as PresenceState
+        if (readOnly || away) continue
+        for (const id of selection) {
+          const claim = { since: since[id] ?? 0, clientId, self: person.self }
+          const held = holders.get(id)
+          if (!held || claim.since < held.since || (claim.since === held.since && claim.clientId < held.clientId)) holders.set(id, claim)
         }
       }
     }
