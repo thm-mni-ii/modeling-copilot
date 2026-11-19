@@ -203,6 +203,21 @@ import img_cloud from '@/assets/images/cloud.gif'
 import img_elementPlaceholder from '@/assets/images/rectangle.gif'
 
 class MyCustomCellEditorHandler extends CellEditorHandler {
+  override installListeners(elt: HTMLElement) {
+    // Ctrl+Enter has no native line-break action in a contenteditable element.
+    InternalEvent.addListener(elt, 'keydown', (evt: KeyboardEvent) => {
+      if (evt.key === 'Enter' && evt.ctrlKey && !evt.isComposing) {
+        elt.ownerDocument.execCommand('insertLineBreak')
+        InternalEvent.consume(evt)
+      }
+    })
+    super.installListeners(elt)
+  }
+
+  override isStopEditingEvent(evt: KeyboardEvent): boolean {
+    return !evt.isComposing && super.isStopEditingEvent(evt)
+  }
+
   // Custom CellEditorHandler - kann später erweitert werden
   // Beispiel: Anpassung der Editor-Darstellung, Validierung, etc.
 
@@ -314,8 +329,12 @@ class MyCustomGraph extends Graph {
    * MaxGraph would otherwise accept any cell with children, e.g. a SERM entity because of its attribute list.
    */
   override isValidDropTarget = (cell: Cell, cells?: Cell[]): boolean => {
-    return !!cell && !cell.isEdge() && (this.isSwimlane(cell) || isContainerSectionTarget(cell)) && canContain(containment, cell, cells ?? [])
+    return !!cell && !(cells ?? []).some((moving) => moving.isAncestor(cell)) && !cell.isEdge() && (this.isSwimlane(cell) || isContainerSectionTarget(cell)) && canContain(containment, cell, cells ?? [])
   }
+
+  override isCloneEvent = (): boolean => false
+
+  override isToggleEvent = (evt: MouseEvent): boolean => evt.shiftKey || super.isToggleEvent(evt)
 
   /**
    * Edges only accept connections if their connection allows "Connectable Line".
@@ -1156,6 +1175,7 @@ const initGraph = () => {
   graph.value.setConnectable(true)
   graph.value.setConnectableEdges(true)
   graph.value.setCellsEditable(props.allowEdit)
+  graph.value.setEnterStopsCellEditing(true)
   graph.value.setCellsMovable(props.allowEdit)
   graph.value.setCellsResizable(props.allowEdit)
   graph.value.setCellsDeletable(props.allowEdit)
@@ -1192,6 +1212,8 @@ const initGraph = () => {
   const selectionHandler = graph.value.getPlugin<SelectionHandler>('SelectionHandler')
   if (selectionHandler) {
     ;(selectionHandler as any).scaleGrid = true
+    const isPropagateSelectionCell = selectionHandler.isPropagateSelectionCell.bind(selectionHandler)
+    selectionHandler.isPropagateSelectionCell = (cell, immediate, me) => !me.getEvent().shiftKey && isPropagateSelectionCell(cell, immediate, me)
   }
 
   // Enable tooltips
