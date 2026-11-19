@@ -27,7 +27,7 @@
     <p v-if="learnerView" class="text-body-2 text-medium-emphasis mb-3">This is your submitted copy. Make changes in your working model, then record your progress here.</p>
     <p v-else-if="activeReview?.published && activeReview.status !== 'published'" class="text-body-2 text-medium-emphasis mb-3">Changes stay private until published. Students can still see the last published feedback.</p>
     <div class="review-layout">
-      <SubmissionReviewCanvas ref="canvas" :package="submission.package" :marks="marks" :selected-cell-id="selectedCellId" v-model:show-feedback="showFeedback" @select="selectCell" @overlay="selectOverlay" />
+      <SubmissionReviewCanvas ref="canvas" v-model:show-feedback="showFeedback" :package="submission.package" :marks="marks" :selected-cell-id="selectedCellId" @select="selectCell" @overlay="selectOverlay" />
       <aside class="feedback-panel" aria-label="Feedback comments">
         <section v-if="!learnerView && mode === 'staff'" class="overall-score pa-3 border-b" aria-labelledby="overall-score-heading">
           <h2 id="overall-score-heading" class="text-subtitle-1">Overall model score</h2>

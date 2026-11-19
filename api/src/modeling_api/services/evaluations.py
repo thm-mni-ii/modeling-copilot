@@ -19,16 +19,24 @@ from modeling_api.services.tasks import ensure_release_reference, get_sample_sol
 
 
 _EVALUATION_FIELDS = frozenset({
-    "id", "ownerId", "task", "submission", "dagName", "dagRunId", "startedAt", "state", "workflow",
+    "id", "ownerId", "task", "submission", "dagName", "dagRunId", "startedAt", "state", "workflow", "parameters",
 })
 _EVALUATION_DETAIL_FIELDS = _EVALUATION_FIELDS | {"submissionSnapshot", "steps", "finalResult", "scorePercent"}
+
+
+def can_view_analysis(user: User) -> bool:
+    return user.is_admin or user.global_role == "MODERATOR" or "MODERATOR" in user.roles
 
 
 def _public_evaluation(document: Document, *, detail: bool = False) -> Document:
     """Drop persistence-only fields before validating an evaluation response."""
     api_document = to_api(document) if "_id" in document else document
     fields = _EVALUATION_DETAIL_FIELDS if detail else _EVALUATION_FIELDS
-    return {key: value for key, value in api_document.items() if key in fields}
+    result = {key: value for key, value in api_document.items() if key in fields}
+    # Reuse final learner feedback in navigation without fetching every run from Dagu.
+    stored = api_document.get("studentFeedback")
+    result["feedback"] = _feedback_projection(api_document, stored) if stored is not None else None
+    return result
 
 
 def _state(value: object) -> str:
@@ -104,6 +112,15 @@ def _enrich_step_output(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for step in steps:
         raw = step.get("resultSummary")
         output = _structured_output(raw)
+        if step["id"].startswith("generate_analytical_feedback") and output:
+            if (output.get("schema") != "workflow-result/v1" or type(output.get("schemaVersion")) is not int
+                    or output.get("schemaVersion") != 1
+                    or output.get("status") != "ok" or output.get("capability") != "analytical-feedback"
+                    or not isinstance(output.get("result"), dict)
+                    or output["result"].get("schema") not in ("analysis-feedback/v1", "analysis-feedback/v2", "analysis-feedback/v3")):
+                step["resultSummary"] = "Das analytische Ergebnis hat ein ungültiges Format."
+                step["result"] = None
+                continue
         if output.get("summary"):
             step["resultSummary"] = str(output["summary"])
         if isinstance(output.get("result"), dict):
@@ -113,6 +130,86 @@ def _enrich_step_output(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         elif raw is not None and not isinstance(raw, str):
             step["resultSummary"] = json.dumps(raw, ensure_ascii=False)
     return steps
+
+
+def recognition_of(report: Document) -> Any:
+    """v4 lists the requested feedback types; v2/v3 carry the recognition directly."""
+    if report.get("schema") != "feedback-report/v4":
+        return report.get("recognition")
+    entries = report.get("feedback")
+    return next((entry.get("recognition") for entry in entries if isinstance(entry, dict) and entry.get("type") == "recognition"),
+                None) if isinstance(entries, list) else None
+
+
+HELP_TYPES = ("help.clarify", "help.check", "help.next_step", "help.example", "help.solution")
+
+
+def _pick(value: Any, fields: tuple[str, ...]) -> Document:
+    return {key: value[key] for key in fields if key in value} if isinstance(value, dict) else {}
+
+
+def public_help_entry(entry: Document) -> Document:
+    """Allowlisted help feedback; the service already omits sample-solution content that is not released."""
+    result = {"type": entry["type"], "overview": _pick(entry.get("overview"), ("recognized", "expected", "percent", "evaluationStatus")),
+              "notices": [notice for notice in entry.get("notices", []) if isinstance(notice, str)]}
+    if isinstance(entry.get("objects"), list):
+        result["objects"] = [{**_pick(item, ("cellId", "label", "kind", "identity", "notEvaluated", "verdict")),
+                              "checks": [_pick(check, ("area", "status", "certainty", "messageCode", "text"))
+                                         for check in item.get("checks", []) if isinstance(check, dict)],
+                              # Per-object completeness (help.clarify), the released sample-solution element (help.solution)
+                              # and the anonymous structure pattern (help.example).
+                              **{key: item[key] for key in ("score", "example", "pattern") if isinstance(item.get(key), dict)}}
+                             for item in entry["objects"] if isinstance(item, dict)]
+    # help.check: the same aggregate recognition learners already get for the completion check.
+    if isinstance(entry.get("recognition"), dict):
+        result["recognition"] = entry["recognition"]
+    if isinstance(entry.get("focus"), dict):
+        result["focus"] = _pick(entry["focus"], ("cellIds", "area", "issueKey", "messageCode", "text", "repeated"))
+    return result
+
+
+def student_step_results(steps: list[Document]) -> list[Document]:
+    """Expose aggregate recognition only; reference facts and diagnostics stay private."""
+    public = []
+    for step in steps:
+        item = {**step, "description": None, "resultSummary": None, "result": None}
+        report = step.get("result")
+        if isinstance(report, dict) and report.get("schema") in ("feedback-report/v2", "feedback-report/v3", "feedback-report/v4"):
+            recognition = recognition_of(report)
+            fields = ("recognized", "expected", "percent", "evaluationStatus")
+            if (isinstance(recognition, dict) and isinstance(recognition.get("overall"), dict)
+                    and isinstance(recognition.get("unmatchedSubmission"), list)):
+                overview = {"basis": recognition.get("basis"),
+                    "overall": {field: recognition["overall"].get(field) for field in fields},
+                    "unmatchedSubmission": [{field: row.get(field) for field in ("id", "kind")} for row in recognition["unmatchedSubmission"] if isinstance(row, dict)]}
+                if report["schema"] in ("feedback-report/v3", "feedback-report/v4") and isinstance(recognition.get("buckets"), list):
+                    overview["buckets"] = [{field: row.get(field) for field in ("id", "label", "kind", "grouped", *fields)}
+                                           for row in recognition["buckets"] if isinstance(row, dict)]
+                elif report["schema"] == "feedback-report/v2" and isinstance(recognition.get("categories"), dict):
+                    overview["categories"] = {category: {field: row.get(field) for field in fields}
+                        for category, row in recognition["categories"].items() if category in ("nodes", "attributes", "connections", "other") and isinstance(row, dict)}
+                    overview["unmatchedSubmission"] = [{field: row.get(field) for field in ("id", "kind", "category")} for row in recognition["unmatchedSubmission"] if isinstance(row, dict)]
+                else:
+                    public.append(item)
+                    continue
+                item["result"] = {"schema": report["schema"], "evaluationId": report.get("evaluationId"),
+                    "pair": {"studentKey": "submission", "referenceKey": report.get("pair", {}).get("referenceKey")},
+                    "status": report.get("status"), "assessmentAvailable": False}
+                if report["schema"] == "feedback-report/v4":
+                    item["result"].update(requested=["recognition"], feedback=[{"type": "recognition", "recognition": overview}])
+                else:
+                    item["result"]["recognition"] = overview
+                item["resultSummary"] = "Erkennungs?bersicht verf?gbar; keine Korrektheitsquote oder Note."
+        if isinstance(report, dict) and report.get("schema") == "feedback-report/v4" and isinstance(report.get("feedback"), list):
+            entries = [public_help_entry(entry) for entry in report["feedback"] if isinstance(entry, dict) and entry.get("type") in HELP_TYPES]
+            if entries:
+                base = item["result"] or {"schema": report["schema"], "evaluationId": report.get("evaluationId"),
+                    "pair": {"studentKey": "submission", "referenceKey": report.get("pair", {}).get("referenceKey")},
+                    "status": report.get("status"), "assessmentAvailable": False, "requested": [], "feedback": []}
+                item["result"] = {**base, "requested": [*base["requested"], *(entry["type"] for entry in entries)],
+                                  "feedback": [*base["feedback"], *entries]}
+        public.append(item)
+    return public
 
 
 async def list_workflows() -> list[Document]:
@@ -161,12 +258,23 @@ async def _evaluation_input(
     definitions = [{"languageId": key[0], "versionId": key[1], "data": version["data"],
                     "includedLanguageVersions": version.get("includedLanguageVersions", [])}
                    for key, version in sorted(cache.items())]
+    config = deepcopy(comparison_config) if comparison_config is not None else {}
+    graph_matching = config.setdefault("graphMatching", {})
+    if not isinstance(graph_matching, dict):
+        raise ApiError(422, "INVALID_COMPARISON_CONFIG", "graphMatching must be a JSON object.")
     return {"schemaVersion": 1, "schema": "evaluation-input/v1", "evaluationId": evaluation_id,
             "task": task, "models": models, "languages": definitions,
-            "comparisonConfig": deepcopy(comparison_config) if comparison_config is not None else {}}, descriptors
+            "comparisonConfig": config}, descriptors
 
 
-async def start(model_id: UUID, user: User) -> Document:
+async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None, help_request_id: UUID | None = None) -> Document:
+    """`text_evidence`: admin overrides {spelling, meaning, meaningFloor}; None runs the workflow defaults.
+
+    `help_request_id` runs the feedback type the learner asked for in that help request instead of the overview.
+    """
+    from modeling_api.services import help_requests  # imported late: learning paths import this module
+    if text_evidence is not None and not user.is_admin:
+        raise ApiError(403, "FORBIDDEN", "Evaluation parameters require administrator access.")
     model = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
     if model is None or not model.get("taskVersion"):
         raise not_found()
@@ -180,9 +288,22 @@ async def start(model_id: UUID, user: User) -> Document:
     version_id = model.get("latestVersionId")
     if not version_id:
         raise ApiError(409, "SUBMISSION_NOT_SAVED", "Save the submission before starting an evaluation.")
-    unresolved = await db.evaluations.find_one({
+    feedback_request = None
+    if help_request_id is not None:
+        request, feedback_request = await help_requests.feedback_request(help_request_id, model_id, version_id, user)
+        # One automatic check per help request; a retry returns the run already started.
+        existing = request.get("evaluationId") and await db.evaluations.find_one({"_id": request["evaluationId"], "ownerId": user.id})
+        if existing and existing.get("state") not in ("failed", "cancelled"):
+            return _public_evaluation(existing)
+        if existing:
+            await help_requests.release_feedback_reservation(help_request_id)
+    elif can_view_analysis(user):
+        # Staff runs precompute every learner help feedback per object once for the analysis view.
+        feedback_request = {"types": ["recognition", "help.catalog"], "context": {}}
+    unresolved =await db.evaluations.find_one({
         "ownerId": user.id, "modelId": str(model_id), "modelVersionId": str(version_id),
         "dagName": workflow_name, "startStatus": {"$in": ["starting", "unknown"]},
+        "helpRequestId": str(help_request_id) if help_request_id else None,
     })
     if unresolved is not None:
         # A repeated browser request must not launch again after an ambiguous start.
@@ -206,6 +327,8 @@ async def start(model_id: UUID, user: User) -> Document:
     evaluation_id = str(uuid4())
     task_snapshot = {**task_ref, "data": task_version["data"], "workspaceLanguages": task_version.get("workspaceLanguages", [])}
     bundle, parser_models = await _evaluation_input(evaluation_id, task_snapshot, snapshot, reference_snapshots)
+    if feedback_request is not None:
+        bundle["feedbackRequest"] = feedback_request
     encoded = base64.b64encode(gzip.compress(json.dumps(bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"), mtime=0)).decode("ascii")
     if len(encoded) > 100_000:
         raise ApiError(422, "EVALUATION_INPUT_TOO_LARGE", "The complete evaluation snapshot exceeds the workflow launch limit.")
@@ -214,14 +337,28 @@ async def start(model_id: UUID, user: User) -> Document:
               "parser_models": [{"key": source["key"]} for source in parser_models],
               "reference_models": [{"key": source["key"]} for source in parser_models if source["role"] == "reference"],
               "model_count": len(parser_models), "reference_count": len(reference_snapshots)}
-    evaluation = await insert(db.evaluations, {
-        "_id": evaluation_id,
-        "ownerId": user.id, "taskId": task_ref["taskId"], "taskVersionId": task_ref["versionId"],
-        "modelId": str(model_id), "modelVersionId": str(version_id),
-        "task": task_ref, "submission": {"modelId": str(model_id), "versionId": str(version_id)},
-        "submissionSnapshot": snapshot, "parserModels": parser_models, "dagName": workflow_name, "dagRunId": evaluation_id,
-        "startedAt": utcnow(), "state": "unknown", "startStatus": "starting", "workflow": workflow,
-    })
+    if text_evidence is not None:
+        # Dagu declares the parameter as a string; workflow-data validates and freezes it.
+        params["text_evidence"] = json.dumps(text_evidence, separators=(",", ":"))
+    if help_request_id is not None:
+        await help_requests.reserve_feedback(request)
+    try:
+        evaluation = await insert(db.evaluations, {
+            "_id": evaluation_id,
+            "ownerId": user.id, "taskId": task_ref["taskId"], "taskVersionId": task_ref["versionId"],
+            "modelId": str(model_id), "modelVersionId": str(version_id),
+            "task": task_ref, "submission": {"modelId": str(model_id), "versionId": str(version_id)},
+            "submissionSnapshot": snapshot, "parserModels": parser_models, "dagName": workflow_name, "dagRunId": evaluation_id,
+            "startedAt": utcnow(), "state": "unknown", "startStatus": "starting", "workflow": workflow,
+            "parameters": {"textEvidence": text_evidence},
+            "helpRequestId": str(help_request_id) if help_request_id else None, "feedbackRequest": feedback_request,
+        })
+    except Exception:
+        if help_request_id is not None:
+            await help_requests.release_feedback_reservation(help_request_id)
+        raise
+    if help_request_id is not None:
+        await help_requests.link_evaluation(help_request_id, evaluation_id)
     try:
         dag_run_id = await dagu.start_workflow(workflow_name, params, run_id=evaluation_id)
     except ApiError as error:
@@ -235,6 +372,12 @@ async def start(model_id: UUID, user: User) -> Document:
     return _public_evaluation(evaluation)
 
 
+def student_evaluation(item: Document) -> Document:
+    # Workflow step definitions and run parameters are internals; learners only need the name.
+    workflow = item.get("workflow") or {}
+    return {**item, "workflow": {"name": workflow.get("name", ""), "labels": {}, "steps": []}, "parameters": {}}
+
+
 async def list_for_model(model_id: UUID, user: User, skip: int, limit: int) -> Document:
     page = await list_page(
         db.evaluations,
@@ -243,17 +386,79 @@ async def list_for_model(model_id: UUID, user: User, skip: int, limit: int) -> D
         limit,
         omit=("submissionSnapshot",),
     )
-    return {**page, "items": [_public_evaluation(item) for item in page["items"]]}
+    items = [_public_evaluation(item) for item in page["items"]]
+    return {**page, "items": items if can_view_analysis(user) else [student_evaluation(item) for item in items]}
 
 
-async def _model_run_steps(evaluation: Document, parent: Document, children: list[Document]) -> list[Document]:
-    step_name, artifact_path, capability, label, source_param = {
+async def feedback(evaluation_id: UUID, user: User) -> Document:
+    """The learner-facing result: state, score and recognition overview only.
+
+    Built server-side from the student projection, so no intermediate artifacts, logs, workflow
+    internals or reference-model content ever reach the browser. Persisted once the run is final.
+    """
+    evaluation = await db.evaluations.find_one({"_id": str(evaluation_id), "ownerId": user.id},
+                                               {"startedAt": 1, "workflow.name": 1, "submission": 1, "studentFeedback": 1, "helpRequestId": 1})
+    if evaluation is None:
+        raise not_found()
+    stored = evaluation.get("studentFeedback")
+    if stored is None:
+        result = await detail(evaluation_id, user, analysis=False)
+        recognitions = [{"referenceKey": step["result"]["pair"]["referenceKey"], "recognition": recognition_of(step["result"])}
+                        for step in result["steps"]
+                        if step["status"] == "succeeded" and isinstance(step.get("result"), dict) and recognition_of(step["result"]) is not None]
+        helps = [(entry, step["result"]["pair"]["referenceKey"]) for step in result["steps"]
+                 if step["status"] == "succeeded" and isinstance(step.get("result"), dict)
+                 for entry in step["result"].get("feedback", []) if entry.get("type") in HELP_TYPES]
+        # Several sample solutions: help feedback follows the best recognized one, like the score.
+        chosen = min(helps, key=lambda pair: (-(recognition_percent(pair[0].get("overview")) or 0), pair[1]), default=None)
+        stored = {"state": result["state"], "scorePercent": result.get("scorePercent"), "recognitions": recognitions,
+                  "feedback": [{**chosen[0], "referenceKey": chosen[1]}] if chosen else []}
+        # A succeeded run whose feedback artifact could not be read yet is retried on the next call.
+        if result["state"] in {"failed", "cancelled", "succeeded"} and (
+            result["state"] != "succeeded" or recognitions or chosen
+        ):
+            await db.evaluations.update_one({"_id": str(evaluation_id)}, {"$set": {"studentFeedback": stored}})
+            if evaluation.get("helpRequestId"):
+                from modeling_api.services import help_requests
+                await help_requests.record_feedback(evaluation["helpRequestId"], evaluation_id, stored["feedback"])
+    return _feedback_projection(evaluation, stored)
+
+
+def _feedback_projection(evaluation: Document, stored: Document) -> Document:
+    """Share the same published feedback between navigation and the learner endpoint."""
+    # The workflow reports no score; the learner score is the best overall recognition across sample solutions.
+    scores = [recognition_percent(item["recognition"].get("overall")) for item in stored["recognitions"]]
+    score = max((value for value in scores if value is not None), default=stored.get("scorePercent"))
+    return {"id": evaluation.get("id", evaluation.get("_id")), "startedAt": evaluation["startedAt"],
+            "workflowName": evaluation["workflow"]["name"], "submission": evaluation["submission"],
+            "state": stored["state"], "recognitions": stored["recognitions"], "feedback": stored.get("feedback", []),
+            "scorePercent": score}
+
+
+def recognition_percent(row: Any) -> float | None:
+    if not isinstance(row, dict):
+        return None
+    recognized, expected = row.get("recognized"), row.get("expected")
+    if type(recognized) is not int or type(expected) is not int or expected <= 0:
+        return None
+    return 100 * recognized / expected
+
+
+async def _model_run_steps(
+    evaluation: Document, parent: Document, children: list[Document], *, allow_analysis: bool
+) -> list[Document]:
+    step_spec = {
         "parse_models": ("parse_model", "parser-result.json", "graph-parser", "Graph", "MODEL_KEY"),
         "extract_labels": ("extract_labels", "labels-result.json", "model-label-extraction", "Elementinventar", "MODEL_KEY"),
         "match_synonyms": ("match_synonyms", "candidates-result.json", "synonym-matching", "Semantische Kandidaten", "REFERENCE_KEY"),
         "match_graphs": ("match_graph", "comparison-result.json", "one-to-one-graph-matching", "Vorläufiger Graphvergleich", "REFERENCE_KEY"),
         "generate_feedback": ("generate_feedback", "feedback-result.json", "feedback-generation", "Vorläufiges Feedback", "REFERENCE_KEY"),
+        "generate_analytical_feedback": ("generate_analytical_feedback", "analysis-result.json", "analytical-feedback", "Analytisches Feedback", "REFERENCE_KEY"),
     }[parent["id"]]
+    source_param = step_spec[-1]
+    step_specs = [step_spec]
+    if parent["id"] == "generate_analytical_feedback":
+        step_specs.append(("generate_feedback", "feedback-result.json", "feedback-generation", "Vorläufiges Feedback", "REFERENCE_KEY"))
     by_key = {}
     for child in children:
         try:
@@ -268,7 +473,8 @@ async def _model_run_steps(evaluation: Document, parent: Document, children: lis
         if isinstance(params, dict) and params.get(source_param):
             by_key[params[source_param]] = child
 
-    async def read(source: Document) -> Document:
+    async def read(source: Document, spec: tuple[str, ...]) -> Document:
+        step_name, artifact_path, capability, label, _ = spec
         step = {"id": f"{step_name}_{source['key']}", "label": f"{label}: {source['label']}",
                 "description": f"{label} für Modell {source['modelId']}, Version {source['versionId']}",
                 "status": "pending", "resultSummary": None, "result": None, "_modelRun": True}
@@ -281,6 +487,15 @@ async def _model_run_steps(evaluation: Document, parent: Document, children: lis
             child_id = child["dagRunId"]
             run = _dag_run(await dagu.get_sub_run(evaluation["dagName"], evaluation["dagRunId"], child_id))
             step["status"] = _state(run.get("statusLabel") or run.get("status"))
+            node = next((item for item in run.get("nodes", []) if
+                         (item.get("name") or item.get("id") or (item.get("step") or {}).get("name")) == step_name), None)
+            if node is not None:
+                step["status"] = _state(node.get("statusLabel") or node.get("status"))
+            if capability == "analytical-feedback" and not allow_analysis:
+                step["resultSummary"] = "Analytisches Feedback ist Moderatoren und Administratoren vorbehalten."
+                return step
+            if not allow_analysis and capability != "feedback-generation":
+                return step
             errors = [node.get("error") for node in run.get("nodes", []) if node.get("error")]
             step["resultSummary"] = "\n".join(errors) or None
             if step["status"] == "succeeded":
@@ -307,10 +522,11 @@ async def _model_run_steps(evaluation: Document, parent: Document, children: lis
 
     sources = [source for source in evaluation["parserModels"]
                if source_param == "MODEL_KEY" or source["role"] == "reference"]
-    return list(await gather(*(read(source) for source in sources)))
+    return list(await gather(*(read(source, spec) for source in sources for spec in step_specs)))
 
 
-async def detail(evaluation_id: UUID, user: User) -> Document:
+async def detail(evaluation_id: UUID, user: User, *, analysis: bool = True) -> Document:
+    """`analysis=False` forces the student projection even for administrators."""
     evaluation = await db.evaluations.find_one({"_id": str(evaluation_id), "ownerId": user.id})
     if evaluation is None:
         raise not_found()
@@ -336,24 +552,30 @@ async def detail(evaluation_id: UUID, user: User) -> Document:
                        "error": evaluation.get("startError")},
         }]
         result["finalResult"] = None
+        if not (analysis and can_view_analysis(user)):
+            result["steps"] = student_step_results(result["steps"])
         return result
     state = _state(run.get("statusLabel") or run.get("status") or run.get("state"))
     raw_steps = _run_steps(run, evaluation["workflow"])
     # Expand model and reference-pair fan-outs into their persisted artifacts.
     expanded = []
+    allow_analysis = analysis and can_view_analysis(user)
     for step in raw_steps:
         children = step.pop("_subRuns", [])
-        if step["id"] in {"parse_models", "extract_labels", "match_synonyms", "match_graphs", "generate_feedback"} and evaluation.get("parserModels"):
-            expanded.extend(await _model_run_steps(evaluation, step, children))
+        if step["id"] in {"parse_models", "extract_labels", "match_synonyms", "match_graphs", "generate_analytical_feedback", "generate_feedback"} and evaluation.get("parserModels"):
+            expanded.extend(await _model_run_steps(evaluation, step, children, allow_analysis=allow_analysis))
         else:
+            if step["id"] == "generate_analytical_feedback" and not allow_analysis:
+                step["resultSummary"] = "Analytisches Feedback ist Moderatoren und Administratoren vorbehalten."
+                step["_modelRun"] = True
             expanded.append(step)
     raw_steps = expanded
     completed_steps = [step for step in raw_steps if step["status"] in {"succeeded", "failed"}]
     logs = await gather(*(
         dagu.get_step_log(evaluation["dagName"], evaluation["dagRunId"], step["id"])
-        for step in completed_steps if not step.get("_modelRun")
+        for step in completed_steps if not step.get("_modelRun") and allow_analysis
     ), return_exceptions=True)
-    for step, log in zip([step for step in completed_steps if not step.get("_modelRun")], logs, strict=True):
+    for step, log in zip([step for step in completed_steps if not step.get("_modelRun") and allow_analysis], logs, strict=True):
         if isinstance(log, str) and log:
             step["resultSummary"] = log
     steps = _enrich_step_output(raw_steps)
@@ -364,13 +586,13 @@ async def detail(evaluation_id: UUID, user: User) -> Document:
     })
     result = _public_evaluation(evaluation, detail=True)
     result["state"] = state
-    result["steps"] = steps
+    result["steps"] = steps if allow_analysis else student_step_results(steps)
     final_result = (run.get("result") or run.get("output")) if state == "succeeded" else None
-    if state == "succeeded" and not isinstance(final_result, dict):
+    if state == "succeeded" and allow_analysis and not isinstance(final_result, dict):
         try:
             final_result = await dagu.get_run_outputs(evaluation["dagName"], evaluation["dagRunId"])
         except ApiError:
             # Intermediate artifacts remain available even if outputs cannot be loaded.
             final_result = None
-    result["finalResult"] = final_result if isinstance(final_result, dict) else None
+    result["finalResult"] = final_result if allow_analysis and isinstance(final_result, dict) else None
     return result

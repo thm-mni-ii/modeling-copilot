@@ -1,0 +1,1544 @@
+[
+  {
+    "report": {
+      "schema": "analysis-feedback/v1",
+      "evaluationId": "evaluation",
+      "pair": {
+        "studentKey": "submission",
+        "referenceKey": "ref"
+      },
+      "comparisonHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "provisional",
+      "assessmentAvailable": false,
+      "summary": {
+        "nodes": {
+          "recognized": 1,
+          "expected": 1,
+          "percent": 100.0,
+          "evaluationStatus": "provisional"
+        },
+        "attributes": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        },
+        "connections": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        },
+        "other": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        }
+      },
+      "annotations": [
+        {
+          "target": {
+            "side": "submission",
+            "id": "a",
+            "kind": "modelElement"
+          },
+          "match": {
+            "status": "provisional",
+            "reason": "unique_exact_label"
+          },
+          "checks": {
+            "label": "not_evaluated",
+            "type": "not_evaluated",
+            "owner": "not_evaluated",
+            "containment": "not_evaluated"
+          },
+          "hints": [],
+          "category": "nodes",
+          "referenceId": "a",
+          "containment": {
+            "referenceParents": [],
+            "submissionParents": []
+          },
+          "owner": {
+            "referenceOwnerId": null,
+            "submissionOwnerId": null,
+            "status": "not_evaluated"
+          },
+          "local": {
+            "incoming": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0
+            },
+            "outgoing": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0
+            },
+            "undirected": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0
+            },
+            "unresolved": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0
+            }
+          },
+          "status": "provisional"
+        }
+      ],
+      "referenceHints": [],
+      "analysisKey": "adee6cf753321d05ef62563f80abe362ef8b5c93083a9a2d52e2a278a01b9463",
+      "analysisHash": "53cbe2261aa73828b79d0ed7688e5bdcdf910364bdae8dc78419847530ef5cfc"
+    },
+    "objects": [
+      {
+        "id": "a",
+        "kind": "modelElement",
+        "label": "A"
+      }
+    ]
+  },
+  {
+    "report": {
+      "schema": "analysis-feedback/v1",
+      "contractVersion": "1.1",
+      "producer": {
+        "service": "analytical-feedback",
+        "version": "1.3.0"
+      },
+      "evaluationId": "evaluation",
+      "pair": {
+        "studentKey": "submission",
+        "referenceKey": "ref"
+      },
+      "comparisonHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "provisional",
+      "assessmentAvailable": false,
+      "summary": {
+        "nodes": {
+          "recognized": 1,
+          "expected": 1,
+          "percent": 100.0,
+          "evaluationStatus": "provisional"
+        },
+        "attributes": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        },
+        "connections": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        },
+        "other": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        }
+      },
+      "structuralContainers": {
+        "referenceCount": 0,
+        "submissionCount": 0,
+        "contextCount": 0,
+        "evaluationStatus": "not_evaluated"
+      },
+      "connectionGroups": [],
+      "containmentRelations": [],
+      "limitations": [
+        {
+          "code": "input.connection_structure_unavailable",
+          "status": "not_evaluated",
+          "scope": "model",
+          "parameters": {},
+          "targets": [
+            {
+              "side": "submission",
+              "id": "model",
+              "kind": "model"
+            }
+          ]
+        },
+        {
+          "code": "input.containment_evidence_unavailable",
+          "status": "not_evaluated",
+          "scope": "model",
+          "parameters": {},
+          "targets": [
+            {
+              "side": "submission",
+              "id": "model",
+              "kind": "model"
+            }
+          ]
+        },
+        {
+          "code": "input.owner_evidence_unavailable",
+          "status": "not_evaluated",
+          "scope": "model",
+          "parameters": {},
+          "targets": [
+            {
+              "side": "submission",
+              "id": "model",
+              "kind": "model"
+            }
+          ]
+        }
+      ],
+      "annotations": [
+        {
+          "target": {
+            "side": "submission",
+            "id": "a",
+            "kind": "modelElement"
+          },
+          "match": {
+            "status": "provisional",
+            "reason": "unique_exact_label"
+          },
+          "checks": {
+            "label": "not_evaluated",
+            "type": "not_evaluated",
+            "owner": "not_evaluated",
+            "containment": "not_evaluated"
+          },
+          "hints": [],
+          "category": "nodes",
+          "referenceId": "a",
+          "containment": {
+            "referenceParents": [],
+            "submissionParents": []
+          },
+          "owner": {
+            "referenceOwnerId": null,
+            "submissionOwnerId": null,
+            "status": "not_evaluated"
+          },
+          "local": {
+            "incoming": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0
+            },
+            "outgoing": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0
+            },
+            "undirected": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0
+            },
+            "unresolved": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0
+            }
+          },
+          "status": "provisional"
+        }
+      ],
+      "referenceHints": [],
+      "analysisKey": "f6eaf31a8859d96ea74fe6586b01492ed445b337db6522623b5e926af9d59ca9",
+      "analysisHash": "54bbb5a12ef6ba7f466cb91b50b073f4226bcefe507a98b00c9d8371fd0eac24"
+    },
+    "objects": [
+      {
+        "id": "a",
+        "kind": "modelElement",
+        "label": "A"
+      }
+    ]
+  },
+  {
+    "report": {
+      "schema": "analysis-feedback/v1",
+      "contractVersion": "1.2",
+      "producer": {
+        "service": "analytical-feedback",
+        "version": "1.3.0"
+      },
+      "evaluationId": "evaluation",
+      "pair": {
+        "studentKey": "submission",
+        "referenceKey": "ref"
+      },
+      "comparisonHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "provisional",
+      "assessmentAvailable": false,
+      "summary": {
+        "nodes": {
+          "recognized": 1,
+          "expected": 1,
+          "percent": 100.0,
+          "evaluationStatus": "provisional"
+        },
+        "attributes": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        },
+        "connections": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        },
+        "other": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        }
+      },
+      "structuralContainers": {
+        "referenceCount": 0,
+        "submissionCount": 0,
+        "contextCount": 0,
+        "evaluationStatus": "not_evaluated"
+      },
+      "connectionGroups": [],
+      "containmentRelations": [],
+      "limitations": [
+        {
+          "code": "input.containment_evidence_unavailable",
+          "status": "not_evaluated",
+          "scope": "model",
+          "parameters": {},
+          "targets": [
+            {
+              "side": "submission",
+              "id": "model",
+              "kind": "model"
+            }
+          ]
+        },
+        {
+          "code": "input.owner_evidence_unavailable",
+          "status": "not_evaluated",
+          "scope": "model",
+          "parameters": {},
+          "targets": [
+            {
+              "side": "submission",
+              "id": "model",
+              "kind": "model"
+            }
+          ]
+        }
+      ],
+      "annotations": [
+        {
+          "target": {
+            "side": "submission",
+            "id": "a",
+            "kind": "modelElement"
+          },
+          "match": {
+            "status": "provisional",
+            "reason": "unique_exact_label"
+          },
+          "checks": {
+            "children": "satisfied",
+            "connections": "satisfied",
+            "containment": "not_applicable",
+            "counterpart": "satisfied",
+            "directChildren": "satisfied",
+            "incoming": "satisfied",
+            "label": "satisfied",
+            "outgoing": "satisfied",
+            "owner": "not_applicable",
+            "type": "satisfied",
+            "undirected": "satisfied"
+          },
+          "hints": [],
+          "category": "nodes",
+          "referenceId": "a",
+          "containment": {
+            "referenceParents": [],
+            "submissionParents": []
+          },
+          "owner": {
+            "referenceOwnerId": null,
+            "submissionOwnerId": null,
+            "status": "not_applicable"
+          },
+          "local": {
+            "incoming": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0,
+              "evaluationStatus": "satisfied",
+              "complete": true
+            },
+            "outgoing": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0,
+              "evaluationStatus": "satisfied",
+              "complete": true
+            },
+            "undirected": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0,
+              "evaluationStatus": "satisfied",
+              "complete": true
+            },
+            "unresolved": {
+              "expected": 0,
+              "observed": 0,
+              "recognized": 0,
+              "recognizedAtTarget": 0,
+              "unresolvedReference": 0,
+              "unresolvedSubmission": 0,
+              "mappedFromOtherTargets": 0,
+              "deviating": 0,
+              "unresolvedChecks": 0
+            }
+          },
+          "facts": [
+            {
+              "code": "children.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_children_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "matched": 0,
+                "recognized": 0,
+                "expectedReferenceIds": [],
+                "correctlyContainedReferenceIds": [],
+                "movedReferenceIds": [],
+                "unmatchedReferenceIds": [],
+                "unmatchedSubmissionIds": [],
+                "roleDifferenceReferenceIds": [],
+                "outsideReferenceIds": [],
+                "additionalSubmissionIds": [],
+                "mappedFromOtherTargets": [],
+                "unresolvedReferenceIds": [],
+                "rolesEqual": true,
+                "pathsUnambiguous": true,
+                "minimumMissing": 0,
+                "dependsOn": [],
+                "provenAbsentReferenceIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "66e654fa7e05fe1abdfc12df20d85faf5849025d689465d51be9b9a8db079816"
+            },
+            {
+              "code": "connections.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_connections_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "minimumMissing": 0,
+                "referenceConnectionIds": [],
+                "submissionConnectionIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "4e09c8d3bf13b17651d1511c4eda3724797033db1ceae65c22219ab442d99e40"
+            },
+            {
+              "code": "containment.not_applicable",
+              "status": "not_applicable",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "independent_evidence",
+                "reason": "compared_containment",
+                "referenceParentIds": [],
+                "submissionParentIds": [],
+                "actualParentReferenceIds": [],
+                "expectedSubmissionParentIds": [],
+                "dependsOn": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "08d15be70efeecdd31658f8463dffa42bf3e120fcff41b95e250bc0079d57005"
+            },
+            {
+              "code": "counterpart.present",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "existing_correspondence",
+                "referenceObservation": {
+                  "ownerId": null,
+                  "parents": []
+                },
+                "submissionObservation": {
+                  "ownerId": null,
+                  "parents": []
+                },
+                "dependsOn": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "bb68118e9b40d7c847b8c232f5ea17983ef804594bc5eff4af1f3f7e17bc5ea9"
+            },
+            {
+              "code": "direct_children.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_children_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "matched": 0,
+                "recognized": 0,
+                "expectedReferenceIds": [],
+                "correctlyContainedReferenceIds": [],
+                "movedReferenceIds": [],
+                "unmatchedReferenceIds": [],
+                "unmatchedSubmissionIds": [],
+                "roleDifferenceReferenceIds": [],
+                "outsideReferenceIds": [],
+                "additionalSubmissionIds": [],
+                "mappedFromOtherTargets": [],
+                "unresolvedReferenceIds": [],
+                "rolesEqual": true,
+                "pathsUnambiguous": true,
+                "minimumMissing": 0,
+                "dependsOn": [],
+                "provenAbsentReferenceIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "000abc58081c27d0ebbf5c0d94428b00a502e47be293cfe4673397b5a6acf67e"
+            },
+            {
+              "code": "incoming.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_connections_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "minimumMissing": 0,
+                "referenceConnectionIds": [],
+                "submissionConnectionIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "9ae615c68e3156fc1f14b80692c0a0af7173f476f50281248f3666e01eb887ef"
+            },
+            {
+              "code": "label.equal",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "direct_observation",
+                "reason": "compared_labels",
+                "referenceValue": "A",
+                "submissionValue": "A"
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "b467085f697c0c8649e2f4862f1ca8ab5751a641315f73709e1a96784d29127a"
+            },
+            {
+              "code": "outgoing.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_connections_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "minimumMissing": 0,
+                "referenceConnectionIds": [],
+                "submissionConnectionIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "39d2f34a5291a6bff32f0f04993e3824a31374382066a617faa380aa3067b240"
+            },
+            {
+              "code": "owner.not_applicable",
+              "status": "not_applicable",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "independent_evidence",
+                "reason": "compared_owner",
+                "referenceParentIds": [],
+                "submissionParentIds": [],
+                "actualParentReferenceIds": [],
+                "expectedSubmissionParentIds": [],
+                "dependsOn": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "3ac77b19d1fc47f5eab4565a5cba45b0134b23175cfdcf76ac3d3d8bc960c97e"
+            },
+            {
+              "code": "type.equal",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "direct_observation",
+                "reason": "compared_concrete_types",
+                "referenceValue": "entity",
+                "submissionValue": "entity"
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "5859cf964b22b668c0c8926bffdae68576f84c4212a9577cc382ef922f935331"
+            },
+            {
+              "code": "undirected.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_connections_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "minimumMissing": 0,
+                "referenceConnectionIds": [],
+                "submissionConnectionIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "ab78e1ccac965ac18a5921e0767cb0736f65fd4048dfc1e812a0d2296d0c48fe"
+            }
+          ],
+          "consistency": "fully_consistent",
+          "status": "provisional"
+        }
+      ],
+      "referenceHints": [],
+      "analysisKey": "f694fe08b24e5fbbfc5b00d63571bab4d49bd0d981bd21cc3aad36da9f1d1627",
+      "analysisHash": "a5f61f63e700e46421551395100d0c3f67ad01b753e3a7f3c719e2f2e28babaf"
+    },
+    "objects": [
+      {
+        "id": "a",
+        "kind": "modelElement",
+        "label": "A"
+      }
+    ]
+  },
+  {
+    "report": {
+      "schema": "analysis-feedback/v1",
+      "contractVersion": "1.3",
+      "producer": {
+        "service": "analytical-feedback",
+        "version": "1.3.0"
+      },
+      "evaluationId": "evaluation",
+      "pair": {
+        "studentKey": "submission",
+        "referenceKey": "ref"
+      },
+      "comparisonHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "provisional",
+      "assessmentAvailable": false,
+      "summary": {
+        "nodes": {
+          "recognized": 1,
+          "expected": 1,
+          "percent": 100.0,
+          "evaluationStatus": "provisional"
+        },
+        "attributes": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        },
+        "connections": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        },
+        "other": {
+          "recognized": 0,
+          "expected": 0,
+          "percent": null,
+          "evaluationStatus": "not_applicable"
+        }
+      },
+      "annotations": [
+        {
+          "target": {
+            "side": "submission",
+            "id": "a",
+            "kind": "modelElement"
+          },
+          "category": "nodes",
+          "checks": {
+            "children": "satisfied",
+            "connections": "satisfied",
+            "containment": "not_applicable",
+            "counterpart": "satisfied",
+            "directChildren": "satisfied",
+            "identity": "satisfied",
+            "incoming": "satisfied",
+            "label": "satisfied",
+            "outgoing": "satisfied",
+            "owner": "not_applicable",
+            "type": "satisfied",
+            "undirected": "satisfied"
+          },
+          "hints": [],
+          "match": {
+            "status": "provisional",
+            "reason": "unique_exact_label"
+          },
+          "owner": {
+            "referenceOwnerId": null,
+            "submissionOwnerId": null,
+            "status": "not_applicable"
+          },
+          "containment": {
+            "referenceParents": [],
+            "submissionParents": []
+          },
+          "referenceId": "a",
+          "facts": [
+            {
+              "code": "children.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_children_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "matched": 0,
+                "recognized": 0,
+                "expectedReferenceIds": [],
+                "correctlyContainedReferenceIds": [],
+                "movedReferenceIds": [],
+                "unmatchedReferenceIds": [],
+                "unmatchedSubmissionIds": [],
+                "roleDifferenceReferenceIds": [],
+                "outsideReferenceIds": [],
+                "additionalSubmissionIds": [],
+                "mappedFromOtherTargets": [],
+                "unresolvedReferenceIds": [],
+                "rolesEqual": true,
+                "pathsUnambiguous": true,
+                "minimumMissing": 0,
+                "dependsOn": [],
+                "provenAbsentReferenceIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "66e654fa7e05fe1abdfc12df20d85faf5849025d689465d51be9b9a8db079816"
+            },
+            {
+              "code": "connections.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_connections_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "minimumMissing": 0,
+                "referenceConnectionIds": [],
+                "submissionConnectionIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "4e09c8d3bf13b17651d1511c4eda3724797033db1ceae65c22219ab442d99e40"
+            },
+            {
+              "code": "containment.not_applicable",
+              "status": "not_applicable",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "independent_evidence",
+                "reason": "compared_containment",
+                "referenceParentIds": [],
+                "submissionParentIds": [],
+                "actualParentReferenceIds": [],
+                "expectedSubmissionParentIds": [],
+                "dependsOn": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "08d15be70efeecdd31658f8463dffa42bf3e120fcff41b95e250bc0079d57005"
+            },
+            {
+              "code": "counterpart.present",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "existing_correspondence",
+                "referenceObservation": {
+                  "ownerId": null,
+                  "parents": []
+                },
+                "submissionObservation": {
+                  "ownerId": null,
+                  "parents": []
+                },
+                "dependsOn": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "bb68118e9b40d7c847b8c232f5ea17983ef804594bc5eff4af1f3f7e17bc5ea9"
+            },
+            {
+              "code": "direct_children.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_children_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "matched": 0,
+                "recognized": 0,
+                "expectedReferenceIds": [],
+                "correctlyContainedReferenceIds": [],
+                "movedReferenceIds": [],
+                "unmatchedReferenceIds": [],
+                "unmatchedSubmissionIds": [],
+                "roleDifferenceReferenceIds": [],
+                "outsideReferenceIds": [],
+                "additionalSubmissionIds": [],
+                "mappedFromOtherTargets": [],
+                "unresolvedReferenceIds": [],
+                "rolesEqual": true,
+                "pathsUnambiguous": true,
+                "minimumMissing": 0,
+                "dependsOn": [],
+                "provenAbsentReferenceIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "000abc58081c27d0ebbf5c0d94428b00a502e47be293cfe4673397b5a6acf67e"
+            },
+            {
+              "code": "identity.uniquely_supported",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "independent_evidence",
+                "reason": "evaluated_identity_evidence",
+                "identityStatus": "uniquely_supported",
+                "criteria": [
+                  {
+                    "method": "exact_label",
+                    "role": "identity_anchor",
+                    "result": "satisfied",
+                    "referenceIds": [
+                      "a"
+                    ],
+                    "submissionIds": [
+                      "a"
+                    ],
+                    "dependsOn": []
+                  },
+                  {
+                    "method": "type_compatibility",
+                    "role": "compatibility",
+                    "result": "satisfied",
+                    "referenceIds": [
+                      "a"
+                    ],
+                    "submissionIds": [
+                      "a"
+                    ],
+                    "dependsOn": [],
+                    "sameConcreteType": true
+                  },
+                  {
+                    "method": "independent_children",
+                    "role": "support",
+                    "result": "not_applicable",
+                    "referenceIds": [
+                      "a"
+                    ],
+                    "submissionIds": [
+                      "a"
+                    ],
+                    "dependsOn": [],
+                    "matched": 0,
+                    "expected": 0
+                  },
+                  {
+                    "method": "combined_children",
+                    "role": "support",
+                    "result": "not_applicable",
+                    "referenceIds": [
+                      "a"
+                    ],
+                    "submissionIds": [
+                      "a"
+                    ],
+                    "dependsOn": []
+                  },
+                  {
+                    "method": "identified_owner",
+                    "role": "support",
+                    "result": "not_applicable",
+                    "referenceIds": [
+                      "a"
+                    ],
+                    "submissionIds": [
+                      "a"
+                    ],
+                    "dependsOn": []
+                  },
+                  {
+                    "method": "connection_structure",
+                    "role": "support",
+                    "result": "not_evaluated",
+                    "referenceIds": [
+                      "a"
+                    ],
+                    "submissionIds": [
+                      "a"
+                    ],
+                    "dependsOn": []
+                  }
+                ],
+                "evaluationStatus": "evaluated",
+                "supportingCandidateCount": 1
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "685272b2e8ae65ff12cce1f8f186bc4545c0cebf6144c1f142d4cb9143e0c6af"
+            },
+            {
+              "code": "incoming.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_connections_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "minimumMissing": 0,
+                "referenceConnectionIds": [],
+                "submissionConnectionIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "9ae615c68e3156fc1f14b80692c0a0af7173f476f50281248f3666e01eb887ef"
+            },
+            {
+              "code": "label.equal",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "direct_observation",
+                "reason": "compared_labels",
+                "referenceValue": "A",
+                "submissionValue": "A"
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "b467085f697c0c8649e2f4862f1ca8ab5751a641315f73709e1a96784d29127a"
+            },
+            {
+              "code": "outgoing.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_connections_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "minimumMissing": 0,
+                "referenceConnectionIds": [],
+                "submissionConnectionIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "39d2f34a5291a6bff32f0f04993e3824a31374382066a617faa380aa3067b240"
+            },
+            {
+              "code": "owner.not_applicable",
+              "status": "not_applicable",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "independent_evidence",
+                "reason": "compared_owner",
+                "referenceParentIds": [],
+                "submissionParentIds": [],
+                "actualParentReferenceIds": [],
+                "expectedSubmissionParentIds": [],
+                "dependsOn": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "3ac77b19d1fc47f5eab4565a5cba45b0134b23175cfdcf76ac3d3d8bc960c97e"
+            },
+            {
+              "code": "type.equal",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "direct_observation",
+                "reason": "compared_concrete_types",
+                "referenceValue": "entity",
+                "submissionValue": "entity"
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "5859cf964b22b668c0c8926bffdae68576f84c4212a9577cc382ef922f935331"
+            },
+            {
+              "code": "undirected.complete",
+              "status": "satisfied",
+              "referenceIds": [
+                "a"
+              ],
+              "submissionIds": [
+                "a"
+              ],
+              "evidence": {
+                "basis": "conditional_mapping",
+                "reason": "local_connections_under_mapping",
+                "expected": 0,
+                "observed": 0,
+                "minimumMissing": 0,
+                "referenceConnectionIds": [],
+                "submissionConnectionIds": []
+              },
+              "targets": [
+                {
+                  "side": "reference",
+                  "id": "a",
+                  "kind": "modelElement"
+                },
+                {
+                  "side": "submission",
+                  "id": "a",
+                  "kind": "modelElement"
+                }
+              ],
+              "id": "ab78e1ccac965ac18a5921e0767cb0736f65fd4048dfc1e812a0d2296d0c48fe"
+            }
+          ],
+          "identity": {
+            "status": "uniquely_supported",
+            "criteria": [
+              {
+                "method": "exact_label",
+                "role": "identity_anchor",
+                "result": "satisfied",
+                "referenceIds": [
+                  "a"
+                ],
+                "submissionIds": [
+                  "a"
+                ],
+                "dependsOn": []
+              },
+              {
+                "method": "type_compatibility",
+                "role": "compatibility",
+                "result": "satisfied",
+                "referenceIds": [
+                  "a"
+                ],
+                "submissionIds": [
+                  "a"
+                ],
+                "dependsOn": [],
+                "sameConcreteType": true
+              },
+              {
+                "method": "independent_children",
+                "role": "support",
+                "result": "not_applicable",
+                "referenceIds": [
+                  "a"
+                ],
+                "submissionIds": [
+                  "a"
+                ],
+                "dependsOn": [],
+                "matched": 0,
+                "expected": 0
+              },
+              {
+                "method": "combined_children",
+                "role": "support",
+                "result": "not_applicable",
+                "referenceIds": [
+                  "a"
+                ],
+                "submissionIds": [
+                  "a"
+                ],
+                "dependsOn": []
+              },
+              {
+                "method": "identified_owner",
+                "role": "support",
+                "result": "not_applicable",
+                "referenceIds": [
+                  "a"
+                ],
+                "submissionIds": [
+                  "a"
+                ],
+                "dependsOn": []
+              },
+              {
+                "method": "connection_structure",
+                "role": "support",
+                "result": "not_evaluated",
+                "referenceIds": [
+                  "a"
+                ],
+                "submissionIds": [
+                  "a"
+                ],
+                "dependsOn": []
+              }
+            ],
+            "supportingCandidateCount": 1
+          },
+          "consistency": "fully_consistent",
+          "status": "provisional"
+        }
+      ],
+      "referenceHints": [],
+      "connectionGroups": [],
+      "containmentRelations": [],
+      "limitations": [],
+      "structuralContainers": {
+        "referenceCount": 0,
+        "submissionCount": 0,
+        "contextCount": 0,
+        "evaluationStatus": "not_evaluated"
+      },
+      "analysisKey": "6d9a2e4d3cee4207bfb6bf40c7faf2c78ed03a041ae53b2b322d7088ab8325c5",
+      "analysisHash": "427f857e1dd184fd7f647adb34d37775ec0567a3ca918a074a81b315e6e27ed7"
+    },
+    "objects": [
+      {
+        "id": "a",
+        "kind": "modelElement",
+        "label": "A"
+      }
+    ]
+  }
+]

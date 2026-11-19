@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "synonym-matching inventory pair input V2",
+  "title": "synonym-matching inventory pair input V1",
   "type": "object",
   "required": ["studentInventory", "referenceInventory"],
   "additionalProperties": false,
@@ -79,7 +79,7 @@
       "required": ["schema", "evaluationId", "source", "inputHash", "graphHash", "graphPath", "inventoryHash", "producer", "elements", "connectionTexts", "completeness", "diagnostics"],
       "additionalProperties": false,
       "properties": {
-        "schema": {"const": "element-inventory/v2"},
+        "schema": {"const": "element-inventory/v1"},
         "evaluationId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$"},
         "source": {"$ref": "#/definitions/source"},
         "inputHash": {"$ref": "#/definitions/hash"},

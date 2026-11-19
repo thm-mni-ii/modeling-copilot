@@ -7,6 +7,63 @@ from synonym_matching.preprocessing import apply_pipeline, normalize, lowercase,
 from synonym_matching.combinations import mean, maximum, weighted_mean
 
 
+@pytest.mark.parametrize(('text', 'expected'), [
+    ('Nr.', 'Nummer'), ('Nr', 'Nummer'), ('GebäudeNr.', 'Gebäude Nummer'),
+    ('GebäudeNR', 'Gebäude Nummer'), ('Gebäude Nr.', 'Gebäude Nummer'),
+    ('Nr. unbekannt', 'Nummer unbekannt'), ('Nummer', 'Nummer'),
+    ('Genre', 'Genre'), ('', ''),
+])
+def test_expand_number_abbreviation(text, expected):
+    processor = Preprocessor(['expand_abbreviations'])
+    assert processor.process(text, 'de') == expected
+    assert processor.process(text, 'en') == text
+    assert processor.process(text, None) == text
+
+
+def test_label_parts_are_optional_and_keep_number_and_room_distinct(monkeypatch):
+    monkeypatch.setattr('synonym_matching.preprocessing._compound_words',
+                        lambda: {'gebäude', 'nummer', 'gerät', 'raum'})
+    original = Preprocessor(['normalize'])
+    parts = Preprocessor(['normalize', 'split_label_parts', 'lowercase'])
+    assert original.process('GebäudeNr.', 'de') == 'GebäudeNr.'
+    assert parts.process('GebäudeNr.', 'de') == parts.process('Gebäudenummer', 'de') == 'gebäude nummer'
+    assert parts.process('Geräteraum', 'de') == 'geräte raum'
+    assert parts.process('Gerätenummer', 'de') == 'geräte nummer'
+    assert parts.process('Geräte', 'de') == 'geräte'
+    assert parts.process('UnbekanntXYZ', 'de') == 'unbekannt xyz'
+    assert Preprocessor(['split_label_parts']).process('buildingNumber', 'en') == 'buildingNumber'
+    # Die bisherige Kompositazerlegung erhält ihre bisherige Behandlung von Pluralformen.
+    assert Preprocessor(['split_compounds']).process('Geräteraum', 'de') == 'Geräteraum'
+
+
+def test_label_parts_work_in_json_builder_and_public_schema(monkeypatch):
+    import json
+    from pathlib import Path
+
+    import jsonschema
+
+    from research.experiments import configurations, load_config
+    from synonym_matching import match
+
+    definitions, _ = configurations(load_config())
+    assert 'normalize+expand_abbreviations → translated_embedding' in definitions
+    assert 'normalize+split_label_parts → translated_embedding' in definitions
+    monkeypatch.setattr('synonym_matching.preprocessing._compound_words',
+                        lambda: {'gebäude', 'nummer', 'gerät', 'raum'})
+    root = Path(__file__).resolve().parents[1]
+    case = json.loads((root / 'research/label-parts-cases.json').read_text())['cases'][0]
+    output = match(case['reference'], case['student'],
+                   {'methods': ['token_jaccard'],
+                    'preprocessing': ['normalize', 'split_label_parts', 'lowercase']})
+    jsonschema.validate(output, json.loads((root / 'schemas/output.schema.json').read_text()))
+    scores = {m['submissionElement']['id']: m['combinedScore']
+              for m in output['synonymMatrix'][1]['matches']}
+    assert scores['s2'] == scores['s3'] == 1
+    assert scores['s1'] < scores['s2']
+    assert len(output['synonymMatrix']) == 4
+    assert all(len(row['matches']) == 6 for row in output['synonymMatrix'])
+
+
 def test_functions_compose_without_engine():
     steps = [normalize, lowercase]
     left = [apply_pipeline(' Kunde ', steps)]

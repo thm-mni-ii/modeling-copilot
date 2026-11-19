@@ -32,8 +32,28 @@ from modeling_api.services.learning_path_store import (
     session_reference_field,
 )
 
-# Temporary until the laboratory task's automatic assessment is available.
-LABORATORY_COMPLETION_BLOCKED_STEP_ID = "90633637-a890-597e-bfc6-682ed472b020"
+def meets_completion_gate(task, recognition):
+    """One sample solution's recognition against the step minimums.
+
+    "overall" checks the overall share, "eachCategory" every category; named category
+    minimums apply in both scopes and replace the default for their category.
+    """
+    minimum = task["minimumScorePercent"]
+    named = {row["label"]: row["minimumPercent"] for row in task.get("categoryMinimums", [])}
+    each = task.get("scoreScope") == "eachCategory"
+    overall = evaluations.recognition_percent(recognition.get("overall"))
+    if overall is None or (not each and overall < minimum):
+        return False
+    buckets = recognition.get("buckets")
+    rows = ([(row.get("label"), row) for row in buckets] if isinstance(buckets, list)
+            else list((recognition.get("categories") or {}).items()))
+    for label, row in rows:
+        required = named.get(label, minimum if each else None)
+        value = evaluations.recognition_percent(row)
+        # Categories without expected objects (v2 reports list all four) cannot be required.
+        if required is not None and value is not None and value < required:
+            return False
+    return True
 
 
 def require_admin(user):
@@ -530,11 +550,6 @@ async def complete_step(run_id, step_id, user, body=None):
     )
     if state.get("completedAt"):
         return await get_run(run_id, user)
-    if str(step_id) == LABORATORY_COMPLETION_BLOCKED_STEP_ID:
-        raise ApiError(
-            503, "EVALUATION_UNAVAILABLE",
-            "The automatic assessment is temporarily unavailable; this station cannot be completed yet.",
-        )
     sessions = await run_sessions(run)
     if step["kind"] == "task":
         if not state.get("modelId"):
@@ -547,20 +562,19 @@ async def complete_step(run_id, step_id, user, body=None):
         ):
             raise conflict("Complete the questionnaire before working on the task.")
         submission = {"workSubmittedAt": state.get("workSubmittedAt") or utcnow()}
-        minimum = step["task"].get("minimumScorePercent")
-        if minimum is not None:
+        if step["task"].get("minimumScorePercent") is not None:
             evaluation_id = (body.evaluation_id if body else None) or state.get("completionEvaluationId")
             if not evaluation_id:
                 raise ApiError(409, "EVALUATION_REQUIRED", "Evaluate the current model before completing this task.")
-            evaluation = await evaluations.detail(UUID(str(evaluation_id)), user)
-            if evaluation["submission"] != {"modelId": model["id"], "versionId": model["latestVersionId"]} or evaluation["task"] != model["taskVersion"]:
+            # The learner feedback is owner-scoped; its submission pins model and version (and thereby the task).
+            evaluation = await evaluations.feedback(UUID(str(evaluation_id)), user)
+            if evaluation["submission"] != {"modelId": model["id"], "versionId": model["latestVersionId"]}:
                 raise ApiError(409, "EVALUATION_OUTDATED", "Evaluate the current saved model version before completing this task.")
             if evaluation["state"] != "succeeded":
                 raise ApiError(409, "EVALUATION_INCOMPLETE", "The evaluation must finish before completing this task.")
-            score = evaluation.get("scorePercent")
-            if score is None:
+            if not evaluation["recognitions"]:
                 raise ApiError(409, "EVALUATION_SCORE_PENDING", "The evaluation does not provide a model score yet.")
-            if isinstance(score, bool) or not isinstance(score, (int, float)) or not minimum <= score <= 100:
+            if not any(meets_completion_gate(step["task"], item["recognition"]) for item in evaluation["recognitions"]):
                 raise ApiError(409, "EVALUATION_MINIMUM_NOT_MET", "The model has not reached the required minimum score.")
             submission["completionEvaluationId"] = str(evaluation_id)
         await update_step_state(
@@ -606,6 +620,8 @@ async def get_model_context(model_id, user):
         "removed": step is None or bool(step.get("archivedAt")),
         "templateRevision": template["revision"],
         "minimumScorePercent": step.get("task", {}).get("minimumScorePercent") if step else None,
+        "scoreScope": step.get("task", {}).get("scoreScope", "overall") if step else "overall",
+        "categoryMinimums": step.get("task", {}).get("categoryMinimums", []) if step else [],
     }
     for phase in ("before", "after"):
         assigned = survey_reference(step, phase, state) if step else None
@@ -618,6 +634,14 @@ async def get_model_context(model_id, user):
             else None
         )
     context["helpRequests"] = template.get("helpRequests", {"enabled": False})
+    if context["helpRequests"].get("enabled"):
+        from modeling_api.services import help_requests
+        from modeling_api.schemas.learning_paths import HelpRequestConfig
+
+        context["helpUsage"] = await help_requests.usage(
+            run["_id"], state["stepId"],
+            HelpRequestConfig.model_validate(context["helpRequests"]),
+        )
     return PathModelContext.model_validate(context)
 
 
@@ -637,7 +661,7 @@ async def resume_step(run_id, step_id, user):
             {"challengeStartedAt": utcnow()},
             {"challengeStartedAt": None},
         )
-        if state.get("workSubmittedAt") and str(step_id) != LABORATORY_COMPLETION_BLOCKED_STEP_ID:
+        if state.get("workSubmittedAt"):
             await complete_step(run_id, step_id, user)
     return await get_model_context(state["modelId"], user)
 

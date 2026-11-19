@@ -4,21 +4,30 @@
     <p class="text-body-2 text-medium-emphasis mt-2 mb-4">Zeigt „Ich brauche Hilfe“ bei den Modellierungsaufgaben dieses Lernpfads. Der aktuelle Modellstand wird beim Hilfe-Klick gespeichert.</p>
     <template v-if="config.enabled">
       <div class="help-settings-summary">
-        <p class="text-body-2">Problem benennen → Problemstellen markieren → Hilfebedarf klären → Hilfequelle wählen</p>
+        <p class="text-body-2">Problem benennen → Dauer und Hilfebedarf klären → ggf. Problemstelle markieren → Hilfequelle wählen</p>
         <v-btn variant="outlined" size="small" prepend-icon="mdi-play-outline" :disabled="!blueprint || Boolean(issue)" @click="preview = true">Ablauf ausprobieren</v-btn>
       </div>
       <p class="text-caption text-medium-emphasis my-4">Änderungen gelten nur für diesen Lernpfad. Beim Speichern des Lernpfads werden sie direkt für neue Hilfe-Anfragen veröffentlicht. Begonnene Anfragen behalten ihre Version.</p>
       <p class="text-caption text-medium-emphasis mb-4">Bei Aufgaben mit Musterlösung ergänzt die Hilfe-Auswahl „Automatische Überprüfung des Modells“ und öffnet damit die Auswertung.</p>
+      <section class="help-fixed-step mb-4" aria-label="Nutzungslimits für automatisches Feedback">
+        <h3 class="text-subtitle-2 mb-2">Joker für konkretes Feedback</h3>
+        <p class="text-caption text-medium-emphasis mb-3">Die Limits gelten je Aufgabe und Lernpfad-Durchlauf. Gezählt wird eine erfolgreich abgeschlossene automatische Auswertung. Erklärung, Prüfung und nächster Schritt bleiben unbegrenzt.</p>
+        <div class="help-limits">
+          <v-text-field :model-value="config.exampleLimit" type="number" min="0" max="100" step="1" label="Beispiele pro Aufgabe" hint="0 blendet die Auswahl aus" persistent-hint variant="outlined" density="compact" @update:model-value="updateLimit('exampleLimit', $event)" />
+          <v-text-field :model-value="config.solutionLimit" type="number" min="0" max="100" step="1" label="Lösungen pro Aufgabe" hint="0 blendet die Auswahl aus" persistent-hint variant="outlined" density="compact" @update:model-value="updateLimit('solutionLimit', $event)" />
+        </div>
+      </section>
       <v-progress-linear v-if="pending" indeterminate aria-label="Hilfe-Fragen laden" />
       <v-alert v-if="loadError" type="error" variant="tonal" density="compact">{{ loadError }}<v-btn variant="text" size="small" @click="load">Erneut laden</v-btn></v-alert>
       <template v-if="blueprint">
         <section class="help-fixed-step" aria-label="Fester Problembezug">
           <div class="d-flex align-center ga-2 mb-2"><v-icon size="17">mdi-lock-outline</v-icon><h3 class="text-subtitle-2">Problem benennen</h3><v-chip size="x-small" variant="tonal">Fester Ablauf</v-chip></div>
           <p class="text-body-2">Worauf bezieht sich dein Problem?</p>
-          <p class="text-caption text-medium-emphasis mt-1">Aufgabenstellung/Modell · Bedienung des Tools · Anderes mit Freitext</p>
-          <p class="text-caption text-medium-emphasis mt-2">Diese Auswahl steuert den Markierungsschritt und bleibt deshalb unverändert.</p>
+          <p class="text-caption text-medium-emphasis mt-1">Aufgabenstellung/Modell · Bedienung des Tools mit Freitext · Anderes mit Freitext</p>
+          <p class="text-caption text-medium-emphasis mt-2">Bei Aufgabenstellung/Modell folgt die Markierung nach dem Hilfebedarf. Prüfung/Bestätigung und unklarer Hilfebedarf benötigen keine Elementauswahl.</p>
         </section>
-        <v-select :model-value="markingMode" :items="markingOptions" label="Problemstellen bei Aufgabenstellung/Modell markieren" variant="outlined" density="compact" persistent-hint :hint="markingMode === 'required' ? 'Mindestens ein Modellelement oder eine Textstelle muss markiert werden.' : markingMode === 'optional' ? 'Lernende können ohne Markierung fortfahren, etwa bei einem noch leeren Modell.' : 'Nach dem Problembezug folgen direkt die Fragen zum Hilfebedarf.'" class="my-4" @update:model-value="setMarkingMode" />
+        <v-select :model-value="markingMode" :items="markingOptions" label="Problemstelle bei Aufgabenstellung/Modell markieren" variant="outlined" density="compact" persistent-hint :hint="markingMode === 'required' ? 'Bei objektbezogenem Hilfebedarf muss mindestens eine Textstelle oder ein Modellelement markiert werden.' : markingMode === 'optional' ? 'Lernende können ohne Markierung fortfahren, etwa bei einem noch leeren Modell.' : 'Nach dem Hilfebedarf folgt direkt die Hilfequelle.'" class="my-4" @update:model-value="setMarkingMode" />
+        <p class="text-caption text-medium-emphasis mb-4">Höchstens ein Modellelement und beliebig viele Textstellen. Automatisches Feedback zu einer Problemstelle setzt ein markiertes Modellelement voraus.</p>
         <p class="text-subtitle-2 mb-1">Fragen und Antworten anpassen</p>
         <p class="text-caption text-medium-emphasis mb-3">Formulierungen und Antwortoptionen sind bearbeitbar. Anzahl, Reihenfolge und Funktion der Fragen bleiben gleich.</p>
         <v-expansion-panels v-model="editing" variant="accordion">
@@ -34,7 +43,7 @@
                   <div class="help-option-actions">
                     <v-btn icon="mdi-arrow-up" size="x-small" variant="text" :disabled="choiceIndex === 0" :aria-label="`Antwortoption ${choiceIndex + 1} nach oben`" @click="moveChoice(item.name, choiceIndex, -1)" />
                     <v-btn icon="mdi-arrow-down" size="x-small" variant="text" :disabled="choiceIndex === question(item.name).choices.length - 1" :aria-label="`Antwortoption ${choiceIndex + 1} nach unten`" @click="moveChoice(item.name, choiceIndex, 1)" />
-                    <v-btn icon="mdi-close" size="x-small" variant="text" :disabled="question(item.name).choices.length <= 2" :aria-label="`Antwortoption ${choiceIndex + 1} entfernen`" @click="removeChoice(item.name, choice.id)" />
+                    <v-btn icon="mdi-close" size="x-small" variant="text" :disabled="question(item.name).choices.length <= 2 || baseFeedbackChoice(item.name, choice.id)" :aria-label="`Antwortoption ${choiceIndex + 1} entfernen`" :title="baseFeedbackChoice(item.name, choice.id) ? 'Steuert die Art des automatischen Feedbacks; nur umbenennen.' : undefined" @click="removeChoice(item.name, choice.id)" />
                   </div>
                 </li>
               </ol>
@@ -70,7 +79,13 @@ const config = computed(() => ({ ...defaultHelpRequestConfig(), ...props.modelVa
 const blueprint = ref<HelpBlueprint | null>(null)
 const pending = ref(false), loadError = ref(''), preview = ref(false), editing = ref<HelpEditableQuestion>()
 let disposed = false
+// Must match keep_feedback_choices in api/src/modeling_api/schemas/learning_paths.py.
+const baseFeedbackChoice = (name: string, id: string) => name === 'support_need' && /^support_need_[1-6]$/.test(id)
 const update = <K extends keyof HelpRequestConfig>(key: K, value: HelpRequestConfig[K]) => emit('update:modelValue', { ...config.value, [key]: value })
+const updateLimit = (key: 'exampleLimit' | 'solutionLimit', value: string | number) => {
+  const parsed = Number(value)
+  if (Number.isInteger(parsed) && parsed >= 0 && parsed <= 100) update(key, parsed)
+}
 const load = async () => {
   if (pending.value) return
   pending.value = true
@@ -121,10 +136,12 @@ onBeforeUnmount(() => { disposed = true; emit('validation', '') })
 .help-settings-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px; border: 1px solid rgba(var(--v-theme-outline), 0.18); border-radius: 8px; }
 .help-settings-summary p { flex: 1; min-width: 220px; }
 .help-fixed-step { padding: 12px; background: rgba(var(--v-theme-on-surface), 0.035); border-radius: 8px; }
+.help-limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .help-question-summary { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .help-options { padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
 .help-option { display: flex; align-items: center; gap: 4px; }
 .help-option :deep(.v-input) { min-width: 0; }
 .help-option-actions { display: flex; flex-shrink: 0; }
 @media (max-width: 600px) { .help-option { flex-wrap: wrap; } .help-option :deep(.v-input) { flex-basis: 100%; } .help-option-actions { margin-left: auto; } }
+@media (max-width: 600px) { .help-limits { grid-template-columns: 1fr; gap: 4px; } }
 </style>

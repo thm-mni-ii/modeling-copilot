@@ -84,4 +84,24 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v13_language_comparison_groups.migration",
         ("12_laboratory_management",),
     ),
+    Migration(
+        "14_laboratory_structure_models",
+        "modeling_api.db.migrations.versions.v14_laboratory_structure_models.migration",
+        ("13_language_comparison_groups",),
+    ),
+    Migration(
+        "15_laboratory_synonym_models",
+        "modeling_api.db.migrations.versions.v15_laboratory_synonym_models.migration",
+        ("14_laboratory_structure_models",),
+    ),
+    Migration(
+        "16_completion_score_categories",
+        "modeling_api.db.migrations.versions.v16_completion_score_categories.migration",
+        ("15_laboratory_synonym_models",),
+    ),
+    Migration(
+        "17_help_feedback_quotas",
+        "modeling_api.db.migrations.versions.v17_help_feedback_quotas.migration",
+        ("16_completion_score_categories",),
+    ),
 )

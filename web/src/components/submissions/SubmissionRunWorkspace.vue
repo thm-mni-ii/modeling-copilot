@@ -7,7 +7,7 @@
     <v-dialog v-model="editDialog" max-width="760" :persistent="busy"
       ><v-card title="Run configuration"
         ><v-card-text
-          ><SubmissionRunForm :data="runForm" :directory-run-id="run.id" /><v-alert v-if="dialogError" type="error">{{ dialogError }}</v-alert></v-card-text
+          ><SubmissionRunForm v-model:data="runForm" :directory-run-id="run.id" /><v-alert v-if="dialogError" type="error">{{ dialogError }}</v-alert></v-card-text
         ><v-card-actions><v-spacer /><v-btn :disabled="busy" @click="editDialog = false">Cancel</v-btn><v-btn color="primary" :loading="busy" :disabled="!runForm.name.trim()" @click="saveRun">Save run version</v-btn></v-card-actions></v-card
       ></v-dialog
     >

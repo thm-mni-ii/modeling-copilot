@@ -27,8 +27,25 @@ from modeling_api.schemas.challenges import StartStep
 from modeling_api.services import learning_paths as service, pulse_surveys, help_requests
 from modeling_api.db.help_questionnaires import HELP_SURVEY_IDS
 from modeling_api.services import learning_path_progress
+from modeling_api.schemas.learning_path_features import FeatureTourEvent, FeatureTourProgress, FeatureTourReport
+from modeling_api.services import learning_path_features
 
 router = APIRouter(tags=["Learning paths"])
+
+
+@router.get("/learning-path-feature-tour", response_model=FeatureTourProgress)
+async def feature_tour_progress(user: CurrentUser):
+    return await learning_path_features.get_progress(user)
+
+
+@router.post("/learning-path-feature-tour/events", response_model=FeatureTourProgress)
+async def feature_tour_event(body: FeatureTourEvent, user: CurrentUser):
+    return await learning_path_features.record_event(user, body)
+
+
+@router.get("/learning-path-feature-tour/report", response_model=FeatureTourReport)
+async def feature_tour_report(user: CurrentUser, token: CurrentBearer):
+    return await learning_path_features.report(user, token=token)
 
 
 @router.get("/learning-path-progress-access")
@@ -100,6 +117,11 @@ async def cancel_help(run_id: UUID, step_id: UUID, request_id: UUID, user: Curre
 @router.put("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}/markings", response_model=HelpRequest)
 async def help_markings(run_id: UUID, step_id: UUID, request_id: UUID, body: HelpMarkings, user: CurrentUser):
     return await help_requests.save_markings(run_id, step_id, request_id, body, user)
+
+
+@router.post("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}/markings/reopen", response_model=HelpRequest)
+async def reopen_help_markings(run_id: UUID, step_id: UUID, request_id: UUID, user: CurrentUser):
+    return await help_requests.reopen_markings(run_id, step_id, request_id, user)
 
 
 HelpSurveyPhase = Literal["topic", "reflection", "action"]

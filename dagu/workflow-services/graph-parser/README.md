@@ -1,7 +1,7 @@
 # graph-parser
 
 Überführt einen eingefrorenen maxGraph-Snapshot anhand seiner mitgelieferten
-Sprachdefinitionen in einen Graph-V3-Vergleichsgraphen. Alle Sprachen verwenden denselben
+Sprachdefinitionen in einen Graph-V1-Vergleichsgraphen. Alle Sprachen verwenden denselben
 Parserpfad. Der Parser beschreibt Struktur und Herkunft neutral und erzeugt keine
 Bewertung oder Rückmeldung zur fachlichen Richtigkeit.
 
@@ -82,10 +82,10 @@ bleibt `kind` ungeklärt (`null`) und eine Diagnose erhalten. Eine vorhandene
 `comparisonRole` bleibt ergänzende Kompatibilitätsinformation; sie ersetzt nicht
 diese Klassifikation.
 
-## Graph-V3-Vertrag und Herkunft
+## Graph-V1-Vertrag und Herkunft
 
-Ausgabe: `workflow-result/v1`, darunter `result.schema: graph-result/v3` und
-`result.graph.schemaVersion: 3`. `result` enthält `evaluationId`, die vollständige
+Ausgabe: `workflow-result/v1`, darunter `result.schema: graph-result/v1` und
+`result.graph.schemaVersion: 1`. `result` enthält `evaluationId`, die vollständige
 Modellquelle `source`, `inputHash`, `languageResources`, `producer`, `graphHash`,
 `graph`, `completeness.interpretation` und `diagnostics`.
 
@@ -95,7 +95,7 @@ Herkunft; die Hashes schalten keine Definitionen frei. `graph.languages` enthäl
 entsprechenden Sprachreferenzen einschließlich der aufgelösten Abhängigkeiten.
 Die tatsächlich verwendeten Sprachen ergeben sich aus den Modellknoten.
 
-`producer` nennt Service `graph-parser`, die aktuelle Serviceversion `0.1.0` und
+`producer` nennt Service `graph-parser`, die aktuelle Serviceversion `1.0.0` und
 `resourceHash`: SHA-256 des kanonischen Objekts aus den tatsächlich ausgeführten
 Quelldateien `main.py`, `parser.py` und `workflow_io.py`. Damit ist die allgemeine
 Verarbeitung eindeutig an eine unveränderliche Ressource gebunden. Diese Metadaten
@@ -131,7 +131,7 @@ modellierte Verbindungen, Zugehörigkeiten und technische Anschlüsse separat.
 Gruppenzuordnung bleibt sie `null`. Für mehrfach konfigurierte Element- oder
 Verbindungstypen wird `AMBIGUOUS_COMPARISON_GROUP` diagnostiziert. Strukturelle Elemente und Verbindungen werden
 nicht allein über eine Vergleichsgruppe als semantische Modellinstanzen behandelt.
-`graph-result/v3` verwendet `kind` für Knotenkategorien und `role` für Kantenrollen.
+`graph-result/v1` verwendet `kind` für Knotenkategorien und `role` für Kantenrollen.
 Die bisherige Reduktion bleibt bestehen; `graph.excluded` wird nicht ausgegeben.
 Verbraucher müssen `contains` als Kind → Parent interpretieren. Ein bekannter Quelltyp
 bleibt auch ohne aufgelöste Definition in `type` erhalten.

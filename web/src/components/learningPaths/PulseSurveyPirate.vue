@@ -18,7 +18,7 @@
     <template v-else>
       <div v-if="speech" class="pirate-speech" role="status">{{ speech }}</div>
       <div :key="offer?.id" class="pirate-arrival" :class="{ 'pirate-arrival--hidden': entering }">
-        <button ref="pirateButton" type="button" id="pulse-pirate-button" class="pirate-button" :class="{ 'pirate-button--animated': pulsing }" :style="{ filter: `grayscale(${countdown})` }" :disabled="busy || state === 'expired'" aria-label="Impuls-Frage öffnen" :aria-expanded="state === 'open'" @click="$emit('open')">
+        <button id="pulse-pirate-button" ref="pirateButton" type="button" class="pirate-button" :class="{ 'pirate-button--animated': pulsing }" :style="{ filter: `grayscale(${countdown})` }" :disabled="busy || state === 'expired'" aria-label="Impuls-Frage öffnen" :aria-expanded="state === 'open'" @click="$emit('open')">
           <PulsePirateArt :pose="state === 'expired' ? 'farewell' : state === 'open' || countdown > 0 ? 'listen' : 'invite'" class="pirate-art" />
           <span v-if="state === 'offered' && !offerOpened" class="pirate-invitation" aria-hidden="true"><TreasureMapArt kind="coin" /><span>+1</span></span>
           <span v-if="countdown > 0" class="pirate-countdown" aria-hidden="true"><span :style="{ transform: `scaleX(${1 - countdown})` }" /></span>

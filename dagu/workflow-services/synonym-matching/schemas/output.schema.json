@@ -50,6 +50,7 @@
         "candidatePairCount": {"type": "integer", "minimum": 0},
         "scoredPairCount": {"type": "integer", "minimum": 0},
         "unavailablePairCount": {"type": "integer", "minimum": 0},
+        "notScoredPairCount": {"type": "integer", "minimum": 0},
         "processedTexts": {
           "type": "object", "required": ["student", "reference"], "additionalProperties": false,
           "properties": {
@@ -114,14 +115,19 @@
         "submissionElementId": {"type": "string", "minLength": 1},
         "submissionLabel": {"type": "string"},
         "comparisonBasis": {"enum": ["group", "type"]},
-        "scoreStatus": {"enum": ["scored", "unavailable"]},
+        "scoreStatus": {"enum": ["scored", "not_scored", "unavailable"]},
+        "notScoredReason": {"type": "string", "minLength": 1},
         "unavailableReason": {"enum": ["missing_text", "unsupported_text"]},
         "scores": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/scoreMap"}]}
       },
       "allOf": [
         {"if": {"properties": {"scoreStatus": {"const": "scored"}}},
          "then": {"required": ["scores"], "properties": {"scores": {"$ref": "#/definitions/scoreMap"}}},
-         "else": {"required": ["unavailableReason"], "properties": {"scores": {"type": "null"}}}}
+         "else": {"properties": {"scores": {"type": "null"}}}},
+        {"if": {"properties": {"scoreStatus": {"const": "unavailable"}}},
+         "then": {"required": ["unavailableReason"]}},
+        {"if": {"properties": {"scoreStatus": {"const": "not_scored"}}},
+         "then": {"required": ["notScoredReason"]}}
       ]
     },
     "connectionTextPair": {

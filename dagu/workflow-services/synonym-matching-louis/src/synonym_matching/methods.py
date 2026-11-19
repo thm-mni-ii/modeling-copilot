@@ -1,14 +1,16 @@
 """Verfahren liefern paarweise Rohscores; größere Werte bedeuten höhere Ähnlichkeit."""
 
+import re
 from importlib.metadata import version
 
 import numpy as np
 from rapidfuzz.distance import DamerauLevenshtein, JaroWinkler, Levenshtein, LCSseq
 from rapidfuzz.fuzz import token_sort_ratio as _token_sort_ratio
 
-from .preprocessing import Preprocessor
+from .preprocessing import Preprocessor, expand_abbreviations, split_identifiers
 from .translation import Translator
 from .combinations import string_ensemble
+from .lexicons import synonym_matrix
 
 
 def _pairwise(left, right, score):
@@ -103,6 +105,50 @@ def exact_match(left, right):
     return _pairwise(left, right, lambda a, b: float(a == b))
 
 
+def label_part_compatibility(left, right):
+    """Liefere 0 bei einem erkannten Nummern-/Raumkonflikt, sonst neutral 1.
+
+    Kleine feste DE/EN-Wortliste, keine automatische Synonymbestätigung.
+    Unbekannte Objektbestandteile werden nicht als widersprüchlich behandelt.
+    """
+    objects = {
+        'gebäude': 'building', 'gebaeude': 'building', 'building': 'building',
+        'buildings': 'building', 'gerät': 'device', 'geräte': 'device',
+        'geraet': 'device', 'geraete': 'device', 'device': 'device',
+        'devices': 'device', 'equipment': 'device', 'raum': 'room', 'room': 'room',
+        'räume': 'room', 'rooms': 'room', 'etage': 'floor', 'floor': 'floor',
+        'stockwerk': 'floor', 'projekt': 'project', 'project': 'project',
+        'forschungsprojekt': 'project',
+    }
+    profiles = {}
+    for text in set(left + right):
+        expanded = expand_abbreviations(split_identifiers(text), 'de').lower()
+        tokens = []
+        for token in re.findall(r'[^\W\d_]+', expanded):
+            for suffix in ('nummer', 'number', 'raum', 'room'):
+                if token.endswith(suffix) and len(token) > len(suffix) + 2:
+                    tokens.extend([token[:-len(suffix)], suffix])
+                    break
+            else:
+                tokens.append(token)
+        profiles[text] = (bool(set(tokens) & {'nummer', 'number', 'id'}),
+                          bool(set(tokens) & {'raum', 'room'}),
+                          {objects[t] for t in tokens if t in objects})
+
+    def compatible(a, b):
+        number_a, room_a, object_a = profiles[a]
+        number_b, room_b, object_b = profiles[b]
+        if number_a != number_b:
+            return 0.0
+        if number_a and object_a and object_b and not object_a & object_b:
+            return 0.0
+        if room_a != room_b and (object_a & object_b) - {'room'}:
+            return 0.0
+        return 1.0
+
+    return _pairwise(left, right, compatible)
+
+
 def translated_string(left, right):
     """Mittle String-Scores für die bereits ins Englische übersetzten Texte."""
     return string_ensemble({
@@ -122,6 +168,41 @@ def openthesaurus(left, right, *, backend):
     return backend.matrix(left, right)
 
 
+def odenet(left, right, *, backend):
+    """Prüfe gemeinsame deutsche OdeNet-Synsets ohne Übersetzung."""
+    return backend.matrix(left, right)
+
+
+def wn_translation(left, right, *, backend, left_languages, right_languages):
+    """Vergleiche sprachübergreifende Synsets über wn statt maschineller Übersetzung."""
+    sides = {'reference': list(zip(left, left_languages, strict=True)),
+             'student': list(zip(right, right_languages, strict=True))}
+    if not left or not right:
+        backend['coverage'] = {side: [{'status': 'not_assessed', 'source_synset_count': None,
+                                       'english_synset_count': None} for _ in items]
+                               for side, items in sides.items()}
+        return np.zeros((len(left), len(right)))
+    if any(text.strip() for text in left + right) and backend['en'].reader is None:
+        backend['en']._load()
+    coverage = {}
+
+    def lookup(item):
+        text, language = item
+        if text.strip() and language not in {'de', 'en'}:
+            raise ValueError('wn_translation requires explicit de/en language')
+        source = backend[language] if text.strip() else None
+        original = source.lookup(text) if source else frozenset()
+        english = source.translate(text) if language == 'de' and original else original
+        coverage[item] = {'source_synset_count': len(original), 'english_synset_count': len(english),
+                          'status': ('empty' if not text.strip() else 'unknown' if not original
+                                     else 'unlinked' if not english else 'linked')}
+        return english
+
+    result = synonym_matrix(sides['reference'], sides['student'], lookup)
+    backend['coverage'] = {side: [coverage[item] for item in items] for side, items in sides.items()}
+    return result
+
+
 # Diese Namen werden auch in der JSON-Konfiguration verwendet.
 METHODS = {
     'levenshtein': levenshtein,
@@ -133,20 +214,27 @@ METHODS = {
     'token_sort_ratio': token_sort_ratio,
     'word_order': word_order,
     'exact_match': exact_match,
+    'label_part_compatibility': label_part_compatibility,
     'translated_string': translated_string,
     'wordnet': wordnet,
     'openthesaurus': openthesaurus,
+    'odenet': odenet,
+    'wn_translation': wn_translation,
     'multilingual': multilingual_embedding,
     'translated_embedding': translated_embedding,
 }
 # Was die Engine für ein Verfahren vorbereitet, statt Namensabfragen in der Engine:
 # translate = Texte vorher DE→EN übersetzen, german_only = Sprache de verlangen,
 # original_text = nur normalisierten Originaltext verwenden (Preprocessing ignorieren).
+# uses_languages = Sprachen nach dem Preprocessing an die Vergleichsfunktion übergeben.
 METHOD_TRAITS = {
     'translated_string': {'translate'},
     'wordnet': {'translate'},
     'openthesaurus': {'german_only'},
+    'odenet': {'german_only'},
+    'wn_translation': {'uses_languages'},
     'exact_match': {'original_text'},
+    'label_part_compatibility': {'original_text'},
 }
 # Die bisherige String-Baseline bleibt ausdrücklich auswählbar.
 STRING_BASELINES = [

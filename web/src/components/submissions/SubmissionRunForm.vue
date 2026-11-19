@@ -1,32 +1,34 @@
 <template>
-  <v-text-field v-model="data.name" label="Run name" placeholder="e.g. Winter semester 2026/27" hint="Enter the semester or another name so this run is easy to find later." persistent-hint maxlength="256" />
+  <v-text-field :model-value="data.name" label="Run name" placeholder="e.g. Winter semester 2026/27" hint="Enter the semester or another name so this run is easy to find later." persistent-hint maxlength="256" @update:model-value="updateData({ name: $event })" />
   <v-text-field v-model="deadline" type="datetime-local" :label="`Deadline (${timezone})`" class="mt-3" />
   <v-select
-    v-model="data.state"
+    :model-value="data.state"
     label="State"
     :items="[
       { title: 'Open', value: 'open' },
       { title: 'Closed · reviews remain editable', value: 'closed' },
       { title: 'Archived · read only', value: 'archived' }
     ]"
+    @update:model-value="updateData({ state: $event })"
   />
   <v-select
-    v-model="data.participation"
+    :model-value="data.participation"
     label="Who may submit?"
     :items="[
       { title: 'All signed-in users', value: 'all' },
       { title: 'Selected users', value: 'selected' }
     ]"
+    @update:model-value="updateData({ participation: $event })"
   />
-  <SubmissionUserPicker v-if="data.participation === 'selected'" :model-value="data.participantIds ?? []" label="Participants" :run-id="directoryRunId" @update:model-value="data.participantIds = $event" />
+  <SubmissionUserPicker v-if="data.participation === 'selected'" :model-value="data.participantIds ?? []" label="Participants" :run-id="directoryRunId" @update:model-value="updateData({ participantIds: $event })" />
   <h3 class="text-subtitle-1 mb-2">Additional permissions for this run</h3>
   <p class="text-body-2 mb-3">Administrators and FBS moderators can always manage runs. Additional permissions do not change a user's FBS role.</p>
   <SubmissionUserPicker :model-value="grantIds" label="Additional staff" :run-id="directoryRunId" @update:model-value="setGrants" />
   <div v-for="grant in data.grants" :key="grant.userId" class="d-flex flex-wrap align-center ga-3">
     <span>{{ grant.userId }}</span>
-    <v-checkbox v-model="grant.manage" label="Manage" hide-details density="compact" />
-    <v-checkbox v-model="grant.review" label="Review" hide-details density="compact" />
-    <v-checkbox v-model="grant.publish" label="Release" hide-details density="compact" />
+    <v-checkbox :model-value="grant.manage" label="Manage" hide-details density="compact" @update:model-value="updateGrant(grant.userId, 'manage', $event === true)" />
+    <v-checkbox :model-value="grant.review" label="Review" hide-details density="compact" @update:model-value="updateGrant(grant.userId, 'review', $event === true)" />
+    <v-checkbox :model-value="grant.publish" label="Release" hide-details density="compact" @update:model-value="updateGrant(grant.userId, 'publish', $event === true)" />
   </div>
 </template>
 
@@ -35,6 +37,8 @@ import { computed } from 'vue'
 import SubmissionUserPicker from './SubmissionUserPicker.vue'
 import type { RunData } from '@/services/api/types/submission'
 const props = defineProps<{ data: RunData; directoryRunId?: string }>()
+const emit = defineEmits<{ 'update:data': [value: RunData] }>()
+const updateData = (change: Partial<RunData>) => emit('update:data', { ...props.data, ...change })
 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 const deadline = computed({
   get: () => {
@@ -43,11 +47,14 @@ const deadline = computed({
   },
   set: (value: string) => {
     const d = new Date(value)
-    if (Number.isFinite(d.getTime())) props.data.deadline = d.toISOString()
+    if (Number.isFinite(d.getTime())) updateData({ deadline: d.toISOString() })
   }
 })
 const grantIds = computed(() => (props.data.grants ?? []).map((g) => g.userId))
 const setGrants = (ids: string[]) => {
-  props.data.grants = ids.map((id) => props.data.grants?.find((g) => g.userId === id) ?? { userId: id, manage: false, review: true, publish: false })
+  updateData({ grants: ids.map((id) => props.data.grants?.find((g) => g.userId === id) ?? { userId: id, manage: false, review: true, publish: false }) })
+}
+const updateGrant = (userId: string, field: 'manage' | 'review' | 'publish', value: boolean) => {
+  updateData({ grants: props.data.grants?.map((grant) => grant.userId === userId ? { ...grant, [field]: value } : grant) })
 }
 </script>

@@ -3,6 +3,7 @@
     <ModelingToolbarGroup title="Modeling">
       <LayerVisibilityControls :model-value="layerView" @update:model-value="emit('update:layer-view', $event)" />
       <ConnectionToolbar v-if="connections.length" ref="connectionToolbar" compact :connections="connections" :connection-groups="connectionGroups" :preferences="connectionPreferences" @select="emit('select-connection', $event)" @update:preferences="emit('update:connection-preferences', $event)" />
+      <SelectedTypeControl :languages="typeSwitchLanguages" :enabled="canChangeType" />
     </ModelingToolbarGroup>
     <v-divider vertical class="canvas-toolbar__divider" />
 
@@ -28,6 +29,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import ConnectionToolbar from './ConnectionToolbar.vue'
+import SelectedTypeControl from './SelectedTypeControl.vue'
+import type { SwitchLanguage } from '@/utils/typeSwitch'
 import LayerVisibilityControls, { type CanvasLayerView } from './LayerVisibilityControls.vue'
 import ModelingToolbarGroup from './ModelingToolbarGroup.vue'
 import type { JsonObject } from '@/services/api/types/common'
@@ -39,9 +42,11 @@ withDefaults(
     connections?: DiagramConnection[]
     connectionGroups?: DiagramConnectionGroup[]
     connectionPreferences?: JsonObject
+    typeSwitchLanguages?: SwitchLanguage[]
+    canChangeType?: boolean
     layerView: CanvasLayerView
   }>(),
-  { connections: () => [], connectionGroups: () => [], connectionPreferences: undefined }
+  { typeSwitchLanguages: () => [], canChangeType: false, connections: () => [], connectionGroups: () => [], connectionPreferences: undefined }
 )
 
 const emit = defineEmits<{
