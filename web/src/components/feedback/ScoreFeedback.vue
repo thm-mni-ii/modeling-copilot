@@ -6,6 +6,7 @@
           <v-icon :color="statuses[statusOf(object)].color" size="16">{{ statuses[statusOf(object)].icon }}</v-icon>
           <span class="score-feedback__name">{{ object.label || 'Unbeschriftetes Objekt' }}</span>
           <span class="text-medium-emphasis">{{ statuses[statusOf(object)].label }}</span>
+          <span v-if="isCurrent && !isCurrent(object.cellId)" class="text-medium-emphasis">(ausgewerteter Stand)</span>
           <v-spacer />
           <strong v-if="object.score">{{ format(object.score.percent) }}</strong>
           <v-btn icon="mdi-crosshairs-gps" size="x-small" variant="text" :aria-label="`${object.label || 'Objekt'} im Modell zeigen`" @click="emit('select', [object.cellId])" />
@@ -23,13 +24,14 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue'
+import { watch } from 'vue'
+import { InternalEvent } from '@maxgraph/core'
 import type { Cell, CellOverlay } from '@maxgraph/core'
 import { useGraphContextOptional } from '@/composables/useGraphContext'
 import { createOverlayFromConfig } from '@/utils/feedbackOverlays'
 import type { HelpFeedbackEntry, HelpFeedbackObject } from '@/services/api/types/evaluation'
 
-const props = defineProps<{ entry: HelpFeedbackEntry }>()
+const props = defineProps<{ entry: HelpFeedbackEntry; isCurrent?: (id: string) => boolean }>()
 const emit = defineEmits<{ select: [cellIds: string[]] }>()
 type CheckStatus = 'correct' | 'deviation' | 'unassigned'
 const statuses: Record<CheckStatus, { icon: string; color: string; label: string }> = {
@@ -45,26 +47,30 @@ const format = (value: number) => `${new Intl.NumberFormat('de-DE', { maximumFra
 
 // The status is shown visually in the diagram, not as text; runtime overlays only, the model stays unchanged.
 const graphContext = useGraphContextOptional()
-let installed: { cell: Cell; overlay: CellOverlay }[] = []
-const remove = () => {
-  const graph = graphContext?.graph.value
-  if (graph) for (const { cell, overlay } of installed) graph.removeCellOverlay(cell, overlay)
-  installed = []
-}
-watch([() => graphContext?.graph.value, () => props.entry], ([graph]) => {
-  remove()
+watch([() => graphContext?.graph.value, () => props.entry, () => props.isCurrent], ([graph], _, onCleanup) => {
   if (!graph) return
-  for (const object of props.entry.objects ?? []) {
-    const cell = graph.getDataModel().getCell(object.cellId)
-    if (!cell) continue
-    const status = statuses[statusOf(object)]
-    const overlay = createOverlayFromConfig({ image: { src: '', width: 16, height: 16 }, icon: status.icon, color: status.color,
-      tooltip: `${object.label || 'Objekt'}: ${status.label}${object.score ? ` (${format(object.score.percent)})` : ''}`, align: 'right', verticalAlign: 'top', offset: { x: 8, y: -8 } })
-    graph.addCellOverlay(cell, overlay)
-    installed.push({ cell, overlay })
+  let installed: { cell: Cell; overlay: CellOverlay }[] = []
+  const remove = () => {
+    for (const { cell, overlay } of installed) graph.removeCellOverlay(cell, overlay)
+    installed = []
   }
+  const refresh = () => {
+    remove()
+    for (const object of props.entry.objects ?? []) {
+      if (props.isCurrent && !props.isCurrent(object.cellId)) continue
+      const cell = graph.getDataModel().getCell(object.cellId)
+      if (!cell) continue
+      const status = statuses[statusOf(object)]
+      const overlay = createOverlayFromConfig({ image: { src: '', width: 16, height: 16 }, icon: status.icon, color: status.color,
+        tooltip: `${object.label || 'Objekt'}: ${status.label}${object.score ? ` (${format(object.score.percent)})` : ''}`, align: 'right', verticalAlign: 'top', offset: { x: 8, y: -8 } })
+      graph.addCellOverlay(cell, overlay)
+      installed.push({ cell, overlay })
+    }
+  }
+  graph.getDataModel().addListener(InternalEvent.CHANGE, refresh)
+  refresh()
+  onCleanup(() => { graph.getDataModel().removeListener(refresh); remove() })
 }, { immediate: true })
-onBeforeUnmount(remove)
 </script>
 
 <style scoped>

@@ -1,8 +1,9 @@
 <template>
   <div class="feedback-view">
+    <p v-if="changed" class="feedback-view__overview">Feedback zum ausgewerteten Stand. Markierungen und Objektverweise bleiben für unveränderte Objekte erhalten.</p>
     <section v-for="(entry, index) in entries" :key="`${entry.type}:${index}`" class="feedback-view__entry" :aria-label="titles[entry.type] ?? 'Feedback'">
       <p v-if="!compact && entry.type !== 'help.check'" class="feedback-view__overview">{{ entry.overview.recognized }} von {{ entry.overview.expected }} erwarteten Objekten erkannt</p>
-      <component :is="components[entry.type]" v-if="components[entry.type]" :entry="entry" :compact="compact" @select="select" />
+      <component :is="components[entry.type]" v-if="components[entry.type]" :entry="entry" :compact="compact" v-bind="entry.type === 'help.clarify' || entry.type === 'help.check' ? { isCurrent } : {}" @select="select" />
       <p v-else class="feedback-view__unknown">Diese Art von Feedback kann hier noch nicht angezeigt werden.</p>
     </section>
   </div>
@@ -14,15 +15,17 @@ import type { Cell } from '@maxgraph/core'
 import { useGraphContextOptional } from '@/composables/useGraphContext'
 import { notifyWarning } from '@/composables/useNotifications'
 import type { HelpFeedbackEntry } from '@/services/api/types/evaluation'
+import { useFeedbackValidity } from '@/composables/useFeedbackValidity'
 
 // compact: no recognition line; the staff preview shows many objects.
-defineProps<{ entries: HelpFeedbackEntry[]; compact?: boolean }>()
+const props = defineProps<{ entries: HelpFeedbackEntry[]; compact?: boolean; snapshotXml?: string | null }>()
+const { isCurrent, changed } = useFeedbackValidity(() => props.snapshotXml)
 const graphContext = useGraphContextOptional()
 const select = (cellIds: string[]) => {
   const graph = graphContext?.graph.value
-  const cells = (graph ? cellIds.map((id) => graph.getDataModel().getCell(id)) : []).filter((cell): cell is Cell => cell != null)
+  const cells = (graph ? cellIds.filter(isCurrent.value).map((id) => graph.getDataModel().getCell(id)) : []).filter((cell): cell is Cell => cell != null)
   if (!graph || !cells.length) {
-    notifyWarning('Das Objekt ist im aktuellen Modell nicht mehr vorhanden.')
+    notifyWarning('Das Objekt fehlt oder wurde seit der Auswertung fachlich verändert. Das Feedback bleibt am ausgewerteten Stand verfügbar.')
     return
   }
   graph.setSelectionCells(cells)

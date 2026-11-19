@@ -17,7 +17,7 @@
               <v-chip-group v-model="helpType" mandatory column selected-class="text-primary" aria-label="Angeforderte Hilfe">
                 <v-chip v-for="option in helpOptions" :key="option.type" :value="option.type" :title="option.request" size="x-small" variant="outlined">{{ option.title }}</v-chip>
               </v-chip-group>
-              <FeedbackView compact :entries="entries(object, helpType)" />
+              <FeedbackView compact :entries="entries(object, helpType)" :snapshot-xml="snapshotXml" />
             </v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>
@@ -33,6 +33,7 @@ import type { EvaluationDetail, HelpFeedbackCatalogObject, HelpFeedbackEntry, He
 
 // focus: a diagram click in this tab; seq re-triggers the same object.
 const props = defineProps<{ detail: EvaluationDetail; referenceKey: string; focus?: { id: string; seq: number } | null }>()
+const snapshotXml = computed(() => (props.detail.submissionSnapshot.data as { xml?: string } | undefined)?.xml ?? null)
 
 type HelpType = 'help.clarify' | 'help.next_step' | 'help.example' | 'help.check' | 'help.solution'
 // Order and wording follow the learner's choice in the help questionnaire.

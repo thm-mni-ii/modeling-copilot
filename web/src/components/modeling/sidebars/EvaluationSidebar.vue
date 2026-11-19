@@ -1,7 +1,7 @@
 <template>
   <div class="evaluation-sidebar">
     <div class="evaluation-sidebar__toolbar">
-      <v-btn v-if="view === 'detail'" icon size="x-small" variant="text" title="Zurück zur Liste" @click="view = 'list'">
+      <v-btn v-if="view === 'detail' && !historical" icon size="x-small" variant="text" title="Zurück zur Liste" @click="view = 'list'">
         <v-icon size="18">mdi-arrow-left</v-icon>
       </v-btn>
       <span v-if="view === 'detail' && current" class="evaluation-sidebar__toolbar-title" :title="showServiceView ? current.name : feedbackTitle">{{ showServiceView ? current.name : feedbackTitle }}</span>
@@ -58,6 +58,10 @@
         <template #append><v-btn size="x-small" variant="text" @click="reload">Erneut versuchen</v-btn></template>
       </v-alert>
       <template v-else-if="current">
+        <template v-if="!historical && selectedSubmission && selectedId">
+          <p class="text-caption mb-1">Feedback zum gespeicherten Modellstand · Auswertung vom {{ absoluteTime(current.startedAt) }}</p>
+          <v-btn size="small" variant="tonal" prepend-icon="mdi-timeline-clock-outline" class="mb-3" @click="historyDialog = true">Modellstand ansehen</v-btn>
+        </template>
         <v-btn-toggle v-if="canViewService" v-model="selectedPerspective" mandatory divided density="compact" variant="outlined" color="primary" class="evaluation-perspective mb-3" aria-label="Auswertungsansicht">
           <v-btn value="service" size="small">Service</v-btn>
           <v-btn value="student" size="small">Studierende</v-btn>
@@ -104,7 +108,7 @@
         </v-alert>
 
         <!-- Learners see exactly what the completion check shows: percentages and, in learning paths, the thresholds. -->
-        <section v-if="!showServiceView && feedback?.state === 'succeeded' && !hasCheckFeedback" class="my-3" aria-label="Dein Ergebnis" aria-live="polite">
+        <section v-if="!historical && !showServiceView && feedback?.state === 'succeeded' && !hasCheckFeedback" class="my-3" aria-label="Dein Ergebnis" aria-live="polite">
           <div class="d-flex flex-wrap align-center ga-2 mb-3">
             <h3 class="text-body-2 font-weight-medium">Dein Ergebnis</h3>
             <v-spacer />
@@ -115,10 +119,10 @@
         </section>
         <section v-if="!showServiceView && feedback?.state === 'succeeded' && feedback.feedback?.length" class="my-3" aria-label="Dein Hilfe-Feedback">
           <h3 class="text-body-2 font-weight-medium mb-2">Dein Hilfe-Feedback</h3>
-          <FeedbackView :entries="feedback.feedback" />
+          <FeedbackView :entries="feedback.feedback" :snapshot-xml="feedbackSnapshotXml" />
         </section>
 
-        <section v-if="showServiceView && serviceTab === 'overview'" class="my-3" aria-label="Erkennungsübersicht" aria-live="polite">
+        <section v-if="(showServiceView && serviceTab === 'overview') || (historical && !showServiceView)" class="my-3" aria-label="Erkennungsübersicht" aria-live="polite">
           <h3 class="text-body-2 font-weight-medium mb-1">Erkennung</h3>
           <p class="text-caption text-medium-emphasis">Anteil der Musterlösungsobjekte mit eindeutig erkanntem Gegenstück. Keine Korrektheitsquote oder Note.</p>
           <p v-if="selectedRecognition?.recognition.buckets" class="text-caption text-medium-emphasis">Eine Zeile je Vergleichsgruppe bzw. nicht gruppiertem Typ der Musterlösung.</p>
@@ -135,6 +139,7 @@
               <v-progress-linear v-if="unmatchedCount" :model-value="100" height="4" rounded color="error" :aria-label="`${unmatchedCount} Abgabeobjekte ohne Zuordnung`" />
             </div>
           </template>
+          <p v-else-if="historical && feedback?.scorePercent != null" class="text-body-2">Gespeichertes Ergebnis: {{ feedback.scorePercent }} %</p>
           <p v-else class="text-caption text-medium-emphasis">Für diese Auswertung und Musterlösung ist noch keine Erkennungsübersicht verfügbar.</p>
         </section>
 
@@ -179,13 +184,15 @@
       </template>
     </div>
   </div>
+  <ModelTimelineDialog v-if="!historical && historyDialog && selectedSubmission && selectedId" v-model="historyDialog" :target-version-id="selectedSubmission.versionId" :target-evaluation-id="selectedId" :evaluation-perspective="selectedPerspective" />
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ApiId, JsonObject } from '@/services/api/types/common'
 import type { Evaluation, EvaluationDetail, EvaluationFeedback, EvaluationOutcome } from '@/services/api/types/evaluation'
 import evaluationService from '@/services/evaluation/evaluation.service'
+import modelService from '@/services/model/model.service'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import { useUserStore } from '@/stores/userStore'
 import JsonResultViewer from './JsonResultViewer.vue'
@@ -199,7 +206,9 @@ import { completionGate, type GateResult } from '@/utils/completionGate'
 import { useModelFileContext } from '@/composables/useModelFileContext'
 import { adaptRecognition, analysisCategories, analysisValueLabel, categoryLabels, recognitionReportsFromEvaluation, type RecognitionCount } from '@/utils/analysisFeedback'
 
-const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null; evaluationPerspective?: 'service' | 'student' }>()
+const ModelTimelineDialog = defineAsyncComponent(() => import('../versions/ModelTimelineDialog.vue'))
+const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null; evaluationPerspective?: 'service' | 'student'; historical?: boolean }>()
+const historyDialog = ref(false)
 const emit = defineEmits<{ 'evaluation-updated': [evaluation: EvaluationOutcome]; 'service-detail-opened': [] }>()
 const userStore = useUserStore()
 const selectedPerspective = ref<'service' | 'student'>('service')
@@ -210,6 +219,26 @@ const evaluations = ref<Evaluation[]>([])
 // Service view: full run (moderators/admins only). Student view: the learner feedback endpoint, exactly what learners receive.
 const detail = ref<EvaluationDetail | null>(null)
 const feedback = ref<EvaluationFeedback | null>(null)
+const feedbackSnapshotXml = ref<string | null>(null)
+const feedbackSnapshots = new Map<string, Promise<string | null>>()
+watch(() => feedback.value ? `${feedback.value.submission.modelId}:${feedback.value.submission.versionId}` : null, async (key, _, onCleanup) => {
+  feedbackSnapshotXml.value = null
+  let active = true
+  onCleanup(() => { active = false })
+  const submission = feedback.value?.submission
+  if (!key || !submission) return
+  let snapshot = feedbackSnapshots.get(key)
+  if (!snapshot) {
+    snapshot = modelService.get(submission.modelId)
+      .then(model => modelService.getVersion(model.data, submission.versionId))
+      .then(version => typeof version.data.data.xml === 'string' ? version.data.data.xml : null)
+      .catch(() => null)
+    feedbackSnapshots.set(key, snapshot)
+  }
+  const xml = await snapshot
+  if (active) feedbackSnapshotXml.value = xml
+}, { immediate: true })
+const selectedSubmission = computed(() => showServiceView.value ? detail.value?.submission : feedback.value?.submission)
 const current = computed(() => showServiceView.value
   ? detail.value && { state: detail.value.state, startedAt: detail.value.startedAt, name: detail.value.workflow.name }
   : feedback.value && { state: feedback.value.state, startedAt: feedback.value.startedAt, name: feedback.value.workflowName })
@@ -399,11 +428,11 @@ const stopPolling = () => {
 }
 
 const loadList = async () => {
-  if (!props.modelId) return
+  if (!props.modelId || props.historical) return
   loading.value = true
   listError.value = null
   try {
-    evaluations.value = (await evaluationService.list(props.modelId)).data.items
+    evaluations.value = await evaluationService.listAll(props.modelId)
   } catch {
     listError.value = 'Auswertungen konnten nicht geladen werden.'
   } finally {

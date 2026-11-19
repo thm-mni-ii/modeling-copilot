@@ -51,7 +51,7 @@
     </template>
 
     <template v-else-if="analysis">
-      <v-alert v-if="stale" type="info" density="compact" variant="tonal" class="my-2">Das Diagramm weicht vom ausgewerteten Stand ab. Markierungen sind ausgeblendet; die Befunde gelten für den gespeicherten Stand.</v-alert>
+      <v-alert v-if="stale" type="info" density="compact" variant="tonal" class="my-2">Das Modell wurde seit der Auswertung geändert. Markierungen bleiben für unveränderte Objekte und Abhängigkeiten erhalten. Die Befundtexte beziehen sich auf den ausgewerteten Stand.</v-alert>
 
       <template v-if="selected">
         <div class="d-flex align-center ga-1 my-1">
@@ -105,10 +105,10 @@
 
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue'
-import { GraphDataModel, InternalEvent, type Cell, type Graph } from '@maxgraph/core'
+import { InternalEvent, type Cell } from '@maxgraph/core'
 import type { EvaluationDetail } from '@/services/api/types/evaluation'
 import { useGraphContextOptional } from '@/composables/useGraphContext'
-import { createModelSerializer, importModelFromXml } from '@/utils/modelPersistence'
+import { createFeedbackValidity, currentAnalysis } from '@/utils/feedbackValidity'
 import {
   analysisDisplay, analysisFactLabel, analysisFromEvaluation, analysisHintText, analysisIdentityMethodLabel, analysisStatus, candidateEvidence, graphDiagnosticLabel,
   graphInfo, individualViolations, objectKindLabel, similarityMethodLabel, type AdaptedAnalysis, type AnalysisAnnotation, type GraphInfo, type ReferenceHint
@@ -130,6 +130,7 @@ const selectedKey = ref<string | null>(null)
 const filter = ref<FindingGroup | 'all'>('all')
 const search = ref<string | null>('')
 const stale = ref(false)
+const currentFindingKeys = shallowRef(new Set<string>())
 const analysis = shallowRef<AdaptedAnalysis | null>(null)
 const error = ref('')
 
@@ -221,12 +222,13 @@ const selectedDiagnostics = computed(() => {
 
 const targetCell = (finding: Finding) => {
   const graph = graphContext?.graph.value
-  if (!graph || stale.value) return null
+  if (!graph || !currentFindingKeys.value.has(finding.key)) return null
   return finding.annotation ? analysisTargetCell(graph, finding.annotation.target) : finding.hint ? referenceHintTarget(graph, finding.hint) : null
 }
 const targetNote = computed(() => {
   const item = selected.value
-  if (!item || !graphContext?.graph.value || stale.value) return undefined
+  if (!item || !graphContext?.graph.value) return undefined
+  if (!currentFindingKeys.value.has(item.key)) return 'Dieses Feedback gilt für den ausgewerteten Stand. Das Objekt oder eine seiner Abhängigkeiten wurde inzwischen geändert.'
   if (targetCell(item)) return undefined
   return item.hint ? 'Im Diagramm nicht verortbar: Es gibt keinen identifizierten Parent oder Endpunkt.' : 'Für dieses Objekt ist kein Diagrammziel darstellbar.'
 })
@@ -256,46 +258,29 @@ const showGroup = (group: FindingGroup) => {
   tab.value = 'findings'
 }
 
-// Layer visibility is editor view state; element visibility remains part of the snapshot.
-const canonicalXml = (xml: string) => {
-  const document = new DOMParser().parseFromString(xml, 'application/xml')
-  if (document.querySelector('parsererror')) return null
-  const cells = [...document.querySelectorAll('GraphDataModel > root > Cell')]
-  const rootId = cells.find(cell => !cell.hasAttribute('parent'))?.getAttribute('id')
-  for (const cell of cells) if (rootId && cell.getAttribute('parent') === rootId) cell.removeAttribute('visible')
-  const canonical = (element: Element): unknown => [element.tagName, [...element.attributes].map(attribute => [attribute.name, attribute.value]).sort(([a], [b]) => a.localeCompare(b)),
-    [...element.childNodes].flatMap(node => node instanceof Element ? [canonical(node)] : node.textContent?.trim() ? [node.textContent] : [])]
-  return JSON.stringify(canonical(document.documentElement))
-}
 watch(analysis, () => { selectedKey.value = null; filter.value = 'all' })
 watch([() => graphContext?.graph.value, analysis], ([graph, value], _, onCleanup) => {
   stale.value = false
+  currentFindingKeys.value = new Set()
   if (!graph || !value) return
   const data = props.detail.submissionSnapshot.data as { xml?: string } | undefined
-  let expected: string | null = null
-  if (data?.xml) {
-    // Use the same import/export path as the canvas to normalize codec defaults
-    // and historical fields, without changing the live graph or assigning IDs.
-    const snapshotModel = new GraphDataModel()
-    const snapshotGraph = { getDataModel: () => snapshotModel } as Graph
-    try {
-      importModelFromXml(snapshotGraph, data.xml)
-      expected = canonicalXml(createModelSerializer(snapshotGraph).export({ pretty: false }))
-    } catch {
-      // An unreadable snapshot cannot safely authorize diagram overlays.
-    }
-  }
-  const matchesSnapshot = () => expected !== null && canonicalXml(createModelSerializer(graph).export({ pretty: false })) === expected
+  const evaluate = createFeedbackValidity(data?.xml)
   let removeOverlays = () => {}
   const refresh = () => {
     removeOverlays()
-    stale.value = !matchesSnapshot()
-    if (!stale.value) removeOverlays = installAnalysisOverlays(graph, value, openSubmission).remove
+    const validity = evaluate(graph)
+    stale.value = validity.changed
+    const applicable = currentAnalysis(value, validity)
+    currentFindingKeys.value = new Set([
+      ...applicable.report.annotations.map(item => `submission:${item.target.id}`),
+      ...applicable.report.referenceHints.map(item => `reference:${item.referenceId}`)
+    ])
+    removeOverlays = installAnalysisOverlays(graph, applicable, openSubmission).remove
   }
   // Selecting an analysed cell in the diagram opens its findings; other selections leave the panel as it is.
   const selectionChanged = () => {
     const id = (graph.getSelectionCell() as Cell | null)?.getId()
-    if (!focusing && id && !stale.value) openSubmission(id)
+    if (!focusing && id && currentFindingKeys.value.has(`submission:${id}`)) openSubmission(id)
   }
   graph.getSelectionModel().addListener(InternalEvent.CHANGE, selectionChanged)
   graph.getDataModel().addListener(InternalEvent.CHANGE, refresh)
