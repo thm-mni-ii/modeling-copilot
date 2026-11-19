@@ -1,7 +1,7 @@
 import type { AxiosError } from 'axios'
 import { createEmptyModelSnapshot, EMPTY_MODEL_XML, type ModelSnapshot } from '@/model/ModelSnapshot'
 import httpClient from '@/services/api/httpClient'
-import type { JsonObject, TaskVersionReference } from '@/services/api/types/common'
+import type { JsonObject, LanguageVersionReference, TaskVersionReference } from '@/services/api/types/common'
 import type { CreateModelVersion, Model, ModelPatch, ModelVersion, ModelVersionInfo, TaskEditDocument, WorkspaceLanguageReference } from '@/services/api/types/model'
 import modelService from '@/services/model/model.service'
 import taskService from '@/services/task/task.service'
@@ -16,26 +16,14 @@ import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/
 import { MARKS_MAP, taskLinkOf } from '@/collab/converters/task/taskLink'
 import { CELLS_MAP, historyModeOf, linkOf } from '@/collab/storage/workpiece'
 import { versionsOf } from '@/collab/storage/workpieceVersions'
+import { readTaskSteps, type RoomTaskStep, type TaskRead } from '@/collab/worksheet/roomTaskHistory'
 import { sharedTaskEdit, sharedTaskReference } from '@/collab/worksheet/sharedTask'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** The state of the room as this browser holds it now. */
 export interface RoomState {
   xml: string
   languages: WorkspaceLanguageReference[]
-}
-
-/** One change of the marks of a room that changed them; notes change the same workpiece. */
-interface RoomTaskStep {
-  id: string
-  createdAt: string
-  marks: SharedMarks
-}
-
-/** What is read of the task of a room: its steps, and where the next read goes on. */
-interface TaskRead {
-  steps: RoomTaskStep[]
-  marks: SharedMarks
-  seen: string | null
 }
 
 /** What is read of a room for the way back: its versions, the changes after the last of them, and the task. */
@@ -47,30 +35,9 @@ interface RoomRead {
 
 const NOTHING: RoomRead = { versions: [], rest: [], task: { steps: [], marks: {}, seen: null } }
 
-/** States read at once from collab-kit. */
-const BATCH = 6
-/** How often a visitor reads what the room added, as nothing can be read any more once the room is closed. */
-const FOLLOW_MS = 30000
+/** States of versions read at once from collab-kit. */
 
 const xmlAt = async (ck: CollabKitApi, workpieceId: string, at?: string) => (at ? xmlOf((await ck.workpieces.unitsAt<ModelUnit>(workpieceId, { at, map: CELLS_MAP })).units) : null) ?? EMPTY_MODEL_XML
-
-/** Reads the changes of the marks since the last read. */
-const readTaskSteps = async (ck: CollabKitApi, workpieceId: string, read: TaskRead): Promise<TaskRead> => {
-  const updates = await ck.workpieces.updates(workpieceId, read.seen ? { since: read.seen } : {})
-  const steps = [...read.steps]
-  let { marks, seen } = read
-  for (let start = 0; start < updates.length; start += BATCH) {
-    const batch = updates.slice(start, start + BATCH)
-    const states = await Promise.all(batch.map((update) => ck.workpieces.unitsAt<SharedMark>(workpieceId, { at: update._id, map: MARKS_MAP })))
-    batch.forEach((update, index) => {
-      const next: SharedMarks = Object.fromEntries(states[index].units)
-      if (JSON.stringify(next) !== JSON.stringify(marks)) steps.push({ id: update._id, createdAt: update.createdAt, marks: next })
-      marks = next
-      seen = update._id
-    })
-  }
-  return { steps, marks, seen }
-}
 
 /** Reads what the room holds beyond `before`; states of versions read before are not read again. */
 const readRoom = async (ck: CollabKitApi, linked: Model, workpiece: Workpiece, before: RoomRead): Promise<RoomRead> => {
@@ -78,8 +45,8 @@ const readRoom = async (ck: CollabKitApi, linked: Model, workpiece: Workpiece, b
   if (!room) return before
   const known = new Map(before.versions.map(({ info, xml }) => [info.id, xml]))
   const versions: RoomRead['versions'] = []
-  for (let start = 0; start < room.versions.length; start += BATCH) {
-    const batch = room.versions.slice(start, start + BATCH)
+  for (let start = 0; start < room.versions.length; start += collabSettings.sharing.apiBatch) {
+    const batch = room.versions.slice(start, start + collabSettings.sharing.apiBatch)
     const states = await Promise.all(batch.map(({ info, at }) => known.get(info.id) ?? xmlAt(ck, workpiece._id, at)))
     batch.forEach(({ info }, index) => versions.push({ info, xml: states[index] }))
   }
@@ -236,7 +203,7 @@ export const followRoomHistory = (linked: Model, workpieceId: string) => {
   let stopped = false
   const round = async () => {
     await readMirror().catch(() => undefined)
-    if (!stopped) timer = setTimeout(() => void round(), FOLLOW_MS)
+    if (!stopped) timer = setTimeout(() => void round(), collabSettings.sharing.followMs)
   }
   const start = async () => {
     const workpiece = await (await loadCollabKit()).workpieces.get(workpieceId)
@@ -282,5 +249,43 @@ export const keepRoomAsOwnModel = async (name: string, state: RoomState) => {
   } catch (error) {
     await httpClient.delete(`/v1/models/${model.id}`).catch(() => undefined)
     throw error
+  }
+}
+
+/** What a branch from the timeline of a room model takes of the task; the notice tells why it took none. */
+export interface RoomBranchTask {
+  reference: TaskVersionReference | null
+  languages: WorkspaceLanguageReference[]
+  taskEdit: TaskEditDocument | null
+  notice: string | null
+}
+
+/**
+ * The task of a room for a branch: the release, if the API gives it to this person and the required
+ * languages are in the state, with the marks over its text. Null outside a room. Without the release
+ * or with other languages the branch becomes a model without a task, the state stays.
+ */
+export const roomBranchTask = async (languages: WorkspaceLanguageReference[], atPosition: TaskEditDocument | null): Promise<RoomBranchTask | null> => {
+  const reference = sharedTaskReference.value
+  if (!reference || useModelWorkspaceStore().taskVersion) return null
+  const without: RoomBranchTask = { reference: null, languages, taskEdit: null, notice: 'The task could not be taken along; the copy is a model without task.' }
+  let version
+  try {
+    version = (await taskService.getVersion(reference.taskId, reference.versionId)).data
+  } catch (error) {
+    if ((error as AxiosError).response?.status !== 404) throw error
+    return without
+  }
+  const required = version.workspaceLanguages.filter((language) => language.source === 'required')
+  const isRequired = (language: LanguageVersionReference) => required.some((item) => item.languageId === language.languageId && item.versionId === language.versionId)
+  if (!required.every((item) => languages.some((language) => language.languageId === item.languageId && language.versionId === item.versionId))) return without
+  // The marks of the group over the text of the release, as when keeping (publishTaskSteps).
+  const edit = atPosition ?? sharedTaskEdit.value
+  const base = version.data.contentDocument
+  return {
+    reference,
+    languages: languages.map((language) => ({ ...language, source: isRequired(language) ? 'required' : 'additional' })),
+    taskEdit: edit && base ? { ...edit, document: withMarks(stripTaskEdits(base), marksOf(edit.document)) } : null,
+    notice: null
   }
 }

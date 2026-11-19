@@ -1,7 +1,8 @@
 import type { JsonObject } from '@/services/api/types/common'
 import type { WorkspaceLanguageReference } from '@/services/api/types/model'
-import type { NewWorkpiece, Workpiece } from '@/collab/kit/collabKitV1'
+import type { CollabKitApi, NewWorkpiece, Session, UpdateSummary, Workpiece } from '@/collab/kit/collabKitV1'
 import type { HistoryMode } from '@/collab/converters/model/modelHistory'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** The top map of the doc, one cell per key; named as units, so a conflict names its cell. */
 export const CELLS_MAP = 'cells'
@@ -60,3 +61,20 @@ export const historyModeOf = (workpiece: Workpiece): HistoryMode => {
   const mode = workpiece.contract.history
   return mode === 'versions' || mode === 'steps' ? mode : 'none'
 }
+
+/** States read at once from collab-kit while catching up on stored changes. */
+
+/** Reads the units after each of these updates, a batch at a time, and hands them on in their order. */
+export const forEachState = async <Value, Update extends UpdateSummary>(ck: CollabKitApi, workpieceId: string, updates: readonly Update[], map: string, each: (update: Update, units: ReadonlyMap<string, Value>) => void) => {
+  for (let start = 0; start < updates.length; start += collabSettings.sharing.apiBatch) {
+    const batch = updates.slice(start, start + collabSettings.sharing.apiBatch)
+    const states = await Promise.all(batch.map((update) => ck.workpieces.unitsAt<Value>(workpieceId, { at: update._id, map })))
+    batch.forEach((update, index) => each(update, states[index].units))
+  }
+}
+
+/** Whether collab-kit holds every unit as the session has it, so nothing of the own is on its way. */
+const sameUnits = <Value>(stored: ReadonlyMap<string, Value>, own: [string, Value][]) => stored.size === own.length && own.every(([key, unit]) => JSON.stringify(stored.get(key)) === JSON.stringify(unit))
+export const isHeld = async <Value>(ck: CollabKitApi, session: Session<Value>, map: string) => sameUnits((await ck.workpieces.unitsAt<Value>(session.workpieceId, { map })).units, session.units.entries())
+
+export const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))

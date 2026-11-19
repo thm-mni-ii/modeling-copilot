@@ -12,11 +12,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 const props = defineProps<{ link: string; hint: string }>()
 
 /** How long the card says "Link copied" before it offers the copy again. */
-const COPIED_MS = 2500
 
 const copied = ref(false)
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -26,7 +26,7 @@ const copy = async () => {
     await navigator.clipboard.writeText(props.link)
     copied.value = true
     if (timer) clearTimeout(timer)
-    timer = setTimeout(() => (copied.value = false), COPIED_MS)
+    timer = setTimeout(() => (copied.value = false), collabSettings.hints.copiedMs)
   } catch {
     notifyError('The link could not be copied.')
   }
@@ -56,7 +56,7 @@ onBeforeUnmount(() => {
   color: rgba(var(--v-theme-on-surface), 0.7);
 }
 
-/* Schrift dunkel, nur die Icons tragen das Grün; so bleibt es lesbar. */
+/* Dark text, only the icons carry the green; that keeps it readable. */
 .copy-card :deep(.v-icon) {
   color: color-mix(in srgb, rgb(var(--v-theme-primary)) 75%, black);
 }

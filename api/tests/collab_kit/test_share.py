@@ -1,5 +1,7 @@
 import asyncio
+import itertools
 import json
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -7,9 +9,12 @@ import pytest
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
 from modeling_api.services import models
-from modeling_api.services.collab_kit import client, share, store, sweep
+from modeling_api.services.collab_kit import archive, client, collab_settings, share, store, sweep
+from modeling_api.services.collab_kit.workpieces import MARKS_MAP, TASK_FORMAT
 
 ARGS = dict(name="Model", contract={"tool": "x"}, units=[{"path": ["cells"]}])
+# Die Standardzeiten des Sweeps.
+SHARING = collab_settings.defaults("sharing")
 
 
 @pytest.fixture
@@ -31,12 +36,44 @@ def deleted() -> list[tuple]:
 
 
 @pytest.fixture
-def ck(monkeypatch, tasks, presence, deleted):
+def sharing() -> dict:
+    """Was der Bereich sharing der Collab-Einstellungen in CK enthält; leer gelten die Standards."""
+    return {}
+
+
+@pytest.fixture
+def archiving() -> dict:
+    """Was der Bereich archive der Collab-Einstellungen in CK enthält; leer ist alles aus."""
+    return {}
+
+
+@pytest.fixture
+def archived() -> list[dict]:
+    """Was CK archiviert hat, wie ein Eintrag im Archiv: Werkstück, Grund und die Räume, in denen es lag."""
+    return []
+
+
+@pytest.fixture
+def archive_answers() -> dict:
+    """Was CK beim Archivieren eines Werkstücks statt Erfolg antwortet, als Status; None heißt, CK ist nicht erreichbar."""
+    return {}
+
+
+@pytest.fixture
+def activity() -> dict:
+    """Die Spuren je Werkstück, wie CK sie für die letzte Aktivität liefert; ohne Eintrag keine."""
+    return {}
+
+
+@pytest.fixture
+def ck(monkeypatch, tasks, presence, deleted, sharing, archiving, archived, archive_answers, activity):
     """A small in-memory CK: creates, reads and changes the settings, remembers grants and workpieces."""
     rooms: dict[str, dict] = {}
     groups: dict[str, dict] = {}
     grants: list[dict] = []
     workpieces: list[dict] = []
+    # Fortlaufend wie in CK eindeutig, auch wenn Räume und Gruppen ins Archiv gehen.
+    room_numbers, group_numbers = itertools.count(), itertools.count()
 
     def handle(request: httpx.Request) -> httpx.Response:
         method, path = request.method, request.url.path
@@ -45,11 +82,12 @@ def ck(monkeypatch, tasks, presence, deleted):
             tasks.append({"_id": f"T{len(tasks)}", **body})
             return httpx.Response(201, json=tasks[-1])
         if (method, path) == ("POST", "/rooms"):
-            room = {"_id": f"R{len(rooms)}", "createdBy": "service-modeling-copilot", "workpieces": [], **body}
+            room = {"_id": f"R{next(room_numbers)}", "createdBy": "service-modeling-copilot", "workpieces": [], **body}
             rooms[room["_id"]] = room
             return httpx.Response(201, json=room)
         if (method, path) == ("POST", "/groups"):
-            group = {"_id": f"G{len(groups)}", "createdAt": f"2026-01-01T00:00:{len(groups):02d}Z", **body}
+            number = next(group_numbers)
+            group = {"_id": f"G{number}", "createdAt": f"2026-01-01T00:00:{number:02d}Z", **body}
             groups[group["_id"]] = group
             return httpx.Response(201, json=group)
         if (method, path) == ("PUT", "/grants"):
@@ -61,7 +99,7 @@ def ck(monkeypatch, tasks, presence, deleted):
             at = request.url.params["scopeId"]
             return httpx.Response(200, json=[g for g in grants if g.get("scope", {}).get("id") == at])
         if (method, path) == ("POST", "/workpieces"):
-            workpieces.append({"_id": f"W{len(workpieces)}", **body})
+            workpieces.append({"_id": f"W{len(workpieces)}", "createdBy": "service-modeling-copilot", "createdAt": "2026-01-01T00:00:00Z", **body})
             rooms[body["roomId"]]["workpieces"].append(workpieces[-1]["_id"])
             return httpx.Response(201, json=workpieces[-1])
         if method == "DELETE" and "/members/" in path:
@@ -72,6 +110,34 @@ def ck(monkeypatch, tasks, presence, deleted):
             _, _, room_id, _, workpiece_id = path.split("/")
             rooms[room_id]["workpieces"].remove(workpiece_id)
             return httpx.Response(200, json=rooms[room_id])
+        if (method, path) == ("GET", "/settings/sharing"):
+            return httpx.Response(200, json=sharing)
+        if (method, path) == ("GET", "/settings/archive"):
+            return httpx.Response(200, json=archiving)
+        if (method, path) == ("GET", "/me/rooms"):
+            return httpx.Response(200, json=list(rooms.values()))
+        if (method, path) == ("GET", "/workpieces"):
+            # Archiviertes ist nicht mehr live.
+            gone = {entry["_id"] for entry in archived}
+            return httpx.Response(200, json=[workpiece for workpiece in workpieces if workpiece["_id"] not in gone])
+        if method == "GET" and path.endswith("/activity"):
+            return httpx.Response(200, json=activity.get(path.split("/")[2], []))
+        if method == "POST" and path.endswith("/archive"):
+            # Werkstück, Raum oder Gruppe.
+            _, collection, thing, _ = path.split("/")
+            if thing in archive_answers:
+                if archive_answers[thing] is None:
+                    raise httpx.ConnectError("Collab-Kit is down.")
+                # Ein Status, oder Status und Code wie bei einer Ablehnung des CK-Servers.
+                status, code = archive_answers[thing] if isinstance(archive_answers[thing], tuple) else (archive_answers[thing], None)
+                return httpx.Response(status, json={"error": "refused", **({"code": code} if code else {})})
+            archived.append({"_id": thing, "reason": body.get("reason"), "rooms": [r for r, room in rooms.items() if thing in room["workpieces"]]})
+            # Wie CK: ein Werkstück verlässt seine Räume, Raum und Gruppe sind nicht mehr live.
+            for room in rooms.values():
+                room["workpieces"] = [workpiece_id for workpiece_id in room["workpieces"] if workpiece_id != thing]
+            rooms.pop(thing, None)
+            groups.pop(thing, None)
+            return httpx.Response(200, json={"_id": thing, "kind": collection[:-1]})
         if method == "GET" and path.endswith("/presence"):
             return httpx.Response(200, json=presence)
         if (method, path) == ("GET", "/groups"):
@@ -83,6 +149,9 @@ def ck(monkeypatch, tasks, presence, deleted):
             return httpx.Response(200, json=groups[path.split("/")[2]])
         if method == "GET" and path.startswith("/rooms/") and path.split("/")[2] in rooms:
             return httpx.Response(200, json=rooms[path.split("/")[2]])
+        if method == "PATCH" and path.startswith("/groups/"):
+            groups[path.split("/")[2]]["settings"] = body["settings"]
+            return httpx.Response(200, json=groups[path.split("/")[2]])
         if method == "PATCH" and path.startswith("/rooms/"):
             rooms[path.split("/")[2]]["settings"] = body["settings"]
             return httpx.Response(200, json=rooms[path.split("/")[2]])
@@ -98,6 +167,7 @@ def ck(monkeypatch, tasks, presence, deleted):
     monkeypatch.setattr(models, "delete_room_models", delete_room_models)
     sweep._missing.clear()
     sweep._host_missing.clear()
+    monkeypatch.setattr(sweep, "_sleep_seconds", SHARING["sweepSeconds"])
     monkeypatch.setattr(settings, "service_actor", "service-modeling-copilot")
     return rooms, groups, grants, workpieces
 
@@ -171,8 +241,8 @@ def test_sharing_with_the_task_bundles_it_into_the_contract_of_the_model(ck, tas
     task_workpiece, model = workpieces
     assert (workpiece_id, created) == (model["_id"], True)
     assert rooms[room_id]["workpieces"] == [task_workpiece["_id"], model["_id"]]
-    assert task_workpiece["contract"]["format"] == share.TASK_FORMAT
-    assert task_workpiece["units"] == [{"path": [share.MARKS_MAP]}]
+    assert task_workpiece["contract"]["format"] == TASK_FORMAT
+    assert task_workpiece["units"] == [{"path": [MARKS_MAP]}]
     assert tasks[0]["anchor"] == {"kind": "workpiece", "id": task_workpiece["_id"]}
     assert tasks[0]["detail"] == {"contentHtml": "<p>Each order</p>", "taskVersion": TASK["taskVersion"]}
     assert model["contract"] == {"tool": "x", "task": {"workpieceId": task_workpiece["_id"], "taskId": "T0"}}
@@ -326,6 +396,157 @@ def test_closing_again_changes_nothing_and_a_new_share_reuses_the_room(ck):
     assert start() == "R0" and len(rooms) == 1
 
 
+def test_after_the_room_was_archived_the_next_share_gets_one_new_room_the_host_can_lock_and_end(ck):
+    rooms, _, _, _ = ck
+    start()
+    asyncio.run(share.close("42"))
+    # Archiviert, etwa in ck-management; die Host-Gruppe bleibt live und zeigt weiter auf R0.
+    asyncio.run(client.archive_room("R0", "test"))
+
+    assert start() == "R1"
+    asyncio.run(share.set_open("42", False))
+    asyncio.run(share.close("42"))
+    assert rooms["R1"]["settings"]["share"]["workpieceId"] is None
+    # Die nächste Share nutzt den neuen Raum, statt noch einen anzulegen.
+    assert start() == "R1" and list(rooms) == ["R1"]
+
+
+def test_a_running_share_stays_the_hosts_when_the_older_room_comes_back_from_the_archive(ck):
+    rooms, _, _, _ = ck
+    start()
+    asyncio.run(share.close("42"))
+    old = rooms["R0"]
+    asyncio.run(client.archive_room("R0", "test"))
+    start()
+    rooms["R0"] = old
+
+    asyncio.run(share.close("42"))
+
+    # Beendet wird die laufende Share in R1, nicht der zurückgeholte Raum.
+    assert rooms["R1"]["workpieces"] == [] and rooms["R1"]["settings"]["share"]["workpieceId"] is None
+    # Ohne laufende Share gewinnt wieder der ältere Raum, wie beim Doppelklick.
+    assert start() == "R0"
+
+
+# Beide Schalter des Bereichs archive an.
+ARCHIVE_ON = dict(enabled=True, archiveOnShareClose=True)
+
+
+def test_closing_archives_model_and_task_once_they_are_out_of_the_room_when_the_collab_settings_say_so(ck, archiving, archived):
+    rooms, _, _, _ = ck
+    archiving.update(ARCHIVE_ON)
+    asyncio.run(share.share("42", anonymous=False, edit=True, comment=True, task=TASK, **ARGS))
+
+    asyncio.run(share.close("42"))
+
+    # W1 ist das Modell, W0 die Aufgabe; ohne Raum archiviert, kommen sie zurückgeholt nicht in den Raum des Hosts.
+    assert archived == [{"_id": workpiece_id, "reason": "share closed", "rooms": []} for workpiece_id in ("W1", "W0")]
+    assert rooms["R0"]["workpieces"] == [] and rooms["R0"]["settings"]["share"]["workpieceId"] is None
+
+
+def test_closing_archives_nothing_by_default_or_with_only_one_switch(ck, archiving, archived):
+    # Nie gesetzt, nur einer der beiden Schalter, ein Text statt eines Wahrheitswerts.
+    for values in ({}, dict(enabled=True), dict(archiveOnShareClose=True), dict(enabled="true", archiveOnShareClose=True)):
+        archiving.clear()
+        archiving.update(values)
+        start()
+        asyncio.run(share.close("42"))
+    assert archived == []
+
+
+@pytest.mark.parametrize("answer", [409, 500, None])
+def test_closing_ends_the_share_even_when_collab_kit_refuses_fails_or_is_down_while_archiving(ck, archiving, archived, archive_answers, answer):
+    rooms, groups, _, _ = ck
+    archiving.update(ARCHIVE_ON)
+    room_id = asyncio.run(share.share("42", anonymous=False, edit=True, comment=True, task=TASK, **ARGS))[0]
+    asyncio.run(share.join("99", room_id))
+    # 409, solange CK das Modell verschiebt, 500 für einen Fehler in CK, None für ein CK, das nicht antwortet.
+    archive_answers["W1"] = answer
+
+    asyncio.run(share.close("42"))
+
+    shared = rooms[room_id]["settings"]["share"]
+    assert (shared["open"], shared["workpieceId"], shared["taskWorkpieceId"]) == (False, None, None)
+    assert rooms[room_id]["workpieces"] == [] and members_of(groups, "visitors") == []
+    # Das Modell bleibt ohne Raum liegen, die Aufgabe geht trotzdem ins Archiv.
+    assert [entry["_id"] for entry in archived] == ["W0"]
+
+
+def test_unreadable_archive_settings_count_as_off(ck, monkeypatch, archiving, archived):
+    archiving.update(ARCHIVE_ON, archiveUnusedAfterDays=30)
+    start()
+
+    async def failing(key):
+        raise ApiError(503, "CK_UNAVAILABLE", "Collab-Kit is currently unavailable.")
+
+    monkeypatch.setattr(client, "get_settings", failing)
+    asyncio.run(share.close("42"))
+    assert asyncio.run(archive.archive_unused(now=LATER)) == 0
+    assert archived == []
+
+
+# Archiv an, Frist 30 Tage; „jetzt“ liegt 40 Tage nach dem 1. Januar, an dem die CK im Speicher alles anlegt.
+UNUSED_ON = dict(enabled=True, archiveUnusedAfterDays=30)
+LATER = datetime(2026, 2, 10, tzinfo=timezone.utc)
+
+
+def test_unused_workpieces_of_ended_shares_go_to_the_archive_and_the_rest_stays(ck, archiving, archived, activity):
+    _, _, _, workpieces = ck
+    archiving.update(UNUSED_ON)
+    # W0 und W1 aus beendeten Shares ohne Raum, W1 vor zehn Tagen noch benutzt; W2 gehört zur laufenden Share im Raum.
+    for _ in range(2):
+        start()
+        asyncio.run(share.close("42"))
+    activity["W1"] = [{"actorId": "42", "at": "2026-01-31T12:00:00Z", "kind": "updated"}]
+    start()
+    # W3 hat eine Person ohne Raum angelegt.
+    workpieces.append({"_id": "W3", "createdBy": "42", "createdAt": "2026-01-01T00:00:00Z"})
+
+    assert asyncio.run(archive.archive_unused(now=LATER)) == 1
+    assert archived == [{"_id": "W0", "reason": "unused for 30 days", "rooms": []}]
+
+
+def test_nothing_unused_is_archived_by_default_without_the_archive_or_with_a_period_out_of_bounds(ck, archiving, archived):
+    start()
+    asyncio.run(share.close("42"))
+    # Nie gesetzt, ohne Archiv, ohne Frist, 0 für nie, zu lang, ein Wahrheitswert statt einer Zahl.
+    for values in ({}, dict(archiveUnusedAfterDays=30), dict(enabled=True), dict(enabled=True, archiveUnusedAfterDays=0), dict(enabled=True, archiveUnusedAfterDays=400), dict(enabled=True, archiveUnusedAfterDays=True)):
+        archiving.clear()
+        archiving.update(values)
+        assert asyncio.run(archive.archive_unused(now=LATER)) == 0
+    assert archived == []
+
+
+def test_a_refused_workpiece_waits_for_the_next_round_and_the_others_still_go(ck, archiving, archived, archive_answers):
+    archiving.update(UNUSED_ON)
+    for _ in range(2):
+        start()
+        asyncio.run(share.close("42"))
+    archive_answers["W0"] = 409
+
+    assert asyncio.run(archive.archive_unused(now=LATER)) == 1
+    del archive_answers["W0"]
+    # W1 ist schon im Archiv und kommt nicht noch einmal.
+    assert asyncio.run(archive.archive_unused(now=LATER)) == 1
+    assert [entry["_id"] for entry in archived] == ["W1", "W0"]
+
+
+def test_without_sharing_on_the_server_the_job_ends(monkeypatch):
+    async def disabled(key):
+        raise ApiError(503, "SHARING_DISABLED", "Sharing is not configured on this server.")
+
+    monkeypatch.setattr(client, "get_settings", disabled)
+    asyncio.run(archive._run())
+    assert archive._task is None
+
+
+def test_the_job_waits_for_the_next_fixed_hour():
+    # Vor 03:00 noch heute, danach erst morgen.
+    assert archive.seconds_until_next_run(datetime(2026, 1, 1, 1, 30, tzinfo=timezone.utc)) == 90 * 60
+    assert archive.seconds_until_next_run(datetime(2026, 1, 1, 3, 0, tzinfo=timezone.utc)) == 24 * 3600
+    assert archive.seconds_until_next_run(datetime(2026, 1, 1, 22, 0, tzinfo=timezone.utc)) == 5 * 3600
+
+
 def test_only_the_host_may_lock_open_or_close(ck):
     room_id = start()
     asyncio.run(share.join("99", room_id))
@@ -401,17 +622,51 @@ def test_a_visitor_who_stays_away_is_taken_out_after_the_grace_period_and_one_wh
 
     # 98 comes back in time and loses the time; 99 stays away.
     here("98")
-    asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS - 1))
+    asyncio.run(sweep.sweep_once(now=SHARING["visitorGraceSeconds"] - 1))
     assert members_of(groups, "visitors") == ["99", "98"]
-    asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS))
+    asyncio.run(sweep.sweep_once(now=SHARING["visitorGraceSeconds"]))
     assert members_of(groups, "visitors") == ["98"]
     assert deleted[1:] == [(room_id, "99", [], None)]
 
     # The host is no visitor and is never touched; 98 may be gone for a shorter time again.
     here()
-    asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS + 10))
-    asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS + 10 + sweep.VISITOR_GRACE_SECONDS - 1))
+    asyncio.run(sweep.sweep_once(now=SHARING["visitorGraceSeconds"] + 10))
+    asyncio.run(sweep.sweep_once(now=SHARING["visitorGraceSeconds"] + 10 + SHARING["visitorGraceSeconds"] - 1))
     assert members_of(groups, "visitors") == ["98"] and members_of(groups, "hosts") == ["42"]
+
+
+def test_the_grace_period_of_a_visitor_comes_from_the_collab_settings(ck, presence, sharing):
+    _, groups, _, _ = ck
+    room_id = start()
+    asyncio.run(share.join("99", room_id))
+    # Nur der Host ist da; 99 bleibt weg und fliegt nach 60 s statt nach dem Standard von 120 s.
+    presence[:] = [{"workpieceId": "W0", "actorId": "42", "connections": 1}]
+    sharing["visitorGraceSeconds"] = 60
+    asyncio.run(sweep.sweep_once(now=0))
+    asyncio.run(sweep.sweep_once(now=59))
+    assert members_of(groups, "visitors") == ["99"]
+    asyncio.run(sweep.sweep_once(now=60))
+    assert members_of(groups, "visitors") == []
+
+
+def test_a_time_out_of_bounds_of_another_type_or_unreadable_counts_as_its_default(ck, monkeypatch, sharing):
+    defaults = {"sweepSeconds": 30, "visitorGraceSeconds": 120, "hostGraceSeconds": 120, "hostEndSeconds": 300}
+    # Zu kurz, ein Wahrheitswert statt einer Zahl, eine Zahl als Text und zu lang.
+    sharing.update(visitorGraceSeconds=5, hostGraceSeconds=True, hostEndSeconds="600", sweepSeconds=500)
+    assert asyncio.run(collab_settings.read("sharing")) == defaults
+
+    async def failing(key):
+        raise ApiError(503, "CK_UNAVAILABLE", "Collab-Kit is currently unavailable.")
+
+    monkeypatch.setattr(client, "get_settings", failing)
+    assert asyncio.run(collab_settings.read("sharing")) == defaults
+
+
+def test_the_sweep_sleeps_between_two_rounds_as_long_as_the_collab_settings_say(ck, sharing):
+    asyncio.run(share.join("99", start()))
+    sharing["sweepSeconds"] = 15
+    asyncio.run(sweep.sweep_once(now=0))
+    assert sweep._sleep_seconds == 15
 
 
 def test_no_visitor_is_taken_out_while_collab_kit_does_not_answer_and_a_room_without_share_is_no_work(ck):
@@ -427,7 +682,7 @@ def test_no_visitor_is_taken_out_while_collab_kit_does_not_answer_and_a_room_wit
 
     client.room_presence, original = failing, client.room_presence
     try:
-        asyncio.run(sweep.sweep_once(now=sweep.VISITOR_GRACE_SECONDS * 5))
+        asyncio.run(sweep.sweep_once(now=SHARING["visitorGraceSeconds"] * 5))
     finally:
         client.room_presence = original
     assert members_of(groups, "visitors") == ["99"] and sweep._missing == {}
@@ -442,10 +697,10 @@ def test_a_host_who_stays_away_locks_the_room_and_is_never_locked_out_again_when
 
     # The host is missing: the time starts, nothing happens before the grace period is over.
     asyncio.run(sweep.sweep_once(now=0))
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS - 1))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"] - 1))
     assert shared()["open"] is True and not shared().get("autoLocked")
 
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"]))
     assert (shared()["open"], shared()["autoLocked"]) == (False, True)
     assert visitor_grant(grants, groups)["rights"] == ["see", "speak"]
     with pytest.raises(ApiError):
@@ -453,7 +708,7 @@ def test_a_host_who_stays_away_locks_the_room_and_is_never_locked_out_again_when
 
     # The host is back: the room opens again and the visitors get what they had.
     presence.append({"workpieceId": "W0", "actorId": "42", "connections": 1})
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS + 30))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"] + 30))
     assert (shared()["open"], shared()["autoLocked"], shared()["before"]) == (True, False, None)
     assert visitor_grant(grants, groups)["rights"] == ["see", "speak", "edit"]
 
@@ -467,18 +722,18 @@ def test_the_sweep_never_opens_a_lock_of_the_host_and_never_locks_a_locked_room_
 
     # Host away past the grace period in a room the host has locked: nothing changes.
     asyncio.run(sweep.sweep_once(now=0))
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS * 3))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"] * 3))
     assert (shared()["open"], shared().get("autoLocked"), shared()["before"]) == (False, False, before)
 
     # Host back, still in their own dialog: the sweep leaves the room locked.
     presence.append({"workpieceId": "W0", "actorId": "42", "connections": 1})
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS * 3 + 30))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"] * 3 + 30))
     assert shared()["open"] is False
 
     # A lock of the host replaces one of the sweep, so the sweep does not open it either.
     presence.clear()
     asyncio.run(sweep.sweep_once(now=1000))
-    asyncio.run(sweep.sweep_once(now=1000 + sweep.HOST_GRACE_SECONDS))
+    asyncio.run(sweep.sweep_once(now=1000 + SHARING["hostGraceSeconds"]))
     assert shared()["open"] is False
 
 
@@ -491,11 +746,11 @@ def test_after_the_end_period_the_visitors_go_but_the_share_stays_for_the_host_a
 
     # The host is gone, a visitor is still there: the sweep keeps looking after the share.
     assert asyncio.run(sweep.sweep_once(now=0)) == 1
-    assert asyncio.run(sweep.sweep_once(now=sweep.HOST_END_SECONDS - 1)) == 1
+    assert asyncio.run(sweep.sweep_once(now=SHARING["hostEndSeconds"] - 1)) == 1
     assert members_of(groups, "visitors") == ["99"]
 
     # Past the end period the visitors are out; the share and its workpiece stay, locked by the sweep.
-    assert asyncio.run(sweep.sweep_once(now=sweep.HOST_END_SECONDS)) == 0
+    assert asyncio.run(sweep.sweep_once(now=SHARING["hostEndSeconds"])) == 0
     assert members_of(groups, "visitors") == []
     assert (shared()["open"], shared()["autoLocked"], shared()["workpieceId"]) == (False, True, "W0")
     assert rooms[room_id]["workpieces"] == ["W0"]
@@ -506,14 +761,14 @@ def test_the_orderly_end_of_the_host_clears_every_mark_of_the_sweep_and_the_swee
     room_id = start()
     shared = lambda: rooms[room_id]["settings"]["share"]
     asyncio.run(sweep.sweep_once(now=0))
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"]))
     assert shared()["autoLocked"] is True
 
     # The host takes over while the sweep's lock is on: the lock is theirs now and stays theirs.
     asyncio.run(share.set_open("42", False))
     assert shared()["autoLocked"] is False
     presence.append({"workpieceId": "W0", "actorId": "42", "connections": 1})
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS + 30))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"] + 30))
     assert shared()["open"] is False
 
     # Ending the share clears everything; the sweep has nothing to look at, and an old picture of the room does not bring anything back.
@@ -522,9 +777,10 @@ def test_the_orderly_end_of_the_host_clears_every_mark_of_the_sweep_and_the_swee
     assert (shared()["workpieceId"], shared()["before"], shared()["autoLocked"]) == (None, None, False)
     assert asyncio.run(sweep.sweep_once(now=5000)) == 0
     presence.clear()
-    asyncio.run(sweep._sweep_host(stale, {"42"}, 6000))
-    asyncio.run(sweep._sweep_host(stale, set(), 6000))
-    asyncio.run(sweep._sweep_host(stale, set(), 6000 + sweep.HOST_GRACE_SECONDS))
+    times = asyncio.run(collab_settings.read("sharing"))
+    asyncio.run(sweep._sweep_host(stale, {"42"}, 6000, times))
+    asyncio.run(sweep._sweep_host(stale, set(), 6000, times))
+    asyncio.run(sweep._sweep_host(stale, set(), 6000 + SHARING["hostGraceSeconds"], times))
     assert (shared()["workpieceId"], shared()["before"], shared()["autoLocked"]) == (None, None, False)
     assert shared()["open"] is False
 
@@ -534,7 +790,7 @@ def test_a_new_share_starts_clean_after_one_the_sweep_had_locked(ck):
     room_id = start()
     shared = lambda: rooms[room_id]["settings"]["share"]
     asyncio.run(sweep.sweep_once(now=0))
-    asyncio.run(sweep.sweep_once(now=sweep.HOST_GRACE_SECONDS))
+    asyncio.run(sweep.sweep_once(now=SHARING["hostGraceSeconds"]))
     assert (shared()["autoLocked"], shared()["before"] is not None) == (True, True)
 
     asyncio.run(share.close("42"))

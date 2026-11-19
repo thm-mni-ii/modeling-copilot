@@ -1,3 +1,4 @@
+import type { AxiosError } from 'axios'
 import { useBearerToken } from '@/composables/useBearerToken'
 import type { CollabKitApi } from './collabKitV1'
 
@@ -33,10 +34,16 @@ export const isPseudonym = (key: string) => library?.isPseudonym(key) ?? false
 /** Short reason for the sync log and notifications. */
 export const collabErrorMessage = (error: unknown) => {
   if (!collabUrl) return 'VITE_COLLAB_URL is not set'
-  const { status, message } = error as { status?: number; message?: string }
+  const { status, message, code } = error as { status?: number; message?: string; code?: string }
   if (status === 401) return 'token rejected (expired?)'
+  // A refusal of the server itself, not of the rights of the person; the same words as in collab-kit.
+  if (code === 'archive_disabled') return 'The archive is switched off on this server.'
+  if (code === 'delete_disabled') return 'Deleting for good is not allowed on this server.'
   // collab-kit names the reason of every other refusal, such as "unknown workpiece".
   if (status !== undefined) return message || `request failed with HTTP ${status}`
   // A request the browser blocks for CORS looks the same to the page, it hides the reason.
   return `not reachable at ${collabUrl} or blocked by CORS`
 }
+
+/** The reason the backend names for a refused call (`{ code, message }`), else the message of the error. */
+export const apiErrorMessage = (error: unknown) => (error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message
