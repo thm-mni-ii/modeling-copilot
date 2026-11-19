@@ -20,7 +20,7 @@ def store_with_containment():
         element["type"] = "attribute"
         graph["graph"]["nodes"].append(element)
         graph["graph"]["edges"].append({
-            "kind": "contains", "role": "content", "source": child, "target": parent,
+            "kind": "contains", "role": "component", "source": child, "target": parent,
         })
         graph["graphHash"] = content_hash({field: graph[field] for field in GRAPH_HASH_FIELDS})
         inventory = store.files[f"labels/{key}.json"]["result"]
@@ -47,7 +47,7 @@ def store_with_containment():
 
 
 class MainTests(unittest.TestCase):
-    def test_run_loads_valid_v3_artifacts_and_reports_provisional_coverage(self):
+    def test_run_publishes_compact_v2_facts_and_preserves_provenance(self):
         store = Store()
         reference = store.files["graphs/ref.json"]["result"]
         extra = node("r2")
@@ -82,14 +82,13 @@ class MainTests(unittest.TestCase):
         self.assertEqual(output["schema"], "workflow-result/v1")
         self.assertEqual(output["mode"], "match")
         result = output["result"]
-        self.assertEqual(result["schema"], "reference-comparison/v1")
+        self.assertEqual(result["schema"], "reference-comparison/v2")
         self.assertEqual(result["status"], "partial")
         self.assertFalse(result["assessmentAvailable"])
         self.assertEqual(result["pair"], {"studentKey": "submission", "referenceKey": "ref"})
-        self.assertEqual(result["metrics"]["overall"], {
-            "referenceCount": 2, "studentCount": 1, "provisionalAnchorCount": 1,
-            "maximumAssignableCount": 1, "anchorCoverage": 0.5, "capacityUpperBound": 0.5,
-        })
+        self.assertNotIn("metrics", result)
+        self.assertNotIn("diagnostics", result)
+        self.assertTrue(result["propertyFacts"]["items"])
         self.assertEqual(result["unresolvedReferenceIds"], ["r2"])
         self.assertEqual(result["mapping"]["provisionalElements"][0]["status"], "provisional")
         self.assertEqual(result["completeness"]["matching"], "provisional")
@@ -102,7 +101,7 @@ class MainTests(unittest.TestCase):
         self.assertEqual(main.run(store, "ref"), output)
 
     def test_run_reports_provisional_owner_consistency(self):
-        result = main.run(store_with_containment(), "ref")["result"]
+        result = main.run(store_with_containment(), "ref", include_diagnostics=True)["result"]["diagnostics"]
         self.assertEqual(result["metrics"]["provisionalOwnerConsistency"], {
             "expected": 1, "satisfied": 1, "violated": 0, "unresolved": 0,
             "agreement": {"lower": 1.0, "upper": 1.0},
@@ -115,9 +114,60 @@ class MainTests(unittest.TestCase):
         self.assertEqual(child["status"], "satisfied")
         self.assertEqual(child["referenceContainmentPaths"], [["r-child", "r1"]])
         self.assertEqual(child["studentContainmentPaths"], [["s-child", "s1"]])
-        self.assertEqual(result["comparisonHash"], content_hash({
-            key: value for key, value in result.items() if key != "comparisonHash"
-        }))
+        owner_evidence = next(item for item in result["childOwnerEvidence"]
+                              if item["referenceId"] == "r1" and item["studentId"] == "s1")
+        self.assertEqual(owner_evidence["proposalStatus"], "reserved")
+        self.assertEqual(owner_evidence["supportingChildren"][0]["referenceId"], "r-child")
+    def test_connection_facts_are_independent_of_optional_diagnostics(self):
+        store = Store()
+        for side, key, element, connection_type in (
+            ("reference", "ref", "r1", "first"),
+            ("student", "submission", "s1", "second"),
+        ):
+            graph = store.files[f"graphs/{key}.json"]["result"]
+            link = node(f"{element}-link", "connection")
+            link.update({"type": connection_type, "comparisonGroup": "links", "directed": True})
+            graph["graph"]["nodes"].append(link)
+            graph["graph"]["edges"].extend([
+                {"kind": "endpoint", "role": "source", "source": element, "target": link["id"]},
+                {"kind": "endpoint", "role": "target", "source": link["id"], "target": element},
+            ])
+            graph["graphHash"] = content_hash({field: graph[field] for field in GRAPH_HASH_FIELDS})
+            inventory = store.files[f"labels/{key}.json"]["result"]
+            inventory["graphHash"] = graph["graphHash"]
+            inventory["inventoryHash"] = content_hash({
+                field: value for field, value in inventory.items() if field != "inventoryHash"
+            })
+            store.candidates["graphHashes"][side] = graph["graphHash"]
+            store.candidates["inventoryHashes"][side] = inventory["inventoryHash"]
+        store.publish_candidates()
+        comparison = main.run(store, "ref", include_diagnostics=True)
+        diagnostics = comparison["result"]["diagnostics"]
+        structure = diagnostics["provisionalConnectionStructure"]
+        self.assertEqual(structure["completeness"], "complete")
+        self.assertEqual(structure["byEndpoints"][0]["typeStatus"], "different")
+        self.assertEqual(len(comparison["result"]["mapping"]["provisionalConnections"]), 1)
+        type_comparison = diagnostics["provisionalTypeComparison"]
+        self.assertEqual(type_comparison["connections"]["compatibleTypeDifferenceCount"], 1)
+        self.assertEqual(type_comparison["connections"]["pairs"][0]["status"], "compatible_type_difference")
+        type_fact = next(item for item in comparison["result"]["propertyFacts"]["items"]
+                         if item["code"] == "type.different" and item["referenceIds"] == ["r1-link"])
+        self.assertEqual(type_fact["status"], "violated")
+        compact = main.run(store, "ref")["result"]
+        self.assertEqual(compact["mapping"], comparison["result"]["mapping"])
+        self.assertEqual(compact["propertyFacts"], comparison["result"]["propertyFacts"])
+        self.assertNotIn("diagnostics", compact)
+
+    def test_diagnostics_do_not_change_matching_or_facts(self):
+        store = store_with_containment()
+        compact = main.run(store, "ref")["result"]
+        verbose = main.run(store, "ref", include_diagnostics=True)["result"]
+        self.assertEqual(compact["mapping"], verbose["mapping"])
+        self.assertEqual(compact["propertyFacts"], verbose["propertyFacts"])
+        diagnostics = verbose["diagnostics"]
+        self.assertEqual(diagnostics["purpose"], "development_only")
+        self.assertEqual(diagnostics["provisionalContainmentEvidence"][0]["decisionBasis"], "same_parent")
+        self.assertGreater(len(str(verbose)), len(str(compact)))
 
     def test_run_rejects_invalid_graph_and_candidate_hashes(self):
         for artifact in ("graph", "candidate"):

@@ -22,6 +22,8 @@ api/openapi.json
 
 # Dagu-generated DAG discovery cache (host-specific absolute paths)
 dagu/workflows/.dag.index
+dagu/workflows/.dag 2.index
+dagu/.DS_Store
 
 # Personal development suite and assistant configuration
 /AGENTS.md
@@ -32,3 +34,7 @@ AGENTS.md
 AGENTS.override.md
 SKILL.md
 /tmp/
+/CLAUDE.md
+/CLAUDE.local.md
+/.claude/
+/.mcp.json

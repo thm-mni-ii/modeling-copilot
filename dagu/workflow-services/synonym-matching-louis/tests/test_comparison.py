@@ -95,6 +95,8 @@ def test_run_experiments_stores_load_seconds_separately_from_compute(tmp_path):
 def test_research_configurations_use_service_methods_and_combiners():
     config = load_config()
     for spec in configurations(config)[0].values():
+        if spec['combiner']['kind'] == 'evidence':
+            continue  # Relationsmerkmale werden zunächst nur im Forschungspfad kombiniert.
         chains = spec['chains'].values()
         # Wortvektoren, 'translate' und Ketten-Mischungen sind reine Forschungsschreibweisen.
         if (any('files' in config['methods'][chain[-1]] or 'translate' in chain for chain in chains)
@@ -158,6 +160,82 @@ def test_compounds_uses_lexicon_and_keeps_other_languages(monkeypatch):
     assert split_compounds('Kundendaten Rechnungsadresse', 'de') == 'kunde daten rechnung adresse'
     assert split_compounds('unbekannt', 'de') == 'unbekannt'
     assert split_compounds('Kundendaten', 'en') == 'Kundendaten'
+
+
+def test_preprocessing_limits_apply_to_varying_parts_of_mixes():
+    config = load_config()
+    config['preprocessing'] = {'plain': ['normalize'], 'lower': ['normalize', 'lowercase'],
+                               'stem': ['normalize', 'stem']}
+    config['methods']['levenshtein']['preprocessing_steps'] = ['normalize', 'lowercase']
+    config['chains'] = {'lev': ['$pre', 'levenshtein'], 'multi': ['normalize', 'multilingual']}
+    config['mixes'] = [{'name': 'hybrid', 'weights': {'lev': 1, 'multi': 1}}]
+    specs, _ = configurations(config)
+    assert {'plain/hybrid', 'lower/hybrid'} <= specs.keys()
+    assert 'stem/hybrid' not in specs
+    assert not any('stem' in chain for spec in specs.values() for chain in spec['chains'].values())
+    assert specs['lower/hybrid']['chains']['normalize → multilingual'] == ['normalize', 'multilingual']
+
+
+def test_default_experiments_keep_preprocessing_method_specific():
+    config = load_config()
+    specs, _ = configurations(config)
+    for spec in specs.values():
+        for chain in spec['chains'].values():
+            if chain[-1] in {'multilingual', 'translated_embedding'} or 'files' in config['methods'][chain[-1]]:
+                assert not {'stem', 'remove_stopwords'} & set(chain)
+    assert all(not method['lowercase'] for method in config['methods'].values() if 'files' in method)
+    assert 'normalize+lemmatize → odenet' in specs
+    assert 'normalize+translate+lemmatize → wordnet' in specs
+    assert 'odenet_multi_25_75' in specs and 'odenet_multi_75_25' in specs
+    assert config['chains']['ft_en_lemma'] == ['normalize', 'translate', 'lemmatize', 'fasttext_en_matching']
+    assert config['chains']['ft_en_identifiers'] == ['normalize', 'split_identifiers', 'translate', 'fasttext_en_matching']
+
+
+def test_lexicon_coverage_distinguishes_whole_partial_unknown_and_empty():
+    from research.lexicon_coverage import inspect_labels
+
+    calls = []
+
+    def lookup(text):
+        calls.append(text)
+        return {'entry'} if text in {'Kunde', 'ice cream'} else set()
+
+    result = inspect_labels(['Kunde', 'Kunde ZusatzXYZ', 'ZusatzXYZ', '', 'ice cream', 'Kunde'], lookup)
+    assert [item['status'] for item in result] == ['known', 'partial', 'unknown', 'empty', 'known', 'known']
+    assert result[1]['token_coverage'] == .5
+    assert result[3]['token_coverage'] is None
+    # Eine bekannte Mehrwortbedeutung muss nicht aus einzeln bekannten Tokens bestehen.
+    assert result[4]['whole_label_known'] and result[4]['token_coverage'] == 0
+    assert calls.count('Kunde') == 1 and calls.count('ZusatzXYZ') == 1
+
+
+def test_coverage_diagnosis_preserves_scores_and_counts_unique_labels(tmp_path, monkeypatch):
+    monkeypatch.setattr('synonym_matching.lexicons.DATA_DIR', tmp_path)
+    (tmp_path / 'openthesaurus.txt').write_text('Kunde;Abnehmer\nLieferant;Zulieferer\n')
+    data = {'cases': [{'id': 'coverage', 'case_number': 1, 'title': 'Abdeckung',
+            'reference': [{'id': 'r1', 'label': 'Kunde', 'language': 'de'},
+                          {'id': 'r2', 'label': 'Kunde', 'language': 'de'}],
+            'student': [{'id': 's1', 'label': 'Abnehmer', 'language': 'de'},
+                        {'id': 's2', 'label': 'Kunde ZusatzXYZ', 'language': 'de'},
+                        {'id': 's3', 'label': 'ZusatzXYZ', 'language': 'de'},
+                        {'id': 's4', 'label': 'Lieferant', 'language': 'de'}],
+            'annotations': [['correct', 'incorrect', 'incorrect', 'incorrect']] * 2}]}
+    config = load_config()
+    config['chains'] = {'thesaurus': ['normalize', 'openthesaurus']}
+    config['mixes'] = []
+    output = tmp_path / 'coverage.json'
+    assert run_experiments(data, output, config) == []
+    payload = json.loads(output.read_text())
+    feature = payload['features'][0]
+    assert feature['scores'] == [[1, 0, 0, 0], [1, 0, 0, 0]]
+    assert all(all(row) for row in feature['eligible'])  # Unbekannt ist nicht ungültig.
+    coverage = feature['lexicon_coverage']['student']
+    assert coverage[2]['status'] == 'unknown' and coverage[3]['status'] == 'known'
+    summary = payload['lexicon_coverage'][0]
+    assert summary['unique_labels'] == 5  # Doppeltes Kunde nur einmal zählen.
+    assert (summary['known'], summary['partial'], summary['unknown']) == (3, 1, 1)
+    assert summary['whole_label_coverage'] == .6
+    assert payload['records'][0]['combinedScores'] == feature['scores']
 
 
 def test_run_stores_raw_features_once_and_api_unchanged(tmp_path):

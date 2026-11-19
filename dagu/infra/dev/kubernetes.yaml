@@ -32,3 +32,24 @@ spec:
   resources:
     requests:
       storage: 5Gi
+
+---
+# Dev only: Dagu runs in docker compose on the `kind` network and reaches the
+# warm services (`infra/workflow-services.yaml`) via desktop-control-plane:<port>.
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflow-services-nodeport
+  namespace: workflow-runtime
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/part-of: workflow-services
+  ports:
+    - {name: workflow-data, port: 30081, targetPort: workflow-data, nodePort: 30081}
+    - {name: graph-parser, port: 30082, targetPort: graph-parser, nodePort: 30082}
+    - {name: label-extract, port: 30083, targetPort: label-extract, nodePort: 30083}
+    - {name: synonym, port: 30084, targetPort: synonym, nodePort: 30084}
+    - {name: graph-matching, port: 30085, targetPort: graph-matching, nodePort: 30085}
+    - {name: analytical, port: 30086, targetPort: analytical, nodePort: 30086}
+    - {name: feedback, port: 30087, targetPort: feedback, nodePort: 30087}

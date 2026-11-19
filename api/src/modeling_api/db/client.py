@@ -104,6 +104,12 @@ async def create_indexes() -> None:
     await db.learning_path_help_requests.create_index(
         [("runId", ASCENDING), ("stepId", ASCENDING), ("createdAt", DESCENDING)]
     )
+    await db.learning_path_feature_events.create_index(
+        [("tourVersion", ASCENDING), ("userId", ASCENDING), ("at", ASCENDING)]
+    )
+    await db.learning_path_feature_events.create_index(
+        [("tourVersion", ASCENDING), ("at", DESCENDING)]
+    )
     await db.learning_path_pulse_events.create_index(
         [("runId", ASCENDING), ("stepId", ASCENDING), ("at", DESCENDING)]
     )

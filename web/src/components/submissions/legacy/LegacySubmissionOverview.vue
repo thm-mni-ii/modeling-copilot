@@ -57,7 +57,7 @@
       ><v-card title="Start run"
         ><v-card-text>
           <v-alert type="warning" variant="tonal" class="mb-4">Starting a new run archives earlier runs of this assignment. All their participants, submissions and feedback remain available.</v-alert>
-          <SubmissionRunForm :data="runForm" :directory-run-id="assignment?.runs?.find((r) => r.permissions.manage)?.id" />
+          <SubmissionRunForm v-model:data="runForm" :directory-run-id="assignment?.runs?.find((r) => r.permissions.manage)?.id" />
           <v-alert v-if="dialogError" type="error">{{ dialogError }}</v-alert> </v-card-text
         ><v-card-actions><v-spacer /><v-btn :disabled="busy" @click="runDialog = false">Cancel</v-btn><v-btn color="primary" :loading="busy" :disabled="!runForm.name.trim()" @click="startRun">Start run</v-btn></v-card-actions></v-card
       ></v-dialog

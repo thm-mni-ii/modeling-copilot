@@ -70,9 +70,9 @@ def _score_group(left_items, right_items, left_texts, right_texts, methods, meth
                                    if item["id"] in method_right_texts))
         if not left or not right:
             continue
-        if method.name not in method_states:
-            method_states[method.name] = method.initialize() if method.initialize is not None else None
-        matrix = np.asarray(method.compute(method_states[method.name], left, right), dtype=np.float64)
+        if method.state_key not in method_states:
+            method_states[method.state_key] = method.initialize() if method.initialize is not None else None
+        matrix = np.asarray(method.compute(method_states[method.state_key], left, right), dtype=np.float64)
         expected_shape = (len(left), len(right))
         minimum, maximum = method.score_range
         if (matrix.shape != expected_shape or not np.isfinite(matrix).all()
@@ -122,7 +122,7 @@ def _method_metadata(methods, config, method_states):
             "parameters": deepcopy(method.parameters or {}),
         }
         if method.resource_metadata is not None:
-            entry["resources"] = method.resource_metadata(method_states.get(method.name))
+            entry["resources"] = method.resource_metadata(method_states.get(method.state_key))
         metadata.append(entry)
     return metadata
 

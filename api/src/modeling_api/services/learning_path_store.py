@@ -35,6 +35,8 @@ def step_document(step, template_id):
             "taskId": str(step.task_version.task_id),
             "releaseId": str(step.task_version.version_id),
             "minimumScorePercent": step.minimum_score_percent,
+            "scoreScope": step.score_scope,
+            "categoryMinimums": [row.model_dump(by_alias=True) for row in step.category_minimums],
             "beforeSurveyId": (
                 str(step.before_survey_id) if step.before_survey_id else None
             ),
@@ -85,6 +87,8 @@ def step_view(step):
         ),
         "challenge": task.get("challenge") if task else None,
         "minimumScorePercent": task.get("minimumScorePercent") if task else None,
+        "scoreScope": task.get("scoreScope", "overall") if task else "overall",
+        "categoryMinimums": task.get("categoryMinimums", []) if task else [],
         "surveyId": survey["surveyId"] if survey else None,
         "required": survey["required"] if survey else True,
         "beforeSurveyId": task.get("beforeSurveyId") if task else None,

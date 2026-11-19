@@ -3,3 +3,4 @@
 .pytest_cache/
 results/
 *.egg-info/
+.DS_Store

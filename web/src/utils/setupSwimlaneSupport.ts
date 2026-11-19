@@ -126,13 +126,24 @@ export function setupSwimlaneSupport(graph: Graph, onRejectedContainer?: (contai
   // Override moveCells um Auto-Stack bei Verschiebungen zu triggern
   const originalMoveCells = g.moveCells.bind(g)
   g.moveCells = function (cells, dx, dy, clone, target, evt) {
-    if (onRejectedContainer && evt && cells?.length && (!target || target === this.getDefaultParent())) {
+    // A drop onto oneself or one's descendants only moves the selection.
+    // Keep the existing parents and skip containment validation for this gesture.
+    const selfDrop = !!target && !!cells?.some((cell) => cell.isAncestor(target ?? null))
+    if (selfDrop) target = null
+
+    if (!selfDrop && onRejectedContainer && evt && cells?.length && (!target || target === this.getDefaultParent())) {
       const point = styleUtils.convertPoint(this.container, evt.clientX, evt.clientY)
       let candidate = this.getCellAt(point.x - this.panDx, point.y - this.panDy)
       while (candidate && !cells.includes(candidate)) {
-        if ((this.isSwimlane(candidate) || isContainerSectionTarget(candidate)) && !this.isValidDropTarget(candidate, cells)) {
-          onRejectedContainer(candidate, cells.filter((cell) => cell.getParent() !== candidate))
-          break
+        if (this.isSwimlane(candidate) || isContainerSectionTarget(candidate)) {
+          if (cells.some((cell) => cell.isAncestor(candidate))) {
+            target = null
+            break
+          }
+          if (!this.isValidDropTarget(candidate, cells)) {
+            onRejectedContainer(candidate, cells.filter((cell) => cell.getParent() !== candidate))
+            break
+          }
         }
         candidate = candidate.getParent()
       }
@@ -146,43 +157,30 @@ export function setupSwimlaneSupport(graph: Graph, onRejectedContainer?: (contai
       }
     }
 
-    // Verhindere zirkuläre Referenzen: Prüfe ob eine Cell in sich selbst verschoben wird
-    if (target && cells && cells.length > 0) {
-      for (const cell of cells) {
-        // Einfache ID-Prüfung: Verhindere wenn target-ID === cell-ID
-        if (target.getId() === cell.getId()) {
-          console.warn('[moveCells] Prevented: Cannot move cell into itself (ID match)', {
-            cellId: cell.getId(),
-            cellLabel: cell.getValue()
-          })
-          return cells // Verhindere die Bewegung, gib original cells zurück
-        }
-
-        // Prüfe auch ob target ein Nachfahre (descendant) der zu bewegenden Cell ist
-        let currentParent: Cell | null = target
-        while (currentParent) {
-          if (currentParent.getId() === cell.getId()) {
-            console.warn('[moveCells] Prevented: Cannot move cell into its own descendant', {
-              cellId: cell.getId(),
-              targetId: target.getId()
-            })
-            return cells // Verhindere die Bewegung
-          }
-          currentParent = currentParent.getParent?.() ?? null
-        }
+    // Remember source containers before reparenting; a multi-selection can leave
+    // several containers. Cloning leaves the originals in place.
+    const affectedSwimlanes = new Set<Cell>()
+    if (!clone) {
+      for (const cell of cells ?? []) {
+        const parent = cell.getParent()
+        if (!cell.isEdge() && parent && this.isSwimlane(parent)) affectedSwimlanes.add(parent)
       }
     }
 
-    const result = originalMoveCells(cells, dx, dy, clone, target, evt)
+    let result: Cell[] = []
+    this.batchUpdate(() => {
+      result = originalMoveCells(cells, dx, dy, clone, target, evt)
 
-    // Layout wenn Ziel-Parent eine Swimlane ist
-    if (result && result.length > 0) {
-      const movedCell = result[0]
-      const parentCell = movedCell?.getParent?.() ?? null
-      if (parentCell && this.isSwimlane(parentCell)) {
-        relayout(parentCell)
+      for (const cell of result) {
+        const parent = cell.getParent()
+        if (!cell.isEdge() && parent && this.isSwimlane(parent)) affectedSwimlanes.add(parent)
       }
-    }
+
+      // Resize and restack sources and destinations in the same undo operation.
+      affectedSwimlanes.forEach((parent) => {
+        if (parent.getParent()) relayout(parent)
+      })
+    })
 
     return result
   }
@@ -306,7 +304,7 @@ export function stackContainerChildren(graph: Graph, container: Cell): void {
         graph.getDataModel().add(container, child, index)
       }
 
-      const childGeo = child.getGeometry()
+      const childGeo = child.getGeometry()?.clone()
       if (!childGeo) return
 
       // Kreuz-Achse: Kinder auf volle Containerbreite/-höhe strecken oder nur vom Rand abrücken
@@ -333,7 +331,7 @@ export function stackContainerChildren(graph: Graph, container: Cell): void {
       }
 
       childGeo.relative = false
-      graph.getDataModel().setGeometry(child, childGeo)
+      if (!childGeo.equals(child.getGeometry())) graph.getDataModel().setGeometry(child, childGeo)
     })
   })
 }
@@ -352,7 +350,7 @@ export function stackContainerChildren(graph: Graph, container: Cell): void {
  * @param swimlane - Die Swimlane, die angepasst werden soll
  */
 export function autoResizeSwimlane(graph: Graph, swimlane: Cell): void {
-  const geometry = swimlane.getGeometry()
+  const geometry = swimlane.getGeometry()?.clone()
   if (!geometry) return
 
   const style = graph.getCellStyle(swimlane) as Record<string, any>
@@ -380,7 +378,7 @@ export function autoResizeSwimlane(graph: Graph, swimlane: Cell): void {
       // Nur vergrößern, nie automatisch schrumpfen - Modellierfläche bleibt stabil
       geometry.width = Math.max(geometry.width, requiredWidth)
       geometry.height = Math.max(geometry.height, requiredHeight)
-      graph.getDataModel().setGeometry(swimlane, geometry)
+      if (!geometry.equals(swimlane.getGeometry())) graph.getDataModel().setGeometry(swimlane, geometry)
       return
     }
 
@@ -405,7 +403,7 @@ export function autoResizeSwimlane(graph: Graph, swimlane: Cell): void {
       }
     }
 
-    graph.getDataModel().setGeometry(swimlane, geometry)
+    if (!geometry.equals(swimlane.getGeometry())) graph.getDataModel().setGeometry(swimlane, geometry)
   })
 }
 

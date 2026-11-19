@@ -1,19 +1,21 @@
 <template>
   <v-menu location="bottom start" min-width="220">
     <template #activator="{ props: activatorProps }">
-      <v-btn v-bind="activatorProps" density="compact" variant="tonal" color="primary" class="layer-trigger" :title="selectedLayer.description">
-        <v-icon start>{{ selectedLayer.icon }}</v-icon>
-        <span>{{ selectedLayer.title }}</span>
-        <v-icon end size="16">mdi-chevron-down</v-icon>
-      </v-btn>
+      <v-btn-group size="small" density="compact" variant="outlined">
+        <v-btn v-bind="activatorProps" width="auto" min-width="auto" size="small" class="layer-trigger" :title="selectedLayer.description">
+          <v-icon start>{{ selectedLayer.icon }}</v-icon>
+          <span>{{ selectedLayer.title }}</span>
+          <v-icon end size="16">mdi-chevron-down</v-icon>
+        </v-btn>
+      </v-btn-group>
     </template>
 
     <v-list density="compact" class="layer-menu" aria-label="Visible layers">
-      <v-list-item v-for="option in LAYER_OPTIONS" :key="option.value" :active="option.value === modelValue" color="primary" @click="emit('update:modelValue', option.value)">
+      <v-list-item v-for="option in LAYER_OPTIONS" :key="option.value" :active="option.value === modelValue" @click="emit('update:modelValue', option.value)">
         <template #prepend><v-icon>{{ option.icon }}</v-icon></template>
         <v-list-item-title>{{ option.title }}</v-list-item-title>
         <v-list-item-subtitle>{{ option.description }}</v-list-item-subtitle>
-        <template v-if="option.value === modelValue" #append><v-icon size="18" color="primary">mdi-check</v-icon></template>
+        <template v-if="option.value === modelValue" #append><v-icon size="18">mdi-check</v-icon></template>
       </v-list-item>
     </v-list>
   </v-menu>

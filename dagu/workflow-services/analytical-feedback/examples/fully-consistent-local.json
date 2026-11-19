@@ -1,0 +1,22 @@
+{
+  "contractVersion": "1.2",
+  "annotations": [{
+    "target": {"side": "submission", "id": "parent", "kind": "modelElement"},
+    "referenceId": "parent",
+    "match": {"status": "provisional", "reason": "unique_exact_label"},
+    "consistency": "fully_consistent",
+    "facts": [
+      {"code": "children.complete", "status": "satisfied", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "conditional_mapping", "reason": "local_children_under_mapping", "expected": 1, "observed": 1, "outsideReferenceIds": [], "additionalSubmissionIds": [], "mappedFromOtherTargets": [], "unresolvedReferenceIds": [], "rolesEqual": true, "pathsUnambiguous": true, "minimumMissing": 0, "dependsOn": [{"referenceId": "attribute", "studentId": "attribute"}]}},
+      {"code": "connections.complete", "status": "satisfied", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "conditional_mapping", "reason": "local_connections_under_mapping", "expected": 0, "observed": 0, "minimumMissing": 0, "referenceConnectionIds": [], "submissionConnectionIds": []}},
+      {"code": "containment.not_applicable", "status": "not_applicable", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "independent_evidence", "reason": "compared_containment", "referenceParentIds": [], "submissionParentIds": [], "dependsOn": []}},
+      {"code": "counterpart.present", "status": "satisfied", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "conditional_mapping", "reason": "existing_correspondence", "dependsOn": []}},
+      {"code": "direct_children.complete", "status": "satisfied", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "conditional_mapping", "reason": "local_children_under_mapping", "expected": 1, "observed": 1, "outsideReferenceIds": [], "additionalSubmissionIds": [], "mappedFromOtherTargets": [], "unresolvedReferenceIds": [], "rolesEqual": true, "pathsUnambiguous": true, "minimumMissing": 0, "dependsOn": [{"referenceId": "attribute", "studentId": "attribute"}]}},
+      {"code": "incoming.complete", "status": "satisfied", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "conditional_mapping", "reason": "local_connections_under_mapping", "expected": 0, "observed": 0, "minimumMissing": 0, "referenceConnectionIds": [], "submissionConnectionIds": []}},
+      {"code": "label.equal", "status": "satisfied", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "direct_observation", "reason": "compared_labels", "referenceValue": "Parent", "submissionValue": "Parent"}},
+      {"code": "outgoing.complete", "status": "satisfied", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "conditional_mapping", "reason": "local_connections_under_mapping", "expected": 0, "observed": 0, "minimumMissing": 0, "referenceConnectionIds": [], "submissionConnectionIds": []}},
+      {"code": "owner.not_applicable", "status": "not_applicable", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "independent_evidence", "reason": "compared_owner", "referenceParentIds": [], "submissionParentIds": [], "dependsOn": []}},
+      {"code": "type.equal", "status": "satisfied", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "direct_observation", "reason": "compared_concrete_types", "referenceValue": "entity", "submissionValue": "entity"}},
+      {"code": "undirected.complete", "status": "satisfied", "referenceIds": ["parent"], "submissionIds": ["parent"], "evidence": {"basis": "conditional_mapping", "reason": "local_connections_under_mapping", "expected": 0, "observed": 0, "minimumMissing": 0, "referenceConnectionIds": [], "submissionConnectionIds": []}}
+    ]
+  }]
+}
