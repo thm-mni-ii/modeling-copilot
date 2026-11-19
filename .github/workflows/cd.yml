@@ -108,6 +108,7 @@ jobs:
           - model-label-extraction
           - synonym-matching
           - one-to-one-graph-matching
+          - analytical-feedback
           - feedback-generation
     steps:
       - name: Check out release tag
