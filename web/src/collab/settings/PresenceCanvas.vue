@@ -380,45 +380,13 @@ const shownMarks = computed(() => OTHERS.slice(0, marksShown.value).map((letter,
 const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
 </script>
 
-<style scoped>
-.canvas {
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgb(var(--v-theme-surface));
-  font-size: 13px;
-  container-type: inline-size;
-}
+<style scoped src="./canvasRows.css"></style>
 
+<style scoped>
 .title {
   margin: 0 0 6px;
   font-size: 14px;
   font-weight: 600;
-}
-
-.canvas__body {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 24px;
-  align-items: flex-start;
-}
-
-.canvas__svg {
-  flex: 1 1 300px;
-  min-width: 0;
-  max-width: clamp(380px, 36cqw, 480px);
-}
-
-/* While a part or a row is lit up, the other parts fade. */
-.part {
-  transition: opacity 0.15s;
-}
-
-.canvas__svg--dim .part:not(.part--on) {
-  opacity: 0.3;
-}
-
-.badge {
-  fill: rgb(var(--v-theme-primary));
 }
 
 .badge-text,
@@ -456,11 +424,6 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
   font-size: 11px;
 }
 
-.rows {
-  flex: 1 1 340px;
-  min-width: 0;
-}
-
 .canvas__head {
   display: flex;
   flex-wrap: wrap;
@@ -475,46 +438,6 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
 
 .canvas__switch {
   flex: none;
-}
-
-/* Every part is a framed card with the grey background; the rest of the canvas card is white. */
-.prow {
-  display: flex;
-  gap: 10px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.15);
-  border-radius: 8px;
-  background: rgba(var(--v-theme-on-surface), 0.04);
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-
-/* A part with nothing to change yet is an empty frame on white. */
-.prow--locked {
-  border-style: dashed;
-  background: transparent;
-}
-
-.prow--on {
-  border-color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.08);
-}
-
-.prow__n {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-top: 1px;
-  border-radius: 50%;
-  background: rgb(var(--v-theme-primary));
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
 }
 
 .prow__n--none {
@@ -536,11 +459,6 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
   align-self: flex-start;
   gap: 4px;
   min-height: 26px;
-}
-
-.prow__info {
-  cursor: help;
-  opacity: 0.55;
 }
 
 /* The controls of a part flow in a line and wrap; the time axis takes a line of its own. */
@@ -565,27 +483,6 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
   flex-basis: 100%;
 }
 
-.ctl__head {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: rgba(var(--v-theme-on-surface), 0.75);
-}
-
-.ctl__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgb(var(--v-theme-warning));
-}
-
-.ctl__body {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-}
-
 /* Technical values are only explained until Advanced settings is pressed: grey, faded and not clickable. */
 .ctl--locked .ctl__body {
   cursor: not-allowed;
@@ -599,11 +496,6 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
 
 .ctl__open {
   color: rgb(var(--v-theme-info));
-}
-
-.ctl__error {
-  flex-basis: 100%;
-  color: rgb(var(--v-theme-error));
 }
 
 .ctl__value {
@@ -639,13 +531,6 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
   color: rgb(var(--v-theme-on-surface));
 }
 
-.ctl__exact {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: rgba(var(--v-theme-on-surface), 0.65);
-}
-
 .ctl__num {
   width: 56px;
   padding: 2px 6px;
@@ -675,45 +560,6 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
   border-style: solid;
   border-color: transparent;
   color: #fff;
-}
-
-.axis {
-  flex: 1 1 220px;
-  min-width: 180px;
-  max-width: 250px;
-  cursor: pointer;
-  touch-action: none;
-}
-
-.axis__line,
-.axis__tick {
-  stroke: rgba(var(--v-theme-on-surface), 0.3);
-  stroke-width: 2;
-}
-
-.axis__tick {
-  stroke-width: 1;
-}
-
-.axis__fill {
-  stroke: rgb(var(--v-theme-primary));
-  stroke-width: 4;
-}
-
-.axis__dot {
-  fill: rgb(var(--v-theme-primary));
-}
-
-.axis__text,
-.axis__value {
-  font-size: 12px;
-  fill: rgba(var(--v-theme-on-surface), 0.65);
-}
-
-.axis__value {
-  font-size: 14px;
-  font-weight: 600;
-  fill: rgb(var(--v-theme-on-surface));
 }
 
 .grip {
