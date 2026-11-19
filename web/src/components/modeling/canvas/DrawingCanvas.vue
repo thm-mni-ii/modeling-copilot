@@ -97,7 +97,7 @@
               <slot name="canvas-top-right" />
             </div>
 
-            <v-alert v-if="diagramWarnings.length" type="warning" variant="tonal" density="compact" class="canvas-diagram-warnings" @pointerdown.stop>
+            <v-alert v-if="autonomyMode === 'validating' && diagramWarnings.length" type="warning" variant="tonal" density="compact" class="canvas-diagram-warnings" @pointerdown.stop>
               <div v-for="(warning, index) in diagramWarnings" :key="index">
                 <v-btn v-if="warning.cell" variant="text" size="small" class="canvas-warning-button" @click="focusWarning(warning.cell)">{{ warning.message }}</v-btn>
                 <span v-else>{{ warning.message }}</span>
