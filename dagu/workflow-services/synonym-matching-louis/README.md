@@ -483,6 +483,85 @@ mit `--data research/label-parts-cases.json` beziehungsweise `research/model-cas
 und eigenem Ausgabepfad verwenden. Nächste notwendige Prüfung: unabhängige Aufgaben
 mit echten Synonymen für Kennungen und bisher unbekannten Objektbezeichnungen.
 
+### Vollständige semantische Fusion und Ablationen (19.11.2026)
+
+Die optionale Kombination `{"kind": "semantic"}` verwendet die vorhandenen Methoden
+`levenshtein`, `jaro_winkler`, `char_trigram`, `translated_embedding`, `wordnet` und
+`label_part_compatibility`. Sie aktiviert die neun benötigten WordNet-Merkmale auch
+im Service automatisch. Alle Einzelscores bleiben unter `scores` sichtbar; der
+Service-Standard und das Outputschema bleiben unverändert.
+
+Feste experimentelle Regel, **keine Kalibrierung oder Parameteroptimierung**:
+
+1. Basis: 75 % übersetztes Embedding + 25 % Mittel der drei Stringverfahren.
+2. Lexikonevidenz gilt nur bei beidseitiger Abdeckung und genau einer erfassten
+   Lesart pro Seite. Unbekannt bedeutet keine Gegenevidenz.
+3. Gemeinsamer Synset ohne Gegenrelation: Mindestscore 0,9. Bei verfügbarer
+   Taxonomie steigt dieser um `0,1 * q`, mit `q = (Path + Wu-Palmer) / 2`.
+4. Explizite Gegenrelation ohne gemeinsamen Synset: Abschlag 50 %, bei verfügbarer
+   Taxonomie zusätzlich `25 % * (1 - q)`. Ontologische Nähe bestätigt allein nichts.
+5. Anschließend halbiert ein erkannter Nummern-/Raumkonflikt den Score wie bisher.
+
+Die Parameter stehen zentral in `SEMANTIC_POLICY` und werden im Forschungsergebnis
+unter `semantic_fusion_policy` gespeichert. `disabled` schaltet einzelne Gruppen
+ab: `strings`, `coverage`, `ambiguity`, `synsets`, `relations`, `ontology`, `conflicts`.
+Alle Merkmale werden trotzdem einmal berechnet und zwischen Ablationen geteilt.
+
+Ein Aufruf für Baseline, Konfliktregel, vollständige Fusion und sieben Ablationen:
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --only 'normalize → translated_embedding' translated_embedding_part_conflicts \
+  semantic_full semantic_without_strings semantic_without_coverage \
+  semantic_without_ambiguity semantic_without_synsets semantic_without_relations \
+  semantic_without_ontology semantic_without_conflicts \
+  --output results/semantic-fusion-laboratory.json.gz
+```
+
+Für die Kontrollfälle `--data research/model-cases.json` und einen anderen Ausgabepfad
+verwenden. Die JSON-Datei enthält Rohscores, Daten, Modelle, Seed und Konfiguration.
+Eine Wiederholung mit gleicher Ausgabedatei wird wie bisher nicht überschrieben.
+
+**Ergebnis: geänderte Schülerlabels der fünf Laborvarianten**, Threshold 0,5, Seed 42:
+
+| Versuch | TP | FP | FN | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 157 | 100 | 35 | 0,611 | 0,818 | 0,699 |
+| Bisherige Konfliktregel | 157 | 12 | 35 | 0,929 | 0,818 | 0,870 |
+| Vollständige Fusion | 155 | 7 | 37 | 0,957 | 0,807 | 0,876 |
+| Ohne Stringanteil | 157 | 12 | 35 | 0,929 | 0,818 | 0,870 |
+| Ohne Abdeckungsmaske | 155 | 7 | 37 | 0,957 | 0,807 | 0,876 |
+| Ohne Mehrdeutigkeitsprüfung | 152 | 8 | 40 | 0,950 | 0,792 | 0,864 |
+| Ohne Synset-Anhebung | 155 | 7 | 37 | 0,957 | 0,807 | 0,876 |
+| Ohne Relationsabschlag | 155 | 7 | 37 | 0,957 | 0,807 | 0,876 |
+| Ohne Ontologie-Modulation | 155 | 7 | 37 | 0,957 | 0,807 | 0,876 |
+| Ohne Labelkonflikte | 155 | 56 | 37 | 0,735 | 0,807 | 0,769 |
+
+Der zusätzliche Stringanteil entfernt gegenüber der Konfliktregel fünf falsche
+Treffer, verliert aber `Wissen\\nschaftler / Forschende` und `Anzahl / Quantity`.
+Synset-Anhebung und Ontologie verändern jeweils einen Score, aber keine Entscheidung
+bei 0,5; der Relationsabschlag greift hier bei keiner eindeutigen Lesartenkombination.
+Die Abdeckungsmaske ist in dieser Regel redundant zur Bedingung genau einer Lesart.
+Das bedeutet nicht, dass unbekannte Einträge allgemein ignoriert werden dürfen.
+
+Auf den 33 auswertbaren bekannten Kontrollszenarien: Baseline F1 0,680 (TP/FP/FN
+34/23/9), Konfliktregel 0,723 (34/17/9), volle Fusion 0,742 (33/13/10). Ohne
+Mehrdeutigkeitsprüfung steigt dort F1 auf 0,786, während dieselbe Ablation im Labor
+schadet. Es liegt kein aufgabenübergreifend bestätigter Vorteil vor.
+
+**Bewertung:** Mehr Kennzahlen ergeben noch keine bessere Pipeline unter der
+Vorgabe, richtige Treffer zu erhalten. Die bisherige Konfliktregel bleibt für dieses
+Ziel die vorsichtigere Forschungsreferenz. Keine automatische Umstellung des Services.
+Alle Daten sind bekannte Entwicklungsdaten; insbesondere die Konfliktregeln wurden
+aus Laborfehlern abgeleitet. Unabhängige Aufgaben und Threshold-Validierung fehlen.
+
+Lokale Ergebnisse im ignorierten Ordner `results`:
+`semantic-fusion-laboratory-final-20261119.json.gz`,
+`semantic-fusion-control-20261119.json.gz` und
+`semantic-fusion-summary-20261119.json` (Metriken, Ablationsbeiträge, entfernte falsche
+und verlorene richtige Treffer, konkrete Labelpaare und Hashes der Rohdateien).
+
 ### Explizite Relationsmerkmale (Einzelwerte)
 
 Unter `methods.wordnet` und `methods.odenet` aktiviert `relation_features` die

@@ -10,7 +10,7 @@ import time
 import numpy as np
 
 from .cache import Cache
-from .combinations import combine, evidence_fusion
+from .combinations import combine, evidence_fusion, semantic_fusion
 from .config import validate_config
 from .lexicons import OdeNet, OpenThesaurus, WordNet, semantic_features
 from .methods import EMBEDDING_MODELS, METHODS, METHOD_TRAITS, EmbeddingMethod
@@ -295,7 +295,10 @@ class MatchingEngine:
         valid &= usable_combined
 
         combiner = self.config['combiner']
-        if combiner['kind'] == 'evidence':
+        if combiner['kind'] == 'semantic':
+            combined = semantic_fusion(matrices, result['semantic_features']['wordnet'],
+                                       disabled=combiner['disabled'])
+        elif combiner['kind'] == 'evidence':
             combined = evidence_fusion(matrices[combiner['baseline']], matrices[combiner['lexicon']],
                                        result['semantic_features'][combiner['lexicon']])
         else:

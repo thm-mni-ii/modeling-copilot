@@ -8,7 +8,7 @@ Es rechnet nichts; die Berechnung steht in compare.py.
 import json
 from pathlib import Path
 
-from synonym_matching.combinations import EVIDENCE_FEATURES, REQUIRES
+from synonym_matching.combinations import EVIDENCE_FEATURES, REQUIRES, SEMANTIC_FEATURES, SEMANTIC_METHODS
 from synonym_matching.lexicons import RELATION_FEATURES
 from synonym_matching.preprocessing import STEPS as PREPROCESSING_STEPS
 
@@ -144,7 +144,20 @@ def configurations(config):
             continue
         for label, steps in pipelines([blocks[alias] for alias in aliases]).items():
             full = {alias: expand(blocks[alias], steps) for alias in aliases}
-            if entry.get('evidence'):
+            if entry.get('semantic'):
+                from synonym_matching.config import validate_config
+
+                chains = {chain[-1]: chain for chain in full.values()}
+                if (len(chains) != len(full) or set(chains) != set(SEMANTIC_METHODS)
+                        or 'weights' in entry or 'variant' in entry or entry.get('evidence')):
+                    raise ValueError('semantic mix needs exactly its six base methods')
+                if set(SEMANTIC_FEATURES) - set(methods['wordnet'].get('relation_features', [])):
+                    raise ValueError('semantic mix requires all WordNet features')
+                combiner = {'kind': 'semantic', 'disabled': entry.get('disabled', [])}
+                validate_config({'methods': list(chains), 'combiner': combiner})
+                extra = {'chain_based': True}
+                shown = steps
+            elif entry.get('evidence'):
                 if ('weights' in entry or 'variant' in entry or len(aliases) != 2
                         or len(set(aliases)) != 2):
                     raise ValueError('evidence mix needs two distinct parts: baseline, lexicon')
@@ -179,7 +192,7 @@ def configurations(config):
                 shown = steps
             if entry.get('global_ranking'):
                 extra['global_ranking'] = True
-            if combiner['kind'] == 'evidence':
+            if combiner['kind'] in {'evidence', 'semantic'}:
                 name = entry.get('name') or 'evidence: ' + ' + '.join(chain_name(c) for c in chains.values())
             else:
                 name = entry.get('name') or ' + '.join(

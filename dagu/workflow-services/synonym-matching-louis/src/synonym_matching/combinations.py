@@ -48,6 +48,69 @@ TOKENS = ('token_jaccard', 'token_sort_ratio')
 EMBEDDINGS = ('translated_embedding', 'multilingual')
 EVIDENCE_FEATURES = ('pair_known', 'reference_synset_count', 'student_synset_count',
                      'reference_hypernym', 'reference_hyponym', 'antonym')
+SEMANTIC_METHODS = STRINGS + ('translated_embedding', 'wordnet', 'label_part_compatibility')
+SEMANTIC_FEATURES = EVIDENCE_FEATURES + ('path_similarity', 'wup_similarity', 'taxonomy_available')
+SEMANTIC_ABLATIONS = {'strings', 'coverage', 'ambiguity', 'synsets', 'relations', 'ontology', 'conflicts'}
+SEMANTIC_POLICY = {
+    'embedding_weight': .75, 'synset_floor': .9, 'ontology_boost': .1,
+    'relation_penalty': .5, 'ontology_penalty': .25, 'conflict_penalty': .5,
+}
+
+
+def semantic_fusion(matrices, features, *, disabled=()):
+    """Vollständige experimentelle Fusion mit einzeln abschaltbaren Merkmalsgruppen.
+
+    Feste Heuristik, nicht kalibriert: 75 % Embedding + 25 % String-Ensemble.
+    Eindeutige Synonyme heben an, Gegenrelationen und Labelkonflikte senken ab.
+    Taxonomie beeinflusst nur bereits explizit belegte Beziehungen, nie allein.
+    Abdeckungs- und Lesartenmasken können redundant sein; die Ablation zeigt das.
+    """
+    if (not isinstance(disabled, (list, tuple))
+            or any(not isinstance(name, str) or name not in SEMANTIC_ABLATIONS for name in disabled)
+            or len(disabled) != len(set(disabled))):
+        raise ValueError('invalid semantic ablations')
+    if set(SEMANTIC_METHODS) - matrices.keys() or set(SEMANTIC_FEATURES) - features.keys():
+        raise ValueError('semantic fusion requires all base scores and semantic features')
+    arrays = [np.asarray(matrices[name], dtype=float) for name in SEMANTIC_METHODS]
+    arrays += [np.asarray(features[name], dtype=float) for name in SEMANTIC_FEATURES]
+    shape = arrays[0].shape
+    if (len(shape) != 2 or any(a.shape != shape or not np.isfinite(a).all() for a in arrays)):
+        raise ValueError('semantic fusion requires finite matrices of the same shape')
+    values = _select(matrices, SEMANTIC_METHODS)
+    scores = values['translated_embedding'].copy()
+    if 'strings' not in disabled:
+        weight = SEMANTIC_POLICY['embedding_weight']
+        scores = weight * scores + (1 - weight) * string_ensemble(values)
+
+    known = np.asarray(features['pair_known']) == 1
+    if 'coverage' in disabled:
+        known = np.ones(shape, dtype=bool)
+    unambiguous = ((np.asarray(features['reference_synset_count']) == 1)
+                   & (np.asarray(features['student_synset_count']) == 1))
+    if 'ambiguity' in disabled:
+        unambiguous = np.ones(shape, dtype=bool)
+    usable = known & unambiguous
+    shared = np.asarray(matrices['wordnet']) == 1
+    counter = np.logical_or.reduce([
+        np.asarray(features[name]) == 1
+        for name in ('reference_hypernym', 'reference_hyponym', 'antonym')])
+    if 'relations' in disabled:
+        counter = np.zeros(shape, dtype=bool)
+    boost = np.full(shape, SEMANTIC_POLICY['synset_floor'])
+    penalty = np.full(shape, SEMANTIC_POLICY['relation_penalty'])
+    if 'ontology' not in disabled:
+        available = np.asarray(features['taxonomy_available']) == 1
+        ontology = (np.clip(features['path_similarity'], 0, 1)
+                    + np.clip(features['wup_similarity'], 0, 1)) / 2
+        boost = np.where(available, boost + SEMANTIC_POLICY['ontology_boost'] * ontology, boost)
+        penalty = np.where(available, penalty + SEMANTIC_POLICY['ontology_penalty'] * (1 - ontology), penalty)
+    if 'synsets' not in disabled:
+        scores = np.where(usable & shared & ~counter, np.maximum(scores, boost), scores)
+    if 'relations' not in disabled:
+        scores = np.where(usable & ~shared & counter, scores * (1 - penalty), scores)
+    if 'conflicts' not in disabled:
+        scores *= 1 - SEMANTIC_POLICY['conflict_penalty'] * (1 - values['label_part_compatibility'])
+    return np.clip(scores, 0, 1)
 
 
 def evidence_fusion(baseline, synonyms, features):

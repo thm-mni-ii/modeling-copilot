@@ -58,9 +58,11 @@ def validate_config(value=None):
     semantic = config.setdefault('semantic_features', {})
     if not isinstance(semantic, dict):
         raise ValueError('semantic_features must map selected lexicons to feature lists')
-    if combiner['kind'] == 'evidence':
-        from .combinations import EVIDENCE_FEATURES
-        semantic.setdefault(combiner['lexicon'], list(EVIDENCE_FEATURES))
+    if combiner['kind'] in {'evidence', 'semantic'}:
+        from .combinations import EVIDENCE_FEATURES, SEMANTIC_FEATURES
+        source = combiner['lexicon'] if combiner['kind'] == 'evidence' else 'wordnet'
+        required = EVIDENCE_FEATURES if combiner['kind'] == 'evidence' else SEMANTIC_FEATURES
+        semantic.setdefault(source, list(required))
     for name, features in semantic.items():
         if (name not in {'wordnet', 'odenet', 'openthesaurus', 'wn_translation'} or name not in methods
                 or not isinstance(features, list)
@@ -68,8 +70,8 @@ def validate_config(value=None):
                 or len(features) != len(set(features))
                 or (name in {'openthesaurus', 'wn_translation'} and features)):
             raise ValueError('invalid semantic_features source or feature list')
-    if combiner['kind'] == 'evidence' and set(EVIDENCE_FEATURES) - set(semantic[combiner['lexicon']]):
-        raise ValueError('evidence combiner requires all six lexicon evidence features')
+    if combiner['kind'] in {'evidence', 'semantic'} and set(required) - set(semantic[source]):
+        raise ValueError('combiner requires all configured semantic features')
     return config
 
 
@@ -106,6 +108,16 @@ def _validate_combiner(combiner, methods):
             raise ValueError("unknown variant")
         if not isinstance(combiner.get("options", {}), dict):
             raise ValueError("variant options must be an object")
+    elif kind == 'semantic':
+        from .combinations import SEMANTIC_ABLATIONS, SEMANTIC_METHODS
+        allowed.add('disabled')
+        disabled = combiner.setdefault('disabled', [])
+        if (not isinstance(disabled, list)
+                or any(not isinstance(name, str) or name not in SEMANTIC_ABLATIONS for name in disabled)
+                or len(disabled) != len(set(disabled))):
+            raise ValueError('invalid semantic ablations')
+        if set(SEMANTIC_METHODS) - set(methods):
+            raise ValueError('semantic combiner requires all six base methods')
     elif kind == 'evidence':
         allowed |= {'baseline', 'lexicon'}
         baseline, lexicon = combiner.get('baseline'), combiner.get('lexicon')
@@ -118,6 +130,8 @@ def _validate_combiner(combiner, methods):
     if set(combiner) - allowed:
         raise ValueError("unknown combiner options")
     default_methods = [combiner['baseline'], combiner['lexicon']] if kind == 'evidence' else methods.copy()
+    if kind == 'semantic':
+        default_methods = list(SEMANTIC_METHODS)
     selected = combiner.setdefault("methods", default_methods)
     if (not isinstance(selected, list) or not selected
             or any(not isinstance(name, str) for name in selected)):
@@ -126,6 +140,8 @@ def _validate_combiner(combiner, methods):
         raise ValueError("combiner methods must be a unique subset of methods")
     if kind == 'evidence' and set(selected) != set(default_methods):
         raise ValueError('evidence combiner methods must contain exactly baseline and lexicon')
+    if kind == 'semantic' and set(selected) != set(default_methods):
+        raise ValueError('semantic combiner methods must contain exactly its six base methods')
     if kind == "variant":
         from .combinations import REQUIRES
         if set(REQUIRES[combiner["name"]]) - set(selected):

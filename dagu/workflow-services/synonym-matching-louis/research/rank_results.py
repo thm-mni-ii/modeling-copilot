@@ -74,6 +74,12 @@ def describe_chains(spec):
 
 def describe_pipeline(spec):
     """Zeige Schritte in Ausführungsreihenfolge und die tatsächliche Kombination."""
+    if spec.get('combiner', {}).get('kind') == 'semantic':
+        disabled = spec['combiner'].get('disabled', [])
+        steps = '+'.join(spec['chains']['translated_embedding'][:-1]) or 'raw'
+        return (f'{steps} → regelbasierte Fusion: String + Embedding + Lexikonevidenz '
+                '+ Taxonomie + Labelkonflikte'
+                + (f'; ohne {", ".join(disabled)}' if disabled else '; vollständig'))
     if spec.get('combiner', {}).get('kind') == 'evidence':
         baseline = spec['chains'][spec['combiner']['baseline']]
         lexical = spec['chains'][spec['combiner']['lexicon']]

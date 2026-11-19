@@ -26,7 +26,7 @@ from .evaluation import evaluate_case, select_matches, global_ranking
 from .experiments import (DEFAULT_CONFIG, ROOT, configurations, is_wordvec, load_config,
                           unsupported)
 from synonym_matching.lexicons import DATA_DIR, OdeNet, OpenThesaurus, WordNet
-from synonym_matching.combinations import combine, evidence_fusion
+from synonym_matching.combinations import combine, evidence_fusion, semantic_fusion, SEMANTIC_POLICY
 from synonym_matching.methods import EmbeddingMethod
 from synonym_matching.cache import Cache
 from synonym_matching.translation import Translator
@@ -301,7 +301,13 @@ def run_experiments(data, output, config, *, only=None):
                 np.asarray(p['eligible'], dtype=bool).reshape(shape) for p in parts.values()])
             t0 = time.perf_counter()
             changes = []
-            if spec['combiner']['kind'] == 'evidence':
+            if spec['combiner']['kind'] == 'semantic':
+                # JSON-Listen verlieren bei leeren Mengen die zweite Dimension.
+                relations = {name: np.asarray(values).reshape(shape)
+                             for name, values in parts['wordnet']['relation_features'].items()}
+                scores = semantic_fusion(raw, relations,
+                                         disabled=spec['combiner']['disabled'])
+            elif spec['combiner']['kind'] == 'evidence':
                 baseline = spec['combiner']['baseline']
                 lexical = spec['combiner']['lexicon']
                 scores = evidence_fusion(raw[baseline], raw[lexical], parts[lexical]['relation_features'])
@@ -333,6 +339,8 @@ def run_experiments(data, output, config, *, only=None):
             if spec['combiner']['kind'] == 'evidence':
                 records[-1]['evidence_changes'] = changes
                 records[-1]['feature_seconds'] += parts[lexical].get('relation_seconds', 0)
+            if spec['combiner']['kind'] == 'semantic':
+                records[-1]['feature_seconds'] += parts['wordnet'].get('relation_seconds', 0)
 
     # Eine einzige Datei reicht zur Rekonstruktion: Daten, Parameter und Rohscores.
     feature_records = []
@@ -343,6 +351,7 @@ def run_experiments(data, output, config, *, only=None):
     for item in feature_records:
         model_load_seconds[item['method']] += item.get('load_seconds', 0)
     payload = {'version': 3, 'seed': config['seed'], 'threshold': threshold, 'config': config,
+               'semantic_fusion_policy': dict(SEMANTIC_POLICY),
                'selected_experiments': only,
                'score_policy': 'raw cosine [-1,1]; combinations clip to [0,1]; no calibration',
                'timing_policy': ('sequential CPU; compute seconds exclude model loading, which is stored '
@@ -357,7 +366,7 @@ def run_experiments(data, output, config, *, only=None):
                'additional_resources': {'word_vectors': word_vectors},
                'score_statistics': score_statistics(feature_records),
                'lexicon_coverage': summarize_coverage(feature_records, data['cases']),
-               'relation_policy': ('Only explicit evidence mixes use relations in combinedScores. Binary values '
+               'relation_policy': ('Only explicit evidence/semantic mixes use relations in combinedScores. Binary values '
                                    'mean a relation exists for at least one possible sense; '
                                    '0 may mean unknown. Synset counts are raw counts. '
                                    'Direction is reference to student; wn.closure follows all hypernyms. '
