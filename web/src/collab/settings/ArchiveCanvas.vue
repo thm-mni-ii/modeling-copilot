@@ -380,6 +380,7 @@ const press = (event: KeyboardEvent) => {
 
 .ctl__body {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px 12px;
 }

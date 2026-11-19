@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { notifyError } from '@/composables/useNotifications'
 import { collabErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import type { CollabKitApi, ManagementElement, ManagementOpen, ManagementTab, Room } from '@/collab/kit/collabKitV1'
@@ -60,10 +60,17 @@ onMounted(async () => {
     // Also before the element, so the "Archive" tab does not show briefly; without an answer the default applies, which is off.
     await Promise.allSettled([loadCollabSettings(api, 'archive'), loadCollabSettings(api, 'hints')])
     ck.value = api
+    document.addEventListener('visibilitychange', onVisible)
   } catch (error) {
     notifyError(`collab-kit could not be loaded: ${collabErrorMessage(error)}`)
   }
 })
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible))
+
+// Without a session /collab hears no settingsChanged: back in the tab, archive and hints are read anew.
+const onVisible = () => {
+  if (document.visibilityState === 'visible' && ck.value) void Promise.allSettled([loadCollabSettings(ck.value, 'archive'), loadCollabSettings(ck.value, 'hints')])
+}
 </script>
 
 <style scoped>

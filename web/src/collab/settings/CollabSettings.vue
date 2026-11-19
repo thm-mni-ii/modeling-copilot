@@ -150,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { notifyError, notifySuccess } from '@/composables/useNotifications'
 import { collabErrorMessage } from '@/collab/kit/collabKit'
 import type { CollabKitApi } from '@/collab/kit/collabKitV1'
@@ -492,7 +492,20 @@ const discard = () => {
   for (const area of COLLAB_AREAS) form[area] = formOf(area)
 }
 
+/** Reads an area anew and keeps what was changed here but not saved; another admin may have saved since this tab loaded. */
+const refreshArea = async (area: CollabArea) => {
+  const edits = Object.fromEntries(
+    Object.keys(form[area])
+      .filter((key) => fieldChanged(area, key))
+      .map((key) => [key, form[area][key]])
+  )
+  await loadCollabSettings(props.ck, area)
+  form[area] = { ...formOf(area), ...edits }
+}
+
 const saveArea = async (area: CollabArea) => {
+  // Only the fields changed here go over the stored values.
+  await refreshArea(area)
   // PUT replaces the whole area, so all its values always go along.
   const values = Object.fromEntries(Object.entries(form[area]).map(([key, value]) => [key, 'min' in limitOf(area, key) ? Number(value) * factorOf(key) : value]))
   applyCollabSettings(area, await props.ck.settings.set(area, values))
@@ -531,13 +544,21 @@ const reset = async (section: Section) => {
   }
 }
 
+// /collab opens no session and so hears no settingsChanged: back in the tab, the form shows what others saved.
+const onVisible = () => {
+  if (document.visibilityState !== 'visible' || busy.value !== null) return
+  for (const area of COLLAB_AREAS) void refreshArea(area).catch(() => undefined)
+}
+
 // Stored values outside the limits show as the default in the form, as that is what applies.
 onMounted(async () => {
   const failed = (await Promise.allSettled(COLLAB_AREAS.map((area) => loadCollabSettings(props.ck, area)))).some((result) => result.status === 'rejected')
   if (failed) notifyError('The collab settings could not be loaded; the form shows the defaults.')
   for (const area of COLLAB_AREAS) form[area] = formOf(area)
   loaded.value = true
+  document.addEventListener('visibilitychange', onVisible)
 })
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible))
 </script>
 
 <style scoped>
@@ -574,6 +595,14 @@ onMounted(async () => {
   color: rgb(var(--v-theme-info));
 }
 
+/* Under a heading: grey with a green bar, in the style of the grey part cards. */
+.callout--about {
+  border: 1px solid rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-on-surface), 0.04);
+  font-size: 13px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
 /* In a group card it is lighter and takes the color of the group. */
 .callout--small {
   padding: 6px 10px;
@@ -595,14 +624,6 @@ onMounted(async () => {
   border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   border-radius: 12px;
 }
-/* Under a heading: grey with a green bar, in the style of the grey part cards. */
-.callout--about {
-  border: 1px solid rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-on-surface), 0.04);
-  font-size: 13px;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-}
-
 
 .shell__head {
   display: flex;
@@ -692,7 +713,7 @@ onMounted(async () => {
 
 .rows {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(max(560px, calc((100% - 32px) / 2)), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(560px, calc((100% - 32px) / 2))), 1fr));
   column-gap: 32px;
 }
 

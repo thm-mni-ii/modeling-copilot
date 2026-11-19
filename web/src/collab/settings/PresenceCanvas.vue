@@ -523,6 +523,7 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
 
 .prow__main {
   display: flex;
+  flex-wrap: wrap;
   flex: 1;
   gap: 4px 12px;
   min-width: 0;
@@ -545,7 +546,7 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
 /* The controls of a part flow in a line and wrap; the time axis takes a line of its own. */
 .prow__ctls {
   display: flex;
-  flex: 1;
+  flex: 1 1 200px;
   flex-wrap: wrap;
   gap: 2px 12px;
   min-width: 0;
@@ -580,6 +581,7 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
 
 .ctl__body {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px 12px;
 }
@@ -763,10 +765,10 @@ const more = computed(() => Math.max(0, OTHERS.length - marksShown.value))
   .prow__head {
     flex: none;
   }
-}
-</style>
 
   /* In der Spalte wäre die Basis 200px die Höhe, deshalb nach Inhalt. */
   .prow__ctls {
     flex: 0 1 auto;
   }
+}
+</style>

@@ -392,6 +392,7 @@ const conflict = computed(() => (typeof props.colors.conflictColor === 'string' 
 
 .prow__main {
   display: flex;
+  flex-wrap: wrap;
   flex: 1;
   gap: 4px 12px;
   min-width: 0;
@@ -413,7 +414,7 @@ const conflict = computed(() => (typeof props.colors.conflictColor === 'string' 
 
 .prow__ctls {
   display: flex;
-  flex: 1;
+  flex: 1 1 200px;
   flex-wrap: wrap;
   gap: 2px 12px;
   min-width: 0;
@@ -448,6 +449,7 @@ const conflict = computed(() => (typeof props.colors.conflictColor === 'string' 
 
 .ctl__body {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px 12px;
 }
