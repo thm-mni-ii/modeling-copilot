@@ -1,4 +1,4 @@
-"""Derived indices for graph-result/v3, preserving its original relations."""
+"""Derived indices for graph-result/v1, preserving its original relations."""
 
 from collections import defaultdict
 import json
@@ -7,9 +7,9 @@ import json
 class GraphIndex:
     def __init__(self, graph):
         if (not isinstance(graph, dict) or type(graph.get("schemaVersion")) is not int
-                or graph["schemaVersion"] != 3
+                or graph["schemaVersion"] != 1
                 or any(not isinstance(graph.get(key), list) for key in ("nodes", "edges", "languages"))):
-            raise ValueError("graph must contain schemaVersion=3 and nodes/edges/languages arrays")
+            raise ValueError("graph must contain schemaVersion=1 and nodes/edges/languages arrays")
         self.nodes = {}
         self.by_kind = defaultdict(list)
         self.by_type = defaultdict(list)
@@ -94,6 +94,27 @@ class GraphIndex:
                 if role in self.endpoints[connection]:
                     raise ValueError("connection has duplicate endpoint role")
                 self.endpoints[connection][role] = terminal
+
+    def identity_owner(self, identity):
+        """Return the nearest semantic parent only if the path crosses a declared substructure.
+
+        A `component` edge marks a child the language declares (e.g. an attribute list);
+        a model element merely placed inside another one (e.g. a task in a lane) has no
+        identity-bearing owner, only a placement that facts evaluate separately.
+        """
+        visited = {identity}
+        current, declared = identity, False
+        while True:
+            edges = self.parents.get(current, ())
+            if len(edges) != 1:
+                return None
+            declared = declared or edges[0]["role"] == "component"
+            current = edges[0]["target"]
+            if current in visited:
+                return None
+            visited.add(current)
+            if self.nodes[current]["kind"] != "structuralElement":
+                return current if declared else None
 
     def owner(self, identity):
         """Return the nearest semantic parent if the retained path is unambiguous."""

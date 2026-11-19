@@ -13,12 +13,18 @@ from modeling_api.schemas.surveys import Definition
 from modeling_api.services import surveys
 
 PHASE_QUESTIONS = {
-    "topic": ("problem_area", "other_problem"),
+    "topic": ("problem_area", "other_problem", "tool_problem"),
     "reflection": ("stuck_duration", "support_need"),
     "action": ("next_action",),
 }
 AUTOMATIC_FEEDBACK = "automatic_feedback"
 AUTOMATIC_FEEDBACK_LABEL = "Automatisch erzeugtes Feedback"
+# Base support_need choices map to the feedback type the automatic check requests; any other
+# (teacher-added) choice receives the standard recognition overview.
+SUPPORT_KINDS = {"support_need_1": "help.clarify", "support_need_2": "help.next_step", "support_need_3": "help.example",
+                 "support_need_4": "help.check", "support_need_5": "help.solution", "support_need_6": "recognition"}
+# Kinds that judge the whole model and therefore need no marked objects.
+WHOLE_MODEL_KINDS = ("recognition", "help.check")
 
 
 def blueprint():

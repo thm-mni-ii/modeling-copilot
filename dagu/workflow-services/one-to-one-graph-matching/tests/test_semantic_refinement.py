@@ -7,7 +7,7 @@ from test_matching import make_inputs
 
 
 def contains(child, parent):
-    return {"kind": "contains", "role": "content", "source": child, "target": parent}
+    return {"kind": "contains", "role": "component", "source": child, "target": parent}
 
 
 def fixture(references, students, entries, reference_edges=(), student_edges=()):
@@ -25,6 +25,32 @@ def fixture(references, students, entries, reference_edges=(), student_edges=())
 
 
 class SemanticRefinementTests(unittest.TestCase):
+    def test_not_scored_alternative_is_not_a_low_similarity_competitor(self):
+        indices, candidates, state = fixture({"r": "A"}, {"s1": "B", "s2": "C"},
+            [("r", "s1", {"alpha": .95}), ("r", "s2", None)])
+        candidates["synonymMatrix"][0]["matches"][1].update(scoreStatus="not_scored", notScoredReason="deferred_computation")
+        result = refine_semantic_proposals(indices, candidates, state, {"alpha": .8})
+        self.assertEqual(result["proposals"], [])
+        self.assertEqual(result["candidateEvidence"][1]["scoreStatus"], "not_scored")
+        self.assertEqual(result["candidateEvidence"][1]["status"], "unavailable")
+
+    def test_capacity_conflict_preserves_an_independent_component(self):
+        entries = [("r1", "s1", {"alpha": .9}), ("r1", "s2", {"alpha": .1}),
+                   ("r2", "s2", {"alpha": .1}), ("r2", "s3", {"alpha": .9}),
+                   ("r3", "s3", {"alpha": .1}), ("r3", "s1", {"alpha": .1}),
+                   ("r4", "s4", {"alpha": .95})]
+        results = []
+        for reverse in (False, True):
+            data = fixture({"r1": "A", "r2": "B", "r3": "C", "r4": "D"},
+                           {"s1": "X", "s2": "Y", "s3": "Z", "s4": "W"},
+                           list(reversed(entries)) if reverse else entries)
+            result = refine_semantic_proposals(*data, {"alpha": .8})
+            self.assertEqual([(row["referenceId"], row["studentId"]) for row in result["proposals"]], [("r4", "s4")])
+            blocked = [row for row in result["decisionEvents"] if row["outcome"] == "blocked"]
+            self.assertEqual({row["referenceId"] for row in blocked}, {"r1", "r2"})
+            results.append(result)
+        self.assertEqual(*results)
+
     def test_thresholds_and_unconfigured_methods(self):
         indices, candidates, state = fixture({"r": "A"}, {"s": "B"}, [("r", "s", {"alpha": 0.8})])
         result = refine_semantic_proposals(indices, candidates, state, {})

@@ -46,6 +46,8 @@ export interface TaskVersionInfo extends ApiVersionInfo {
 
 export interface TaskVersion extends TaskVersionInfo {
   data: TaskData
+  /** Learners receive no sample-solution references; this flag says whether one exists. */
+  evaluationAvailable: boolean
 }
 
 export interface CreateTaskVersion {

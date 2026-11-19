@@ -2,9 +2,9 @@
   <div v-if="scopedConnections.length > 0" class="connection-toolbar" :class="{ 'connection-toolbar--compact': props.compact }">
     <v-menu v-model="paletteOpen" :close-on-content-click="false" location="bottom start" max-width="min(920px, calc(100vw - 32px))" min-width="400">
       <template #activator="{ props: activatorProps }">
-        <button v-bind="activatorProps" type="button" class="active-connection" :aria-expanded="paletteOpen" aria-label="Choose connection">
-          <ConnectionPreviewItem v-if="selectedConnection" :connection="selectedConnection.connection" :width="props.compact ? 62 : 104" :height="props.compact ? 28 : 38" />
-          <span v-if="!props.compact" class="active-connection__label">{{ selectedConnection?.connection.label }}</span>
+        <button v-bind="activatorProps" type="button" class="active-connection" :title="selectedConnection?.connection.label || selectedConnection?.connection.type" :aria-expanded="paletteOpen" aria-label="Choose connection">
+          <span class="active-connection__label">{{ selectedConnection?.connection.label || selectedConnection?.connection.type }}</span>
+          <ConnectionPreviewItem v-if="selectedConnection" :connection="selectedConnection.connection" :width="props.compact ? 110 : 128" :height="props.compact ? 28 : 38" />
           <v-icon size="18" class="active-connection__arrow">mdi-chevron-down</v-icon>
         </button>
       </template>
@@ -221,11 +221,12 @@ defineExpose({
 
 <style scoped>
 .connection-toolbar { display: flex; align-items: center; min-width: 0; }
-.active-connection { display: flex; align-items: center; gap: 6px; min-height: 42px; max-width: min(320px, 100%); padding: 2px 7px 2px 4px; border: 1px solid rgba(var(--v-theme-outline), 0.28); border-radius: 7px; background: rgb(var(--v-theme-surface)); color: rgb(var(--v-theme-on-surface)); cursor: pointer; }
-.active-connection:hover, .active-connection[aria-expanded='true'] { border-color: rgb(var(--v-theme-primary)); background: rgba(var(--v-theme-primary), 0.06); }
-.active-connection__label { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
-.active-connection__arrow { color: rgba(var(--v-theme-on-surface), 0.65); }
-.connection-toolbar--compact .active-connection { min-height: 30px; padding: 1px 4px; border-radius: 4px; }
+.active-connection { display: flex; align-items: center; gap: 6px; min-height: 42px; max-width: min(320px, 100%); padding: 2px 7px 2px 4px; border: 1px solid rgb(var(--v-theme-primary)); border-radius: 7px; background: rgba(var(--v-theme-primary), 0.18); color: rgb(var(--v-theme-on-surface)); box-shadow: inset 0 0 0 1px rgba(var(--v-theme-primary), 0.3); cursor: pointer; }
+.active-connection:hover, .active-connection[aria-expanded='true'] { border-color: rgb(var(--v-theme-primary)); background: rgba(var(--v-theme-primary), 0.26); }
+.active-connection :deep(.connection-preview) { flex-shrink: 0; background: transparent; border-color: transparent; }
+.active-connection__label { min-width: 0; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.active-connection__arrow { flex-shrink: 0; color: rgba(var(--v-theme-on-surface), 0.65); }
+.connection-toolbar--compact .active-connection { min-height: 32px; padding: 1px 6px; border-radius: 4px; }
 .connection-toolbar--compact .active-connection__arrow { margin-left: -2px; }
 .connection-palette { width: min(920px, calc(100vw - 32px)); overflow: hidden; }
 .connection-palette__search { padding: 12px 12px 8px; }

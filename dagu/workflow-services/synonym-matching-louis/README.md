@@ -124,7 +124,8 @@ die Synonymmatrix, der Forschungslauf speichert seine vollständigen Ergebnisse.
   Engine für ein Verfahren vorbereitet (`translate`, `german_only`, `original_text`);
   ein neues Verfahren trägt sich dort ein, die Engine bleibt unverändert.
 - `preprocessing.py`: `normalize`, `lowercase`, `split_identifiers`, `lemmatize`,
-  `stem`, `remove_stopwords`, `split_compounds`. Geordnete Liste, `[]` für Rohtexte.
+  `stem`, `remove_stopwords`, `split_compounds`, `expand_abbreviations`,
+  `split_label_parts`. Geordnete Liste, `[]` für Rohtexte.
   Zusätzlich darf einmal `translate` (DE→EN, gebündelt) in der Liste stehen, z. B.
   `"preprocessing": ["normalize", "translate", "lowercase"]`: Schritte davor laufen auf
   dem Originaltext, Schritte danach auf dem englischen Text. Das gilt für jedes
@@ -163,6 +164,24 @@ Unbekannt ergibt 0, auch bei identischen unbekannten Labels. Nicht transitive Su
 Wortmehrdeutigkeit bleibt ohne Kontext ungelöst. Eigene Lexikonpfade sind über
 `config.lexicons` möglich. Lokale Daten liegen unter `.cache/lexicons/`.
 
+Englisches WordNet und deutsches OdeNet werden beide über `wn` gelesen.
+Englisch verwendet fest `omw-en:1.4` (Princeton WordNet 3.0), Deutsch `odenet:1.4`.
+Deutsche Labels werden für das englische WordNet weiterhin zuerst übersetzt;
+englische Labels und deutsche OdeNet-Eingaben benötigen keine Übersetzung.
+Morphy berücksichtigt englische Wortformen; Adjektive einschließlich ihrer
+satellites bleiben bei der Suche erhalten. Die Normalisierung für OdeNet nutzt
+den wn-Standard; englische Wortformen werden ohne zusätzliche Akzentangleichung
+gesucht. Synset-IDs stammen jetzt aus wn statt aus NLTK.
+
+Nach der Umstellung einmal `python scripts/download_lexicons.py --wordnet`
+ausführen. Die Daten liegen gemeinsam in `.cache/lexicons/wn`; Matching lädt
+keine Ressourcen nach. Ein eigener Pfad unter `config.lexicons.wordnet` verweist
+jetzt auf ein wn-Datenverzeichnis mit `wn.db`, nicht auf `nltk_data`.
+Vorhandene NLTK-Korpusdateien werden nicht mehr benutzt und nicht automatisch
+gelöscht. NLTK bleibt als Bibliothek für Snowball-Stemming erhalten.
+Der Docker-Build lädt über das bestehende Vorbereitungsskript ebenfalls die
+englischen wn-Daten; ein vorhandenes Image muss dafür neu gebaut werden.
+
 Lemmatisierung braucht spaCy-Modelle, Stemming keinen Korpusdownload.
 Kompositazerlegung ist eine einfache DE-Heuristik mit OpenThesaurus-Wortliste.
 Stopword Removal kann Negation entfernen. Beide sind bewusst Ablationen.
@@ -191,7 +210,9 @@ Die Datei besteht aus vier Bausteinarten, die zusammengesteckt werden:
   das **letzte Glied ist das Verfahren**: `"jw": ["$pre", "jaro_winkler"]`.
   Erlaubt sind Preprocessing-Schritte, `translate` (DE→EN, höchstens einmal) und der
   Platzhalter `$pre`. `$pre` steht für *jede* Pipeline aus `preprocessing`; eine
-  Kette mit `$pre` läuft also einmal je Pipeline (so entsteht die Ablation).
+  Kette mit `$pre` läuft einmal je zulässigem Profil (so entsteht die Ablation).
+  Optional begrenzt `methods.<name>.preprocessing_steps` die erlaubten Schritte
+  für diesen Platzhalter. In Mischungen gilt die Schnittmenge der variierenden Teile.
   `["normalize", "translate", "levenshtein"]` übersetzt nach `normalize` und rechnet
   Levenshtein auf dem englischen Text; Schritte hinter `translate` gelten für den
   englischen Text. Jede Kette läuft auch allein; ihr Name entsteht automatisch
@@ -220,6 +241,415 @@ Die Datei besteht aus vier Bausteinarten, die zusammengesteckt werden:
 Neue Rechenregeln gehören in `src/synonym_matching/combinations.py`, neue
 Similarity-Funktionen zunächst in die Forschung und später in `methods.py`.
 `DEFAULT_CONFIG` bleibt unabhängig von `experiments.json`.
+
+### Bedeutungsmerkmale in der Synonymmatrix
+
+Die öffentliche Struktur bleibt `synonymMatrix → matches → scores/combinedScore`.
+Über `config.semantic_features` werden Merkmale für ausgewählte Lexikonverfahren
+zugeschaltet. Der bisherige Service-Standard und Aufrufe ohne diese Option bleiben
+unverändert. Beispiel:
+
+```json
+{
+  "methods": ["levenshtein", "wordnet"],
+  "semantic_features": {
+    "wordnet": ["reference_synset_count", "student_synset_count", "antonym", "wup_similarity"]
+  },
+  "combiner": {"kind": "mean", "methods": ["levenshtein"]}
+}
+```
+
+In `scores` stehen dann neben den bisherigen Methodenscores beispielsweise
+`wordnet_reference_known`, `wordnet_student_known`, `wordnet_pair_known`,
+`wordnet_shared_synset`, `wordnet_antonym` und `wordnet_wup_similarity`.
+Die übrigen Merkmale werden genauso mit `wordnet_` bzw. `odenet_` vorangestellt.
+Bei Path/Wu-Palmer wird `taxonomy_available` automatisch mit ausgegeben.
+`reference` bezeichnet die Musterlösung, `student` die Schülerlösung.
+
+Die drei Abdeckungsmerkmale werden immer ergänzt: Ein Relationswert 0 bei
+`pair_known=0` hat eine andere Grundlage als 0 bei zwei gefundenen Labels.
+Auch vollständige Labelabdeckung garantiert keine vollständigen Beziehungen oder
+die richtige Lesart. WordNet-Abdeckung bezieht sich auf die englischen Suchtexte
+nach Übersetzung. `shared_synset` ist ein lesbarer Alias des bisherigen
+WordNet-/OdeNet-Scores; der alte Methodenname bleibt erhalten.
+
+`"openthesaurus": []` aktiviert Abdeckung und `openthesaurus_shared_group`, ohne
+erfundene Taxonomierelationen. `"wn_translation": []` ergänzt zusätzlich
+`reference_linked` und `student_linked`: Ein Lexikoneintrag kann vorhanden sein,
+ohne eine englische Verknüpfung zu besitzen. Die Quellen müssen jeweils unter
+`methods` ausgewählt sein. Eine leere Liste bedeutet hier nur Abdeckungsmerkmale.
+
+Zusatzmerkmale werden nicht automatisch gemittelt oder abgeschnitten.
+Lesartenanzahlen bleiben echte Zählwerte und können größer als 1 sein;
+das Ausgabeschema erlaubt dies gezielt für die beiden Synsetanzahlen je Quelle.
+Die übrigen Scores behalten ihren bisherigen Wertebereich, `combinedScore` bleibt
+in [0,1]. Die bereits getestete Regel ist auch im Service explizit auswählbar:
+
+```json
+{"kind": "evidence", "baseline": "translated_embedding", "lexicon": "wordnet"}
+```
+
+Sie verwendet dieselbe Funktion und dieselben ungerundeten Bedeutungsmerkmale wie
+der Forschungslauf. Ohne explizite Merkmalsliste werden ihre sechs notwendigen
+Merkmale automatisch angefordert; eine explizite Liste muss diese enthalten.
+Das ist weiterhin eine vorläufige Heuristik, kein nachgewiesener Qualitätssprung.
+Es wird kein Feld `equivalent` oder `not_equivalent` ergänzt. Threshold und weitere
+Zuordnung bleiben nachgelagert; gerundet wird erst für die JSON-Ausgabe.
+
+Ein vollständiges Eingabebeispiel mit dieser Regel und unfiltrierten Kandidaten:
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python src/main.py --input examples/semantic-features-input.json
+```
+
+### Konservative Evidenzfusion (Forschungsversuch)
+
+Ein neuer Versuch `translated_embedding_wordnet_evidence` verwendet das übersetzte
+monolinguale Embedding als Basis und die bestehende englische WordNet-Kette als
+Evidenz. Es werden keine neuen Gewichte gesucht. Die Regel ist fest:
+
+- Beide Labels müssen gefunden sein und jeweils genau einen erfassten Synset haben.
+- Gemeinsamer Synset ohne Gegenrelation: Score 1.
+- Kein gemeinsamer Synset, aber explizite Antonym- oder Ober-/Unterbegriffsrelation: Score 0.
+- Sonst bleibt der auf [0,1] begrenzte Basisscore unverändert, auch bei widersprüchlicher Evidenz.
+
+Eine einzige erfasste Lesart ist keine garantierte Eindeutigkeit in der Aufgabe.
+Die Endpunkte 0 und 1 sind heuristische Regelentscheidungen, keine Wahrscheinlichkeiten.
+Die Ablehnung hierarchischer Beziehungen setzt die strenge Labelgleichwertigkeit
+unserer Annotationen voraus. Path und Wu-Palmer werden nicht zur Synonymbestätigung
+benutzt. Diese Forschungskombination verändert den Service-Standard nicht.
+
+Im Baukasten: `{"name": "...", "evidence": true, "parts": ["trans_emb", "wordnet"]}`.
+Der erste Teil ist die Basis, der zweite WordNet oder OdeNet mit den sechs
+Abdeckungs-/Lesarten-/Relationsmerkmalen. Einzelne Änderungen stehen mit IDs,
+Vorher-/Nachher-Score und Grund unter `records[].evidence_changes`.
+Die Rechenzeit dieser Kombination enthält zusätzlich die angeforderte Relationsdiagnose.
+
+Nur den neuen Versuch auf Laborverwaltung ausführen:
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --only translated_embedding_wordnet_evidence --output results/evidence-fusion.json.gz
+```
+
+`--only` wählt vorhandene Experiment-IDs aus. Ohne diese Option läuft weiterhin
+der vollständige JSON-Baukasten. Konfiguration und Auswahl werden gespeichert.
+
+### Kleine Probe: Abkürzungen und Labelbestandteile
+
+Zwei optionale deutsche Schritte, ohne neue Modelle:
+
+- `expand_abbreviations`: `Nr.`/`Nr` am Wortende wird zu `Nummer`, auch in `GebäudeNr.`.
+- `split_label_parts`: kombiniert diese Auflösung mit `split_identifiers` und der
+  vorhandenen OpenThesaurus-Kompositazerlegung. Zusätzlich gilt ein linker Teil auf
+  `e` als bekannt, wenn die Form ohne `e` im Lexikon steht: `Geräteraum` → `geräte raum`.
+
+Andere Sprachen bleiben unverändert. Die Pluralheuristik ist bewusst einfach und
+kann falsch zerlegen; sie ist keine Lemmatisierung. Ohne vorhandenes OpenThesaurus
+ist die Kompositazerlegung nicht verfügbar. Das bisherige `split_compounds`, die
+Standardpipeline und das Outputschema bleiben unverändert.
+
+Gezielter Vergleich mit derselben Übersetzungs-/Embedding-Baseline:
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --only 'normalize → translated_embedding' \
+  'normalize+expand_abbreviations → translated_embedding' \
+  'normalize+split_label_parts → translated_embedding' \
+  --output results/label-parts-laboratory.json.gz
+```
+
+Für die kleine Objekt-/Nummernprobe denselben Aufruf mit
+`--data research/label-parts-cases.json` und einem anderen Ausgabepfad verwenden.
+Ausgabedateien werden nicht überschrieben. Die zwei neuen festen Ketten stehen in
+`research/experiments.json`; es entsteht kein zusätzliches Kreuzprodukt von Varianten.
+
+Ergebnis vom 13.11.2026, Seed 42, Threshold 0,5: fünf Laborvarianten, **nur geänderte
+Schülerlabels**, jeweils gegen alle Referenzkandidaten. Die folgenden Werte bewerten
+Threshold-Treffer, keine 1:1-Zuordnung. Rohdaten einschließlich Konfiguration und
+Modellrevisionen: `results/label-parts-laboratory-20261113.json.gz` (lokal, ignoriert).
+
+| Vorverarbeitung vor Übersetzung + monolingualem Embedding | Precision | Recall | F1 | FP |
+| --- | ---: | ---: | ---: | ---: |
+| normalize (Baseline) | 0,611 | 0,818 | 0,699 | 100 |
+| + expand_abbreviations | 0,348 | 0,880 | 0,499 | 317 |
+| + split_label_parts (enthält Abkürzungsauflösung) | 0,290 | 0,792 | 0,424 | 373 |
+
+Auf der kleinen Entwicklungsprobe mit 24 Paaren steigt F1 dagegen von 0,533 auf
+0,625 (nur Abkürzungen) bzw. 0,588 (Labelzerlegung); alle fünf positiven Paare
+werden erkannt statt vier. Das verallgemeinert nicht auf die Laborvarianten.
+Rohdaten: `results/label-parts-targeted-20261113.json.gz`.
+
+| Gezieltes Paar | Baseline | Abkürzungen | Labelzerlegung |
+| --- | ---: | ---: | ---: |
+| Gebäude / GebäudeNr. (negativ) | 0,5158 | 0,5662 | 0,5662 |
+| GebäudeNr. / Gebäudenummer (positiv) | 0,6136 | 1,0000 | 1,0000 |
+| Geräte / Geräteraum (negativ) | 0,7260 | 0,7260 | 0,7260 |
+| GeräteNr. / Gerätenummer (positiv) | 0,2584 | 0,5713 | 1,0000 |
+
+Fazit dieser Entwicklungsprobe: bessere Erkennung einzelner Schreibvarianten,
+aber **keine Reduktion falscher Treffer bei unverändertem Threshold**. Gemeinsame
+Bestandteile erhöhen auch bei fachlich verschiedenen Labels die Ähnlichkeit.
+Die Schritte bleiben optional; aus diesen Ergebnissen folgt keine Änderung des
+Service-Standards und keine Aussage über einen separat validierten Threshold.
+
+### Optionale Konfliktregel für Labelbestandteile
+
+`label_part_compatibility` analysiert normalisierte **Originaltexte** unabhängig vom
+Preprocessing der Embeddings. Die kleine feste DE/EN-Liste erkennt Nummern und
+Räume sowie Gebäude, Geräte, Etagen, Räume und Projekte als Objektbestandteile.
+Abkürzungen und bekannte Endungen werden ohne Modell oder Lexikon zerlegt.
+Der vollständige Umfang der Liste steht direkt in `methods.py`.
+
+Der Wert ist 0 bei einem erkannten Konflikt, sonst neutral 1:
+
+- Nur ein Label enthält `Nummer`/`number`/`ID`: möglicher Objekt-/Attributkonflikt.
+- Beide sind Nummern, aber ihre bekannten Objektbestandteile widersprechen sich.
+- Ein Label bezeichnet einen Raum, das andere dasselbe erkannte Objekt ohne Raumzusatz.
+
+Unbekannte Objektbestandteile werden nicht als unterschiedliche Objekte gewertet.
+Eine erkannte Nummer kann trotzdem einen Abschlag auslösen, wenn beim anderen Label
+kein Nummernmarker erkannt wird. Implizite Kennungen, andere Sprachen, Mehrdeutigkeit
+(etwa englisches `number`) und unbekannte Abkürzungen sind Grenzen dieser Heuristik.
+Neutral 1 bedeutet ausdrücklich **keine Synonymbestätigung**. Leere Labels bleiben
+wie bisher nicht zuordenbar. Das zusätzliche numerische Merkmal steht unter `scores`;
+das Outputschema und der Service-Standard ändern sich nicht.
+
+Die Variante `label_part_fusion` verwendet:
+`combinedScore = clip(translated_embedding, 0, 1) * (1 - penalty * (1 - compatibility))`.
+Für den Versuch ist `penalty = 0.5` festgelegt, ohne Parameteroptimierung.
+Konflikte halbieren den Basisscore, alle übrigen Scores bleiben unverändert.
+Ein Basisscore von 1 bleibt damit bei Threshold 0,5 trotz Konflikt ein Treffer.
+
+Service-Konfiguration für die optionale Variante:
+
+```json
+{
+  "methods": ["translated_embedding", "label_part_compatibility"],
+  "preprocessing": ["normalize"],
+  "embedding_preprocessing": ["normalize"],
+  "combiner": {
+    "kind": "variant",
+    "name": "label_part_fusion",
+    "options": {"penalty": 0.5}
+  }
+}
+```
+
+Im JSON-Baukasten stehen die zwei festen Mischungen
+`translated_embedding_part_conflicts` (ursprüngliche Baseline + Konfliktregel) und
+`translated_embedding_parts_and_conflicts` (zusätzlich zerlegte Embedding-Eingabe).
+Die Regel wird nicht als normaler Similarity-Score mitgemittelt.
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --only 'normalize → translated_embedding' \
+  'normalize+split_label_parts → translated_embedding' \
+  translated_embedding_part_conflicts translated_embedding_parts_and_conflicts \
+  --output results/label-conflicts-laboratory.json.gz
+```
+
+Entwicklungsvergleich vom 13.11.2026, Seed 42, Threshold 0,5, geänderte Schülerlabels
+gegen alle Referenzkandidaten der fünf Laborvarianten:
+
+| Variante | TP | FP | FN | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Ursprüngliche Übersetzungs-/Embedding-Baseline | 157 | 100 | 35 | 0,611 | 0,818 | 0,699 |
+| Baseline + Konfliktregel | 157 | 12 | 35 | 0,929 | 0,818 | 0,870 |
+| Zerlegte Embedding-Eingabe | 152 | 373 | 40 | 0,290 | 0,792 | 0,424 |
+| Zerlegte Eingabe + Konfliktregel | 152 | 158 | 40 | 0,490 | 0,792 | 0,606 |
+
+Die Regel entfernt hier 88 falsche Treffer, ohne einen der 157 richtigen zu verlieren.
+Auf allen Laborpaaren sinkt FP von 419 auf 103 bei unveränderten TP/FN (579/35).
+`Gebäude / GebäudeNr.` fällt von 0,5158 auf 0,2579, `Geräte / Geräteraum` von 0,7260
+auf 0,3630. `GebäudeNr. / Gebäudenummer` bleibt mit 0,6136 ein Treffer.
+Ein vorher übersehenes Synonym wird durch einen reinen Abschlag nicht neu erkannt.
+
+Die kleine Objekt-/Nummernprobe verbessert sich von F1 0,533 (FP 6, FN 1) auf 0,889
+(FP 0, FN 1); mit zusätzlicher Zerlegung erreicht sie dort 1,0. Auf den 33 auswertbaren
+bestehenden synthetischen Kontrollszenarien steigt F1 von 0,680 auf 0,723, FP sinkt
+von 23 auf 17 bei unveränderten TP/FN (34/9). Das sind ebenfalls bekannte
+Entwicklungsdaten, kein unabhängiger Nachweis für neue Aufgaben.
+
+Alle drei Läufe sind lokal reproduzierbar gespeichert, jeweils mit Rohscores,
+Konfiguration und Modellrevisionen (im ignorierten Ordner `results`):
+`label-conflicts-laboratory-20261113.json.gz`, `label-conflicts-targeted-20261113.json.gz`
+und `label-conflicts-control-20261113.json.gz`. Für die anderen Datensätze den Aufruf
+mit `--data research/label-parts-cases.json` beziehungsweise `research/model-cases.json`
+und eigenem Ausgabepfad verwenden. Nächste notwendige Prüfung: unabhängige Aufgaben
+mit echten Synonymen für Kennungen und bisher unbekannten Objektbezeichnungen.
+
+### Explizite Relationsmerkmale (Einzelwerte)
+
+Unter `methods.wordnet` und `methods.odenet` aktiviert `relation_features` die
+zusätzlichen numerischen Matrizen; eine leere Merkmalsliste schaltet sie ab.
+Oberbegriffe werden durch `Synset.closure('hypernym', 'instance_hypernym')`
+ermittelt. Die eigene Graphsuche und die Option `relation_depth` sind entfernt.
+Sie nutzen dieselben vorbereiteten Labels und denselben Lexikonleser wie die
+Synsetsuche. Abfragen werden je Label bzw. Synset wiederverwendet.
+
+| Merkmal | Bedeutung |
+| --- | --- |
+| `pair_known` | Beide Labels haben mindestens einen Synseteintrag. |
+| `reference_synset_count` | Anzahl möglicher Referenzlesarten, unskaliert. |
+| `student_synset_count` | Anzahl möglicher Schülerlesarten, unskaliert. |
+| `reference_hypernym` | Eine Referenzlesart ist ein Oberbegriff einer Schülerlesart. |
+| `reference_hyponym` | Eine Referenzlesart ist ein Unterbegriff einer Schülerlesart. |
+| `antonym` | Explizite Antonymrelation zwischen Synsets oder den tatsächlich gefundenen Wortlesarten. |
+| `path_similarity` | Native `wn.similarity.path`, Maximum über verbundene Nomen-/Verb-Lesarten. |
+| `wup_similarity` | Native `wn.similarity.wup`, ebenfalls maximiert über mögliche Lesarten. |
+| `taxonomy_available` | Mindestens ein Nomen-/Verb-Lesartenpaar konnte mit beiden Metriken ausgewertet werden. |
+
+Die Matrizen stehen unter `features[].relation_features` und werden bereits im
+Matching-Kern berechnet; der Forschungslauf übernimmt sie unverändert. Die Zusatzlaufzeit
+steht separat unter `relation_seconds`. Der bestehende gemeinsame Synsetscore
+bleibt unter `features[].scores`; er wird nicht als neues Verfahren dupliziert.
+OpenThesaurus liefert weiterhin nur seine vorhandenen Synonymgruppen.
+
+Diese Merkmale werden zunächst nur als Evidenz gespeichert, ohne eigene Synonymentscheidung.
+Sie werden nicht automatisch gemittelt oder als Kandidatenfilter benutzt.
+Im Service werden sie über `semantic_features` explizit ausgewählt. Bei binären Relationsmerkmalen bedeutet 1
+Existenz bei mindestens einer möglichen Lesart, nicht die fachlich passende Bedeutung. Mehrere Relationen
+können gleichzeitig auftreten. Eine 0 beweist keine fehlende Beziehung: Labels,
+Lesarten oder Relationen können im Lexikon fehlen. Auch `pair_known=1` garantiert
+keine vollständigen Relationen. Path/Wu-Palmer verwenden keine simulierte Wurzel;
+bei fehlender Verbindung oder ungeeigneter Wortart steht `taxonomy_available=0`.
+Das Maximum wird je Metrik separat bestimmt und ist keine Lesartenauswahl.
+Ein hoher ontologischer Score beweist keine Synonymie. IC-Metriken bleiben bis
+zur Wahl geeigneter Häufigkeitsdaten zurückgestellt; kleine Labelmengen werden
+nicht als allgemeine Bedeutungsstatistik ausgegeben.
+
+### Sprachübergreifender Vergleich mit wn.translate
+
+Die neue Kette `wn_translate: ["normalize", "wn_translation"]` vergleicht DE/EN
+ohne maschinelles Textübersetzungsmodell. Für deutsche Labels werden mögliche
+OdeNet-Synsets mit `Synset.translate(lexicon='omw-en:1.4')` auf englische Synsets
+abgebildet. Englische Labels werden direkt im englischen WordNet gesucht.
+Gemeinsame englische Synsets ergeben 1, sonst 0. Es wird keine erste Lesart oder
+ein einzelnes englisches Ersatzwort ausgewählt. Beide Datenbestände müssen im
+selben wn-Datenverzeichnis liegen. Der bestehende DE→EN-Textübersetzungspfad bleibt
+als eigenes Verfahren erhalten; nur eine zusätzliche Vergleichskette wird ergänzt.
+Der Vergleich steht als Funktion in `methods.py` und verwendet die gemeinsame
+Matrixbildung. Der vorhandene WordNet-Zugriff cached die nativen Synsetübersetzungen.
+Hierfür einmal `python scripts/download_lexicons.py --wordnet` und
+`python scripts/download_lexicons.py --odenet` ausführen. Der bisherige Docker-Build
+bereitet OdeNet nicht automatisch vor; der neue Vergleich wurde lokal getestet.
+
+`features[].crosslingual_coverage` unterscheidet `linked`, `unknown`, `unlinked`
+und `empty`: Ein bekannter deutscher Eintrag kann ohne englische Verknüpfung bleiben.
+Leere Eingabemengen werden ohne Lexikonzugriff als `not_assessed` markiert.
+Auch vorhandene ILI-Verknüpfungen bestimmen nicht die fachlich richtige Lesart.
+
+### Gezielte Preprocessing-Vergleiche und OdeNet
+
+Neue Vergleichsläufe speichern zusätzlich `lexicon_coverage`: eindeutige
+Original-/Suchtextpaare je Lexikonkette, Fall und Ausgangssprache. `known` bedeutet
+Eintrag für das ganze Label, `partial` nur bekannte Worttokens ohne ganzen Eintrag,
+`unknown` keinen Eintrag und `empty` leeren Suchtext. Ein Lexikoneintrag bestätigt
+noch keine fachlich passende Bedeutung. Die Tokensuche trennt an Satzzeichen und
+Leerraum; sie zerlegt keine Identifier oder Komposita zusätzlich.
+Die einzelnen Befunde stehen unter `features[].lexicon_coverage`, die unbekannten
+Original- und Suchtexte unter `lexicon_coverage[].uncovered_labels`.
+WordNet wird nach Übersetzung geprüft: Das misst die Abdeckung der englischen
+Suchtexte, keine direkte deutsche Abdeckung. Nicht unterstützte Sprachen und
+fehlende Ressourcen bleiben separat als nicht verfügbar ausgewiesen.
+Die Diagnose verändert weder Scores noch Auswahlmasken; `coverage_seconds`
+speichert ihre zusätzliche Laufzeit außerhalb der bisherigen Score-Rechenzeiten.
+Gemessen wird der aktuelle Zugriff des jeweiligen Backends. Ein unbekannter
+Suchtext beweist deshalb nicht, dass der Eintrag im Datenbestand fehlt.
+Die erste Prüfung zeigte einen OdeNet-Zugriffsfehler: Unser eigener Normalizer
+passte bei Umlauten nicht zum Suchindex von wn. OdeNet verwendet deshalb jetzt
+die Standardnormalisierung von wn. Gebäude, Größe, Fläche und Gerät werden wieder
+gefunden. Frühere OdeNet-Ergebnisse vor dieser Korrektur sind nur eingeschränkt
+aussagekräftig; fehlende Einträge und tatsächliche Datenlücken sind zu unterscheiden.
+
+Für die fünf vorhandenen Laborverwaltungsmodelle gibt es einen getrennten Datensatz:
+
+```bash
+python -m research.build_laboratory_cases
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --output results/laborverwaltung.json.gz
+```
+
+Der erste Befehl ist nur zum erneuten Erzeugen nach Änderungen der Quelldateien
+nötig. Der Datensatz enthält Musterlösung gegen Schreibweise, Tippfehler/Abkürzungen,
+Fachbegriffe, Sprachmix und Mehrdeutigkeit mit jeweils allen 48×48 Kandidaten.
+Original-IDs, doppelte Labels und Zeilenumbrüche bleiben erhalten.
+`annotation_policy` dokumentiert vorläufige Erwartungen anhand der Fallstudie;
+gleiche IDs bedeuten nicht automatisch gleiche Bedeutung. Wiederholte gleichwertige
+Labels sind mehrere positive Kandidaten, keine erzwungene 1:1-Sollzuordnung.
+`changed_student_ids` und `changed_reference_ids` markieren veränderte Modellstellen.
+Die Zusatzrangliste `rankings.<strategy>.changed_labels` bewertet ausschließlich
+Paare mit veränderten Schülerlabels gegen alle Referenzkandidaten. Unveränderte
+Schülerlabels zählen dort nicht als einfache Treffer mit. Top-1 wechselt dafür
+die Blickrichtung: Für jedes veränderte Schülerlabel wird der beste Kandidat
+der Musterlösung geprüft. Scores und Zuordnungsentscheidungen werden nicht neu
+berechnet; auch Hungarian und Mutual Best stammen vom vollständigen Modell.
+Die angezeigten Rechenzeiten gelten weiter für das vollständige Modell.
+Der normale Vergleich und `research.rank_results` ergänzen diese Auswertung
+automatisch, sobald Änderungsmarkierungen im Datensatz vorhanden sind.
+Ältere Labor-Ergebnisse nutzen ersatzweise `changed_reference_ids`, da die fünf
+Varianten dieselben IDs behalten. Die Modelle sind konstruierte
+Entwicklungsfälle, keine unabhängigen studentischen Testdaten. Servicepipeline
+und bisheriger synthetischer Datensatz werden dadurch nicht geändert.
+Für große Modelle spart `.json.gz` Platz; es enthält dieselben vollständigen
+JSON-Ergebnisse komprimiert. `research.rank_results --input` liest beide Formate.
+Mit `.json` als Dateiendung wird weiterhin normales, nun kompaktes JSON geschrieben.
+
+Die String-Verfahren vergleichen rohe und normalisierte Texte, Lowercase,
+Lemmatisierung, Stemming, Identifiertrennung und Kompositazerlegung. Vergleiche
+jeweils passende Paare: `normalize` gegen `lowercase`, `lowercase` gegen `lemma`
+oder `stem`, `normalize` gegen `identifiers_cased` und `compounds_cased`.
+Das Entfernen von Stopwörtern bleibt eine bewusst riskante String-Ablation:
+Es kann Negationen und damit fachliche Unterschiede entfernen.
+
+Wortvektoren erlauben nur Normalisierung, Lowercase, Identifiertrennung,
+Kompositazerlegung und Lemmatisierung. FastText wandelt nicht mehr zusätzlich
+intern in Kleinbuchstaben um: Die Kette zeigt jetzt die tatsächliche Vorbereitung.
+Englisches FastText nutzt feste Ketten mit Normalisierung als Basis, Lowercase
+oder Lemmatisierung nach der Übersetzung und Identifiertrennung davor. Das gilt
+gleichermaßen für Greedy, optimales und bidirektionales Wort-Matching.
+Alte FastText-Ergebnisse mit internem Lowercase sind daher keine cased-Baseline.
+Die als `compounds_cased` bezeichnete Heuristik schreibt zerlegte Bestandteile
+weiterhin klein; sie bewahrt Großschreibung nur bei unveränderten Wörtern.
+
+Sentence-Embeddings bekommen feste Ketten statt des allgemeinen `$pre`-Rasters:
+`normalize` als Basis und separat Lowercase, Lemma, Identifier- oder Kompositatrennung.
+Stemming und Stopwortentfernung werden dort nicht automatisch ausgeführt.
+Beim übersetzten Embedding erfolgen Lowercase und Lemma erst nach der Übersetzung;
+Identifier-/Kompositatrennung dagegen davor. So bleiben die Übersetzungseingaben
+bei den ersten beiden Vergleichen identisch.
+
+OdeNet 1.4 wird direkt auf deutschen Labels getestet: gemeinsame Synsets mit/ohne
+Lemma sowie Mischungen mit multilingualem Embedding (25:75, 50:50, 75:25),
+OpenThesaurus, übersetztem WordNet und Strings. WordNet und OpenThesaurus erhalten
+ebenfalls eine eigene Lemma-Kette. Lexikonsuchen vereinheitlichen Großschreibung
+intern; dafür wird keine scheinbare Lowercase-Ablation angelegt.
+
+Einmalig mit den Forschungsabhängigkeiten installieren und Daten laden:
+
+```bash
+python -m pip install -r requirements-research.txt
+python scripts/download_lexicons.py --odenet
+```
+
+Die Daten liegen unter `.cache/lexicons/wn`; der normale Vergleichsbefehl oben
+führt auch die neuen Ketten aus. Das Matching selbst lädt nichts herunter.
+OdeNet-Daten: [CC BY-SA 4.0](https://github.com/hdaSprachtechnologie/odenet).
+Die Ergebnisdatei speichert Konfiguration, wn-Version, OdeNet-Version und Datenhash.
+
+Gemeinsame Synsets sind binäre Evidenz für eine mögliche gemeinsame Lesart,
+keine Bedeutungsdisambiguierung. Ein Nullscore kann auch einen fehlenden Eintrag
+bedeuten. Gewichtete Mittel mit Cosinus-Scores sind unkalibrierte Experimente;
+fehlende Abdeckung kann den Gesamtscore senken. OdeNet basiert teilweise auf
+OpenThesaurus, daher sind diese Evidenzen nicht unabhängig. Vergleiche Verfahren
+nur auf denselben verfügbaren Fällen (OdeNet hier nur Deutsch). Es gibt weiterhin
+keine automatische Übernahme eines Forschungssiegers in die Servicepipeline.
 
 Die Konfiguration vergleicht mit allen Ressourcen 38 Szenarien:
 28 ursprüngliche Kategorien und sechs zusätzliche schwierige Kontrastkategorien.
@@ -309,7 +739,7 @@ muss vom aufrufenden Dienst angepasst werden.
   (`cache.py`) liegt nur im Prozessspeicher und ist unabhängig von den Gewichten.
 - `fasttext` und `gensim` stehen in `requirements-research.txt` und nicht im Image.
 
-Lexikonquellen: [WordNet/NLTK](https://www.nltk.org/howto/wordnet.html),
+Lexikonquellen: [WordNet über wn](https://github.com/goodmami/wn),
 [WordNet-Lizenz](https://wordnet.princeton.edu/license-and-commercial-use),
 [OpenThesaurus](https://www.openthesaurus.de/about/download/api).
 OpenThesaurus bietet CC BY-SA 4.0 oder LGPL; Lizenzhinweise werden mit heruntergeladen.

@@ -8,7 +8,8 @@ Es rechnet nichts; die Berechnung steht in compare.py.
 import json
 from pathlib import Path
 
-from synonym_matching.combinations import REQUIRES
+from synonym_matching.combinations import EVIDENCE_FEATURES, REQUIRES
+from synonym_matching.lexicons import RELATION_FEATURES
 from synonym_matching.preprocessing import STEPS as PREPROCESSING_STEPS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +30,19 @@ def load_config(path=DEFAULT_CONFIG):
         if 'based_on' in method:
             base = config['methods'][method['based_on']]
             config['methods'][name] = {**base, **{k: v for k, v in method.items() if k != 'based_on'}}
+        steps = config['methods'][name].get('preprocessing_steps')
+        if steps is not None and (not isinstance(steps, list)
+                                  or any(step not in PREPROCESSING_STEPS for step in steps)):
+            raise ValueError(f'{name}: unknown preprocessing_steps')
+        relations = config['methods'][name].get('relation_features')
+        if relations is not None:
+            if (name not in {'wordnet', 'odenet', 'openthesaurus', 'wn_translation'} or not isinstance(relations, list)
+                    or any(not isinstance(r, str) or r not in RELATION_FEATURES for r in relations)
+                    or len(relations) != len(set(relations))
+                    or (name in {'openthesaurus', 'wn_translation'} and relations)):
+                raise ValueError(f'{name}: invalid relation_features')
+        if 'relation_depth' in config['methods'][name]:
+            raise ValueError(f'{name}: relation_depth removed; wn.closure follows all hypernyms')
     if not 0 <= config['threshold'] <= 1:
         raise ValueError('threshold must be in [0,1]')
     if not config['preprocessing'] or not config['methods'] or not config['chains']:
@@ -68,7 +82,9 @@ def definition(name, chains, combiner, steps=(), **extra):
 def duplicate_key(spec):
     """Gleiche Ketten und normierte Gewichte ergeben denselben Versuch."""
     combiner, chains = spec['combiner'], spec['chains']
-    if combiner['kind'] == 'weighted_mean':
+    if combiner['kind'] == 'evidence':
+        formula = ['evidence', chains[combiner['baseline']], chains[combiner['lexicon']]]
+    elif combiner['kind'] == 'weighted_mean':
         total = sum(combiner['weights'].values())
         formula = sorted((chains[key], round(weight / total, 9))
                          for key, weight in combiner['weights'].items())
@@ -94,9 +110,16 @@ def configurations(config):
             result[identifier] = spec
 
     def pipelines(chains):
-        """Ohne '$pre' läuft ein Versuch einmal, mit '$pre' einmal je Pipeline."""
+        """Variiere nur erlaubte Schritte der Verfahren mit '$pre'.
+
+        Feste Ketten, etwa Embeddings mit normalize, bleiben dabei unverändert.
+        Bei Mischungen muss das Profil für alle variierenden Teile passen.
+        """
         if any('$pre' in chain for chain in chains):
-            return config['preprocessing']
+            allowed = [set(methods[chain[-1]].get('preprocessing_steps', PREPROCESSING_STEPS))
+                       for chain in chains if '$pre' in chain]
+            return {name: steps for name, steps in config['preprocessing'].items()
+                    if all(set(steps) <= permitted for permitted in allowed)}
         return {None: []}
 
     blocks = config['chains']
@@ -121,7 +144,19 @@ def configurations(config):
             continue
         for label, steps in pipelines([blocks[alias] for alias in aliases]).items():
             full = {alias: expand(blocks[alias], steps) for alias in aliases}
-            if 'variant' in entry:
+            if entry.get('evidence'):
+                if ('weights' in entry or 'variant' in entry or len(aliases) != 2
+                        or len(set(aliases)) != 2):
+                    raise ValueError('evidence mix needs two distinct parts: baseline, lexicon')
+                lexical_method = full[aliases[1]][-1]
+                available = methods[lexical_method].get('relation_features', [])
+                if lexical_method not in {'wordnet', 'odenet'} or set(EVIDENCE_FEATURES) - set(available):
+                    raise ValueError('evidence mix requires WordNet/OdeNet with all evidence features')
+                chains = full
+                combiner = {'kind': 'evidence', 'baseline': aliases[0], 'lexicon': aliases[1]}
+                extra = {'chain_based': True}
+                shown = steps
+            elif 'variant' in entry:
                 # Varianten des Service erwarten die Matrizen unter dem Verfahrensnamen.
                 chains = {chain[-1]: chain for chain in full.values()}
                 missing = set(REQUIRES[entry['variant']]) - set(chains)
@@ -144,8 +179,11 @@ def configurations(config):
                 shown = steps
             if entry.get('global_ranking'):
                 extra['global_ranking'] = True
-            name = entry.get('name') or ' + '.join(
-                f'{100 * w / sum(weights.values()):g}% {n}' for n, w in weights.items())
+            if combiner['kind'] == 'evidence':
+                name = entry.get('name') or 'evidence: ' + ' + '.join(chain_name(c) for c in chains.values())
+            else:
+                name = entry.get('name') or ' + '.join(
+                    f'{100 * w / sum(weights.values()):g}% {n}' for n, w in weights.items())
             add(f'{label}/{name}' if label else name,
                 definition(name, chains, combiner, shown, **extra))
     return result, skipped

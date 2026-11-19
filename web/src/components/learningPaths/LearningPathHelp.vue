@@ -1,6 +1,6 @@
 <template>
   <section class="learning-path-help" aria-label="Hilfe beim Modellieren">
-    <button type="button" class="help-sign" :disabled="disabled || busy" :aria-busy="busy" @click="emit('request')">
+    <button type="button" class="help-sign" data-help-sign :class="{ 'help-sign--highlight': highlight }" :disabled="disabled || busy" :aria-busy="busy" @click="emit('request')">
       <svg class="help-sign-art" viewBox="0 0 220 70" fill="none" aria-hidden="true" focusable="false">
         <!-- Short rope loops and a brass-edged wooden sign. -->
         <path d="M38 2v12M182 2v12" stroke="#62472e" stroke-width="5" stroke-linecap="round" />
@@ -26,7 +26,8 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{ busy: boolean; disabled: boolean }>()
+// highlight: pulses the sign so learners see where help lives before it opens.
+defineProps<{ busy: boolean; disabled: boolean; highlight?: boolean }>()
 const emit = defineEmits<{ request: [] }>()
 </script>
 
@@ -82,7 +83,12 @@ const emit = defineEmits<{ request: [] }>()
   font-size: 11px;
   line-height: 1.45;
 }
+.help-sign--highlight { animation: help-sign-pulse 0.5s ease-in-out 3; }
+@keyframes help-sign-pulse {
+  50% { transform: scale(1.12); filter: brightness(1.35) drop-shadow(0 0 10px rgb(255 205 110 / 90%)); }
+}
 @media (prefers-reduced-motion: reduce) {
   .help-sign { transition: none; }
+  .help-sign--highlight { animation: none; outline: 3px solid #ffcd6e; outline-offset: 3px; }
 }
 </style>

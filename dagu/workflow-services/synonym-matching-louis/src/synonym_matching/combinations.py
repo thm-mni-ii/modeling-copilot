@@ -46,6 +46,32 @@ def combine(matrices, config):
 STRINGS = ('levenshtein', 'jaro_winkler', 'char_trigram')
 TOKENS = ('token_jaccard', 'token_sort_ratio')
 EMBEDDINGS = ('translated_embedding', 'multilingual')
+EVIDENCE_FEATURES = ('pair_known', 'reference_synset_count', 'student_synset_count',
+                     'reference_hypernym', 'reference_hyponym', 'antonym')
+
+
+def evidence_fusion(baseline, synonyms, features):
+    """Nutze Lexikonevidenz nur bei genau einer erfassten Lesart auf beiden Seiten.
+
+    Gemeinsamer Synset ohne Gegenrelation → 1; explizite Gegenrelation ohne
+    gemeinsamen Synset → 0. Unbekannte, mehrdeutige oder widersprüchliche Evidenz
+    lässt den Basisscore unverändert. Das ist eine Heuristik, keine Kalibrierung.
+    """
+    if set(EVIDENCE_FEATURES) - features.keys():
+        raise ValueError('evidence_fusion requires coverage, sense counts and relations')
+    arrays = [np.asarray(value, dtype=float) for value in
+              [baseline, synonyms, *[features[name] for name in EVIDENCE_FEATURES]]]
+    if (arrays[0].ndim != 2 or any(a.shape != arrays[0].shape for a in arrays)
+            or any(not np.isfinite(a).all() for a in arrays)):
+        raise ValueError('evidence_fusion requires finite matrices of the same shape')
+    scores = np.clip(arrays[0], 0, 1)
+    shared = arrays[1] == 1
+    known, left_count, right_count, hypernym, hyponym, antonym = arrays[2:]
+    unambiguous = (known == 1) & (left_count == 1) & (right_count == 1)
+    counter = (hypernym == 1) | (hyponym == 1) | (antonym == 1)
+    scores[unambiguous & shared & ~counter] = 1
+    scores[unambiguous & ~shared & counter] = 0
+    return scores
 
 
 def _select(scores, names):
@@ -165,6 +191,18 @@ def context_aware(scores, *, penalty=0.5):
     return np.clip(base - penalty * (row_gap + column_gap) / 2, 0, 1)
 
 
+def label_part_fusion(scores, *, penalty=0.5):
+    """Senke den Basisscore bei expliziten Labelkonflikten, sonst unverändert.
+
+    penalty ist ein fester experimenteller Abschlag, keine Wahrscheinlichkeit.
+    Fehlender Konflikt erhöht den Score ausdrücklich nicht.
+    """
+    if type(penalty) not in (float, int) or not np.isfinite(penalty) or not 0 <= penalty <= 1:
+        raise ValueError('penalty must be in [0,1]')
+    values = _select(scores, ('translated_embedding', 'label_part_compatibility'))
+    return values['translated_embedding'] * (1 - penalty * (1 - values['label_part_compatibility']))
+
+
 # Explizite Zuordnung zwischen Konfigurationsnamen und Funktionen.
 VARIANTS = {
     'string_ensemble': string_ensemble,
@@ -183,6 +221,7 @@ VARIANTS = {
     'exact_match_fusion': exact_match_fusion,
     'consensus_fusion': consensus_fusion,
     'context_aware': context_aware,
+    'label_part_fusion': label_part_fusion,
 }
 
 REQUIRES = {
@@ -202,6 +241,7 @@ REQUIRES = {
     'exact_match_fusion': STRINGS + ('multilingual', 'exact_match'),
     'consensus_fusion': EMBEDDINGS,
     'context_aware': ('levenshtein', 'jaro_winkler', 'char_trigram', 'multilingual'),
+    'label_part_fusion': ('translated_embedding', 'label_part_compatibility'),
 }
 
 

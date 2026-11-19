@@ -134,7 +134,7 @@ def test_translate_step_comes_before_vector_lookup(tmp_path, monkeypatch):
              'reference': [{'id': 'r', 'label': 'Cliente', 'language': 'es'}],
              'student': [{'id': 's', 'label': 'Customer', 'language': 'en'}],
              'annotations': [['correct']]}]}
-    config = only(load_config(), 'ft_en')
+    config = only(load_config(), 'ft_en_lowercase')
     config['languages'] = ['de', 'en', 'es']
     config['preprocessing'] = {'lower': ['normalize', 'lowercase']}
     config['methods']['fasttext_en_matching'].update({
@@ -143,7 +143,7 @@ def test_translate_step_comes_before_vector_lookup(tmp_path, monkeypatch):
     assert compare.run_experiments(data, output, config) == []
     run = json.loads(output.read_text())
     records = {(r['experiment'], r['case']): r for r in run['records']}
-    name = 'normalize+lowercase+translate → fasttext_en_matching'
+    name = 'normalize+translate+lowercase → fasttext_en_matching'
     assert records[name, 'test']['combinedScores'] == [[1.0]]
     assert records[name, 'es']['status'] == 'unavailable'
     assert 'Übersetzung' in records[name, 'es']['missing']['fasttext_en_matching']['reason']
@@ -211,14 +211,17 @@ def test_new_comparison_reuses_fasttext_for_hungarian_and_marks_missing_resource
         'annotations': [['correct', 'incorrect']]}]}
     output = tmp_path / 'run.json'
     config = only(load_config(), 'ft_de', 'w2v_de')
-    config['preprocessing'] = {'raw': []}
+    config['preprocessing'] = {'raw': [], 'lowercase': ['lowercase']}
     config['methods']['fasttext_de_matching'].update({'files': {'de': path}, 'format': 'word2vec_text'})
     config['methods']['word2vec_de_matching']['files'] = {'de': str(tmp_path / 'fehlt.bin')}
     assert run_experiments(data, output, config) == []
     result = json.loads(output.read_text())
-    fasttext = next(r for r in result['records'] if r['experiment'] == 'raw → fasttext_de_matching')
+    fasttext = next(r for r in result['records'] if r['experiment'] == 'lowercase → fasttext_de_matching')
     assert fasttext['decisions']['hungarian']['selected'] == [[True, False]]
-    assert sum(f['method'] == 'fasttext_de_matching' for f in result['features']) == 1
+    # Ohne den expliziten Schritt darf die Suche nicht unbemerkt lowercase verwenden.
+    raw = next(r for r in result['records'] if r['experiment'] == 'raw → fasttext_de_matching')
+    assert raw['decisions']['hungarian']['selected'] == [[False, False]]
+    assert sum(f['method'] == 'fasttext_de_matching' for f in result['features']) == 2
     missing = next(r for r in result['records'] if r['experiment'] == 'raw → word2vec_de_matching')
     assert missing['status'] == 'unavailable'
     assert 'Ressource fehlt' in missing['missing']['word2vec_de_matching']['reason']

@@ -16,12 +16,12 @@ export const editableHelpQuestions: { name: HelpEditableQuestion; title: string 
 
 export const helpQuestion = (blueprint: HelpBlueprint, config: HelpRequestConfig, name: HelpEditableQuestion): HelpQuestionEdit => config.questionEdits?.[name] ?? blueprint.questions[name]
 
-export const helpPhaseDefinition = (blueprint: HelpBlueprint, config: HelpRequestConfig, phase: HelpSurveyPhase): SurveyDefinition => {
+export const helpPhaseDefinition = (blueprint: HelpBlueprint, config: HelpRequestConfig, phase: HelpSurveyPhase, automaticFeedbackAvailable = true): SurveyDefinition => {
   if (phase === 'topic') return blueprint.topic
   const names: HelpEditableQuestion[] = phase === 'reflection' ? ['stuck_duration', 'support_need'] : ['next_action']
   return { elements: names.map(name => {
     const question = helpQuestion(blueprint, config, name)
-    const choices = name === 'next_action' ? [...question.choices.filter(choice => choice.id !== automaticModelCheckChoice.value), { id: automaticModelCheckChoice.value, text: automaticModelCheckChoice.label }] : question.choices
+    const choices = name === 'next_action' ? [...question.choices.filter(choice => choice.id !== automaticModelCheckChoice.value), ...(automaticFeedbackAvailable ? [{ id: automaticModelCheckChoice.value, text: automaticModelCheckChoice.label }] : [])] : question.choices
     return { type: 'radiogroup', name, title: question.title, isRequired: true, choices: choices.map(c => c.id), choiceLabels: Object.fromEntries(choices.map(c => [c.id, c.text])) }
   }) }
 }

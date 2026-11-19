@@ -12,6 +12,11 @@
           "type": "comment", "name": "other_problem",
           "title": "Beschreibe kurz, worauf sich dein Problem bezieht.", "isRequired": true,
           "visibleIf": "{problem_area} = 'Anderes'"
+        },
+        {
+          "type": "comment", "name": "tool_problem",
+          "title": "Beschreibe kurz, welches Problem du mit der Bedienung des Tools hast.", "isRequired": true,
+          "visibleIf": "{problem_area} = 'Bedienung des Tools'"
         }
       ]
     }

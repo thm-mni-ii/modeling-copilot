@@ -1,19 +1,24 @@
 # Dagu
 
-Dagu `2.16.6` orchestriert die Workflows des Modeling Copilot. Workflow-Schritte
-laufen als Kubernetes Jobs im Namespace `workflow-runtime` mit dem Service
-Account `workflow-runner`.
+Dagu `2.27.0` orchestriert die Workflows des Modeling Copilot. Die Workflow-Dienste
+laufen dauerhaft („warm“) als Deployments im Namespace `workflow-runtime`
+(`infra/workflow-services.yaml`). Dagu ruft sie je Schritt per `http.request` auf,
+statt pro Schritt einen Kubernetes Job zu starten. Jeder Dienst führt dabei sein
+unverändertes CLI-`main()` aus (`workflow-services/workflow_server.py`). Der
+Response-Body ist die bisherige stdout-Ausgabe und wird wie zuvor zum Dagu-Artefakt.
 
 ## Struktur
 
-- `workflows/`: Hauptworkflow für die Modellauswertung und `hello.yaml` als
-  einfacher Testworkflow.
+- `workflows/`: ausschließlich `model-evaluation-graph-matching.yaml` mit seinen eingebetteten internen Modell- und Paarabläufen.
 - `workflow-services/`: Container für Workflow-Schritte. `template-service/`
   zeigt den vorgesehenen Vertrag für JSON-Eingabe, JSON-Ausgabe und Exit-Codes.
 - `infra/base.yaml`: gemeinsame Kubernetes-Vorgaben für Dev und Prod inklusive
   Namespace, Service Account und Ressourcenlimits.
-- `infra/dev/`: Namespace-/Service-Account-Setup für Docker Desktop sowie die
-  Anpassung der lokalen Kubeconfig für den Dagu-Container.
+- `infra/workflow-services.yaml`: warme Dienste (Deployments) und ein Service mit
+  festem Port je Dienst (30081–30087) für Dev und Prod.
+- `infra/dev/`: Namespace-/Service-Account-Setup für Docker Desktop, der
+  NodePort-Zugang zu den Diensten sowie die Anpassung der lokalen Kubeconfig für
+  den Dagu-Container.
 - `../k3s-portainer.yaml`: zentrales Produktivdeployment inklusive Dagu,
   Workflow-Runtime, RBAC, PVCs und Traefik-Ingress.
 
@@ -24,9 +29,33 @@ Kubeconfig unter `~/.kube/config`.
 
 ```bash
 kubectl config use-context docker-desktop
-kubectl apply -f dagu/infra/dev/kubernetes.yaml
 docker compose up -d dagu
 ```
+
+`docker compose up -d` aktualisiert die Workflow-Dienste ebenfalls automatisch.
+Die Abhängigkeit `workflow-sync` läuft bei jedem Compose-Start einmal: Bei
+geänderten Quellen oder fehlenden lokalen Images baut sie die Workflow-Images,
+übernimmt geänderte Images binär in den kind-Knoten `desktop-control-plane`,
+wendet die lokalen Kubernetes-Manifeste an und wartet auf erfolgreiche Rollouts.
+Erst danach startet Dagu. Bei unveränderten Quellen werden Build und Import
+übersprungen. Status und Fehler: `docker compose logs workflow-sync`.
+
+Der Helfer benötigt den lokalen Docker-Socket und ist ausschließlich für die
+Docker-Desktop-/kind-Entwicklung gedacht. Er löscht keine Laufdaten. DAG-Dateien
+sind direkt eingebunden; Service-Code benötigt dagegen den Image-Rollout.
+Versionsregeln stehen in [AGENTS.md](../AGENTS.md). Aktuelles Feedback:
+Serviceversion `4.9.2`, Image `feedback-generation:v39`. Gespeicherte Berichte
+bleiben unverändert; die neue Logik gilt bei einer neuen Berechnung.
+
+Grundlage: [Dagu Compose](https://docs.dagu.sh/server-admin/deployment/docker-compose)
+(DAG-Verzeichnis als Volume) und [Compose Build](https://docs.docker.com/reference/compose-file/build/)
+(Unterscheidung von Build und Image-Pull). Ein Registry-Pull allein baut keinen
+lokal geänderten Python-Code und aktualisiert keine Kubernetes-Deployments.
+
+Dagu tritt dem Docker-Netz `kind` des Docker-Desktop-Kubernetes bei und erreicht
+die Dienste über `WORKFLOW_SERVICES_HOST=desktop-control-plane` und die NodePorts.
+Ohne Docker Desktop im kind-Modus fehlt dieses Netz; dann den Host und das Netz in
+`docker-compose.yaml` anpassen.
 
 Die Kubeconfig wird nur im Container angepasst: `127.0.0.1` beziehungsweise
 `localhost` wird durch `host.docker.internal` ersetzt; die TLS-Prüfung verwendet
@@ -34,9 +63,10 @@ weiterhin `localhost`.
 
 - UI: http://localhost:8525
 
-Die Zugangsdaten sind reine Entwicklungswerte aus `docker-compose.yaml`.
-Builtin-Authentifizierung ist aktiviert. Der initiale Admin wird nur beim ersten
-Start des Datenvolumes angelegt.
+Lokal ist die Anmeldung abgeschaltet (`DAGU_AUTH_MODE: none`). Ab Dagu 2.22
+nimmt Dagu in diesem Modus nur bekannte Hostnamen an; IP-Adressen, `localhost`
+und einteilige Namen wie `dagu` (API im Compose-Netz) sind immer erlaubt.
+Weitere Namen bei Bedarf über `DAGU_ALLOWED_HOSTS` (kommagetrennt) freigeben.
 
 ## Workflows und Daten
 
@@ -59,13 +89,59 @@ Das Backend übergibt Modelle und Sprachversionen als vollständigen Snapshot.
 `/work/evaluations/<evaluationId>/inputs/evaluation-input.json`.
 `model-evaluation-graph-matching` führt die Phasen 1 bis 6 aus: Initialisierung,
 Graph-Parsing und Elementinventar je Modell, anschließend semantisches Matching
-einen vorläufigen Graphvergleich und aggregiertes Feedback je Musterlösung. Graphen liegen unter `graphs/<modelKey>.json`,
+einen vorläufigen Graphvergleich, analytische Profile und aggregiertes Feedback je Musterlösung. Graphen liegen unter `graphs/<modelKey>.json`,
 Inventare unter `labels/<modelKey>.json` und semantische Kandidaten unter
 `candidates/<referenceKey>.json`; Vergleiche liegen unter
 `comparisons/<referenceKey>.json` und Feedbackberichte unter
-`feedback/<referenceKey>.json`. Die Abgabe wird nur einmal vorbereitet.
-Die internen Modell- und Paarworkflows sind in derselben Datei eingebettet.
-`hello` bleibt der einfache Testworkflow.
+`feedback/<referenceKey>.json`. Analysen liegen unveränderlich unter
+`analysis/<referenceKey>/<analysisKey>.json`. Die Abgabe wird nur einmal vorbereitet.
+Alle benötigten Modell- und Paarabläufe sind intern in derselben Datei eingebettet.
+Dagu registriert ausschließlich `model-evaluation-graph-matching`. Die Workflowversion
+ist `v22` (der interne Analyse-/Feedbackablauf ist `v14`), der Graphvergleich verwendet
+intern `v14`, Synonym Matching `v5`, Parser und Inventar `v2`. Graph Matching verwendet Serviceversion
+`2.7.1`, Analytical Feedback `2.3.0`, Synonym Matching `1.3.1`, Feedback Generation
+`2.2.1`, die übrigen Dienste `1.0.0`. Graphvergleich verwendet
+`reference-comparison/v2`, Analyse/Feedback `/v3`, übrige Artefakte und vollständige
+stdout-Envelopes `/v1`; Matcher-Fakten `1.1`, Identitätsevidenzen `1.1`.
+Image-Tags: Analyse `v12`, Feedback `v11`, Matcher `v14`, Workflow-Data `v6`, Synonym `v5`, Parser und Inventar `v2`.
+Jede Auswertung verwendet die Evidenzstufen: `workflow-data` friert vor dem Eingabehash
+`graphMatching.textEvidence.tiers` (kanonisch gleich → Schreibvariante → Bedeutung) mit
+`semantics.methods: [damerau_canonical, multilingual_expanded]` in `comparisonConfig` ein.
+Standardschwellen: Schreibvariante 0,85, Bedeutung 0,85, Graubereich ab 0,70. Der optionale
+Workflowparameter `text_evidence` überschreibt sie als JSON-Objekt (`spelling`, `meaning`,
+`meaningFloor`; nur Admins über den Startdialog). Konzept unter
+`docs/graph-matching-workflow/07-KONZEPT-TEXTEVIDENZ-STUFEN.md`.
+Lokale Nachweise vom 16.11.2026: [Graph-Evaluation](../docs/graph-evaluation/RUNLOG.md).
+
+Der Analyse-/Feedbackablauf liest `analysisPath` und `analysisKey` aus dem vollständigen
+Analyse-stdout und veröffentlicht sie über `stdout.outputs`. Der Filter prüft Status,
+Pfadformat und die Übereinstimmung des Schlüssels mit dem Dateinamen, bevor der
+Feedback-Service startet. Die früher lokal gecachten `v1`-Analyse-Images lieferten
+stattdessen nur `{status, path, sizeBytes}`; mit `v2` wurde die vollständige
+JSON-Ausgabe bereitgestellt. Die früheren `v4`-Tags ergänzten den analytischen
+Vertrag 1.1; `v5` ergänzte die Projektion der Matcher-Fakten. `v6` ergaenzte
+die getrennte Identitaets- und Positionscheckliste. Workflow v8, Matcher-Image v4
+und Analyse-/Feedback-Images v8 veroeffentlichen kompakte v3-Analyse-/Feedback-Vertraege mit einer
+verbindlichen Erkennungsuebersicht. Details und lokale Nachweise stehen im
+[Cleanup-Bericht](workflow-services/analytical-feedback/CLEANUP.md).
+Beide JSON-stdout-Artefakte bleiben für das Frontend erhalten;
+Synonym Matching und seine Parameter sind unverändert.
+
+Lokal am 14.11.2026 geprüft: gespeichertes Analyseartefakt erfolgreich übergeben;
+fehlende Metadaten, `<nil>` und widersprüchliche Schlüssel blockieren den Verbraucher.
+Anschließend ausschließlich `analytical-feedback-pair` für `reference_1` der Auswertung
+`5be758db-59e8-4e0d-93ba-309a4e4eab3a` erfolgreich ausgeführt
+(Lauf `034xSoJWjr7s9XNA7LIxaH`), mit vollständigen Analyse- und Feedbackausgaben.
+Diese Laufprüfung betrifft den früheren stdout-Fix. Die Evidenzrevision ist mit
+165 gezielten lokalen Tests einschließlich gespeicherter Modelle Baseline, M02,
+M03, M05, M06a/b und M08, Schema-/Frontendadapterprüfung, Lint und Typprüfung verifiziert.
+Die damaligen Images (`one-to-one-graph-matching:v3`,
+`analytical-feedback:v6`, `feedback-generation:v6`) wurden gebaut und mit
+identischen Digests in Docker und im lokalen Kubernetes-Image-Speicher geprüft;
+die Workflow-Spezifikation wurde per MCP validiert. Für diese Änderung wurden
+keine Pipeline, Embeddingberechnung oder Kubernetes-Jobs gestartet.
+Die Modellprüfungen verwenden vollständige generische Kompatibilitätskandidaten,
+keine neu berechneten Synonymscores oder historische eingefrorene Kandidatenketten.
 
 `WORKFLOW_EVALUATION_ID` wählt den Laufordner, `MODEL_KEY` das Parsermodell.
 `WORKFLOW_INPUT_PATH` und `WORKFLOW_OUTPUT_PATH` wählen relative JSON-Dateipfade;
@@ -81,9 +157,13 @@ der Auswertungsbutton im Aufgabenbereich einen neuen Lauf. Die Auswertungs-Sideb
 zeigt Graph und Elementinventar für Abgabe und Musterlösungen sowie einen Schritt
 „Semantische Kandidaten“ und „Vorläufiger Graphvergleich“ je Musterlösung.
 Die Serviceansicht zeigt außerdem das vorläufige Feedback je Musterlösung.
-Der Vergleich zeigt Ankerabdeckung, maximale Zuordnungskapazität und ein
-Intervall der vorläufigen Zugehörigkeitskonsistenz. Diese Zahlen sind keine
-bestätigte Modellübereinstimmung. „Ausklappen“, „Groß anzeigen“ und
+Der Schritt „Analytisches Feedback“ zeigt Moderatoren und Administratoren die
+kompakten elementbezogenen Hinweise. Das Analyseartefakt liegt zusätzlich im
+Workflow-Workspace. Der Feedbackbericht wird im selben Referenz-Unterlauf unter
+Verwendung dieses Analyseartefakts erzeugt. Details und Aussagegrenzen:
+[Analytical Feedback](workflow-services/analytical-feedback/README.md).
+Die Uebersicht zeigt eindeutig erkannte Referenzobjekte insgesamt und je vorhandener Vergleichsgruppe oder nicht gruppiertem Typ. Die Erkennungsquote ist keine Korrektheitsquote und keine Note.
+Vorlaeufige Matcher-Metriken sind ausschliesslich optionale Entwicklungsdiagnosen. „Ausklappen“, „Groß anzeigen“ und
 „Als JSON kopieren“ öffnen beziehungsweise exportieren die vollständigen
 Zwischenergebnisse. Auch bei einem späteren Schrittfehler bleiben die bereits
 erzeugten Ergebnisse sichtbar. Die Ergebnisübersicht benennt die erreichte Phase;
@@ -93,16 +173,18 @@ sind noch nicht Teil dieses Workflows.
 Lokal nur die tatsächlich benötigten Images bauen:
 
 ```powershell
-docker compose --profile workflow-services build workflow-data workflow-graph-parser workflow-model-label-extraction workflow-synonym-matching workflow-one-to-one-matching workflow-feedback-generation
+docker compose --profile workflow-services build workflow-data workflow-graph-parser workflow-model-label-extraction workflow-synonym-matching workflow-one-to-one-matching workflow-analytical-feedback workflow-feedback-generation
 docker compose up -d --no-deps --build api
 ```
 
 Die benötigten Image-Tags stehen in `docker-compose.yaml` und stimmen mit dem
 Workflow überein. Der Synonym-Service verwendet den eigenen Ordner
 `workflow-services/synonym-matching`; der Methodenreferenzordner bleibt unverändert.
-Das Embedding-Modell wird beim Image-Build vorbereitet und während der Auswertung
-offline geladen. Modellpaare laufen zunächst nacheinander mit eigenem
-Speicherlimit von 2 GiB, Modellvorbereitung mit höchstens vier parallelen Läufen.
+Das Embedding-Modell wird beim Image-Build vorbereitet und beim Start des warmen
+Synonym-Dienstes einmal offline geladen; erst danach meldet der Pod Bereitschaft.
+Modellpaare laufen nacheinander, Modellvorbereitung mit höchstens vier parallelen
+Läufen. Jede Replik bearbeitet Anfragen strikt nacheinander; Parallelität entsteht
+über weitere Repliken hinter dem Service.
 
 **Docker Desktop mit separatem Kubernetes-Image-Speicher:** Lokal gebaute Images
 müssen zusätzlich im Kubernetes-Knoten verfügbar sein. Im vorhandenen
@@ -111,12 +193,15 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:latest modeling-copilot/graph-parser:latest modeling-copilot/model-label-extraction:latest modeling-copilot/synonym-matching:latest modeling-copilot/one-to-one-graph-matching:latest modeling-copilot/feedback-generation:latest | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v6 modeling-copilot/graph-parser:v2 modeling-copilot/model-label-extraction:v2 modeling-copilot/synonym-matching:v5 modeling-copilot/one-to-one-graph-matching:v14 modeling-copilot/analytical-feedback:v12 modeling-copilot/feedback-generation:v39 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
+
+Danach `kubectl apply -f dagu/infra/workflow-services.yaml`; bei geänderten Tags
+rollen die Deployments automatisch neu aus.
 
 Die Pipe in `cmd.exe` ausführen; ältere PowerShell-Versionen können binäre
 Image-Daten beim Weiterreichen als Text beschädigen. Nach jedem lokalen Build
-müssen die `latest`-Images erneut in den Kubernetes-Knoten importiert werden.
+müssen die betroffenen Image-Tags erneut in den Kubernetes-Knoten importiert werden.
 Bei einer anderen lokalen Kubernetes-Installation stattdessen deren Image-Import
 oder eine erreichbare Registry verwenden. Keine produktiven Cluster hierfür
 verändern. Die Images werden mit `IfNotPresent` gestartet; ein bereits
@@ -128,32 +213,49 @@ Elementinventar als vermeintliches Gesamtergebnis verwendet.
 
 ## Produktion (K3s/Portainer)
 
-Das zentrale Manifest stellt die Anwendung und ihre Workflow-Infrastruktur
-gemeinsam bereit. Siehe [`k3s-portainer.yaml`](../k3s-portainer.yaml).
+Das zentrale Manifest stellt die Anwendung, Dagu und die gemeinsame
+Workflow-Laufzeit bereit. Siehe [`k3s-portainer.yaml`](../k3s-portainer.yaml).
+Die warmen Workflow-Dienste werden zusätzlich über
+`infra/workflow-services.yaml` bereitgestellt.
 
 - Namespace `modeling-copilot` für Anwendung und Dagu
-- Namespace `workflow-runtime` für die dynamischen Workflow-Jobs
+- Namespace `workflow-runtime` für die dynamischen Workflow-Jobs und warmen
+  Workflow-Dienste
 - Service Accounts und namespaced RBAC für Kubernetes Jobs und Pod-Logs
 - Dagu Deployment, 5-GiB-PVC und ClusterIP-Service
 - Traefik-Ingress unter `https://ikarus.mni.thm.de/dagu`
 
+Die warmen Workflow-Dienste kommen aus `infra/workflow-services.yaml` (nur
+ClusterIP, nicht von außen erreichbar). Dagu erreicht sie über
+`WORKFLOW_SERVICES_HOST=workflow-services.workflow-runtime.svc.cluster.local`.
+Die Images müssen auf dem Knoten vorhanden sein. Das PVC ist `ReadWriteOnce`;
+alle Repliken müssen daher auf dem Knoten laufen, der es eingebunden hat.
+
 Der Init-Container klont den Branch `main` von
-`https://github.com/thm-mni-ii/modeling-copilot.git`. Ein
-Checkout auf dem Node oder ConfigMaps für Workflows und `base.yaml` sind nicht
-erforderlich.
+`https://github.com/thm-mni-ii/modeling-copilot.git`. Bei einem Wechsel des
+Standard-Branches ist der Wert von `--branch` in `k3s-portainer.yaml`
+anzupassen. Ein Checkout auf dem Node oder ConfigMaps für Workflows und
+`base.yaml` sind nicht erforderlich.
 
 Zusätzlich wird im Namespace `modeling-copilot` folgendes Objekt erwartet:
 
 - Secret `dagu-auth` mit den Keys `token-secret`, `admin-username` und
-  `admin-password`
+  `admin-password` (Token-Secret mindestens 32, Passwort mindestens 8 Zeichen)
 - Nach dem ersten Start zusätzlich `api-key` im selben Secret für die API
+
+Dagu läuft mit Builtin-Anmeldung. Der initiale Admin aus dem Secret wird nur
+angelegt, solange der Benutzerspeicher auf dem PVC leer ist; spätere Änderungen
+am Secret ändern ihn nicht. Builtin-Login, erster Admin und bis zu zwei API-Keys
+sind ohne Lizenz nutzbar; weitere Benutzer, Rollen und OIDC erfordern eine
+Dagu-Lizenz. Den API-Key für das Backend (`DAGU_API_KEY`) legt der Admin in der
+UI unter Admin > API Keys mit Rolle `operator` und Zugriff auf die REST-API an.
 
 In Portainer **Use namespace(s) specified from manifest** aktivieren und das
 zentrale Manifest deployen. Über die Kommandozeile erfolgt das Deployment mit
 folgendem Befehl.
 
 ```bash
-kubectl apply -f k3s-portainer.yaml
+kubectl apply -f k3s-portainer.yaml -f dagu/infra/workflow-services.yaml
 ```
 
 Produktive Zugangsdaten werden ausschließlich über das Secret `dagu-auth`

@@ -20,6 +20,16 @@ def split_identifiers(text, language=None):
     return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text).replace("_", " ")
 
 
+def expand_abbreviations(text, language=None):
+    """Löse deutsches Nr./Nr am Wortende auf, auch in GebäudeNr.
+
+    Bewusst kleine Regel: Andere Abkürzungen und Sprachen bleiben unverändert.
+    """
+    if language != 'de':
+        return text
+    return normalize(re.sub(r'nr\.?(?=$|[\s_-])', ' Nummer', text, flags=re.IGNORECASE))
+
+
 @lru_cache(maxsize=2)
 def _language_model(language):
     """Lade das spaCy-Modell einmal pro Sprache."""
@@ -86,7 +96,7 @@ def _compound_words():
     return {word for word in lexicon.groups if word.isalpha() and len(word) >= 3}
 
 
-def split_compounds(text, language=None):
+def split_compounds(text, language=None, *, plural_forms=False):
     """Zerlege deutsche Wörter heuristisch in zwei bekannte Lexikonwörter.
 
     Längster linker Bestandteil zuerst; mögliche Fugenelemente werden entfernt.
@@ -102,7 +112,12 @@ def split_compounds(text, language=None):
         replacement = None
         for cut in range(len(lowered) - 3, 2, -1):
             left = lowered[:cut]
-            if left not in words:
+            # Nur die neue Labelzerlegung erlaubt diese einfache Pluralheuristik:
+            # Geräte ist als linker Teil bekannt, wenn Gerät im Lexikon steht.
+            known_left = left in words or (
+                plural_forms and left.endswith('e') and left[:-1] in words
+            )
+            if not known_left:
                 continue
             remainder = lowered[cut:]
             for linking in ('', 's', 'es', 'n', 'en', 'er'):
@@ -118,6 +133,19 @@ def split_compounds(text, language=None):
     return ' '.join(result)
 
 
+def split_label_parts(text, language=None):
+    """Kombiniere Abkürzungen, Identifier und die vorhandene Kompositazerlegung.
+
+    Optionaler deutscher Forschungsschritt, keine vollständige Sprachanalyse.
+    Die bisherigen Schritte und ihre Standardausgaben bleiben erhalten.
+    """
+    if not text.strip() or language != 'de':
+        return text
+    text = expand_abbreviations(text, language)
+    text = split_identifiers(text, language)
+    return split_compounds(text, language, plural_forms=True)
+
+
 # Diese Namen werden auch in gespeicherten Experimentkonfigurationen verwendet.
 STEPS = {
     'normalize': normalize,
@@ -127,6 +155,8 @@ STEPS = {
     'stem': stem,
     'remove_stopwords': remove_stopwords,
     'split_compounds': split_compounds,
+    'expand_abbreviations': expand_abbreviations,
+    'split_label_parts': split_label_parts,
 }
 # Kein Eintrag in STEPS: Übersetzen braucht Modell und Stapel, deshalb handelt es der Preprocessor.
 TRANSLATE = 'translate'

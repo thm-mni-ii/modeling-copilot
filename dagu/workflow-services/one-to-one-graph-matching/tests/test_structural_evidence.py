@@ -8,7 +8,7 @@ from test_graph_index import graph, node
 
 
 def contains(child, parent):
-    return {"kind": "contains", "role": "content", "source": child, "target": parent}
+    return {"kind": "contains", "role": "component", "source": child, "target": parent}
 
 
 def index(kinds, edges):

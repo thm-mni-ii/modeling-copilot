@@ -881,7 +881,7 @@ spec:
       containers:
         - name: dagu
           # Pinned version - never use "latest" here.
-          image: ghcr.io/dagucloud/dagu:2.16.6
+          image: ghcr.io/dagucloud/dagu:2.27.0
           imagePullPolicy: IfNotPresent
           command: ["dagu", "start-all"]
           ports:
@@ -910,6 +910,9 @@ spec:
               value: https://ikarus.mni.thm.de/dagu
             - name: DAGU_AUTH_MODE
               value: builtin
+            # Warm workflow services from infra/workflow-services.yaml.
+            - name: WORKFLOW_SERVICES_HOST
+              value: workflow-services.workflow-runtime.svc.cluster.local
             - name: DAGU_AUTH_TOKEN_SECRET
               valueFrom:
                 secretKeyRef:

@@ -1,5 +1,5 @@
 <template>
-  <v-autocomplete :model-value="modelValue" v-model:search="search" :items="items" item-value="id" :item-title="userTitle" :label="label" multiple chips closable-chips :loading="busy" :error-messages="error" no-filter clearable @update:model-value="emit('update:modelValue', $event ?? [])" />
+  <v-autocomplete v-model:search="search" :model-value="modelValue" :items="items" item-value="id" :item-title="userTitle" :label="label" multiple chips closable-chips :loading="busy" :error-messages="error" no-filter clearable @update:model-value="emit('update:modelValue', $event ?? [])" />
 </template>
 
 <script setup lang="ts">

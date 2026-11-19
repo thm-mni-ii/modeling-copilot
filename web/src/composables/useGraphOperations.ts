@@ -171,7 +171,7 @@ export function useGraphOperations(graph: Ref<Graph | undefined>, parent?: Ref<C
   const duplicateSelected = () => {
     if (!graph.value) return
 
-    const cells = graph.value.getSelectionCells()
+    const cells = cellArrayUtils.getTopmostCells(graph.value.getCloneableCells(graph.value.getSelectionCells()))
     if (cells.length === 0) return
 
     const cloned = cellArrayUtils.cloneCells(cells)
@@ -184,11 +184,12 @@ export function useGraphOperations(graph: Ref<Graph | undefined>, parent?: Ref<C
       }
     })
 
-    // Füge jede Zelle einzeln hinzu
-    cloned.forEach((cell) => {
-      if (cell && parent?.value) {
-        graph.value!.addCell(cell, parent.value)
-      }
+    // Attribute and other children stay in their original containers. Insert
+    // the entire selection in one transaction so one Undo removes all copies.
+    graph.value.batchUpdate(() => {
+      cloned.forEach((cell, index) => {
+        graph.value!.addCell(cell, cells[index].getParent() ?? parent?.value ?? graph.value!.getDefaultParent())
+      })
     })
 
     // Wähle die geklonten Zellen aus
