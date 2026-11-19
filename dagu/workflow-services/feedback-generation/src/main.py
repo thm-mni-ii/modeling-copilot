@@ -63,7 +63,7 @@ def run(store: Workspace, reference_key: str, analysis_path: str | None = None) 
         "analysisHash": analysis["analysisHash"], "analysisPath": analysis_path,
         "requested": types,
         "feedback": [{"type": kind, **BUILDERS[kind](analysis, context, store, bundle)} for kind in types],
-        "producer": {"service": SERVICE, "version": "4.9.1",
+        "producer": {"service": SERVICE, "version": "4.9.2",
                      "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()})},
     }
     report["feedbackHash"] = content_hash(report)

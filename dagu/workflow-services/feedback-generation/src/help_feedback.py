@@ -562,12 +562,14 @@ def element_steps(model: Model, cell_id: str):
             yield step([moved, cell_id], "hierarchy", {"code": "child.moved", "referenceId": reference_id},
                        f"Ordne {model.name(moved)} {name} zu.")
     absent = set(evidence.get("provenAbsentReferenceIds", [])) | {
-        hint["referenceId"] for hint in model.analysis["referenceHints"] if hint["code"] == "reference.missing" and hint["target"]["id"] == cell_id}
+        hint["referenceId"] for hint in model.analysis["referenceHints"]
+        if hint["code"] == "reference.missing" and hint["target"]["id"] == cell_id
+        and hint.get("kind") == "modelElement"}
     missing = [*sorted(absent), *[ref for ref in evidence.get("unmatchedReferenceIds", [])
                                   if ref not in absent and ref not in evidence.get("movedReferenceIds", [])]]
     for reference_id in missing:  # the smallest part of the solution: exactly this one missing element
-        if model.reference_nodes.get(reference_id, {}).get("kind") == "structuralElement":
-            continue  # containers are layout, not solution content
+        if model.reference_nodes.get(reference_id, {}).get("kind") != "modelElement":
+            continue  # connections have their own phase; containers are layout
         yield step([cell_id], "completeness", {"code": "child.missing", "referenceId": reference_id},
                    f"Bei {name} fehlt noch {reference_phrase(model, reference_id)}.")
 
@@ -579,16 +581,19 @@ def reference_phrase(model: Model, reference_id: str) -> str:
     return f"„{label}“ ({kind})" if label else f"ein Element vom Typ „{kind}“"
 
 
-def connection_steps(model: Model, connection_id: str):
-    """One existing connection: assignable at all, then endpoints, direction and type."""
+def connection_steps(model: Model, connection_id: str, *, types_only: bool = False):
+    """Structure and type are separate phases, independent of the matcher's fact order."""
     annotation, ends = model.annotations.get(connection_id) or {}, model.ends.get(connection_id, {})
     names = " und ".join(model.name(end) for end in ends.values())
     if annotation.get("identity", {}).get("status") == "unresolved" and not annotation.get("referenceId"):
-        yield step([connection_id], "connection", {"code": "connection.unassigned", "cellId": connection_id},
-                   f"Die Verbindung zwischen {names} konnte keiner Verbindung der Musterlösung zugeordnet werden. Überlege, ob du sie brauchst.")
+        if not types_only:
+            yield step([connection_id], "connection", {"code": "connection.unassigned", "cellId": connection_id},
+                       f"Die Verbindung zwischen {names} konnte keiner Verbindung der Musterlösung zugeordnet werden. Überlege, ob du sie brauchst.")
         return
     items = [item for item in findings(model, connection_id, 0, "structure")[1] if item["status"] == "differs" and item["area"] == "connection"]
     for item in items:
+        if item["fact"]["code"].startswith("type.") != types_only:
+            continue
         answer, extra, _ = solution(model, item, "structure")
         yield step([connection_id, *extra], "connection", {"issueKey": item["issueKey"]},
                    answer or NEXT_STEPS["connection"].format(name=f"der Verbindung zwischen {names}"))
@@ -604,28 +609,21 @@ def missing_connections(model: Model, cell_id: str, codes: tuple[str, ...]):
         for reference_id in fact["evidence"].get("referenceConnectionIds", []):
             if reference_id in present or model.proven.get(reference_id):
                 continue
-            kind = model.type_name(model.reference_nodes.get(reference_id, {}).get("type"))
             reference_ends = model.reference_ends.get(reference_id, {})
             mine = next((role for role, end in reference_ends.items() if end == own), None)
-            other = next((end for role, end in reference_ends.items() if role != mine), None)
             towards = {"source": "ausgehende ", "target": "eingehende "}.get(mine, "") if model.reference_nodes.get(reference_id, {}).get("directed", True) else ""
-            if other and model.proven.get(other):
-                text = f"Bei {name} fehlt noch eine {towards}Verbindung vom Typ „{kind}“ {'von' if mine == 'target' and towards else 'zu'} {model.name(model.proven[other])}."
-                extra = [model.proven[other]]
-            else:
-                text = (f"Bei {name} fehlt noch eine {towards}Verbindung vom Typ „{kind}“. Lege dafür {reference_phrase(model, other or '')} an "
-                        f"und verbinde es mit {name}.")
-                extra = []
-            yield step([cell_id, *extra], "connections", {"code": "connection.missing", "referenceId": reference_id}, text)
+            text = f"Bei {name} fehlt noch eine {towards}Verbindung. Prüfe in der Aufgabe, womit das Element verbunden sein sollte."
+            yield step([cell_id], "connections", {"code": "connection.missing", "referenceId": reference_id}, text)
 
 
 def next_step_feedback(model: Model, context: dict) -> dict:
-    """The most obvious next step around the marked objects, by priority.
+    """One local next step, without revealing neighbouring sample-solution elements.
 
     1. the marked element itself: assignable label, type, placement, nested elements, missing nested elements;
-    2. upstream: incoming connections, missing incoming ones, then each preceding element the same way, transitively;
-    3. downstream: outgoing (and undirected) connections, missing ones, then each following element, transitively.
-    A marked connection is checked first, then its ends. Missing elements are named with label and type (the smallest part of the solution); nothing else is revealed.
+    2. incoming connections: structure, then missing connections;
+    3. outgoing/undirected connections: structure, then missing connections;
+    4. types of all adjacent connections, only after their structure is correct.
+    Nested elements continue at their owner; a marked connection checks only itself.
     """
     def connections(cell_id, role):
         return [conn for conn, ends in model.ends.items() if ends.get(role) == cell_id and model.nodes.get(conn, {}).get("directed", True)]
@@ -633,27 +631,11 @@ def next_step_feedback(model: Model, context: dict) -> dict:
     def undirected(cell_id):
         return [conn for conn, ends in model.ends.items() if cell_id in ends.values() and model.nodes.get(conn, {}).get("directed") is False]
 
-    def walk(start, incoming):
-        queue, seen = [start], {start}
-        while queue:
-            current = queue.pop(0)
-            edges = connections(current, "target" if incoming else "source") + ([] if incoming else undirected(current))
-            for conn in edges:
-                yield from connection_steps(model, conn)
-            yield from missing_connections(model, current, ("incoming.complete",) if incoming else ("outgoing.complete", "undirected.complete"))
-            for conn in edges:
-                for neighbour in model.ends[conn].values():
-                    if neighbour not in seen:
-                        seen.add(neighbour)
-                        yield from element_steps(model, neighbour)
-                        queue.append(neighbour)
-
     def steps():
         for cell_id in context["markedIds"]:
             if model.nodes.get(cell_id, {}).get("kind") == "connection":
                 yield from connection_steps(model, cell_id)
-                for end in model.ends.get(cell_id, {}).values():
-                    yield from element_steps(model, end)
+                yield from connection_steps(model, cell_id, types_only=True)
                 continue
             yield from element_steps(model, cell_id)
             # A nested element (e.g. an attribute) continues at its owner, skipping structural containers.
@@ -662,13 +644,20 @@ def next_step_feedback(model: Model, context: dict) -> dict:
                 anchor = model.parents.get(anchor)
             if anchor in model.nodes:
                 yield from element_steps(model, anchor)
-            yield from walk(anchor if anchor in model.nodes else cell_id, incoming=True)
-            yield from walk(anchor if anchor in model.nodes else cell_id, incoming=False)
+            current = anchor if anchor in model.nodes else cell_id
+            incoming = connections(current, "target")
+            outgoing = connections(current, "source") + undirected(current)
+            for edges, codes in ((incoming, ("incoming.complete",)), (outgoing, ("outgoing.complete", "undirected.complete"))):
+                for conn in edges:
+                    yield from connection_steps(model, conn)
+                yield from missing_connections(model, current, codes)
+            for conn in dict.fromkeys([*incoming, *outgoing]):
+                yield from connection_steps(model, conn, types_only=True)
 
     found = next(steps(), None)
     if found is None:
         return {"focus": {"cellIds": list(context["markedIds"]), "area": None, "issueKey": None, "messageCode": "none",
-                          "text": "Bei den markierten Elementen und allem, was damit verbunden ist, wurde kein Fehler gefunden.",
+                          "text": "Bei den überprüften Objekten wurde kein Änderungsbedarf festgestellt.",
                           "repeated": False}, "notices": ["no_deviation"]}
     return {"focus": {**found, "messageCode": f"{found['area']}.next_step",
                       "repeated": found["issueKey"] in context["previousIssueKeys"]}, "notices": []}

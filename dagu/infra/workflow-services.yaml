@@ -223,7 +223,7 @@ spec:
       serviceAccountName: workflow-runner
       containers:
         - name: service
-          image: modeling-copilot/feedback-generation:v38
+          image: modeling-copilot/feedback-generation:v39
           imagePullPolicy: IfNotPresent
           command: [python, -u, /app/workflow_server.py, /app/src/main.py, --port, "30087"]
           ports: [{name: feedback, containerPort: 30087}]

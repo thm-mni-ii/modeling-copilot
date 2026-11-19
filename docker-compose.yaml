@@ -89,6 +89,20 @@ services:
       - ./dagu/infra/dev/10-use-host-kube-api.sh:/etc/kube/init.sh:ro
     networks: [default, kind]
     restart: unless-stopped
+    depends_on:
+      workflow-sync:
+        condition: service_completed_successfully
+
+  # Local Docker Desktop/kind only: update the warm Kubernetes services before Dagu.
+  workflow-sync:
+    image: docker:29-cli
+    entrypoint: ["/bin/sh", "/workspace/dagu/infra/dev/sync-workflow-services.sh"]
+    working_dir: /workspace
+    volumes:
+      - .:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - workflow-sync-state:/state
+    restart: "no"
 
   ck-mongo:
     image: mongo:8.0
@@ -170,7 +184,7 @@ services:
     profiles: [workflow-services]
 
   workflow-feedback-generation:
-    image: modeling-copilot/feedback-generation:v38
+    image: modeling-copilot/feedback-generation:v39
     build:
       context: ./dagu/workflow-services
       dockerfile: feedback-generation/Dockerfile
@@ -194,6 +208,7 @@ volumes:
   mongo-data:
   dagu-data:
   ck-mongo-data:
+  workflow-sync-state:
 
 networks:
   database:

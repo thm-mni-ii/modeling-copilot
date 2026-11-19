@@ -29,9 +29,28 @@ Kubeconfig unter `~/.kube/config`.
 
 ```bash
 kubectl config use-context docker-desktop
-kubectl apply -f dagu/infra/dev/kubernetes.yaml -f dagu/infra/workflow-services.yaml
 docker compose up -d dagu
 ```
+
+`docker compose up -d` aktualisiert die Workflow-Dienste ebenfalls automatisch.
+Die Abhängigkeit `workflow-sync` läuft bei jedem Compose-Start einmal: Bei
+geänderten Quellen oder fehlenden lokalen Images baut sie die Workflow-Images,
+übernimmt geänderte Images binär in den kind-Knoten `desktop-control-plane`,
+wendet die lokalen Kubernetes-Manifeste an und wartet auf erfolgreiche Rollouts.
+Erst danach startet Dagu. Bei unveränderten Quellen werden Build und Import
+übersprungen. Status und Fehler: `docker compose logs workflow-sync`.
+
+Der Helfer benötigt den lokalen Docker-Socket und ist ausschließlich für die
+Docker-Desktop-/kind-Entwicklung gedacht. Er löscht keine Laufdaten. DAG-Dateien
+sind direkt eingebunden; Service-Code benötigt dagegen den Image-Rollout.
+Versionsregeln stehen in [AGENTS.md](../AGENTS.md). Aktuelles Feedback:
+Serviceversion `4.9.2`, Image `feedback-generation:v39`. Gespeicherte Berichte
+bleiben unverändert; die neue Logik gilt bei einer neuen Berechnung.
+
+Grundlage: [Dagu Compose](https://docs.dagu.sh/server-admin/deployment/docker-compose)
+(DAG-Verzeichnis als Volume) und [Compose Build](https://docs.docker.com/reference/compose-file/build/)
+(Unterscheidung von Build und Image-Pull). Ein Registry-Pull allein baut keinen
+lokal geänderten Python-Code und aktualisiert keine Kubernetes-Deployments.
 
 Dagu tritt dem Docker-Netz `kind` des Docker-Desktop-Kubernetes bei und erreicht
 die Dienste über `WORKFLOW_SERVICES_HOST=desktop-control-plane` und die NodePorts.
@@ -174,7 +193,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v6 modeling-copilot/graph-parser:v2 modeling-copilot/model-label-extraction:v2 modeling-copilot/synonym-matching:v5 modeling-copilot/one-to-one-graph-matching:v14 modeling-copilot/analytical-feedback:v12 modeling-copilot/feedback-generation:v38 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v6 modeling-copilot/graph-parser:v2 modeling-copilot/model-label-extraction:v2 modeling-copilot/synonym-matching:v5 modeling-copilot/one-to-one-graph-matching:v14 modeling-copilot/analytical-feedback:v12 modeling-copilot/feedback-generation:v39 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Danach `kubectl apply -f dagu/infra/workflow-services.yaml`; bei geänderten Tags
