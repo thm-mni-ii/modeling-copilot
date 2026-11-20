@@ -1,0 +1,431 @@
+{
+  "learningPathId": "b7affb3a-fcbb-509a-8ec1-b4c8a7381d0d",
+  "afterStepId": "f72db10d-56af-53df-a897-b21ed4e0f04c",
+  "task": {
+    "id": "cbbe39ec-2f22-5933-9abe-85d5cc82e70d",
+    "name": "Entwicklerstudio – SERM",
+    "parent": null,
+    "ownerId": "",
+    "latestVersionId": "4038eea6-a82a-5c07-b8a8-563689e9985f",
+    "latestReleaseId": "4038eea6-a82a-5c07-b8a8-563689e9985f",
+    "visibility": "private",
+    "archivedAt": null,
+    "version": {
+      "id": "4038eea6-a82a-5c07-b8a8-563689e9985f",
+      "taskId": "cbbe39ec-2f22-5933-9abe-85d5cc82e70d",
+      "versionNumber": "1.0",
+      "createdBy": "",
+      "kind": "release",
+      "releaseName": "Release 1.0",
+      "description": null,
+      "workspaceLanguages": [
+        {
+          "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+          "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+          "source": "required"
+        }
+      ],
+      "data": {
+        "contentHtml": "<h2>Entwicklerstudio als SERM</h2><p>Modelliere die Datenverwaltung eines Spieleentwicklungsstudios als SERM. Leite die benötigten Objekttypen, Beziehungen und Kardinalitäten selbstständig aus der Fallstudie ab. Kennzeichne die Primärschlüssel <u>unterstrichen</u> und die Fremdschlüssel <i>kursiv</i>.</p><h3>Fallstudie</h3><p>Ein Entwicklungsstudio entwickelt verschiedene Videospiele. Für jedes Spiel werden der Titel und der Entwicklungsbeginn dokumentiert.</p><p>Einige Spiele werden einer Spielereihe zugeordnet, andere werden als eigenständige Titel entwickelt. Neue Spielereihen können bereits geplant werden, bevor das erste zugehörige Spiel entsteht. Auch bereits entwickelte Spiele können nachträglich einer Spielereihe zugeordnet werden.</p><p>Spiele können Fortsetzungen erhalten. Ein Spiel kann mehrere direkte Nachfolger haben, während jede Fortsetzung höchstens einen direkten Vorgänger besitzt. Ein Spiel kann nicht seine eigene Fortsetzung sein.</p><p>Zur Kategorisierung verwaltet das Studio verschiedene Genres. Ein Spiel kann mehreren Genres zugeordnet werden.</p><p>Das Studio entwickelt Spiele für unterschiedliche Plattformen. Für jede Plattform werden der Name und der Hersteller erfasst.</p><p>Für ein Spiel können auf unterschiedlichen Plattformen eigenständige Versionen entstehen. Jede Version gehört zu einem Spiel und einer Plattform. Sie erhält eine Versionsnummer, die innerhalb dieser Kombination eindeutig ist. Für jede Version wird das Erstellungsdatum dokumentiert.</p><p>Nicht jede Version wird veröffentlicht. Bei einer Veröffentlichung wird das Datum erfasst. Jede Version kann höchstens einmal veröffentlicht werden. Nach der ersten Veröffentlichung eines Spiels können weitere Versionen zur Behebung von Fehlern veröffentlicht werden.</p><p>Im Studio arbeiten festangestellte Mitarbeiter und Freelancer. Für alle Mitarbeiter werden die PersonalNr., der Name und die E-Mail erfasst.</p><p>Festangestellte erhalten ein Monatsgehalt und haben eine festgelegte wöchentliche Arbeitszeit. Freelancer werden nach einem vereinbarten Stundensatz vergütet. Jeder Mitarbeiter gehört genau einer dieser beiden Beschäftigungsarten an.</p><p>Mitarbeiter können an unterschiedlichen Spielversionen mitwirken. Dabei kann ein Mitarbeiter auch an Versionen verschiedener Spiele und Plattformen arbeiten.</p><p>Für jeden Arbeitseinsatz wird die Arbeitszeit sekundengenau erfasst, um die geleisteten Arbeitsstunden zu ermitteln.</p>",
+        "autonomyMode": "informative",
+        "connectionPreviewAllowed": false,
+        "sampleSolutions": [{"modelId": "ebc892b1-3b21-590c-b031-f4ddadc0f91d", "versionId": "7a53fac5-74d7-5779-ae02-b480c6a5a1e8"}],
+        "evaluationWorkflows": ["model-evaluation-graph-matching"]
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "0399dc79-ffbb-5366-871a-bf882f94a19e",
+      "title": "Entwicklerstudio – SERM",
+      "type": "task",
+      "taskVersion": {
+        "taskId": "cbbe39ec-2f22-5933-9abe-85d5cc82e70d",
+        "versionId": "4038eea6-a82a-5c07-b8a8-563689e9985f"
+      },
+      "afterSurveyId": "4cafb871-cb81-58db-96f2-cf31d6aae0d3",
+      "minimumScorePercent": null,
+      "required": true,
+      "unlock": {
+        "mode": "sequence",
+        "conditions": []
+      }
+    },
+    {
+      "id": "0425e798-d0ba-54f0-bfd4-5ddecb634d10",
+      "title": "Wochenabschluss 4",
+      "type": "survey",
+      "surveyId": "4ab211d7-3245-57f2-bfa9-0c646bf9f836",
+      "required": true,
+      "unlock": {
+        "mode": "sequence",
+        "conditions": []
+      }
+    }
+  ],
+  "completionSurvey": {
+    "id": "4cafb871-cb81-58db-96f2-cf31d6aae0d3",
+    "versionId": "0fe631c8-84e4-5768-8b04-46791cf5913b",
+    "version": 1,
+    "title": "Aufgabenabschluss Entwicklerstudio",
+    "definition": {
+      "introduction": "Wie hast du die gerade bearbeitete Aufgabe erlebt? Bitte beantworte die Fragen möglichst spontan.",
+      "showQuestionNumbers": "off",
+      "pages": [
+        {
+          "name": "difficulty",
+          "title": "Wahrgenommene Schwierigkeit"
+        },
+        {
+          "name": "strategies",
+          "title": "Umgang mit Schwierigkeiten"
+        },
+        {
+          "name": "support",
+          "title": "Genutzte und fehlende Unterstützung"
+        },
+        {
+          "name": "completion",
+          "title": "Freiwilliger Aufgabenabschluss"
+        },
+        {
+          "name": "confidence",
+          "title": "Selbsteinschätzung"
+        }
+      ],
+      "elements": [
+        {
+          "type": "rating",
+          "name": "T1",
+          "page": "difficulty",
+          "isRequired": true,
+          "title": "Wie schwierig war die gerade bearbeitete Modellierungsaufgabe für dich?",
+          "rateMin": 1,
+          "rateMax": 5,
+          "minRateDescription": "überhaupt nicht schwierig",
+          "maxRateDescription": "sehr schwierig",
+          "description": "1 = Überhaupt nicht schwierig; 5 = Sehr schwierig"
+        },
+        {
+          "type": "checkbox",
+          "name": "T2",
+          "page": "difficulty",
+          "isRequired": true,
+          "title": "Wobei hast du Unterstützung benötigt?",
+          "description": "Mehrfachauswahl",
+          "choices": [
+            "Keine Unterstützung benötigt",
+            "Aufgabenstellung verstehen",
+            "Die Modellierungssprache korrekt anwenden (Syntax)",
+            "Entscheiden, wie ich beim Modellieren weiter vorgehe",
+            "Fehler erkennen",
+            "Lernplattform bedienen",
+            "Sonstiges"
+          ],
+          "exclusiveChoices": ["Keine Unterstützung benötigt"]
+        },
+        {
+          "type": "comment",
+          "name": "T2_other",
+          "page": "difficulty",
+          "isRequired": true,
+          "title": "Sonstiges: Wobei hast du Unterstützung benötigt?",
+          "visibleIf": "{T2} contains 'Sonstiges'"
+        },
+        {
+          "type": "checkbox",
+          "name": "T3",
+          "page": "strategies",
+          "isRequired": true,
+          "title": "Wie bist du überwiegend vorgegangen, wenn du nicht weiterwusstest?",
+          "description": "Mehrfachauswahl",
+          "choices": [
+            "Ich habe eigenständig verschiedene Lösungen ausprobiert.",
+            "Ich habe Hinweise der Lernplattform genutzt.",
+            "Ich habe Vorlesungsmaterialien verwendet.",
+            "Ich habe eine Lehrkraft um Unterstützung gebeten.",
+            "Ich habe außerhalb der Lernplattform und Moodle Unterstützung gesucht.",
+            "Ich habe den schwierigen Teil zunächst übersprungen.",
+            "Ich habe die Bearbeitung beendet.",
+            "Weiß ich nicht"
+          ]
+        },
+        {
+          "type": "checkbox",
+          "name": "T5",
+          "page": "support",
+          "isRequired": true,
+          "title": "Welche Unterstützungsquellen hast du während dieser Aufgabe tatsächlich genutzt?",
+          "description": "Mehrfachauswahl",
+          "choices": [
+            "Keine zusätzliche Unterstützung",
+            "Automatische Modellprüfung (Fehlermeldungen am blinkenden Warnsymbol)",
+            "Fortschrittsanzeige der Plattform",
+            "Bereitgestellte Lehrmaterialien oder Vorlesungsinhalte",
+            "Kommilitoninnen oder Kommilitonen",
+            "Lehrende oder Tutorinnen und Tutoren",
+            "Internetrecherche, Tutorials oder Foren",
+            "Generative KI, z. B. ChatGPT",
+            "Sonstiges"
+          ],
+          "exclusiveChoices": ["Keine zusätzliche Unterstützung"]
+        },
+        {
+          "type": "comment",
+          "name": "T5_other",
+          "page": "support",
+          "isRequired": true,
+          "title": "Sonstiges: Welche Unterstützungsquelle hast du genutzt?",
+          "visibleIf": "{T5} contains 'Sonstiges'"
+        },
+        {
+          "type": "radiogroup",
+          "name": "T6",
+          "page": "support",
+          "isRequired": true,
+          "title": "Gab es während der Aufgabe Situationen, in denen du Unterstützung gebraucht hättest, aber keine passende erhalten hast?",
+          "choices": [
+            "Nein",
+            "Selten",
+            "Manchmal",
+            "Häufig",
+            "Kann ich nicht beurteilen"
+          ]
+        },
+        {
+          "type": "radiogroup",
+          "name": "T7",
+          "page": "completion",
+          "isRequired": true,
+          "title": "Was war der wichtigste Grund dafür, dass du die Aufgabe jetzt beendet hast?",
+          "choices": [
+            "Ich bin mit meinem Modell zufrieden.",
+            "Ich habe das Gefühl, das Lernziel ausreichend erreicht zu haben.",
+            "Ich wusste nicht mehr, wie ich mein Modell verbessern könnte.",
+            "Ich wollte nicht noch mehr Zeit investieren.",
+            "Ich wollte mit der nächsten Aufgabe weitermachen.",
+            "Ich hatte keine Zeit mehr.",
+            "Technische oder andere Gründe"
+          ]
+        },
+        {
+          "type": "comment",
+          "name": "T7_other",
+          "page": "completion",
+          "isRequired": true,
+          "title": "Technische oder andere Gründe:",
+          "visibleIf": "{T7} = 'Technische oder andere Gründe'"
+        },
+        {
+          "type": "rating",
+          "name": "T9",
+          "page": "confidence",
+          "isRequired": true,
+          "title": "Hättest du die gerade bearbeitete Aufgabe auch ohne die von dir genutzte Unterstützung lösen können?",
+          "rateMin": 1,
+          "rateMax": 5,
+          "minRateDescription": "Ja, auf jeden Fall.",
+          "maxRateDescription": "Nein, auf keinen Fall.",
+          "description": "1 = Ja, auf jeden Fall.; 5 = Nein, auf keinen Fall."
+        },
+        {
+          "type": "radiogroup",
+          "name": "T10_mode",
+          "page": "confidence",
+          "isRequired": true,
+          "title": "Auf welche der genutzten Unterstützungsquellen könntest du am ehesten verzichten?",
+          "description": "Wenn du auf mindestens eine Quelle verzichten könntest, kannst du die genutzten Quellen anschließend sortieren. Bei nur einer Quelle ist keine Sortierung nötig.",
+          "visibleIf": "{T5} notcontains 'Keine zusätzliche Unterstützung'",
+          "choices": ["rank", "none", "unknown"],
+          "choiceLabels": {
+            "rank": "Ich könnte auf mindestens eine der genutzten Unterstützungsquellen verzichten.",
+            "none": "Ich könnte auf keine der genutzten Unterstützungsquellen verzichten.",
+            "unknown": "Kann ich nicht einschätzen."
+          }
+        },
+        {
+          "type": "ranking",
+          "name": "T10",
+          "page": "confidence",
+          "isRequired": true,
+          "title": "Ordne die genutzten Unterstützungsquellen.",
+          "description": "Rang 1 = Darauf könnte ich am ehesten verzichten; letzter Rang = Darauf könnte ich am wenigsten verzichten. Ziehe die Einträge in die passende Reihenfolge.",
+          "visibleIf": "{T10_mode} = 'rank'",
+          "choicesFromQuestion": "T5",
+          "choicesFromQuestionMode": "selected"
+        }
+      ]
+    }
+  },
+  "weeklySurvey": {
+    "id": "4ab211d7-3245-57f2-bfa9-0c646bf9f836",
+    "versionId": "4dfd1c13-e4c7-5054-b0ca-b94b5617befa",
+    "version": 1,
+    "title": "Wochenabschluss 4",
+    "definition": {
+      "introduction": "Zum Abschluss möchten wir erfahren, wie du die Funktionen und den zusätzlichen Aufwand während der Studienteilnahme empfunden hast.",
+      "showQuestionNumbers": "off",
+      "pages": [
+        {
+          "name": "feature_help",
+          "title": "„Ich brauche Hilfe“-Button",
+          "description": "Während der Modellierungsaufgaben konntest du über den Button „Ich brauche Hilfe“ Schwierigkeiten melden. Außerdem wurden während der Bearbeitung gelegentlich kurze Zwischenfragen durch den Piraten eingeblendet. Für beantwortete Zwischenfragen konntest du Coins erhalten. Für die Teilnahme an der Studie wurden Klausurbonuspunkte angeboten.\n\nWir möchten erfahren, wie du diese Funktionen und den damit verbundenen zusätzlichen Aufwand empfunden hast.\n\nStandardskala für Aussagen: 1 = Stimme überhaupt nicht zu; 2 = Stimme eher nicht zu; 3 = Weder noch; 4 = Stimme eher zu; 5 = Stimme vollständig zu."
+        },
+        {
+          "name": "feature_pulse",
+          "title": "Spontane Zwischenfragen des Piraten"
+        },
+        {
+          "name": "feature_incentives",
+          "title": "Anreize durch Coins und Klausurbonuspunkte"
+        },
+        {
+          "name": "feature_overall",
+          "title": "Gesamtbewertung"
+        }
+      ],
+      "elements": [
+        {
+          "type": "radiogroup",
+          "name": "F1",
+          "page": "feature_help",
+          "isRequired": true,
+          "title": "Ist dir während der Modellierungsaufgaben der Button „Ich brauche Hilfe“ aufgefallen?",
+          "choices": ["Ja", "Nein", "Bin mir nicht sicher"]
+        },
+        {
+          "type": "radiogroup",
+          "name": "F3",
+          "page": "feature_help",
+          "isRequired": true,
+          "title": "Wie hoch empfandest du den zusätzlichen Aufwand durch die Nutzung des Buttons „Ich brauche Hilfe“?",
+          "visibleWhen": "help_requested",
+          "choices": ["1", "2", "3", "4", "5"],
+          "description": "1 = Sehr gering; 5 = Sehr hoch",
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          }
+        },
+        {
+          "type": "radiogroup",
+          "name": "F4",
+          "page": "feature_pulse",
+          "isRequired": true,
+          "title": "Hast du während der Modellierungsaufgaben mindestens eine spontane Zwischenfrage des Piraten beantwortet?",
+          "choices": ["Ja", "Nein", "Bin mir nicht sicher"]
+        },
+        {
+          "type": "radiogroup",
+          "name": "F5",
+          "page": "feature_pulse",
+          "isRequired": true,
+          "title": "Wie hast du die Häufigkeit der spontanen Zwischenfragen des Piraten empfunden?",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "Ich habe keine Zwischenfragen wahrgenommen"
+          ],
+          "description": "1 = Viel zu selten; 5 = Viel zu häufig",
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "Ich habe keine Zwischenfragen wahrgenommen": "Ich habe keine Zwischenfragen wahrgenommen"
+          }
+        },
+        {
+          "type": "radiogroup",
+          "name": "F6",
+          "page": "feature_pulse",
+          "isRequired": true,
+          "title": "Die spontanen Zwischenfragen des Piraten haben meine eigentliche Modellierungsarbeit spürbar unterbrochen.",
+          "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "cannot_judge": "Kann ich nicht beurteilen"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu"
+        },
+        {
+          "type": "radiogroup",
+          "name": "F7",
+          "page": "feature_pulse",
+          "isRequired": true,
+          "title": "Wie hoch empfandest du den zusätzlichen Aufwand durch die Beantwortung der spontanen Zwischenfragen des Piraten?",
+          "visibleWhen": "pulse_answered",
+          "choices": ["1", "2", "3", "4", "5"],
+          "description": "1 = Sehr gering; 5 = Sehr hoch",
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          }
+        },
+        {
+          "type": "radiogroup",
+          "name": "F8",
+          "page": "feature_pulse",
+          "isRequired": true,
+          "title": "Die spontanen Zwischenfragen des Piraten haben mich gelegentlich dazu angeregt, meinen aktuellen Hilfebedarf bewusster wahrzunehmen.",
+          "choices": ["1", "2", "3", "4", "5", "cannot_judge"],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "cannot_judge": "Kann ich nicht beurteilen"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu"
+        },
+        {
+          "type": "radiogroup",
+          "name": "F9",
+          "page": "feature_incentives",
+          "isRequired": true,
+          "title": "Die Möglichkeit, für beantwortete Zwischenfragen des Piraten Coins zu erhalten, hat mich motiviert, diese Fragen zu beantworten.",
+          "choices": ["1", "2", "3", "4", "5"],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu"
+        },
+        {
+          "type": "radiogroup",
+          "name": "F12",
+          "page": "feature_overall",
+          "isRequired": true,
+          "title": "Insgesamt empfand ich den zusätzlichen Aufwand durch die Studienteilnahme, einschließlich des „Ich brauche Hilfe“-Buttons und der spontanen Zwischenfragen des Piraten, angesichts der angebotenen Klausurbonuspunkte und Coins als angemessen.",
+          "choices": ["1", "2", "3", "4", "5"],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu"
+        }
+      ]
+    }
+  }
+}

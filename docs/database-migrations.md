@@ -224,6 +224,35 @@ ship subsequent data changes as new registered steps.
 
 ## Preview
 
+Migration `18_graphical_modeling_labels` renames the shared graphical modeling
+path to “Datenmodellierung – ERM, SERM”. Its first station becomes “Erfahrung und
+Einschätzung”, stations 4, 7 and 9 become “Wochenabschluss 1”, “Wochenabschluss 2”
+and “Wochenabschluss 3”, and the laboratory station becomes “Laborverwaltung –
+SERM”. All corrections are maintained together in its `labels.json` resource.
+Fixed station IDs identify the records; the migration does not depend on their
+current titles or positions. Existing learner runs use these live definitions.
+The same migration appends station 10, “Entwicklerstudio – SERM”, and station 11,
+“Wochenabschluss 4”. `game_development.json` contains the full task wording,
+an independent task-completion questionnaire copied from the laboratory task,
+and an independent weekly questionnaire initially copied from the previous
+weekly completion. Additional weekly questions are pending. `sample_solution.json`
+stores the supplied first solution proposal as a dedicated model release, assigned
+through the task's `sampleSolutions`. Its diagram is retained without a content
+review; dedicated seed identities preserve the original authoring model and history.
+The task uses required SERM 2.0, informative assistance, disabled connection
+preview and the `model-evaluation-graph-matching` workflow, matching the laboratory
+configuration. Existing path help and pulse settings also apply to the new task.
+The sample solution supplies the reference for automatic evaluation. The station
+still has no minimum score requirement pending the requested solution review.
+Both new stations use sequential unlocking. New documents are validated before
+insertion; conflicting fixed identities are rejected without overwriting edits.
+Existing task and questionnaire releases, collected answers, model names and
+progress remain unchanged. The path revision advances to invalidate stale editor drafts.
+Stop path editors and other path writers before applying. Preview is read-only;
+missing or archived target stations fail before any content write, interrupted
+runs can resume, and completed migrations are skipped. Extend this migration
+only while it has not yet been applied; later corrections require a new step.
+
 Without `--apply`, all scripts are read-only:
 
 ```sh

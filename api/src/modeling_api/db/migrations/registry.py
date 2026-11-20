@@ -104,4 +104,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v17_help_feedback_quotas.migration",
         ("16_completion_score_categories",),
     ),
+    Migration(
+        "18_graphical_modeling_labels",
+        "modeling_api.db.migrations.versions.v18_graphical_modeling_labels.migration",
+        ("17_help_feedback_quotas",),
+    ),
 )
