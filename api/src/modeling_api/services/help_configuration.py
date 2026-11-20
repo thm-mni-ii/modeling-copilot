@@ -2,8 +2,17 @@
 
 from modeling_api.core.errors import ApiError
 from modeling_api.db.help_questionnaires import HELP_SURVEY_IDS
-from modeling_api.schemas.learning_paths import HelpRequestConfig
+from modeling_api.schemas.learning_paths import HelpRequestConfig, HelpRequestRuntimeConfig, TaskHelpFeedbackConfig
 from modeling_api.services import surveys
+
+
+def runtime_config(template, step):
+    """Resolve live station limits without changing path-wide questionnaire settings."""
+    feedback = TaskHelpFeedbackConfig.model_validate(((step or {}).get("task") or {}).get("helpFeedback") or {})
+    return HelpRequestRuntimeConfig.model_validate({
+        **template.get("helpRequests", {}),
+        **feedback.model_dump(by_alias=True),
+    })
 
 
 def survey_ids(config: HelpRequestConfig):

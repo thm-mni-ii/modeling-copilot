@@ -101,6 +101,8 @@ async def save_template(body: SaveTemplate, user, template_id=None):
         )
         if step.minimum_score_percent is not None and not release.get("data", {}).get("sampleSolutions"):
             raise ApiError(422, "EVALUATION_REFERENCES_REQUIRED", "A minimum score requires a released sample solution.")
+        if step.help_feedback is not None and not release.get("data", {}).get("sampleSolutions"):
+            raise ApiError(422, "EVALUATION_REFERENCES_REQUIRED", "Automatic help feedback requires a released sample solution.")
         if body.published and not body.archived:
             task = await db.task.find_one(
                 {
@@ -633,14 +635,16 @@ async def get_model_context(model_id, user):
             if assigned
             else None
         )
-    context["helpRequests"] = template.get("helpRequests", {"enabled": False})
+    from modeling_api.services.help_configuration import runtime_config
+
+    config = runtime_config(template, step)
+    context["helpRequests"] = config.model_dump(mode="json", by_alias=True)
     if context["helpRequests"].get("enabled"):
         from modeling_api.services import help_requests
-        from modeling_api.schemas.learning_paths import HelpRequestConfig
 
         context["helpUsage"] = await help_requests.usage(
             run["_id"], state["stepId"],
-            HelpRequestConfig.model_validate(context["helpRequests"]),
+            config,
         )
     return PathModelContext.model_validate(context)
 

@@ -9,8 +9,8 @@ from modeling_api.core.errors import conflict, not_found
 from modeling_api.db.client import db
 from modeling_api.db.store import utcnow
 from modeling_api.db.help_questionnaires import HELP_SURVEY_IDS
-from modeling_api.schemas.learning_paths import CreateHelpRequest, HelpRequest, HelpRequestConfig
-from modeling_api.services.help_configuration import validate_phase
+from modeling_api.schemas.learning_paths import CreateHelpRequest, HelpRequest, HelpRequestRuntimeConfig
+from modeling_api.services.help_configuration import validate_phase, runtime_config
 from modeling_api.services.learning_path_store import run_step_id
 from modeling_api.services import learning_paths as paths, models, survey_sessions, surveys, help_questionnaire
 
@@ -26,10 +26,10 @@ HELP_USAGE_KEYS = {
 
 def _empty_usage(config):
     limits = {
-        "help.clarify": None,
-        "help.next_step": None,
+        "help.clarify": config.clarify_limit,
+        "help.next_step": config.next_step_limit,
         "help.example": config.example_limit,
-        "help.check": None,
+        "help.check": config.check_limit,
         "help.solution": config.solution_limit,
     }
     return {
@@ -83,10 +83,10 @@ async def usage(run_id, step_id, config):
 async def reserve_feedback(request):
     kind = request.get("supportKind")
     key = HELP_USAGE_KEYS.get(kind)
-    if key not in ("example", "solution"):
+    if key is None:
         return
-    config = HelpRequestConfig.model_validate(request.get("helpConfig", {}))
-    limit = config.example_limit if key == "example" else config.solution_limit
+    config = HelpRequestRuntimeConfig.model_validate(request.get("helpConfig", {}))
+    limit = _empty_usage(config)[kind]["limit"]
     await usage(request["runId"], request["stepId"], config)
     reserved = await db.learning_path_help_requests.update_one(
         {"_id": request["_id"], "feedbackQuotaReservation": {"$exists": False}},
@@ -101,19 +101,19 @@ async def reserve_feedback(request):
             {"$set": {"feedbackQuotaReservation": {"key": key, "status": "pending"}}},
         )
     state_id = run_step_id(request["runId"], request["stepId"])
+    state_filter = {"_id": state_id}
+    if limit is not None:
+        state_filter["$expr"] = {
+            "$lt": [
+                {"$add": [
+                    {"$ifNull": [f"$helpUsage.{key}.used", 0]},
+                    {"$ifNull": [f"$helpUsage.{key}.pending", 0]},
+                ]},
+                limit,
+            ]
+        }
     result = await db.learning_path_run_steps.update_one(
-        {
-            "_id": state_id,
-            "$expr": {
-                "$lt": [
-                    {"$add": [
-                        {"$ifNull": [f"$helpUsage.{key}.used", 0]},
-                        {"$ifNull": [f"$helpUsage.{key}.pending", 0]},
-                    ]},
-                    limit,
-                ]
-            },
-        },
+        state_filter,
         {"$inc": {f"helpUsage.{key}.pending": 1}},
     )
     if not result.matched_count:
@@ -164,7 +164,7 @@ async def create(run_id, step_id, body: CreateHelpRequest, user):
     )
     if not version:
         raise not_found()
-    config = HelpRequestConfig.model_validate(template.get("helpRequests", {}))
+    config = runtime_config(template, step)
     task = await db.task_version.find_one({
         "_id": model["taskVersion"]["versionId"], "taskId": model["taskVersion"]["taskId"], "kind": "release",
     })
@@ -259,7 +259,7 @@ async def open_survey(run_id, step_id, request_id, phase, user):
         request_id, step_id, request.get("surveyIds", HELP_SURVEY_IDS)[phase], phase, True, user
     )
     version = await survey_sessions.release(session["releaseId"])
-    validate_phase(phase, version, HelpRequestConfig.model_validate(request.get("helpConfig", {})))
+    validate_phase(phase, version, HelpRequestRuntimeConfig.model_validate(request.get("helpConfig", {})))
     await db.learning_path_help_requests.update_one(
         {"_id": request["_id"]}, {"$set": {f"surveySessions.{phase}": session["_id"]}}
     )
@@ -296,7 +296,7 @@ async def save_survey(run_id, step_id, request_id, phase, body, user, action):
 
 
 async def advance(request, phase, session):
-    config = HelpRequestConfig.model_validate(request.get("helpConfig", {}))
+    config = HelpRequestRuntimeConfig.model_validate(request.get("helpConfig", {}))
     new_flow = request.get("flowVersion", 1) >= 2
     if phase == "topic":
         marking = not new_flow and config.marking_enabled and session["answers"].get(config.topic_question) == config.marking_answer

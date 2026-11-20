@@ -2,8 +2,7 @@
 
 from modeling_api.db.client import db
 from modeling_api.db.migrations import require_completed, run_migration
-from modeling_api.db.store import utcnow
-from modeling_api.schemas.learning_paths import HelpRequestConfig
+from modeling_api.schemas.learning_paths import TaskHelpFeedbackConfig
 from modeling_api.services.help_requests import usage
 
 MIGRATION_ID = "17_help_feedback_quotas"
@@ -22,34 +21,17 @@ async def migrate(*, apply=False):
 
 
 async def initialize(*, apply):
-    missing = {"$or": [
-        {"helpRequests.exampleLimit": {"$exists": False}},
-        {"helpRequests.solutionLimit": {"$exists": False}},
-    ]}
-    templates = await db.learning_path_templates.count_documents(missing)
     requests = await db.learning_path_help_requests.count_documents({"$or": [
         {"helpConfig.exampleLimit": {"$exists": False}},
         {"helpConfig.solutionLimit": {"$exists": False}},
     ]})
     steps = await db.learning_path_run_steps.count_documents({"helpUsageInitialized": {"$ne": True}})
-    print(f"{'Initialize' if apply else 'Would initialize'} help limits for {templates} paths, "
+    print(f"{'Initialize' if apply else 'Would initialize'} help limits for "
           f"{requests} requests and usage for {steps} run steps.")
     if not apply:
-        return templates + requests + steps
+        return requests + steps
 
-    defaults = HelpRequestConfig()
-    async for template in db.learning_path_templates.find(missing):
-        config = template.get("helpRequests") or {}
-        if not isinstance(config, dict):
-            raise RuntimeError("Learning path help settings are invalid; fix them before migration.")
-        config.setdefault("exampleLimit", defaults.example_limit)
-        config.setdefault("solutionLimit", defaults.solution_limit)
-        result = await db.learning_path_templates.update_one(
-            {"_id": template["_id"], "revision": template["revision"]},
-            {"$set": {"helpRequests": config, "updatedAt": utcnow()}, "$inc": {"revision": 1}},
-        )
-        if not result.matched_count:
-            raise RuntimeError("Learning path changed during migration; retry with path writes stopped.")
+    defaults = TaskHelpFeedbackConfig()
 
     await db.learning_path_help_requests.update_many(
         {"helpConfig": None},
@@ -62,4 +44,4 @@ async def initialize(*, apply):
         )
     async for state in db.learning_path_run_steps.find({"helpUsageInitialized": {"$ne": True}}):
         await usage(state["runId"], state["stepId"], defaults)
-    return templates + requests + steps
+    return requests + steps

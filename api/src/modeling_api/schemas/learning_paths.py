@@ -64,6 +64,14 @@ class CategoryMinimum(ApiSchema):
     minimum_percent: float = Field(ge=0, le=100, allow_inf_nan=False)
 
 
+class TaskHelpFeedbackConfig(ApiSchema):
+    check_limit: int | None = Field(default=None, ge=0, le=100)
+    clarify_limit: int | None = Field(default=None, ge=0, le=100)
+    next_step_limit: int | None = Field(default=None, ge=0, le=100)
+    example_limit: int | None = Field(default=2, ge=0, le=100)
+    solution_limit: int | None = Field(default=1, ge=0, le=100)
+
+
 class LearningPathStep(ApiSchema):
     id: UUID
     title: Name
@@ -78,6 +86,7 @@ class LearningPathStep(ApiSchema):
     minimum_score_percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
     score_scope: ScoreScope = "overall"
     category_minimums: list[CategoryMinimum] = Field(default_factory=list, max_length=50)
+    help_feedback: TaskHelpFeedbackConfig | None = None
 
     @model_validator(mode="after")
     def valid_activity(self):
@@ -96,6 +105,7 @@ class LearningPathStep(ApiSchema):
             or self.after_survey_id
             or self.minimum_score_percent is not None
             or self.category_minimums
+            or self.help_feedback is not None
         ):
             raise ValueError(
                 "Questionnaires require a survey and cannot have task settings."
@@ -159,8 +169,6 @@ class HelpQuestionEdit(ApiSchema):
 
 class HelpRequestConfig(ApiSchema):
     enabled: bool = False
-    example_limit: int = Field(default=2, ge=0, le=100)
-    solution_limit: int = Field(default=1, ge=0, le=100)
     topic_survey_id: UUID | None = None
     reflection_survey_id: UUID | None = None
     action_survey_id: UUID | None = None
@@ -177,6 +185,10 @@ class HelpRequestConfig(ApiSchema):
         if edit and not {f"support_need_{index}" for index in range(1, 7)} <= {choice.id for choice in edit.choices}:
             raise ValueError("The six base answers of 'support_need' select the automatic feedback; rename them instead of removing them.")
         return self
+
+
+class HelpRequestRuntimeConfig(HelpRequestConfig, TaskHelpFeedbackConfig):
+    """Path questionnaire settings combined with the current task's feedback limits."""
 
 
 class CreateHelpRequest(ApiSchema):
@@ -408,7 +420,7 @@ class PathModelContext(ApiSchema):
     completion_requested: bool = False
     before_survey: TaskSurveyProgress | None = None
     after_survey: TaskSurveyProgress | None = None
-    help_requests: HelpRequestConfig = Field(default_factory=HelpRequestConfig)
+    help_requests: HelpRequestRuntimeConfig = Field(default_factory=HelpRequestRuntimeConfig)
     help_usage: dict[str, dict[str, int | None]] = Field(default_factory=dict)
     minimum_score_percent: float | None = Field(default=None, ge=0, le=100)
     score_scope: ScoreScope = "overall"

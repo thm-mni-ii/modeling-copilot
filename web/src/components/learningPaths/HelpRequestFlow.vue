@@ -52,7 +52,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
-import paths, { type HelpRequest, type HelpSurveyPhase, type HelpTextRange, type HelpUsage, type HelpTourAnswer } from '@/services/learningPaths'
+import paths, { helpFeedbackOptions, type HelpRequest, type HelpSurveyPhase, type HelpTextRange, type HelpUsage, type HelpTourAnswer } from '@/services/learningPaths'
 import { surveyError } from '@/services/surveys'
 import { automaticModelCheckChoice } from '@/utils/helpQuestionnaire'
 
@@ -71,9 +71,9 @@ const canReopenMarkings = computed(() => singleElement.value && props.request.st
 const objectFeedbackWithoutElement = computed(() => Boolean(props.request.supportKind?.startsWith('help.') && props.request.supportKind !== 'help.check' && !props.request.markings?.cellIds.length))
 const hiddenChoices = computed(() => {
   const hidden: string[] = []
-  for (const [kind, choice] of [['help.example', 'support_need_3'], ['help.solution', 'support_need_5']] as const) {
-    const usage = props.helpUsage?.[kind]
-    if (usage && usage.limit !== null && usage.used + usage.pending >= usage.limit) hidden.push(choice)
+  for (const option of helpFeedbackOptions) {
+    const usage = props.helpUsage?.[option.type]
+    if (usage && usage.limit !== null && usage.used + usage.pending >= usage.limit) hidden.push(option.choice)
   }
   return { support_need: hidden }
 })

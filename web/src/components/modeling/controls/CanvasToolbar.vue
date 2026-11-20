@@ -1,34 +1,34 @@
 <template>
   <div class="canvas-toolbar">
     <ModelingToolbarGroup title="Modeling">
-      <LayerVisibilityControls :model-value="layerView" @update:model-value="emit('update:layer-view', $event)" />
-      <ConnectionToolbar v-if="connections.length" ref="connectionToolbar" compact :connections="connections" :connection-groups="connectionGroups" :preferences="connectionPreferences" @select="emit('select-connection', $event)" @update:preferences="emit('update:connection-preferences', $event)" />
-      <SelectedTypeControl :languages="typeSwitchLanguages" :enabled="canChangeType" />
+      <div hidden>
+        <LayerVisibilityControls :model-value="layerView" @update:model-value="emit('update:layer-view', $event)" />
+      </div>
+      <SelectedTypeControl ref="typeControl" :languages="typeSwitchLanguages" :enabled="canChangeType" :connections="connections" :connection-groups="connectionGroups" :connection-preferences="connectionPreferences" @select-connection="emit('select-connection', $event)" @update:connection-preferences="emit('update:connection-preferences', $event)" />
     </ModelingToolbarGroup>
     <v-divider vertical class="canvas-toolbar__divider" />
 
     <ModelingToolbarGroup title="Edit">
-      <v-btn-group size="small" density="compact" variant="outlined"><v-btn icon="mdi-select-all" title="Select all (Ctrl+A)" @click="emit('select-all')" /><v-btn icon="mdi-selection-off" title="Clear selection (Esc)" @click="emit('clear-selection')" /></v-btn-group>
-      <v-btn-group size="small" density="compact" variant="outlined"><v-btn icon="mdi-delete-outline" title="Delete (Del)" @click="emit('delete-selected')" /><v-btn icon="mdi-content-duplicate" title="Duplicate (Ctrl+D)" @click="emit('duplicate-selected')" /></v-btn-group>
+      <v-btn-group size="small" density="compact" variant="outlined" color="dark-gray"><v-btn icon="mdi-select-all" title="Select all (Ctrl+A)" @click="emit('select-all')" /><v-btn icon="mdi-selection-off" title="Clear selection (Esc)" @click="emit('clear-selection')" /></v-btn-group>
+      <v-btn-group size="small" density="compact" variant="outlined" color="dark-gray"><v-btn icon="mdi-delete-outline" title="Delete (Del)" @click="emit('delete-selected')" /><v-btn icon="mdi-content-duplicate" title="Duplicate (Ctrl+D)" @click="emit('duplicate-selected')" /></v-btn-group>
     </ModelingToolbarGroup>
     <v-divider vertical class="canvas-toolbar__divider" />
 
     <ModelingToolbarGroup title="Layout">
-      <v-btn-group size="small" density="compact" variant="outlined"><v-btn icon="mdi-format-horizontal-align-left" title="Align left" @click="emit('align-left')" /><v-btn icon="mdi-format-horizontal-align-center" title="Align horizontally" @click="emit('align-center-h')" /><v-btn icon="mdi-format-horizontal-align-right" title="Align right" @click="emit('align-right')" /></v-btn-group>
-      <v-btn-group size="small" density="compact" variant="outlined"><v-btn icon="mdi-format-vertical-align-top" title="Align top" @click="emit('align-top')" /><v-btn icon="mdi-format-vertical-align-center" title="Align vertically" @click="emit('align-middle-v')" /><v-btn icon="mdi-format-vertical-align-bottom" title="Align bottom" @click="emit('align-bottom')" /></v-btn-group>
+      <v-btn-group size="small" density="compact" variant="outlined" color="dark-gray"><v-btn icon="mdi-format-horizontal-align-left" title="Align left" @click="emit('align-left')" /><v-btn icon="mdi-format-horizontal-align-center" title="Align horizontally" @click="emit('align-center-h')" /><v-btn icon="mdi-format-horizontal-align-right" title="Align right" @click="emit('align-right')" /></v-btn-group>
+      <v-btn-group size="small" density="compact" variant="outlined" color="dark-gray"><v-btn icon="mdi-format-vertical-align-top" title="Align top" @click="emit('align-top')" /><v-btn icon="mdi-format-vertical-align-center" title="Align vertically" @click="emit('align-middle-v')" /><v-btn icon="mdi-format-vertical-align-bottom" title="Align bottom" @click="emit('align-bottom')" /></v-btn-group>
     </ModelingToolbarGroup>
     <v-divider vertical class="canvas-toolbar__divider" />
 
     <!-- mousedown.prevent: der offene Label-Editor behält Fokus und Markierung -->
     <ModelingToolbarGroup title="Text">
-      <v-btn-group size="small" density="compact" variant="outlined"><v-btn icon="mdi-format-bold" title="Bold (Ctrl+B)" @mousedown.prevent @click="emit('format-text', 'bold')" /><v-btn icon="mdi-format-italic" title="Italic (Ctrl+I)" @mousedown.prevent @click="emit('format-text', 'italic')" /><v-btn icon="mdi-format-underline" title="Underline (Ctrl+U)" @mousedown.prevent @click="emit('format-text', 'underline')" /></v-btn-group>
+      <v-btn-group size="small" density="compact" variant="outlined" color="dark-gray"><v-btn icon="mdi-format-bold" title="Bold (Ctrl+B)" @mousedown.prevent @click="emit('format-text', 'bold')" /><v-btn icon="mdi-format-italic" title="Italic (Ctrl+I)" @mousedown.prevent @click="emit('format-text', 'italic')" /><v-btn icon="mdi-format-underline" title="Underline (Ctrl+U)" @mousedown.prevent @click="emit('format-text', 'underline')" /></v-btn-group>
     </ModelingToolbarGroup>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import ConnectionToolbar from './ConnectionToolbar.vue'
 import SelectedTypeControl from './SelectedTypeControl.vue'
 import type { SwitchLanguage } from '@/utils/typeSwitch'
 import LayerVisibilityControls, { type CanvasLayerView } from './LayerVisibilityControls.vue'
@@ -66,11 +66,11 @@ const emit = defineEmits<{
   'update:layer-view': [view: CanvasLayerView]
 }>()
 
-const connectionToolbar = ref<{ closePalette: () => void; selectConnectionByReference: (languageId: string, connectionType: string) => boolean } | null>(null)
+const typeControl = ref<InstanceType<typeof SelectedTypeControl> | null>(null)
 
 defineExpose({
-  closeConnectionPalette: () => connectionToolbar.value?.closePalette(),
-  selectConnectionByReference: (languageId: string, connectionType: string) => connectionToolbar.value?.selectConnectionByReference(languageId, connectionType) ?? false
+  closeConnectionPalette: () => typeControl.value?.closePalette(),
+  selectConnectionByReference: (languageId: string, connectionType: string) => typeControl.value?.selectConnectionByReference(languageId, connectionType) ?? false
 })
 </script>
 

@@ -161,6 +161,7 @@ import { clearConnectionPreview, isPreviewEdge, renderScenarioConnectionPreview,
 import { AnchorConstraintHandler, CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
 import { setupUndoManager, type UndoManagerApi, type UndoManagerState } from '@/utils/setupUndoManager'
 import { alignHorizontal, alignVertical } from '@/utils/alignCells'
+import { nudgeSelectedCells } from '@/utils/nudgeSelectedCells'
 import { clearValidationWarningOverlays, getGraphValidationMode, isValidationPassActive, setGraphValidationMode } from '@/utils/graphValidationRuntime'
 import { createCellFromElement } from '@/utils/elementFactory'
 import { registerElementShapes } from '@/utils/shapeRegistry'
@@ -1287,19 +1288,34 @@ const initGraph = () => {
     ;(keyHandler.value as any)?.bindControlShiftKey?.(90, () => redoGraph())
   }
 
-  // Escape zusätzlich direkt am Container behandeln, da KeyHandler Escape intern speziell verarbeitet.
+  // Handle Escape and arrow movement directly within the focused canvas.
   if (graphContainer.value) {
     graphContainerKeydownHandler = (evt: KeyboardEvent) => {
-      if (evt.key !== 'Escape' || graph.value?.isEditing()) {
+      const currentGraph = graph.value
+      if (!currentGraph || currentGraph.isEditing() || evt.isComposing || evt.defaultPrevented) {
         return
       }
 
       const target = evt.target as Element | null
-      if (target?.closest('input, textarea, select, [contenteditable="true"]')) {
+      if (target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) {
         return
       }
 
-      clearSelection()
+      if (evt.key === 'Escape') {
+        clearSelection()
+        return
+      }
+      if (evt.altKey || evt.ctrlKey || evt.metaKey || evt.shiftKey) return
+
+      let dx = 0
+      let dy = 0
+      if (evt.key === 'ArrowLeft') dx = -1
+      else if (evt.key === 'ArrowRight') dx = 1
+      else if (evt.key === 'ArrowUp') dy = -1
+      else if (evt.key === 'ArrowDown') dy = 1
+      else return
+
+      if (nudgeSelectedCells(currentGraph, dx, dy)) InternalEvent.consume(evt)
     }
     graphContainer.value.addEventListener('keydown', graphContainerKeydownHandler)
 

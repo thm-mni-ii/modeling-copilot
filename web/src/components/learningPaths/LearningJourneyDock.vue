@@ -10,7 +10,7 @@
           <div class="journey-coins" role="status" aria-live="polite" :aria-label="`${coins} Münzen gesammelt`">
             <TreasureMapArt kind="coin" /><strong>{{ coins }}</strong>
           </div>
-          <FeatureTourMenu v-if="featureTourEnabled && feedbackAvailable" :feedback-legend-available="Boolean(helpUsage)" :help-request="helpRequest" :help-question="helpQuestion" :help-answer="helpAnswer" />
+          <FeatureTourMenu v-if="featureTourEnabled && feedbackAvailable" :feedback-legend-available="Boolean(helpUsage)" :check-available="!exhausted({ type: 'help.check' })" :help-request="helpRequest" :help-question="helpQuestion" :help-answer="helpAnswer" />
         </div>
       </div>
     </div>
@@ -48,17 +48,11 @@ import JourneyIslandArt from './JourneyIslandArt.vue'
 import TreasureMapArt from './TreasureMapArt.vue'
 import FeatureTourMenu from './FeatureTourMenu.vue'
 import type { HelpFeedbackType, HelpRequest, HelpUsage, HelpTourAnswer } from '@/services/learningPaths'
+import { helpFeedbackOptions as feedbackTypes } from '@/services/learningPaths'
 const props = defineProps<{ coins: number; completed: boolean; completeDisabled: boolean; busy: boolean; evaluationRequired?: boolean; helpUsage?: HelpUsage; featureTourEnabled?: boolean; feedbackAvailable?: boolean; helpRequest?: HelpRequest | null; helpQuestion?: string | null; helpAnswer?: HelpTourAnswer | null }>()
 const emit = defineEmits<{ leave: []; complete: [] }>()
 const completionDialog = defineModel<boolean>('completionDialog', { default: false })
 const completionAcknowledged = ref(false)
-const feedbackTypes: { type: HelpFeedbackType; title: string; short: string; icon: string }[] = [
-  { type: 'help.check', title: 'Prüfung', short: 'Prüfung', icon: 'mdi-check-decagram-outline' },
-  { type: 'help.clarify', title: 'Erklärung', short: 'Erklär.', icon: 'mdi-lightbulb-on-outline' },
-  { type: 'help.next_step', title: 'Nächster Schritt', short: 'Nächster', icon: 'mdi-arrow-right-circle-outline' },
-  { type: 'help.example', title: 'Beispiel', short: 'Beispiel', icon: 'mdi-book-open-variant' },
-  { type: 'help.solution', title: 'Lösung', short: 'Lösung', icon: 'mdi-lightning-bolt-outline' }
-]
 const exhausted = (item: { type: HelpFeedbackType }) => {
   const usage = props.helpUsage?.[item.type]
   return Boolean(usage && usage.limit !== null && usage.used + usage.pending >= usage.limit)
