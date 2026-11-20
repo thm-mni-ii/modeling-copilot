@@ -49,37 +49,33 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { driver, type Driver, type DriveStep } from 'driver.js'
 import 'driver.js/dist/driver.css'
-import paths, { type FeatureTourItem, type FeatureTourProgress, type HelpRequest, type HelpTourAnswer } from '@/services/learningPaths'
+import paths, { type HelpRequest, type HelpTourAnswer, type TourEventName, type TourProgress } from '@/services/learningPaths'
 import { notifyError } from '@/composables/useNotifications'
 
 const props = defineProps<{ feedbackLegendAvailable: boolean; checkAvailable: boolean; helpRequest?: HelpRequest | null; helpQuestion?: string | null; helpAnswer?: HelpTourAnswer | null }>()
-const itemId: FeatureTourItem = 'help-feedback-walkthrough'
+const tourId = 'help-feedback'
 const open = ref(false)
 const visible = ref(false)
 const starting = ref(false)
 const loaded = ref(false)
 const error = ref('')
-const progress = ref<FeatureTourProgress>({ completedItems: [], skippedItems: [], firstOpenedAt: null })
-const done = computed(() => progress.value.completedItems.includes(itemId) || progress.value.skippedItems.includes(itemId))
-const skipped = computed(() => progress.value.skippedItems.includes(itemId) && !progress.value.completedItems.includes(itemId))
+const progress = ref<TourProgress>({ completed: false, skipped: false })
+const done = computed(() => progress.value.completed || progress.value.skipped)
+const skipped = computed(() => progress.value.skipped && !progress.value.completed)
 let activeTour: Driver | null = null
 let finishing = false
 let disposed = false
 let loadPromise: Promise<void> | null = null
 let followVersion = 0
 
-const updateProgress = (value: FeatureTourProgress) => {
-  progress.value = {
-    completedItems: [...new Set([...progress.value.completedItems, ...value.completedItems])],
-    skippedItems: [...new Set([...progress.value.skippedItems, ...value.skippedItems])],
-    firstOpenedAt: progress.value.firstOpenedAt ?? value.firstOpenedAt
-  }
+const updateProgress = (value: TourProgress) => {
+  progress.value = { completed: progress.value.completed || value.completed, skipped: progress.value.skipped || value.skipped }
 }
 const loadProgress = () => {
   if (loadPromise) return loadPromise
   loadPromise = (async () => {
     try {
-      const result = await paths.featureTourProgress()
+      const result = await paths.tourProgress(tourId)
       if (!disposed) {
         updateProgress(result.data)
         loaded.value = true
@@ -93,9 +89,9 @@ const loadProgress = () => {
   })()
   return loadPromise
 }
-const record = async (event: 'opened' | 'started' | 'completed' | 'skipped') => {
+const record = async (event: TourEventName, stepId?: string) => {
   try {
-    const result = await paths.recordFeatureTourEvent(event, event === 'opened' ? undefined : itemId)
+    const result = await paths.recordTourEvent(tourId, event, stepId)
     if (!disposed) {
       updateProgress(result.data)
       loaded.value = true
@@ -124,6 +120,13 @@ const skipTour = async () => {
 }
 
 const helpStep = 6
+// Same order as the steps below and the tour registry in the API (services/tours.py).
+const stepIds = ['intro', 'check', 'clarify', 'next-step', 'example', 'solution', 'request-help', 'describe-problem', 'load-questionnaire', 'estimate-duration', 'choose-support', 'confirm-support', 'mark-problem', 'choose-action', 'start-check', 'choose-source']
+const activeStepId = (current: Driver | null) => stepIds[current?.getActiveIndex() ?? -1]
+// Step events are analytics only; a failed request must not disturb the learner.
+const recordStep = (stepId: string | undefined) => {
+  if (stepId) void paths.recordTourEvent(tourId, 'step', stepId).catch(() => undefined)
+}
 const steps: DriveStep[] = [
   {
     element: '[data-help-feedback-legend]',
@@ -198,9 +201,10 @@ const steps: DriveStep[] = [
 const finish = (event: 'completed' | 'skipped') => {
   if (!activeTour || finishing) return
   finishing = true
+  const stepId = activeStepId(activeTour)
   activeTour.destroy()
   activeTour = null
-  void record(event)
+  void record(event, event === 'skipped' ? stepId : undefined)
 }
 const followRequest = async () => {
   const version = ++followVersion
@@ -252,20 +256,22 @@ const startTour = async () => {
     closeBtnLabel: 'Tour schließen',
     nextBtnText: 'Weiter',
     prevBtnText: 'Zurück',
+    onHighlighted: (_element, _step, { driver: current }) => recordStep(activeStepId(current)),
     onElementMissing: (_element, _step, { driver: current }) => {
       if (finishing) return false
       finishing = true
+      const stepId = activeStepId(current)
       current.destroy()
       activeTour = null
       error.value = 'Der nächste Tour-Schritt ist nicht verfügbar. Du kannst die Tour später erneut starten.'
       notifyError(error.value)
-      void record('skipped')
+      void record('skipped', stepId)
       return false
     },
     onDestroyStarted: (_element, _step, { driver: current }) => {
       if (!finishing) {
         finishing = true
-        void record('skipped')
+        void record('skipped', activeStepId(current))
       }
       current.destroy()
       activeTour = null

@@ -109,4 +109,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v18_graphical_modeling_labels.migration",
         ("17_help_feedback_quotas",),
     ),
+    Migration(
+        "19_initialize_dashboard",
+        "modeling_api.db.migrations.versions.v19_initialize_dashboard.migration",
+        ("18_graphical_modeling_labels",),
+    ),
 )

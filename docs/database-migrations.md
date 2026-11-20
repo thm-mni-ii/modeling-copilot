@@ -222,6 +222,49 @@ directory reorganization. Changing an already completed step does not apply it
 again to an existing database. Freeze existing migration behavior and resources;
 ship subsequent data changes as new registered steps.
 
+## Initialize Dashboard (V19)
+
+Migration `19_initialize_dashboard` follows `18_graphical_modeling_labels`.
+It creates the dashboard query indexes on model creation times, editor session
+creation times, evaluations by model/start time and learning-path runs by template.
+It also initializes indexed `tour_events` and `analytics_access_log` storage.
+Startup uses the same idempotent index helper.
+
+Existing `learning_path_feature_events` for `help-feedback-v1` are copied to
+`tour_events` for tour `help-feedback`, version 1: menu openings and the
+`help-feedback-walkthrough` starts, completions and skips. Source IDs, user IDs,
+event types and timestamps are preserved, so existing learner progress remains
+visible. Earlier events have no recorded step and receive `stepId: null`;
+historical step-level analytics cannot be reconstructed. Events for other legacy
+items or tour versions remain in the original collection and are not mapped to
+the walkthrough. The original collection and its indexes are retained.
+
+Preview validates existing target identities without writing. Apply rejects
+conflicting events, resumes interrupted copies without duplicates, and skips
+completed runs. Stop older API instances and tour writers before applying.
+Models, evaluations, submissions, survey answers and learning-path progress are
+not rewritten. Historical `firstSeenAt` and `isStaff` values are not inferred:
+the dashboard excludes users without `firstSeenAt` from new-user counts and
+treats users without `isStaff` as non-staff until their next authenticated
+`/auth/me` request updates that flag. For existing user records, that request
+preserves an absent `firstSeenAt` rather than inventing a registration date.
+
+Verification on 2026-11-20 used an isolated database on MongoDB 8.0.29.
+Ten representative legacy events were transferred with identical source IDs,
+user IDs, event types and timestamps. Other legacy items/versions and existing
+native events were preserved. Learner completion/skip progress matched the old
+queries; tour analytics, timelines and newly recorded events remained valid.
+Read-only preview, missing prerequisites, all six indexes, completed reruns,
+resume after a partial copy, conflicting identities and recovery were checked.
+The complete V00-V19 initialization chain and API startup/shutdown succeeded.
+Dashboard response validation covered platform periods/staff filters, learning
+paths, feedback/activity and surveys. A response-schema mismatch in the learning
+path overview was fixed; the overview now omits the detail-only description.
+Readiness and seven dashboard/tour API requests returned HTTP 200. The local
+source had no tour events, so transfer checks used representative data rather
+than a populated production snapshot. Temporary verification storage was removed;
+the application database was not migrated or modified.
+
 ## Preview
 
 Migration `18_graphical_modeling_labels` renames the shared graphical modeling

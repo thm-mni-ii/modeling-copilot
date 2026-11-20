@@ -10,6 +10,7 @@ from modeling_api.routes.deps import CurrentBearer
 from modeling_api.services.fbs_users import display_name, resolve_names
 from modeling_api.schemas.auth import CodeExchange, TokenRefresh, Tokens
 from modeling_api.services import fbs_oidc
+from modeling_api.services.learning_path_progress import can_view_progress
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -51,8 +52,14 @@ async def get_me(
         if resolved[user.id] != user.id
         else display_name(claims, user.id)
     )
+    now = utcnow()
     await db.submission_users.update_one(
-        {"_id": user.id}, {"$set": {"name": name, "lastSeenAt": utcnow()}}, upsert=True
+        {"_id": user.id},
+        {
+            "$set": {"name": name, "lastSeenAt": now, "isStaff": can_view_progress(user)},
+            "$setOnInsert": {"firstSeenAt": now},
+        },
+        upsert=True,
     )
     return {**claims, "id": user.id}
 

@@ -426,13 +426,17 @@ async def feedback(evaluation_id: UUID, user: User) -> Document:
 
 def _feedback_projection(evaluation: Document, stored: Document) -> Document:
     """Share the same published feedback between navigation and the learner endpoint."""
-    # The workflow reports no score; the learner score is the best overall recognition across sample solutions.
-    scores = [recognition_percent(item["recognition"].get("overall")) for item in stored["recognitions"]]
-    score = max((value for value in scores if value is not None), default=stored.get("scorePercent"))
+    score = learner_score(stored)
     return {"id": evaluation.get("id", evaluation.get("_id")), "startedAt": evaluation["startedAt"],
             "workflowName": evaluation["workflow"]["name"], "submission": evaluation["submission"],
             "state": stored["state"], "recognitions": stored["recognitions"], "feedback": stored.get("feedback", []),
             "scorePercent": score}
+
+
+def learner_score(stored: Document) -> float | None:
+    """The workflow reports no score; the learner score is the best overall recognition across sample solutions."""
+    scores = [recognition_percent((item.get("recognition") or {}).get("overall")) for item in stored.get("recognitions", [])]
+    return max((value for value in scores if value is not None), default=stored.get("scorePercent"))
 
 
 def recognition_percent(row: Any) -> float | None:
