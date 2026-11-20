@@ -6,6 +6,7 @@ Es rechnet nichts; die Berechnung steht in compare.py.
 """
 
 import json
+import math
 from itertools import product
 from pathlib import Path
 
@@ -25,6 +26,12 @@ def is_wordvec(method):
 def load_config(path=DEFAULT_CONFIG):
     """Lese und prüfe die Experimentkonfiguration."""
     config = json.loads(Path(path).read_text())
+    if 'whole_component_comparison' in config:
+        weights = config['whole_component_comparison']['whole_weights']
+        if (not isinstance(weights, list) or not weights
+                or any(type(w) not in (int, float) or not math.isfinite(w) or not 0 <= w <= 1
+                       for w in weights) or len(weights) != len(set(weights))):
+            raise ValueError('whole_weights must be unique finite values in [0,1]')
     if 'component_lexicon_comparison' in config:
         from synonym_matching.combinations import component_evidence_options
         comparison = config['component_lexicon_comparison']

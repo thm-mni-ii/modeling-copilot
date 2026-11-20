@@ -1532,3 +1532,55 @@ Die Verbesserung ist klein und auf bekannten Entwicklungsdaten gemessen.
 Sie behebt die schlechte Qualität des Komponentenansatzes nicht. Historische
 Baselines, Servicekonfiguration und Outputschema bleiben erhalten. Die neuen
 Quellen werden zunächst ausschließlich in diesem Forschungslauf verglichen.
+
+## Ganzlabels mit Komponenten kombinieren
+
+`experiments.json → whole_component_comparison` definiert die Ganzlabelgewichte
+100 %, 75 %, 50 %, 25 % und 0 % sowie die drei Eingabe-/Ausgabepaare für Labor-,
+Kontroll- und gezielte Zerlegungsfälle. Ein Befehl vergleicht alle fünf Gewichte
+auf allen drei Datensätzen anhand gespeicherter Merkmale:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m research.compare_whole_components
+```
+
+Vor einem erneuten Lauf neue Ausgabenamen in der JSON-Konfiguration wählen.
+Vorhandene Ergebnisse werden nicht überschrieben. Die gespeicherten Quellen
+müssen lokal vorliegen; alternativ lassen sich diese Pfade in JSON ändern.
+
+Beide Zweige berechnen 25 % String-Ensemble (Levenshtein, Jaro-Winkler,
+Zeichen-Trigramme) plus 75 % übersetztes monolinguales Sentence-Embedding.
+Dann gilt `combinedScore = w * Ganzlabelscore + (1-w) * Komponentenscore`.
+Keine Lexikonfusion oder Konfliktregel: so bleibt der Zerlegungseinfluss isoliert.
+Abdeckungslücken von Komposita motivieren den Versuch, werden hier aber nicht
+direkt über neue Lexikonmerkmale untersucht.
+
+Die Datensätze einschließlich IDs, Reihenfolge und Annotationen sowie Seed,
+Threshold und Modellprovenienz müssen übereinstimmen. Alle Gewichte nutzen
+dieselben verfügbaren Fälle und die gemeinsame Kandidatenmaske. Fehlende
+erfolgreiche Merkmale werden als ausgeschlossene Fälle ausgewiesen.
+Gespeichert werden beide Zweigmatrizen, alle gemischten Matrizen, Precision,
+Recall, F1, Top-1-Auswertungen und Threshold-/Mutual-Best-/Hungarian-Auswahl.
+Die Labor-Auswertung enthält zusätzlich nur geänderte Schülerlabels gegen
+sämtliche Referenzkandidaten. Laufzeiten betreffen nur Mischen und Zuordnen;
+Embedding-, Übersetzungs- und Zerlegungszeiten werden nicht neu gemessen.
+
+Ergebnisse vom 20.11.2026 bei unverändertem Threshold 0,5; **F1 / falsche Treffer**:
+
+| Ganzlabel / Komponenten | Geänderte Laborlabels | Kontrollfälle | Gezielte Fälle |
+|---|---:|---:|---:|
+| 100 / 0 | 0,769 / 56 | 0,710 / 17 | 0,533 / 6 |
+| 75 / 25 | 0,678 / 44 | 0,717 / 16 | 0,533 / 6 |
+| 50 / 50 | 0,514 / 123 | 0,710 / 17 | 0,588 / 7 |
+| 25 / 75 | 0,336 / 343 | 0,681 / 17 | 0,526 / 9 |
+| 0 / 100 | 0,270 / 488 | 0,674 / 18 | 0,667 / 5 |
+
+Auf den Laborlabels sinken die richtigen Treffer bei 75/25 von 155 auf 121,
+obwohl falsche Treffer von 56 auf 44 abnehmen. Kein Mischgewicht verbessert
+dort F1 gegenüber dem Ganzlabel-Endpunkt. Die frühere vollständige Fusion
+(inklusive alter Konfliktregel) bleibt separat mit F1 0,876 / 7 falschen Treffern
+erhalten und ist nicht der hier verwendete Ganzlabel-Endpunkt.
+Keine Fälle wurden in diesen drei Läufen ausgeschlossen. Die Ergebnisse stammen
+von bekannten Entwicklungsdaten, nicht von einem unabhängigen Testdatensatz.
+Keine automatische Auswahl oder Änderung der Servicepipeline.
+Artefakte: `results/whole-components-{laboratory,control,targeted}-20261120.json.gz`.

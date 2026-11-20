@@ -263,5 +263,34 @@
       "relation_rules": true
     },
     "policy": "native: de=OdeNet, en=WordNet; cross-language direct unknown. ili: native synsets mapped to English. combined: translated WordNet + native; conflicting positive/counter evidence abstains."
+  },
+  "whole_component_comparison": {
+    "whole_weights": [
+      1.0,
+      0.75,
+      0.5,
+      0.25,
+      0.0
+    ],
+    "datasets": [
+      {
+        "name": "laboratory",
+        "whole": "results/semantic-fusion-laboratory-final-20261119.json.gz",
+        "components": "results/component-evidence-laboratory-2575-20261120.json.gz",
+        "output": "results/whole-components-laboratory-20261120.json.gz"
+      },
+      {
+        "name": "control",
+        "whole": "results/semantic-fusion-control-20261119.json.gz",
+        "components": "results/component-evidence-control-2575-20261120.json.gz",
+        "output": "results/whole-components-control-20261120.json.gz"
+      },
+      {
+        "name": "targeted",
+        "whole": "results/component-features-targeted-20261119.json.gz",
+        "components": "results/component-evidence-targeted-2575-20261120.json.gz",
+        "output": "results/whole-components-targeted-20261120.json.gz"
+      }
+    ]
   }
 }
