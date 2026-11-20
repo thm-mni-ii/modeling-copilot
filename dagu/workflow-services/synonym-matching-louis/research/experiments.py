@@ -6,6 +6,7 @@ Es rechnet nichts; die Berechnung steht in compare.py.
 """
 
 import json
+from itertools import product
 from pathlib import Path
 
 from synonym_matching.combinations import EVIDENCE_FEATURES, REQUIRES, SEMANTIC_FEATURES, SEMANTIC_METHODS
@@ -82,7 +83,13 @@ def definition(name, chains, combiner, steps=(), **extra):
 def duplicate_key(spec):
     """Gleiche Ketten und normierte Gewichte ergeben denselben Versuch."""
     combiner, chains = spec['combiner'], spec['chains']
-    if combiner['kind'] == 'evidence':
+    if combiner['kind'] == 'component_evidence':
+        options = dict(combiner['options'])
+        for name in ('synonym_rule', 'relation_rules'):
+            options[name] = options['rules'] and options[name]
+        options.pop('rules')
+        formula = ['component_evidence', options, sorted(chains.items())]
+    elif combiner['kind'] == 'evidence':
         formula = ['evidence', chains[combiner['baseline']], chains[combiner['lexicon']]]
     elif combiner['kind'] == 'weighted_mean':
         total = sum(combiner['weights'].values())
@@ -93,6 +100,24 @@ def duplicate_key(spec):
     else:
         formula = [combiner, sorted(chains.items())]
     return json.dumps([formula, spec.get('global_ranking', False)], sort_keys=True)
+
+
+def mix_variations(entries):
+    """Erweitere ein kleines Optionsraster für Komponentenfusion, nicht für Modelle."""
+    for entry in entries:
+        grid = entry.get('option_grid')
+        if grid is None:
+            yield entry
+            continue
+        if (not entry.get('component_evidence') or not isinstance(grid, dict) or not grid
+                or any(not isinstance(values, list) or not values for values in grid.values())):
+            raise ValueError('option_grid requires nonempty lists in a component evidence mix')
+        for values in product(*grid.values()):
+            options = dict(zip(grid, values))
+            suffix = ','.join(f'{name}={value}' for name, value in options.items())
+            yield {**{k: v for k, v in entry.items() if k != 'option_grid'},
+                   'name': f'{entry["name"]}[{suffix}]',
+                   'options': {**entry.get('options', {}), **options}}
 
 
 def configurations(config):
@@ -133,7 +158,7 @@ def configurations(config):
             full = expand(chain, steps)
             add(chain_name(full), definition(chain_name(full), {chain[-1]: full},
                                              {'kind': 'mean'}, steps, chain_based=True))
-    for entry in config['mixes']:
+    for entry in mix_variations(config['mixes']):
         aliases = list(entry['weights']) if 'weights' in entry else entry['parts']
         unknown = [alias for alias in aliases if alias not in blocks]
         if unknown:

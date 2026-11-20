@@ -41,6 +41,48 @@ def test_thought_experiment_unknown_evidence_and_strong_rules():
     assert component_evidence_fusion(f)[0, 0] >= .9
 
 
+def test_synonym_and_counterrelation_rules_can_be_disabled_independently():
+    f = evidence()
+    f['string_similarity'][:] = f['embedding_similarity'][:] = .1
+    f['shared_synset_fraction'][:] = f['full_synonym_evidence'][:] = 1
+    assert component_evidence_fusion(f, synonym_rule=True, relation_rules=False)[0, 0] >= .9
+    assert component_evidence_fusion(f, synonym_rule=False)[0, 0] < .9
+    f['string_similarity'][:] = f['embedding_similarity'][:] = .9
+    f['shared_synset_fraction'][:] = f['full_synonym_evidence'][:] = 0
+    f['antonym_evidence'][:] = 1
+    assert component_evidence_fusion(f, synonym_rule=False, relation_rules=True)[0, 0] == 0
+    assert component_evidence_fusion(f, synonym_rule=True, relation_rules=False)[0, 0] > .5
+    assert component_evidence_fusion(f, rules=False)[0, 0] > .5
+
+
+def test_grid_is_unique_and_reuses_saved_features_without_models(tmp_path):
+    from research.experiments import configurations, load_config
+    from research.sweep_component_weights import run_sweep
+
+    config = load_config()
+    definitions, _ = configurations(config)
+    options = [s['combiner']['options'] for s in definitions.values()
+               if s['combiner']['kind'] == 'component_evidence']
+    canonical = {(p['string_weight'], p['lexicon_weight'], p['rules'] and p['synonym_rule'],
+                  p['rules'] and p['relation_rules']) for p in options}
+    assert len(options) == len(canonical) == 64
+    source = tmp_path / 'features.json'
+    source.write_text(json.dumps({'threshold': .5, 'seed': 42, 'definitions': {}, 'records': [],
+        'features': [{'chain': ['normalize', 'component_evidence'], 'case': 'x', 'status': 'ok',
+                      'seconds': 1, 'eligible': [[True]],
+                      'component_features': {k: v.tolist() for k, v in evidence().items()}}],
+        'dataset': {'cases': [{'id': 'x', 'case_number': 1, 'title': 'Test',
+                              'reference': [{'id': 'r', 'label': 'a'}],
+                              'student': [{'id': 's', 'label': 'b'}],
+                              'annotations': [['incorrect']]}]}}))
+    output = tmp_path / 'sweep.json'
+    result = run_sweep(source, output, config)
+    assert len(result['records']) == 64
+    assert all(r['feature_seconds'] == 0 for r in result['records'])
+    with pytest.raises(FileExistsError):
+        run_sweep(source, output, config)
+
+
 @pytest.mark.parametrize('options', [{'string_weight': -1}, {'lexicon_weight': float('nan')},
                                     {'rules': 1}, {'unknown': .2}])
 def test_invalid_options_are_rejected(options):

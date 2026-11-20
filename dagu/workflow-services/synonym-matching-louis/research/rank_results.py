@@ -81,7 +81,9 @@ def describe_pipeline(spec):
         p = spec['combiner']['options']
         return (f'{chain_text(spec["chains"]["component_evidence"])} → '
                 f'Fusion: Stringgewicht {p["string_weight"]:g}, '
-                f'Lexikongewicht {p["lexicon_weight"]:g}; Regeln {p["rules"]}')
+                f'Lexikongewicht {p["lexicon_weight"]:g}; '
+                f'Synonymbonus {p["rules"] and p.get("synonym_rule", True)}, '
+                f'Gegenrelationen {p["rules"] and p.get("relation_rules", True)}')
     if spec.get('combiner', {}).get('kind') == 'semantic':
         disabled = spec['combiner'].get('disabled', [])
         steps = '+'.join(spec['chains']['translated_embedding'][:-1]) or 'raw'

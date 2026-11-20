@@ -864,6 +864,61 @@ unverändert (5/10/0). Ergebnisse, Parameter, Quellhashes und neue Entscheidungs
 `results/component-evidence-weights-20261120.json`. Fusionszeiten dieses Nachrechnens
 enthalten keine Modellberechnung und sind nicht als End-to-End-Laufzeiten vergleichbar.
 
+#### Systematisches Raster: 64 Kombinationen
+
+`mixes[].option_grid` erweitert eine Komponentenfusion im bestehenden Baukasten:
+vier Stringgewichte (0,5/0,4/0,25/0,2), vier Lexikongewichte (0/0,1/0,2/0,3),
+Synonymbonus und Gegenrelationsregeln unabhängig an/aus. Das ergibt 64 Einstellungen.
+Bereits vorhandene gleichwertige Definitionen werden wiederverwendet, nicht dupliziert.
+Die alten Optionsnamen bleiben gültig: `rules: false` deaktiviert weiterhin beide Regeln;
+bei `rules: true` steuern `synonym_rule` und `relation_rules` die Regeln einzeln.
+Mindestscore 0,9, Gegenrelationsgrenze 0, Seed 42 und Threshold 0,5 bleiben fest.
+
+Ein Befehl berechnet alle 64 Fusionen auf bereits gespeicherten Komponentenmerkmalen:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m research.sweep_component_weights \
+  --features results/component-evidence-laboratory-2575-20261120.json.gz \
+  --output results/component-evidence-grid-laboratory.json.gz
+```
+
+Die Eingabedatei liefert Daten, Modelle und Merkmale; aktuelle Gewichte/Regelschalter
+kommen aus `research/experiments.json` (optional `--config`). Es werden keine Modelle
+geladen oder Texte neu vorverarbeitet. Der normale `research.compare` unterstützt das
+Raster ebenfalls, berechnet dabei aber die gemeinsamen Merkmale einmal neu.
+Dateien werden nicht überschrieben. Historische Modell-/Baselinezeiten sind nicht mit
+den neuen reinen Fusions-/Zuordnungszeiten vergleichbar.
+
+Die 64 Einstellungen wurden auf allen drei bekannten Entwicklungsdatensätzen geprüft.
+Beste Einstellungen nach F1, Precision und Recall, **nicht unabhängig validiert**:
+
+| Datensatz | String/Embedding | Lexikongewicht | TP | FP | FN | Precision | Recall | F1 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Geänderte Laborlabels | 25:75 oder 20:80 | 0 % | 106 | 488 | 86 | 0,178 | 0,552 | 0,270 |
+| 33 Kontrollszenarien | 50:50 | 0 % | 33 | 11 | 10 | 0,750 | 0,767 | 0,759 |
+| Kleine 24-Paar-Probe | alle vier Verhältnisse | 0 % | 5 | 5 | 0 | 0,500 | 1,000 | 0,667 |
+
+Die Regelschalter ändern in diesem Raster weder Threshold-Entscheidungen noch Top-1.
+Der Synonymbonus kann einzelne Scores verändern; ausreichend eindeutige Gegenrelationen
+fehlen für einen Entscheidungsgewinn. Unter den 64 Parametereinstellungen gibt es nur
+14 unterschiedliche Entscheidungsmuster im Labor, elf im Kontrollsatz und vier in der
+kleinen Probe. Gleichstände sind daher keine 64 unabhängigen Qualitätsnachweise.
+
+Lexikongewicht 0 ist hier jeweils am besten, aber keine Einstellung gewinnt auf allen
+Aufgaben. Gegenüber der Embedding-Referenz gehen im Labor weiterhin viele richtige
+Treffer verloren; die bekannten Probleme werden durch Gewichtstuning allein nicht gelöst.
+Die Ergebnisse flossen weder in Training noch in eine automatische Standardauswahl ein.
+Diese wiederholt betrachteten Daten sind Entwicklungsdaten und kein unabhängiger Test.
+
+Die vollständigen Optionen, Matrizen, Entscheidungen, Metriken und Quellen liegen in
+`results/component-evidence-grid-{laboratory,control,targeted}-20261120.json.gz`.
+`results/component-evidence-grid-summary-20261120.json` enthält alle 64 Ergebnisse pro
+Datensatz, Gleichstände, Regelbeiträge sowie entfernte falsche und verlorene richtige
+Treffer relativ zur Embedding-Referenz. Kandidaten-Top-1 wird zusätzlich ohne triviale
+Ein-Kandidaten-Fälle ausgewiesen. Merkmalsquelle und aktuelle Fusionsquellen sind gehasht;
+alle neuen Scores wurden aus den gespeicherten Merkmalen exakt nachgerechnet.
+Standardpipeline und aktueller 25:75-/30%-Lexikon-Default bleiben unverändert.
+
 ### Explizite Relationsmerkmale (Einzelwerte)
 
 Unter `methods.wordnet` und `methods.odenet` aktiviert `relation_features` die

@@ -58,6 +58,7 @@ SEMANTIC_POLICY = {
 COMPONENT_EVIDENCE_POLICY = {
     'string_weight': .25, 'lexicon_weight': .3, 'rules': True,
     'synonym_floor': .9, 'relation_cap': 0.,
+    'synonym_rule': True, 'relation_rules': True,
 }
 
 
@@ -70,9 +71,9 @@ def component_evidence_options(options=None):
         raise ValueError('unknown component evidence option')
     result = {**COMPONENT_EVIDENCE_POLICY, **options}
     for name, value in result.items():
-        if name == 'rules':
+        if name in {'rules', 'synonym_rule', 'relation_rules'}:
             if type(value) is not bool:
-                raise ValueError('rules must be boolean')
+                raise ValueError(f'{name} must be boolean')
         elif type(value) not in (int, float) or not np.isfinite(value) or not 0 <= value <= 1:
             raise ValueError(f'{name} must be in [0,1]')
     return result
@@ -105,9 +106,11 @@ def component_evidence_fusion(features, **options):
     score = (1 - policy['lexicon_weight']) * base + policy['lexicon_weight'] * lexical
     if policy['rules']:
         counter = (antonym == 1) | (hierarchy == 1)
-        score = np.where((synonym == 1) & ~counter,
-                         np.maximum(score, policy['synonym_floor']), score)
-        score = np.where(counter, np.minimum(score, policy['relation_cap']), score)
+        if policy['synonym_rule']:
+            score = np.where((synonym == 1) & ~counter,
+                             np.maximum(score, policy['synonym_floor']), score)
+        if policy['relation_rules']:
+            score = np.where(counter, np.minimum(score, policy['relation_cap']), score)
     return np.clip(score, 0, 1)
 
 

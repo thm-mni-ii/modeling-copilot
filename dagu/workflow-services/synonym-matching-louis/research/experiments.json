@@ -152,6 +152,18 @@
     {"name": "component_evidence_rules", "component_evidence": true, "parts": ["component_evidence"], "options": {"string_weight": 0.25, "lexicon_weight": 0.3, "rules": true}},
     {"name": "component_evidence_40_60", "component_evidence": true, "parts": ["component_evidence"], "options": {"string_weight": 0.4, "lexicon_weight": 0.3, "rules": true}},
     {"name": "component_evidence_20_80", "component_evidence": true, "parts": ["component_evidence"], "options": {"string_weight": 0.2, "lexicon_weight": 0.3, "rules": true}},
+    {
+      "name": "component_evidence_grid",
+      "component_evidence": true,
+      "parts": ["component_evidence"],
+      "options": {"rules": true},
+      "option_grid": {
+        "string_weight": [0.5, 0.4, 0.25, 0.2],
+        "lexicon_weight": [0.0, 0.1, 0.2, 0.3],
+        "synonym_rule": [false, true],
+        "relation_rules": [false, true]
+      }
+    },
     {"name": "semantic_full", "semantic": true, "parts": ["trans_emb", "lev_normalized", "jw_normalized", "trigram_normalized", "wordnet", "part_compatibility"]},
     {"name": "semantic_without_strings", "semantic": true, "disabled": ["strings"], "parts": ["trans_emb", "lev_normalized", "jw_normalized", "trigram_normalized", "wordnet", "part_compatibility"]},
     {"name": "semantic_without_coverage", "semantic": true, "disabled": ["coverage"], "parts": ["trans_emb", "lev_normalized", "jw_normalized", "trigram_normalized", "wordnet", "part_compatibility"]},
