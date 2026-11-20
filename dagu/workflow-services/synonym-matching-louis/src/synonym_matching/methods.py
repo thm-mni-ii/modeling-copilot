@@ -117,6 +117,12 @@ def component_feature_fusion(left, right, *, backend, left_languages, right_lang
                               right_languages=right_languages)
 
 
+def component_evidence(left, right, *, backend, left_languages, right_languages):
+    """Berechne rollenfreie Komponentenmerkmale; die Fusion folgt separat."""
+    return component_matching(left, right, backend=backend, left_languages=left_languages,
+                              right_languages=right_languages)
+
+
 def label_part_compatibility(left, right):
     """Liefere 0 bei einem erkannten Nummern-/Raumkonflikt, sonst neutral 1.
 
@@ -219,6 +225,7 @@ def wn_translation(left, right, *, backend, left_languages, right_languages):
 METHODS = {
     'component_matching': component_matching,
     'component_feature_fusion': component_feature_fusion,
+    'component_evidence': component_evidence,
     'levenshtein': levenshtein,
     'damerau_levenshtein': damerau_levenshtein,
     'jaro_winkler': jaro_winkler,
@@ -244,6 +251,7 @@ METHODS = {
 METHOD_TRAITS = {
     'component_matching': {'original_text', 'uses_languages'},
     'component_feature_fusion': {'original_text', 'uses_languages'},
+    'component_evidence': {'original_text', 'uses_languages'},
     'translated_string': {'translate'},
     'wordnet': {'translate'},
     'openthesaurus': {'german_only'},

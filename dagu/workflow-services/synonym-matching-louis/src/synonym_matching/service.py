@@ -10,7 +10,7 @@ import time
 import numpy as np
 
 from .cache import Cache
-from .combinations import combine, evidence_fusion, semantic_fusion
+from .combinations import combine, evidence_fusion, semantic_fusion, component_evidence_fusion
 from .config import validate_config
 from .lexicons import OdeNet, OpenThesaurus, WordNet, semantic_features
 from .methods import EMBEDDING_MODELS, METHODS, METHOD_TRAITS, EmbeddingMethod
@@ -142,7 +142,10 @@ class MatchingEngine:
         self.backends = {}
         for name in self.config['methods']:
             self.methods[name] = METHODS[name]
-            if name in {'component_matching', 'component_feature_fusion'}:
+            if name == 'component_evidence':
+                from .component_evidence import ComponentEvidence
+                self.backends[name] = ComponentEvidence(self.config, self.translator)
+            elif name in {'component_matching', 'component_feature_fusion'}:
                 from .components import ComponentMatching
                 self.backends[name] = ComponentMatching(
                     self.config, self.translator, feature_first=name == 'component_feature_fusion')
@@ -245,7 +248,7 @@ class MatchingEngine:
             matrix[~valid] = 0
             matrices[name] = matrix
             processed_labels[name] = {'reference': left, 'student': right}
-            if name in {'component_matching', 'component_feature_fusion'}:
+            if name in {'component_matching', 'component_feature_fusion', 'component_evidence'}:
                 for feature, values in backend.features.items():
                     matrices[f'{name}_{feature}'] = np.where(valid, values, 0)
             if name in self.config['semantic_features']:
@@ -304,7 +307,10 @@ class MatchingEngine:
         valid &= usable_combined
 
         combiner = self.config['combiner']
-        if combiner['kind'] == 'semantic':
+        if combiner['kind'] == 'component_evidence':
+            combined = component_evidence_fusion(self.backends['component_evidence'].features,
+                                                 **combiner['options'])
+        elif combiner['kind'] == 'semantic':
             combined = semantic_fusion(matrices, result['semantic_features']['wordnet'],
                                        disabled=combiner['disabled'])
         elif combiner['kind'] == 'evidence':

@@ -17,6 +17,7 @@
     "lemma_cased": ["normalize", "lemmatize"]
   },
   "methods": {
+    "component_evidence": {"languages": ["de", "en"], "preprocessing_steps": ["normalize"]},
     "component_matching": {"languages": ["de", "en"], "preprocessing_steps": ["normalize"]},
     "component_feature_fusion": {"languages": ["de", "en"], "preprocessing_steps": ["normalize"]},
     "levenshtein": {},
@@ -86,6 +87,7 @@
     }
   },
   "chains": {
+    "component_evidence": ["normalize", "component_evidence"],
     "components": ["normalize", "component_matching"],
     "component_features": ["normalize", "component_feature_fusion"],
     "lev": ["$pre", "levenshtein"],
@@ -146,6 +148,10 @@
     "ft_en_bi_identifiers": ["normalize", "split_identifiers", "translate", "fasttext_en_bidirectional_matching"]
   },
   "mixes": [
+    {"name": "component_evidence_weighted", "component_evidence": true, "parts": ["component_evidence"], "options": {"string_weight": 0.25, "lexicon_weight": 0.3, "rules": false}},
+    {"name": "component_evidence_rules", "component_evidence": true, "parts": ["component_evidence"], "options": {"string_weight": 0.25, "lexicon_weight": 0.3, "rules": true}},
+    {"name": "component_evidence_40_60", "component_evidence": true, "parts": ["component_evidence"], "options": {"string_weight": 0.4, "lexicon_weight": 0.3, "rules": true}},
+    {"name": "component_evidence_20_80", "component_evidence": true, "parts": ["component_evidence"], "options": {"string_weight": 0.2, "lexicon_weight": 0.3, "rules": true}},
     {"name": "semantic_full", "semantic": true, "parts": ["trans_emb", "lev_normalized", "jw_normalized", "trigram_normalized", "wordnet", "part_compatibility"]},
     {"name": "semantic_without_strings", "semantic": true, "disabled": ["strings"], "parts": ["trans_emb", "lev_normalized", "jw_normalized", "trigram_normalized", "wordnet", "part_compatibility"]},
     {"name": "semantic_without_coverage", "semantic": true, "disabled": ["coverage"], "parts": ["trans_emb", "lev_normalized", "jw_normalized", "trigram_normalized", "wordnet", "part_compatibility"]},

@@ -14,6 +14,7 @@ from synonym_matching.combinations import STRINGS, TOKENS
 METHOD_NAMES = {
     'component_matching': 'Labelzerlegung → Komponenten-Fusion → optimales Matching → Mittelwert',
     'component_feature_fusion': 'Gezielte Zerlegung → Merkmale zusammenführen → vollständige Fusion',
+    'component_evidence': 'Rollenfreie Bestandteile → getrennte Merkmale → Ähnlichkeitsbasis',
     'levenshtein': 'Levenshtein',
     'damerau_levenshtein': 'Damerau-Levenshtein',
     'jaro_winkler': 'Jaro-Winkler',
@@ -76,6 +77,11 @@ def describe_chains(spec):
 
 def describe_pipeline(spec):
     """Zeige Schritte in Ausführungsreihenfolge und die tatsächliche Kombination."""
+    if spec.get('combiner', {}).get('kind') == 'component_evidence':
+        p = spec['combiner']['options']
+        return (f'{chain_text(spec["chains"]["component_evidence"])} → '
+                f'Fusion: Stringgewicht {p["string_weight"]:g}, '
+                f'Lexikongewicht {p["lexicon_weight"]:g}; Regeln {p["rules"]}')
     if spec.get('combiner', {}).get('kind') == 'semantic':
         disabled = spec['combiner'].get('disabled', [])
         steps = '+'.join(spec['chains']['translated_embedding'][:-1]) or 'raw'

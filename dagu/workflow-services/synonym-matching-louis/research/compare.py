@@ -26,7 +26,8 @@ from .evaluation import evaluate_case, select_matches, global_ranking
 from .experiments import (DEFAULT_CONFIG, ROOT, configurations, is_wordvec, load_config,
                           unsupported)
 from synonym_matching.lexicons import DATA_DIR, OdeNet, OpenThesaurus, WordNet
-from synonym_matching.combinations import combine, evidence_fusion, semantic_fusion, SEMANTIC_POLICY
+from synonym_matching.combinations import (combine, evidence_fusion, semantic_fusion,
+                                           component_evidence_fusion, SEMANTIC_POLICY)
 from synonym_matching.methods import EmbeddingMethod
 from synonym_matching.cache import Cache
 from synonym_matching.translation import Translator
@@ -208,7 +209,7 @@ def calculate_features(cases, definitions, methods):
                         'eligible': (result['validPairs'] & result['usablePairs'][method]).tolist(),
                     }
                     backend = getattr(engine, 'backends', {}).get(method)
-                    if method in {'component_matching', 'component_feature_fusion'}:
+                    if method in {'component_matching', 'component_feature_fusion', 'component_evidence'}:
                         features[key, case['id']]['component_features'] = {
                             name: values.tolist() for name, values in backend.features.items()}
                         features[key, case['id']]['component_evidence'] = backend.evidence
@@ -308,7 +309,11 @@ def run_experiments(data, output, config, *, only=None):
                 np.asarray(p['eligible'], dtype=bool).reshape(shape) for p in parts.values()])
             t0 = time.perf_counter()
             changes = []
-            if spec['combiner']['kind'] == 'semantic':
+            if spec['combiner']['kind'] == 'component_evidence':
+                merged = {name: np.asarray(values).reshape(shape) for name, values in
+                          parts['component_evidence']['component_features'].items()}
+                scores = component_evidence_fusion(merged, **spec['combiner']['options'])
+            elif spec['combiner']['kind'] == 'semantic':
                 # JSON-Listen verlieren bei leeren Mengen die zweite Dimension.
                 relations = {name: np.asarray(values).reshape(shape)
                              for name, values in parts['wordnet']['relation_features'].items()}

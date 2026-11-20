@@ -144,7 +144,20 @@ def configurations(config):
             continue
         for label, steps in pipelines([blocks[alias] for alias in aliases]).items():
             full = {alias: expand(blocks[alias], steps) for alias in aliases}
-            if entry.get('semantic'):
+            if entry.get('component_evidence'):
+                from synonym_matching.config import validate_config
+
+                if (len(full) != 1 or next(iter(full.values()))[-1] != 'component_evidence'
+                        or 'weights' in entry or 'variant' in entry or entry.get('semantic')
+                        or entry.get('evidence')):
+                    raise ValueError('component evidence mix requires its single feature chain')
+                chains = {'component_evidence': next(iter(full.values()))}
+                combiner = {'kind': 'component_evidence', 'options': entry.get('options', {})}
+                combiner = validate_config({'methods': ['component_evidence'],
+                                             'combiner': combiner})['combiner']
+                extra = {'chain_based': True}
+                shown = steps
+            elif entry.get('semantic'):
                 from synonym_matching.config import validate_config
 
                 chains = {chain[-1]: chain for chain in full.values()}
@@ -192,7 +205,7 @@ def configurations(config):
                 shown = steps
             if entry.get('global_ranking'):
                 extra['global_ranking'] = True
-            if combiner['kind'] in {'evidence', 'semantic'}:
+            if combiner['kind'] in {'evidence', 'semantic', 'component_evidence'}:
                 name = entry.get('name') or 'evidence: ' + ' + '.join(chain_name(c) for c in chains.values())
             else:
                 name = entry.get('name') or ' + '.join(

@@ -108,6 +108,12 @@ def _validate_combiner(combiner, methods):
             raise ValueError("unknown variant")
         if not isinstance(combiner.get("options", {}), dict):
             raise ValueError("variant options must be an object")
+    elif kind == 'component_evidence':
+        from .combinations import component_evidence_options
+        allowed.add('options')
+        combiner['options'] = component_evidence_options(combiner.get('options'))
+        if 'component_evidence' not in methods:
+            raise ValueError('component evidence combiner requires component_evidence method')
     elif kind == 'semantic':
         from .combinations import SEMANTIC_ABLATIONS, SEMANTIC_METHODS
         allowed.add('disabled')
@@ -132,6 +138,8 @@ def _validate_combiner(combiner, methods):
     default_methods = [combiner['baseline'], combiner['lexicon']] if kind == 'evidence' else methods.copy()
     if kind == 'semantic':
         default_methods = list(SEMANTIC_METHODS)
+    if kind == 'component_evidence':
+        default_methods = ['component_evidence']
     selected = combiner.setdefault("methods", default_methods)
     if (not isinstance(selected, list) or not selected
             or any(not isinstance(name, str) for name in selected)):
@@ -142,6 +150,8 @@ def _validate_combiner(combiner, methods):
         raise ValueError('evidence combiner methods must contain exactly baseline and lexicon')
     if kind == 'semantic' and set(selected) != set(default_methods):
         raise ValueError('semantic combiner methods must contain exactly its six base methods')
+    if kind == 'component_evidence' and selected != default_methods:
+        raise ValueError('component evidence combiner selects only component_evidence')
     if kind == "variant":
         from .combinations import REQUIRES
         if set(REQUIRES[combiner["name"]]) - set(selected):

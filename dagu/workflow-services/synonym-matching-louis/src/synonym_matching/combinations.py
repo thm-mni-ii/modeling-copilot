@@ -55,6 +55,60 @@ SEMANTIC_POLICY = {
     'embedding_weight': .75, 'synset_floor': .9, 'ontology_boost': .1,
     'relation_penalty': .5, 'ontology_penalty': .25, 'conflict_penalty': .5,
 }
+COMPONENT_EVIDENCE_POLICY = {
+    'string_weight': .25, 'lexicon_weight': .3, 'rules': True,
+    'synonym_floor': .9, 'relation_cap': 0.,
+}
+
+
+def component_evidence_options(options=None):
+    """Prüfe die wenigen numerischen Gewichte und schaltbaren Evidenzregeln."""
+    if not isinstance(options if options is not None else {}, dict):
+        raise ValueError('component evidence options must be an object')
+    options = options or {}
+    if set(options) - COMPONENT_EVIDENCE_POLICY.keys():
+        raise ValueError('unknown component evidence option')
+    result = {**COMPONENT_EVIDENCE_POLICY, **options}
+    for name, value in result.items():
+        if name == 'rules':
+            if type(value) is not bool:
+                raise ValueError('rules must be boolean')
+        elif type(value) not in (int, float) or not np.isfinite(value) or not 0 <= value <= 1:
+            raise ValueError(f'{name} must be in [0,1]')
+    return result
+
+
+def component_evidence_fusion(features, **options):
+    """Gewichtete Ähnlichkeitsbasis, partielle Synonymie und separate Regeln.
+
+    Unbekannte Lexikonanteile erhalten als neutralen Ersatz den Basisscore.
+    Antonym-/Hierarchieevidenz begrenzt; vollständige eindeutige Synonymie hebt an.
+    Ontologische Nähe bleibt Diagnose und bestätigt keine Gleichwertigkeit.
+    """
+    policy = component_evidence_options(options)
+    names = ('string_similarity', 'embedding_similarity', 'lexicon_coverage',
+             'shared_synset_fraction', 'full_synonym_evidence', 'antonym_evidence',
+             'hierarchy_evidence')
+    if set(names) - features.keys():
+        raise ValueError('missing component evidence features')
+    arrays = [np.asarray(features[name], dtype=float) for name in names]
+    if (arrays[0].ndim != 2 or any(a.shape != arrays[0].shape or not np.isfinite(a).all()
+                                  for a in arrays)):
+        raise ValueError('component evidence requires finite matrices of equal shape')
+    string, embedding, coverage, shared, synonym, antonym, hierarchy = arrays
+    coverage, shared = np.clip(coverage, 0, 1), np.clip(shared, 0, 1)
+    if (shared > coverage + 1e-12).any():
+        raise ValueError('synset agreement cannot exceed lexicon coverage')
+    weight = policy['string_weight']
+    base = weight * np.clip(string, 0, 1) + (1 - weight) * np.clip(embedding, 0, 1)
+    lexical = shared + (1 - coverage) * base
+    score = (1 - policy['lexicon_weight']) * base + policy['lexicon_weight'] * lexical
+    if policy['rules']:
+        counter = (antonym == 1) | (hierarchy == 1)
+        score = np.where((synonym == 1) & ~counter,
+                         np.maximum(score, policy['synonym_floor']), score)
+        score = np.where(counter, np.minimum(score, policy['relation_cap']), score)
+    return np.clip(score, 0, 1)
 
 
 def semantic_fusion(matrices, features, *, disabled=()):

@@ -716,6 +716,154 @@ Lokal gespeichert: `results/component-features-laboratory-20261119.json.gz`,
 `results/component-features-summary-20261119.json`. Separate Merkmalsmittelwerte,
 abschließende Fusion und öffentliche Schemakompatibilität wurden nachgeprüft.
 
+### Rollenfreie Komponenten: gewichtete Basis und Evidenzregeln
+
+Neue optionale Methode `component_evidence`. Sie verwendet weder Objekt-/Attributrollen
+noch die alte Konfliktregel. Alle zugeordneten Bestandteile zählen gleich viel.
+Die früheren Rollen- und Konfliktvarianten bleiben ausschließlich als Vergleiche erhalten.
+
+- Sichtbare Abkürzungen, camelCase und Unterstriche erlauben Zerlegung.
+- Unbekannte deutsche Einzelwörter werden mit der vorhandenen Kompositazerlegung
+  untersucht; bekannte Ganzwörter wie Vorname bleiben erhalten.
+- Normale Mehrwortlabels bleiben atomar. Gibt eine Phrase eine anderweitig erkannte
+  Zerlegung exakt wieder (Gebäude Nummer vs. GebäudeNr.), wird dieselbe Teilung genutzt.
+- Alle eindeutigen Komponenten werden gebündelt mit vorhandenen String-, Embedding-
+  und WordNet-Verfahren verglichen. Optimale 1:1-Paarung anhand String/Embedding,
+  keine Rollenbeschränkung. Fehlende Partner zählen 0; keine Rekursion.
+
+Stringmetriken und Embedding werden getrennt gemittelt. `shared_synset_fraction`
+ist der Anteil synonym belegter Paare, `shared_synset` dagegen 1 nur bei vollständiger
+Paarung und Synsetübereinstimmung aller Bestandteile. `lexicon_coverage` ist der Anteil
+beidseitig bekannter Paare; Seitenabdeckung und Mehrdeutigkeitsanteile bleiben separat.
+Relationswerte sind Anteile über mögliche Lesarten, noch keine Gegenbeweise. Ontologische
+Nähe wird mit eigener Taxonomieabdeckung gespeichert, aber nicht als Synonymbonus benutzt.
+
+Die Fusion berechnet mit konfigurierbaren Gewichten:
+
+```text
+B = string_weight * String + (1 - string_weight) * Embedding
+L = shared_synset_fraction + (1 - lexicon_coverage) * B
+Score = (1 - lexicon_weight) * B + lexicon_weight * L
+```
+
+Unbekannte Lexikonanteile erhalten damit neutral B, nicht 0. Bekannte Teilübereinstimmung
+kann trotzdem erhöhen; sie bestätigt keine Gesamtgleichwertigkeit. Bei vollständig
+bekanntem Beispiel mit String 0,6, Embedding 0,675 und Synsetanteil 0,5 ergibt
+die aktuelle Gewichtung (25 % String, 75 % Embedding, 30 % Lexikonevidenz) 0,609375.
+Die Gewichte sind vorab gewählte Versuchsparameter,
+keine gelernten oder validierten Wahrscheinlichkeiten.
+
+Mit `rules: true` gelten anschließend folgende Regeln:
+
+- Vollständige, beidseits jeweils einsinnig erfasste Synonym-Evidenz ohne Gegenrelation:
+  mindestens `synonym_floor`.
+- Antonym-Evidenz bei einem zugeordneten Paar: höchstens `relation_cap`, wenn beide
+  Einträge genau eine Lesart haben und keinen gemeinsamen Synset.
+- Hierarchie-Evidenz: dieselbe Begrenzung nur bei vollständiger Paarung und synonymem
+  Rest. Gemeint ist strikte Gleichwertigkeit, keine zulässige Verallgemeinerung.
+- Gegenevidenz hat Vorrang. Eine erfasste Lesart garantiert jedoch keine passende
+  Bedeutung in der Aufgabe; besonders mehrdeutige Wörter führen oft zu keiner Regel.
+
+Service-Konfiguration (Outputschema unverändert):
+
+```json
+{
+  "methods": ["component_evidence"],
+  "combiner": {
+    "kind": "component_evidence",
+    "options": {
+      "string_weight": 0.25,
+      "lexicon_weight": 0.3,
+      "rules": true,
+      "synonym_floor": 0.9,
+      "relation_cap": 0.0
+    }
+  }
+}
+```
+
+Ohne den speziellen Combiner liefert die Methode nur die 50:50-String-/Embedding-Basis.
+Im Baukasten teilen `component_evidence_weighted` und `component_evidence_rules`
+dieselbe Merkmalskette und unterscheiden sich nur durch den Regelschalter. Parameter
+stehen unter `mixes[].options` und werden vollständig im Ergebnis gespeichert.
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 TOKENIZERS_PARALLELISM=false \
+.venv/bin/python -m research.compare --data research/laboratory-cases.json \
+  --only 'normalize → translated_embedding' translated_embedding_part_conflicts \
+  'normalize → component_evidence' component_evidence_weighted component_evidence_rules \
+  --output results/component-evidence-laboratory.json.gz
+```
+
+Historischer Lauf mit 50 % String und 50 % Embedding (vor der Umstellung auf 25:75):
+bekannte Entwicklungsdaten, geänderte Laborlabels, Seed 42, Threshold 0,5.
+Die folgende Tabelle bezieht sich weiterhin auf den historischen 50:50-Lauf:
+
+| Variante | TP | FP | FN | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Embedding-Baseline | 157 | 100 | 35 | 0,611 | 0,818 | 0,699 |
+| Alte Konfliktregel | 157 | 12 | 35 | 0,929 | 0,818 | 0,870 |
+| Rollenfreie String-/Embedding-Basis | 105 | 488 | 87 | 0,177 | 0,547 | 0,268 |
+| Gewichtete Lexikonevidenz | 104 | 488 | 88 | 0,176 | 0,542 | 0,265 |
+| Zusätzlich Evidenzregeln | 104 | 488 | 88 | 0,176 | 0,542 | 0,265 |
+
+Auf der kleinen 24-Paar-Probe: Basis TP/FP/FN 5/5/0, mit Lexikonevidenz und Regeln
+5/10/0. Auf 33 bekannten Kontrollszenarien: Basis F1 0,759 (33/11/10), gewichtete
+Evidenz mit/ohne Regeln 0,721 (31/12/12); alte Konfliktregel 0,723 (34/17/9).
+Die Regeln ändern je einen Score im vollständigen Labor- und Kontrolllauf, aber keine
+Threshold-Entscheidung. Fehlende eindeutige Lexikonevidenz begrenzt ihre Anwendbarkeit.
+
+Die Startgewichtung verbessert damit nicht beide Datensätze. Teilübereinstimmungen
+können weiterhin hohe Werte erzeugen, bekannte Lexikoneinträge können zur falschen
+Bedeutung gehören, und atomare Paraphrasen passen nicht immer zu einer Zerlegung.
+Außerdem werden Stringwerte auf Originalkomponenten berechnet und können bei echten
+Übersetzungen niedrig sein. Kein Threshold oder Gewicht wurde nach dem Lauf optimiert;
+die Standardpipeline bleibt unverändert. Eine unabhängige Bewertung steht aus.
+
+Rohdaten: `results/component-evidence-laboratory-20261119.json.gz`,
+`results/component-evidence-targeted-20261119.json.gz`,
+`results/component-evidence-control-20261119.json.gz`.
+Nachgerechnete Metriken und Regelbeiträge: `results/component-evidence-summary-20261119.json`.
+Die gespeicherten Merkmale reproduzieren die gewichteten Scores exakt; alle öffentlichen
+Matrixausgaben wurden gegen das unveränderte Schema geprüft.
+
+#### Vergleich 25 % String / 75 % Embedding am 20.11.2026
+
+Nur `string_weight` der gewichteten Fusion wurde von 0,5 auf 0,25 geändert;
+Lexikongewicht 0,3, Regeln, Threshold 0,5, Seed 42 und Daten blieben gleich.
+Identische Komponentenmerkmale wurden zwischen den Läufen nachgeprüft.
+Die ungewichtete Komponenten-Basis bleibt als eigene 50:50-Referenz erhalten.
+
+| Datensatz / Gewichtung | TP | FP | FN | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Geänderte Laborlabels, 50:50 | 104 | 488 | 88 | 0,176 | 0,542 | 0,265 |
+| Geänderte Laborlabels, 40:60 | 106 | 490 | 86 | 0,178 | 0,552 | 0,269 |
+| Geänderte Laborlabels, 25:75 | 105 | 490 | 87 | 0,176 | 0,547 | 0,267 |
+| Geänderte Laborlabels, 20:80 | 105 | 503 | 87 | 0,173 | 0,547 | 0,263 |
+| 33 Kontrollszenarien, 50:50 | 31 | 12 | 12 | 0,721 | 0,721 | 0,721 |
+| 33 Kontrollszenarien, 40:60 | 31 | 13 | 12 | 0,705 | 0,721 | 0,713 |
+| 33 Kontrollszenarien, 25:75 | 31 | 16 | 12 | 0,660 | 0,721 | 0,689 |
+| 33 Kontrollszenarien, 20:80 | 31 | 19 | 12 | 0,620 | 0,721 | 0,667 |
+
+Im Labor werden zwei richtige neu erkannt, einer geht verloren und zwei falsche kommen
+hinzu. Die kleine 24-Paar-Probe bleibt unverändert (TP/FP/FN 5/10/0). Der höhere
+Embedding-Anteil bringt somit keinen konsistenten Vorteil bei diesen bekannten Daten.
+Es gab keine technischen Fehler und keine nachträgliche Parameteranpassung.
+
+Rohdaten: `results/component-evidence-{laboratory,control,targeted}-2575-20261120.json.gz`.
+Direkte Gegenüberstellung und Entscheidungsänderungen:
+`results/component-evidence-2575-comparison-20261120.json`.
+
+40:60 und 20:80 wurden anschließend nur durch Neuberechnung der Fusion auf denselben
+gespeicherten Komponentenmerkmalen geprüft, ohne Modelle erneut auszuführen. Beide
+Varianten sind als `component_evidence_40_60` und `component_evidence_20_80` im JSON-Baukasten
+verfügbar; 25:75 bleibt unverändert eingestellt. Gegenüber 25:75 gewinnt 40:60 im Labor
+einen richtigen Treffer ohne zusätzliche falsche, 20:80 erzeugt dagegen 13 zusätzliche
+falsche ohne weiteren richtigen Treffer. Die kleine Probe bleibt für alle Gewichte
+unverändert (5/10/0). Ergebnisse, Parameter, Quellhashes und neue Entscheidungsmatrizen:
+`results/component-evidence-weights-20261120.json`. Fusionszeiten dieses Nachrechnens
+enthalten keine Modellberechnung und sind nicht als End-to-End-Laufzeiten vergleichbar.
+
 ### Explizite Relationsmerkmale (Einzelwerte)
 
 Unter `methods.wordnet` und `methods.odenet` aktiviert `relation_features` die
