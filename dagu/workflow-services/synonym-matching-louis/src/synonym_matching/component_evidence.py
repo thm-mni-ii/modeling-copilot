@@ -59,6 +59,10 @@ class ComponentEvidence:
             indices.append([[positions[word, lang] for word in group]
                             for group, lang in zip(parts, languages, strict=True)])
         raw = self.engine.compute_scores(*unique)
+        return self.aggregate(raw, unique, indices, left, right)
+
+    def aggregate(self, raw, unique, indices, left, right):
+        """Fasse feste Teilzuordnungen zusammen; auch mit gespeicherten Rohscores."""
         scores = raw['scores']
         semantics = raw['semantic_features']['wordnet']
         alignment = (string_ensemble(scores) + np.clip(scores['translated_embedding'], 0, 1)) / 2

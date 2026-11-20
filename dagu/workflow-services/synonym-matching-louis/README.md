@@ -1483,3 +1483,52 @@ Modellladen; die FastText-Binärmodelle wurden dabei mit `fasttext==0.9.3` nativ
 geladen. Eine erste Gensim-Ausführung wurde wegen hoher Speicherauslastung
 abgebrochen und liefert keine Ergebnisdatei. Feature-Caches und Modell-Ladezeiten
 verhindern einen direkten Vergleich mit warmen Service-Latenzen.
+# Kontrollierter Vergleich der Lexikonquellen
+
+`research/compare_component_lexicons.py` vergleicht vier in
+`experiments.json → component_lexicon_comparison` konfigurierte Quellen:
+
+- `translated_wordnet`: bisherige maschinelle Übersetzung und englisches `omw-en:1.4`.
+- `native`: Deutsch direkt über `odenet:1.4`, Englisch direkt über WordNet.
+  Ein direktes DE/EN-Paar ist hier nicht vergleichbar, nicht widerlegt.
+- `ili`: Originalbegriffe nachschlagen und deutsche Synsets/Senses mit den nativen
+  `wn.translate()`-Funktionen in das englische WordNet abbilden.
+- `combined`: Merkmale aus übersetztem WordNet und nativer Quelle zusammenführen.
+  Synonymie-/Gegenrelationskonflikte bleiben diagnostisch sichtbar; für die Fusion
+  wird die widersprüchliche Lexikonevidenz neutralisiert. Keine neue Fusionsformel.
+
+Die vorhandene Zerlegung, Teilzuordnung und String-/Embedding-Scores werden aus
+einem gespeicherten Komponentenlauf übernommen und auf Gleichheit geprüft.
+Keine Modelle werden neu geladen. Die Fusion bleibt für alle vier Quellen gleich:
+25 % String / 75 % Embedding, 30 % Lexikonanteil, beide Evidenzregeln aktiv.
+Fehlende Einträge und fehlende ILI-Verknüpfungen werden separat gespeichert.
+Die Mehrdeutigkeit der Ausgangswörter bleibt auch nach ILI-Abbildung berücksichtigt.
+Die Ontologie bleibt ein diagnostisches Merkmal; keine zusätzliche Synonymbestätigung.
+
+```bash
+PYTHONPATH=src .venv/bin/python -m research.compare_component_lexicons \
+  --features results/component-evidence-laboratory-2575-20261120.json.gz \
+  --output results/mein-lexikonvergleich.json.gz
+```
+
+Ein neuer Ausgabename verhindert das Überschreiben vorhandener Ergebnisse.
+Beide Lexika müssen bereits lokal vorhanden sein. `summary` enthält alle Fälle,
+`changed_labels` separat nur geänderte Schülerlabels gegen alle Referenzkandidaten.
+Die gespeicherten Entscheidungen umfassen Threshold, Mutual Best und Hungarian.
+Laufzeitdaten messen nur die gemeinsame neue Lexikonarbeit; Modellzeiten werden
+nicht erneut gemessen. Nullwerte in Ranking-Zeitfeldern bedeuten hier ungemessen.
+
+Ergebnisse vom 20.11.2026 bei Threshold 0,5; Format **F1 / falsche Treffer**:
+
+| Lexikonquelle | Geänderte Laborlabels | Kontrollfälle | Gezielte Zerlegungsfälle |
+|---|---:|---:|---:|
+| Übersetztes WordNet | 0,267 / 490 | 0,689 / 16 | 0,500 / 10 |
+| Native Lexika | 0,274 / 489 | 0,711 / 15 | 0,556 / 8 |
+| ILI-Verknüpfung | 0,274 / 489 | 0,717 / 16 | 0,556 / 8 |
+| Beide Quellen | 0,265 / 490 | 0,703 / 16 | 0,500 / 10 |
+
+Artefakte: `results/component-lexicons-{laboratory,control,targeted}-final-20261120.json.gz`.
+Die Verbesserung ist klein und auf bekannten Entwicklungsdaten gemessen.
+Sie behebt die schlechte Qualität des Komponentenansatzes nicht. Historische
+Baselines, Servicekonfiguration und Outputschema bleiben erhalten. Die neuen
+Quellen werden zunächst ausschließlich in diesem Forschungslauf verglichen.

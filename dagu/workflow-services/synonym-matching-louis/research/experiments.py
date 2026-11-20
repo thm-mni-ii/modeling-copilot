@@ -25,6 +25,14 @@ def is_wordvec(method):
 def load_config(path=DEFAULT_CONFIG):
     """Lese und prüfe die Experimentkonfiguration."""
     config = json.loads(Path(path).read_text())
+    if 'component_lexicon_comparison' in config:
+        from synonym_matching.combinations import component_evidence_options
+        comparison = config['component_lexicon_comparison']
+        sources = comparison.get('sources', [])
+        if (not sources or len(sources) != len(set(sources)) or
+                set(sources) - {'translated_wordnet', 'native', 'ili', 'combined'}):
+            raise ValueError('invalid component lexicon sources')
+        component_evidence_options(comparison['fusion_options'])
     # Eine Variante übernimmt alle Eigenschaften ihres Basisverfahrens (z. B. dieselben
     # Modelldateien) und überschreibt nur das Genannte.
     for name, method in config['methods'].items():

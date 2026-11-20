@@ -247,5 +247,21 @@
     {"name": "odenet_string", "weights": {"odenet": 3, "lev": 1, "jw": 1, "trigram": 1}},
     {"name": "wordnet_lemma_multilingual", "weights": {"wordnet_lemma": 1, "multi": 1}},
     {"name": "thesaurus_lemma_multilingual", "weights": {"thesaurus_lemma": 1, "multi": 1}}
-  ]
+  ],
+  "component_lexicon_comparison": {
+    "sources": [
+      "translated_wordnet",
+      "native",
+      "ili",
+      "combined"
+    ],
+    "fusion_options": {
+      "string_weight": 0.25,
+      "lexicon_weight": 0.3,
+      "rules": true,
+      "synonym_rule": true,
+      "relation_rules": true
+    },
+    "policy": "native: de=OdeNet, en=WordNet; cross-language direct unknown. ili: native synsets mapped to English. combined: translated WordNet + native; conflicting positive/counter evidence abstains."
+  }
 }
