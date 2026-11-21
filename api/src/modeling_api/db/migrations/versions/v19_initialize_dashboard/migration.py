@@ -6,7 +6,7 @@ from modeling_api.db.client import create_dashboard_indexes, db
 from modeling_api.db.migrations import require_completed, run_migration
 
 MIGRATION_ID = "19_initialize_dashboard"
-PREREQUISITE = "18_graphical_modeling_labels"
+PREREQUISITE = "18_game_development"
 LEGACY_EVENTS = {
     "tourVersion": "help-feedback-v1",
     "$or": [

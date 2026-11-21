@@ -224,7 +224,7 @@ ship subsequent data changes as new registered steps.
 
 ## Initialize Dashboard (V19)
 
-Migration `19_initialize_dashboard` follows `18_graphical_modeling_labels`.
+Migration `19_initialize_dashboard` follows `18_game_development`.
 It creates the dashboard query indexes on model creation times, editor session
 creation times, evaluations by model/start time and learning-path runs by template.
 It also initializes indexed `tour_events` and `analytics_access_log` storage.
@@ -267,7 +267,7 @@ the application database was not migrated or modified.
 
 ## Preview
 
-Migration `18_graphical_modeling_labels` renames the shared graphical modeling
+Migration `18_game_development` renames the shared graphical modeling
 path to “Datenmodellierung – ERM, SERM”. Its first station becomes “Erfahrung und
 Einschätzung”, stations 4, 7 and 9 become “Wochenabschluss 1”, “Wochenabschluss 2”
 and “Wochenabschluss 3”, and the laboratory station becomes “Laborverwaltung –
@@ -275,18 +275,35 @@ SERM”. All corrections are maintained together in its `labels.json` resource.
 Fixed station IDs identify the records; the migration does not depend on their
 current titles or positions. Existing learner runs use these live definitions.
 The same migration appends station 10, “Entwicklerstudio – SERM”, and station 11,
-“Wochenabschluss 4”. `game_development.json` contains the full task wording,
-an independent task-completion questionnaire copied from the laboratory task,
-and an independent weekly questionnaire initially copied from the previous
-weekly completion. Additional weekly questions are pending. `sample_solution.json`
+“Wochenabschluss 4”. `game_development.json` contains the full task wording
+and one combined task/weekly questionnaire in station 11. Station 10 has no
+after-task questionnaire; the laboratory station keeps its separate completion
+questionnaire. The combined questionnaire covers the task, feedback usage,
+remaining support needs and study participation. Each of the five feedback types
+has its own six-question page, shown only when selected in `N3`; “Keines” is
+exclusive. Overall feedback questions use the same usage filter. Help-button
+and pulse usage conditions retain their run-based context. Support-source ranking
+appears on the support page; help-button effort (`F3`) appears on the feedback
+usage page. The general feedback
+page follows the five feedback-type pages, before remaining support needs.
+Eight bundled screenshots illustrate the help button, feedback selection and
+each feedback type. The check page pairs its results with highlighted diagram
+elements. Feedback pages follow the platform order: check, explanation, next
+step, example, solution. Their question-level `exampleImages` metadata includes alt
+text and a caption; images follow question visibility and open at full size.
+The laboratory screenshots are examples, including the pictured 50-percent
+threshold; the game development completion threshold remains 60 percent.
+`T3`, `H1`, `F1` and `F4` are omitted; `C3` and `G19` are optional. `sample_solution.json`
 stores the supplied first solution proposal as a dedicated model release, assigned
 through the task's `sampleSolutions`. Its diagram is retained without a content
 review; dedicated seed identities preserve the original authoring model and history.
 The task uses required SERM 2.0, informative assistance, disabled connection
 preview and the `model-evaluation-graph-matching` workflow, matching the laboratory
 configuration. Existing path help and pulse settings also apply to the new task.
-The sample solution supplies the reference for automatic evaluation. The station
-still has no minimum score requirement pending the requested solution review.
+The sample solution supplies the reference for automatic evaluation. Like the
+laboratory station, completion requires a minimum score in every category;
+the game development station requires 60 percent. Path help settings and default
+feedback limits match the laboratory station.
 Both new stations use sequential unlocking. New documents are validated before
 insertion; conflicting fixed identities are rejected without overwriting edits.
 Existing task and questionnaire releases, collected answers, model names and

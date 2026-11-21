@@ -1,4 +1,4 @@
-"""Correct shared path labels and append the game development week."""
+"""Add the game development case study and update shared path labels."""
 
 from modeling_api.db.client import db
 from modeling_api.db.migrations import require_completed, run_migration
@@ -10,7 +10,7 @@ from modeling_api.schemas.surveys import Definition
 from modeling_api.schemas.tasks import Task, TaskVersion
 from modeling_api.services.learning_path_store import step_document
 
-MIGRATION_ID = "18_graphical_modeling_labels"
+MIGRATION_ID = "18_game_development"
 PREREQUISITE = "17_help_feedback_quotas"
 
 
@@ -119,20 +119,20 @@ async def prepare_game_development(path, now):
         (db.model_versions, solution_version["id"], solution_version_fields, {}),
         (db.models, solution["id"], solution_fields, {"updatedAt": now}),
     ]
-    for survey in (resource["completionSurvey"], resource["weeklySurvey"]):
-        definition = Definition.model_validate(survey["definition"]).model_dump(exclude_none=True)
-        documents.extend([
-            (db.survey_versions, survey["versionId"], {
-                "surveyId": survey["id"], "version": survey["version"], "title": survey["title"],
-                "definition": definition, "kind": "release", "createdBy": "", "releasedBy": "",
-            }, {"releasedAt": now}),
-            (db.surveys, survey["id"], {
-                "title": survey["title"], "definition": definition, "version": survey["version"],
-                "latestVersionId": survey["versionId"], "latestKind": "release",
-                "activeReleaseId": survey["versionId"], "activeReleaseVersion": survey["version"],
-                "revision": 1, "schemaVersion": 2, "deletedAt": None, "createdBy": "", "updatedBy": "",
-            }, {"updatedAt": now}),
-        ])
+    survey = resource["weeklySurvey"]
+    definition = Definition.model_validate(survey["definition"]).model_dump(exclude_none=True)
+    documents.extend([
+        (db.survey_versions, survey["versionId"], {
+            "surveyId": survey["id"], "version": survey["version"], "title": survey["title"],
+            "definition": definition, "kind": "release", "createdBy": "", "releasedBy": "",
+        }, {"releasedAt": now}),
+        (db.surveys, survey["id"], {
+            "title": survey["title"], "definition": definition, "version": survey["version"],
+            "latestVersionId": survey["versionId"], "latestKind": "release",
+            "activeReleaseId": survey["versionId"], "activeReleaseVersion": survey["version"],
+            "revision": 1, "schemaVersion": 2, "deletedAt": None, "createdBy": "", "updatedBy": "",
+        }, {"updatedAt": now}),
+    ])
     documents.extend([
         (db.task_version, version["id"], version_fields, {}),
         (db.task, task["id"], task_fields, {}),
@@ -141,7 +141,7 @@ async def prepare_game_development(path, now):
     if (len(steps) != 2 or steps[0].type != "task" or steps[1].type != "survey"
             or str(steps[0].task_version.task_id) != task["id"]
             or str(steps[0].task_version.version_id) != version["id"]
-            or str(steps[0].after_survey_id) != resource["completionSurvey"]["id"]
+            or steps[0].after_survey_id is not None
             or str(steps[1].survey_id) != resource["weeklySurvey"]["id"]):
         raise RuntimeError("Invalid game development station references.")
     if steps[0].minimum_score_percent is not None and not version["data"].get("sampleSolutions"):
