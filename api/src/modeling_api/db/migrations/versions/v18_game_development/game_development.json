@@ -77,7 +77,7 @@
     "version": 1,
     "title": "Wochenabschluss 4",
     "definition": {
-      "introduction": "Dieser Wochenabschluss verbindet den Rückblick auf die Aufgabe „Entwicklerstudio“ mit der Bewertung der Studienteilnahme. Bitte denke bei den Fragen zur Aufgabe an deine Bearbeitung des Entwicklerstudios.",
+      "introduction": "Dieser Wochenabschluss verbindet den Rückblick auf die Aufgabe 'Entwicklerstudio' mit der Bewertung der Studienteilnahme. Bitte denke bei den Fragen zur Aufgabe an deine Bearbeitung des Entwicklerstudios.",
       "showQuestionNumbers": "off",
       "pages": [
         {
@@ -137,7 +137,7 @@
         {
           "name": "feature_pulse",
           "title": "Spontane Zwischenfragen des Piraten",
-          "description": "Während der Modellierungsaufgaben konntest du über den Button „Ich brauche Hilfe“ Schwierigkeiten melden. Außerdem wurden während der Bearbeitung gelegentlich kurze Zwischenfragen durch den Piraten eingeblendet. Für beantwortete Zwischenfragen konntest du Coins erhalten. Für die Teilnahme an der Studie wurden Klausurbonuspunkte angeboten. Wir möchten erfahren, wie du diese Funktionen und den damit verbundenen zusätzlichen Aufwand empfunden hast. Standardskala: 1 Stimme überhaupt nicht zu … 5 Stimme vollständig zu."
+          "description": "Während der Modellierungsaufgaben konntest du über den Button 'Ich brauche Hilfe' Schwierigkeiten melden. Außerdem wurden während der Bearbeitung gelegentlich kurze Zwischenfragen durch den Piraten eingeblendet. Für beantwortete Zwischenfragen konntest du Coins erhalten. Für die Teilnahme an der Studie wurden Klausurbonuspunkte angeboten. Wir möchten erfahren, wie du diese Funktionen und den damit verbundenen zusätzlichen Aufwand empfunden hast. Standardskala: 1 Stimme überhaupt nicht zu … 5 Stimme vollständig zu."
         },
         {
           "name": "feature_incentives",
@@ -154,7 +154,7 @@
           "name": "T1",
           "page": "difficulty",
           "isRequired": true,
-          "title": "Wie schwierig war die Aufgabe „Entwicklerstudio“ für dich?",
+          "title": "Wie schwierig war die Aufgabe 'Entwicklerstudio' für dich?",
           "rateMin": 1,
           "rateMax": 5,
           "minRateDescription": "überhaupt nicht schwierig",
@@ -194,14 +194,13 @@
           "name": "T5",
           "page": "support",
           "isRequired": true,
-          "title": "Welche Unterstützungsquellen hast du während dieser Aufgabe tatsächlich genutzt?",
+          "title": "Welche Unterstützung hast du während der Aufgabe genutzt?",
           "description": "Mehrfachauswahl",
           "choices": [
-            "Keine zusätzliche Unterstützung",
-            "Ich habe selbst verschiedene Lösungen ausprobiert",
+            "Keine, ich habe es allein versucht (z. B. durch Ausprobieren)",
             "Automatische Modellprüfung (Fehlermeldungen am blinkenden Warnsymbol)",
-            "Automatisch erzeugtes Feedback (über „Ich brauche Hilfe“)",
-            "Fortschrittsanzeige der Plattform",
+            "Automatisches Feedback über 'Ich brauche Hilfe'",
+            "Fortschrittsanzeige bei der Abgabe",
             "Bereitgestellte Lehrmaterialien oder Vorlesungsinhalte",
             "Kommilitoninnen oder Kommilitonen",
             "Lehrende oder Tutorinnen und Tutoren",
@@ -210,7 +209,7 @@
             "Sonstiges"
           ],
           "exclusiveChoices": [
-            "Keine zusätzliche Unterstützung"
+            "Keine, ich habe es allein versucht (z. B. durch Ausprobieren)"
           ]
         },
         {
@@ -226,7 +225,7 @@
           "name": "T10_mode",
           "page": "support",
           "isRequired": true,
-          "title": "Auf welche der genutzten Unterstützungsquellen könntest du am ehesten verzichten?",
+          "title": "Könntest du auf eine der genutzten Unterstützungsquellen verzichten?",
           "description": "Wenn du auf mindestens eine Quelle verzichten könntest, kannst du die genutzten Quellen anschließend sortieren. Bei nur einer Quelle ist keine Sortierung nötig.",
           "choices": [
             "rank",
@@ -234,11 +233,11 @@
             "unknown"
           ],
           "choiceLabels": {
-            "rank": "Ich könnte auf mindestens eine der genutzten Unterstützungsquellen verzichten.",
-            "none": "Ich könnte auf keine der genutzten Unterstützungsquellen verzichten.",
-            "unknown": "Kann ich nicht einschätzen."
+            "rank": "Ja, auf mindestens eine",
+            "none": "Nein, auf keine",
+            "unknown": "Kann ich nicht einschätzen"
           },
-          "visibleIf": "{T5} notcontains 'Keine zusätzliche Unterstützung'"
+          "visibleIf": "{T5} notcontains 'Keine, ich habe es allein versucht (z. B. durch Ausprobieren)'"
         },
         {
           "type": "ranking",
@@ -268,9 +267,9 @@
         {
           "type": "radiogroup",
           "name": "F3",
-          "page": "feedback_usage",
+          "page": "support",
           "isRequired": true,
-          "title": "Wie hoch empfandest du den zusätzlichen Aufwand durch die Nutzung des Buttons „Ich brauche Hilfe“?",
+          "title": "Wie hoch empfandest du den zusätzlichen Aufwand durch die Nutzung des Buttons 'Ich brauche Hilfe'?",
           "choices": [
             "1",
             "2",
@@ -292,15 +291,15 @@
           "exampleImages": [
             {
               "src": "/images/surveys/game-development/help-button.png",
-              "alt": "Button „Ich brauche Hilfe“ als Holzschild.",
-              "caption": "Der Button „Ich brauche Hilfe“."
+              "alt": "Button 'Ich brauche Hilfe' als Holzschild.",
+              "caption": "Der Button 'Ich brauche Hilfe'."
             }
           ]
         },
         {
           "name": "N3",
           "page": "feedback_usage",
-          "title": "Welche Arten von automatischem Feedback hast du bei der Aufgabe über „Ich brauche Hilfe“ genutzt?",
+          "title": "Welche Arten von automatischem Feedback hast du bei der Aufgabe über 'Ich brauche Hilfe' genutzt?",
           "isRequired": true,
           "type": "checkbox",
           "choices": [
@@ -381,7 +380,7 @@
             },
             {
               "src": "/images/surveys/game-development/check-highlights.png",
-              "alt": "Als richtig erkannte Elemente des ER-Typs „Versuch“ sind mit grünen Häkchen markiert.",
+              "alt": "Als richtig erkannte Elemente des ER-Typs 'Versuch' sind mit grünen Häkchen markiert.",
               "caption": "Zur Prüfung gehört die Hervorhebung richtig erkannter Elemente im Diagramm."
             }
           ]
@@ -389,7 +388,7 @@
         {
           "name": "PR2",
           "page": "feedback_check",
-          "title": "Brauchst du nach der Prüfung noch weitere Hilfe bei diesem Problem?",
+          "title": "Hättest du nach der Prüfung noch weitere Hilfe bei diesem Problem gebraucht?",
           "isRequired": true,
           "visibleIf": "{N3} contains 'Prüfung / Bestätigung'",
           "type": "radiogroup",
@@ -519,7 +518,7 @@
           "exampleImages": [
             {
               "src": "/images/surveys/game-development/explanation.png",
-              "alt": "Erklärung für „Versuch“ mit Angaben zu Beschriftung, Elementtyp, Attributen und Verbindungen.",
+              "alt": "Erklärung für 'Versuch' mit Angaben zu Beschriftung, Elementtyp, Attributen und Verbindungen.",
               "caption": "Beispiel einer Erklärung aus der Laborverwaltung."
             }
           ]
@@ -527,7 +526,7 @@
         {
           "name": "KL2",
           "page": "feedback_explanation",
-          "title": "Brauchst du nach der Erklärung noch weitere Hilfe bei diesem Problem?",
+          "title": "Hättest du nach der Erklärung noch weitere Hilfe bei diesem Problem gebraucht?",
           "isRequired": true,
           "visibleIf": "{N3} contains 'Erklärung'",
           "type": "radiogroup",
@@ -657,7 +656,7 @@
           "exampleImages": [
             {
               "src": "/images/surveys/game-development/next-step.png",
-              "alt": "Hinweis: Bei „Versuch“ fehlt das Attribut „Bezeichnung“.",
+              "alt": "Hinweis: Bei 'Versuch' fehlt das Attribut 'Bezeichnung'.",
               "caption": "Beispiel eines Hinweises zum nächsten Schritt aus der Laborverwaltung."
             }
           ]
@@ -665,7 +664,7 @@
         {
           "name": "NS2",
           "page": "feedback_next_step",
-          "title": "Brauchst du nach dem Hinweis noch weitere Hilfe bei diesem Problem?",
+          "title": "Hättest du nach dem Hinweis noch weitere Hilfe bei diesem Problem gebraucht?",
           "isRequired": true,
           "visibleIf": "{N3} contains 'Hinweis zum nächsten Schritt'",
           "type": "radiogroup",
@@ -803,7 +802,7 @@
         {
           "name": "BE2",
           "page": "feedback_example",
-          "title": "Brauchst du nach dem Beispiel noch weitere Hilfe bei diesem Problem?",
+          "title": "Hättest du nach dem Beispiel noch weitere Hilfe bei diesem Problem gebraucht?",
           "isRequired": true,
           "visibleIf": "{N3} contains 'Beispiel'",
           "type": "radiogroup",
@@ -933,7 +932,7 @@
           "exampleImages": [
             {
               "src": "/images/surveys/game-development/solution.png",
-              "alt": "Konkreter Korrekturvorschlag für „Versuch“ mit Diagrammausschnitt und Erläuterungen zu Abweichungen.",
+              "alt": "Konkreter Korrekturvorschlag für 'Versuch' mit Diagrammausschnitt und Erläuterungen zu Abweichungen.",
               "caption": "Beispiel eines konkreten Korrekturvorschlags aus der Laborverwaltung."
             }
           ]
@@ -941,7 +940,7 @@
         {
           "name": "LO2",
           "page": "feedback_solution",
-          "title": "Brauchst du nach dem Korrekturvorschlag noch weitere Hilfe bei diesem Problem?",
+          "title": "Hättest du nach dem Korrekturvorschlag noch weitere Hilfe bei diesem Problem gebraucht?",
           "isRequired": true,
           "visibleIf": "{N3} contains 'Konkrete Lösung'",
           "type": "radiogroup",
@@ -1266,7 +1265,7 @@
           "name": "T9",
           "page": "confidence",
           "isRequired": true,
-          "title": "Hättest du die Aufgabe „Entwicklerstudio“ auch ohne die von dir genutzte Unterstützung lösen können?",
+          "title": "Hättest du die Aufgabe 'Entwicklerstudio' auch ohne die von dir genutzte Unterstützung lösen können?",
           "rateMin": 1,
           "rateMax": 5,
           "minRateDescription": "Ja, auf jeden Fall.",
@@ -1405,7 +1404,7 @@
           "name": "F12",
           "page": "feature_overall",
           "isRequired": true,
-          "title": "Insgesamt empfand ich den zusätzlichen Aufwand durch die Studienteilnahme, einschließlich des „Ich brauche Hilfe“-Buttons und der spontanen Zwischenfragen des Piraten, angesichts der angebotenen Klausurbonuspunkte und Coins als angemessen.",
+          "title": "Insgesamt empfand ich den zusätzlichen Aufwand durch die Studienteilnahme, einschließlich des 'Ich brauche Hilfe'-Buttons und der spontanen Zwischenfragen des Piraten, angesichts der angebotenen Klausurbonuspunkte und Coins als angemessen.",
           "choices": [
             "1",
             "2",

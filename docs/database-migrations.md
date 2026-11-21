@@ -283,8 +283,7 @@ remaining support needs and study participation. Each of the five feedback types
 has its own six-question page, shown only when selected in `N3`; “Keines” is
 exclusive. Overall feedback questions use the same usage filter. Help-button
 and pulse usage conditions retain their run-based context. Support-source ranking
-appears on the support page; help-button effort (`F3`) appears on the feedback
-usage page. The general feedback
+and help-button effort (`F3`) appear on the support page. The general feedback
 page follows the five feedback-type pages, before remaining support needs.
 Eight bundled screenshots illustrate the help button, feedback selection and
 each feedback type. The check page pairs its results with highlighted diagram
