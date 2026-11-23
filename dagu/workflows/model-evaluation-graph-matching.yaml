@@ -11,7 +11,7 @@ labels:
   purpose: evaluation
   domain: generic
   visibility: frontend
-  version: v24
+  version: v30
   phase: '6'
 params:
   schema:
@@ -116,6 +116,22 @@ steps:
         EVALUATION_ID: ${evaluation_id}
         REFERENCE_KEY: ${ITEM.key}
         OUTPUT_PREFIX: comparisons
+    parallel:
+      items: ${reference_models}
+      max_concurrent: 1
+
+  - name: export_synonym_signals
+    description: Optional glossary by-product; a failure never affects the evaluation.
+    depends: [match_graphs]
+    continue_on:
+      failure: true
+      mark_success: true
+    action: dag.run
+    with:
+      dag: synonym-signals-pair
+      params:
+        EVALUATION_ID: ${evaluation_id}
+        REFERENCE_KEY: ${ITEM.key}
     parallel:
       items: ${reference_models}
       max_concurrent: 1
@@ -271,7 +287,7 @@ name: synonym-matching-pair
 description: Berechnet semantische Kandidaten für die Abgabe und genau eine Musterlösung.
 tags:
   - visibility=internal
-  - version=v5
+  - version=v9
 # Dagu does not pass its process environment to steps; read the host at load time.
 # Sub-DAGs do not inherit env, so every document declares it.
 env:
@@ -325,7 +341,7 @@ name: one-to-one-graph-matching-pair
 description: Vergleicht die Abgabe vorläufig mit genau einer Musterlösung.
 tags:
   - visibility=internal
-  - version=v14
+  - version=v22
 # Dagu does not pass its process environment to steps; read the host at load time.
 # Sub-DAGs do not inherit env, so every document declares it.
 env:
@@ -375,11 +391,52 @@ steps:
         artifactPath: comparison-result.json
 
 ---
+name: synonym-signals-pair
+description: Exports open-element synonym signals of one reference comparison.
+tags:
+  - visibility=internal
+  - version=v1
+# Dagu does not pass its process environment to steps; read the host at load time.
+# Sub-DAGs do not inherit env, so every document declares it.
+env:
+  - SERVICES_HOST: ${WORKFLOW_SERVICES_HOST}
+artifacts:
+  enabled: true
+params:
+  schema:
+    type: object
+    required: [REFERENCE_KEY, EVALUATION_ID]
+    properties:
+      REFERENCE_KEY:
+        type: string
+      EVALUATION_ID:
+        type: string
+  values:
+    REFERENCE_KEY: ''
+    EVALUATION_ID: ''
+steps:
+  - name: export_signals
+    description: Stores synonym-signals/v1 for one reference as a workflow artifact.
+    stdout:
+      artifact: signals-result.json
+    action: http.request
+    with:
+      method: POST
+      url: http://${env.SERVICES_HOST}:30084/run
+      form:
+        WORKFLOW_EVALUATION_ID: ${EVALUATION_ID}
+        REFERENCE_KEY: ${REFERENCE_KEY}
+        WORKFLOW_INPUT_PATH: comparisons/${REFERENCE_KEY}.json
+        WORKFLOW_OUTPUT_PATH: signals/${REFERENCE_KEY}.json
+      silent: true
+      timeout: 120
+
+---
 name: analytical-feedback-pair
 description: Erzeugt analytische Profile und die kompakte Feedbackprojektion je Musterlösung.
 tags:
   - visibility=internal
-  - version=v16
+  - version=v17
 # Dagu does not pass its process environment to steps; read the host at load time.
 # Sub-DAGs do not inherit env, so every document declares it.
 env:

@@ -1,5 +1,10 @@
 import type { EvaluationDetail } from '@/services/api/types/evaluation'
 
+export const compactSimilarityMethodLabel = (method: string) => ({
+  damerau_canonical: 'Spelling', levenshtein_canonical: 'Spelling', levenshtein: 'Spelling',
+  multilingual_expanded: 'Meaning', multilingual: 'Meaning', jaro_winkler: 'Word form', char_trigram: 'Characters'
+} as Record<string, string>)[method] ?? method
+
 export const analysisCategories = ['nodes', 'attributes', 'connections', 'other'] as const
 export type AnalysisCategory = typeof analysisCategories[number]
 export type ObjectKind = 'modelElement' | 'structuralElement' | 'connection' | 'connectionLabel' | null
@@ -531,9 +536,9 @@ export interface SimilarityMethod { name: string; range: [number, number]; thres
 export interface CandidatePair { referenceId: string; submissionId: string; referenceLabel: string; submissionLabel: string; scores: Record<string, number> | null; unavailableReason: string | null }
 export interface CandidateEvidence { configured: boolean; methods: SimilarityMethod[]; pairs: CandidatePair[] }
 /** Prototype tier names from the workflow preset; unknown names are shown as configured. */
-export const tierLabel = (name: string) => ({ canonical: 'Kanonisch gleich', spelling: 'Schreibweise', meaning: 'Bedeutung' } as Record<string, string>)[name] ?? name
+export const tierLabel = (name: string) => ({ glossary: 'Glossary', canonical: 'Kanonisch gleich', spelling: 'Schreibweise', meaning: 'Bedeutung' } as Record<string, string>)[name] ?? name
 export const similarityMethodLabel = (name: string) => ({ levenshtein: 'Levenshtein', jaro_winkler: 'Jaro-Winkler', char_trigram: 'Zeichen-Trigramme', multilingual: 'Multilinguales Embedding', levenshtein_canonical: 'Levenshtein (kanonische Schreibweise)', damerau_canonical: 'Damerau-Levenshtein (kanonische Schreibweise)', multilingual_expanded: 'Multilinguales Embedding (ausgeschriebene Abkürzungen)' } as Record<string, string>)[name] ?? name
-export const textVetoLabel = (veto: string) => ({ digit_mismatch: 'Ziffern unterscheiden sich', start_mismatch: 'Wortanfang unterscheidet sich, Schreibweise zählt nicht' } as Record<string, string>)[veto] ?? veto
+export const textVetoLabel = (veto: string) => ({ glossary_rejected: 'Rejected in the synonym glossary', digit_mismatch: 'Ziffern unterscheiden sich', start_mismatch: 'Wortanfang unterscheidet sich, Schreibweise zählt nicht' } as Record<string, string>)[veto] ?? veto
 export const unavailableTextLabel =(reason: string | null) => reason === 'missing_text' ? 'Beschriftung fehlt' : reason === 'unsupported_text' ? 'Beschriftungsformat nicht unterstützt' : 'Kein Wert berechnet'
 
 /** Candidate matrix plus the thresholds the matcher actually used; only returned when both artifacts are bound to each other. */

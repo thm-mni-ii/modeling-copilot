@@ -45,7 +45,7 @@ Der Helfer benötigt den lokalen Docker-Socket und ist ausschließlich für die
 Docker-Desktop-/kind-Entwicklung gedacht. Er löscht keine Laufdaten. DAG-Dateien
 sind direkt eingebunden; Service-Code benötigt dagegen den Image-Rollout.
 Versionsregeln stehen in [AGENTS.md](../AGENTS.md). Aktuelles Feedback:
-Serviceversion `4.9.2`, Image `feedback-generation:v39`. Gespeicherte Berichte
+Serviceversion `4.9.3`, Image `feedback-generation:v40`. Gespeicherte Berichte
 bleiben unverändert; die neue Logik gilt bei einer neuen Berechnung.
 
 Grundlage: [Dagu Compose](https://docs.dagu.sh/server-admin/deployment/docker-compose)
@@ -98,13 +98,101 @@ Inventare unter `labels/<modelKey>.json` und semantische Kandidaten unter
 `analysis/<referenceKey>/<analysisKey>.json`. Die Abgabe wird nur einmal vorbereitet.
 Alle benötigten Modell- und Paarabläufe sind intern in derselben Datei eingebettet.
 Dagu registriert ausschließlich `model-evaluation-graph-matching`. Die Workflowversion
-ist `v22` (der interne Analyse-/Feedbackablauf ist `v14`), der Graphvergleich verwendet
-intern `v14`, Synonym Matching `v5`, Parser und Inventar `v2`. Graph Matching verwendet Serviceversion
-`2.7.1`, Analytical Feedback `2.3.0`, Synonym Matching `1.3.1`, Feedback Generation
-`2.2.1`, die übrigen Dienste `1.0.0`. Graphvergleich verwendet
+ist `v30` (der interne Analyse-/Feedbackablauf ist `v17`), der Graphvergleich verwendet
+intern `v22`, Synonym Matching `v9`, der Signalexport `synonym-signals-pair` `v1`, Parser und Inventar `v2`.
+Der interne Ablauf `synonym-signals-model` (`v3`) berechnet fehlende `synonym-signals/v1` aus eingefrorenen Snapshots nach.
+
+Das Synonym-Glossar zeigt zusätzlich die tatsächlich im finalen Nutzerfeedback
+mitgezählten Begriffe. Die Zuordnung stammt aus dem Analyseartefakt und wird nur
+verwendet, wenn dessen Erkennungsübersicht mit dem finalen Feedback übereinstimmt.
+Fehlende historische Artefakte bleiben unbekannt. Bei mehreren Musterlösungen
+wird auch ausgewiesen, ob die betrachtete Lösung die beste Nutzerquote liefert.
+
+Die Spalte „Evidence“ zeigt neben den Textwerten den Grund jeder Entscheidung als Tag
+mit kurzer Hover-Erklärung, weil auch ein hoher Textwert abgelehnt werden kann.
+„Partially recognized“ steht für einen passenden Begriff, dessen übergeordnetes Element
+nicht identifiziert ist. Dieser Status ändert die Lernendenquote nicht. Ein Treffer an
+einem gleichnamigen Element in dessen eigener Struktur erscheint als „Same name elsewhere“.
+Die Regeln stehen unter GM-40 in `docs/graph-matching-workflow/04-GRAPH-MATCHING.md`.
+
+Akzeptierte Synonyme lassen sich mit „Use as matching source“ direkt als weitere
+Vergleichstexte aktivieren. „Manage sources“ zeigt die aktiven Quellen. Es gibt
+keinen Bestätigungsdialog und keine numerischen Quellen- oder Textpaarlimits.
+Die Änderung bleibt durch die Glossarrevision gegen parallele Bearbeitung geschützt.
+Bei Ablehnung, Ignorieren oder Entfernen endet die Quellfreigabe; Imports übernehmen
+sie nicht. Die Leiste zeigt Baseline, zusätzliche Vergleiche und Gesamtzahl mit
+prozentualem Aufschlag und einer von Grün bis Dunkelrot abgestuften Farbe.
+Die Schätzung nutzt die gespeicherten Vergleichsmatrizen der verfügbaren originalen
+Auswertungen; die Abdeckung steht im Tooltip. Fehlen diese, werden Referenztexte
+gezählt. Beides beschreibt Vergleichsmengen, keine Laufzeitprognose.
+
+Neue Läufe frieren `matchingSource: true` und den Ausgangstext `term` im Glossar
+ein. Synonym Matching berechnet für diese Texte zusätzliche Werte gegen die
+zulässigen Abgabetexte. Originalwerte bleiben unverändert;
+`matchingSources` im Kandidatenartefakt führt die zusätzlichen Werte separat.
+Der Graphmatcher prüft die Freigabe gegen den Eingabesnapshot und wählt pro Paar
+die stärkste zulässige Textevidenz, ohne Methoden verschiedener Quellen zu mischen.
+Schwellen, Textschutzregeln und Eindeutigkeit gelten weiterhin. Dies gilt auch für
+eigenen Verbindungstext. Verwendete Quellen stehen als `sourceTerm` in der
+Identitätsevidenz und in der aufklappbaren Glossar-Evidenz. Es gibt keine automatische
+Weiterfreigabe neu gefundener Begriffe und keine rekursive Synonymkette.
+
+„Why suggested?“ erklärt direkt in der Tabelle den Kandidatengrund und die
+verbleibende Unsicherheit. „Learner result“ zeigt mitgezählte Fälle und fehlende
+Ergebnisse getrennt; fehlende Ergebnisse werden nicht als Ablehnung gezählt.
+Die aktuelle Evidenzansicht unterteilt jeden Begriff nach kategorisch gleichen
+aufgezeichneten Vorbedingungen: Parent, Typverträglichkeit, Kinderstruktur und
+Verbindungsendpunkte sowie gegebenenfalls dem eingefrorenen Glossarstand.
+Unterschiedliche gespeicherte Textschwellen bilden ebenfalls getrennte Gruppen.
+Jede Gruppe erhält eigene Fallzahlen, Textwerte, Entscheidungsgründe und Ergebnisse;
+das Ergebnis selbst bestimmt die Gruppe nicht. Fehlender oder nur teilweise
+aufgezeichneter Kontext bleibt von vollständigen Kontextnachweisen getrennt.
+Die Modell-/Tabellenaufteilung ist über eine per Maus und Tastatur bedienbare
+Trennleiste veränderbar. Accept, Reject und Ignore stehen vollständig sichtbar
+untereinander. Die Review-Liste enthält auch bereits mitgezählte Begriffe ohne
+manuelle Glossarentscheidung; im Ergebnis-Tab lassen sich bestehende Entscheidungen
+ebenfalls ändern. Textähnlichkeiten erscheinen direkt als Prozentwerte mit
+aufklappbaren Wortpaaren. Die Werte sind Ähnlichkeitsscores, keine Erfolgswahrscheinlichkeit;
+die Zählquote verwendet ausschließlich verifizierte Fälle. Fehlende Zählentscheidungen
+bleiben separat sichtbar. Alle Angaben sind modellierungssprachenunabhängig.
+„Explain result“ öffnet einen ausgewählten Submission-Fall mit einer kurzen
+Erklärung. Weitere Fälle lassen sich auswählen. Technische Kriterien, Textwerte,
+Schwellen und Alternativen bleiben zunächst eingeklappt. Die API liest historische
+Artefakte bei Auswahl eines Falls; dabei wird keine neue Auswertung gestartet.
+Einzelpaar-Nachweise werden von über alle Alternativen aggregierten Kriterien
+unterschieden. Fehlende Nachweise benennen die betroffene Quelle; gespeicherte
+Synonymvorschläge werden auch ohne lesbare Originalartefakte zugänglich gehalten.
+Bei teilweise ausgewerteten Modellen zählt der gespeicherte Auswertungsstatus des
+konkreten Elements, damit ein ausgewertetes, nicht erkanntes Element nicht pauschal
+als unbekannt erscheint. Vorhandene verifizierte Ergebnisse bleiben erhalten, wenn
+sich die ursprünglichen Detailartefakte später nicht mehr laden lassen.
+
+„Compare full evaluations“ startet den internen Wrapper `evaluation-replay` (`v2`),
+der den vollständigen aktuellen `model-evaluation-graph-matching`-Ablauf auf den
+gespeicherten Abgabeversionen erneut ausführt. Pro Modellversion wird die letzte
+erfolgreiche Nicht-Staff-Auswertung herangezogen. Alle Musterlösungen des Releases
+werden berücksichtigt. Der aktuelle Glossarstand und optionale Textschwellen
+werden bei Vergleichsbeginn eingefroren; ohne eigene Schwellen gelten die aktuellen
+Workflowstandards. Neue Läufe starten beim Statusabruf (höchstens zwei gleichzeitig),
+bereits gestartete Läufe laufen auch nach Schließen der Ansicht zu Ende.
+
+Die Collections `evaluation_replays` und `evaluation_replay_results` sind vollständig
+von den regulären Auswertungen und Synonymvorschlägen getrennt. MongoDB-TTL-Indizes
+löschen beide nach sieben Tagen ab Vergleichsbeginn. Pro Release bleiben höchstens
+drei Vergleiche erhalten; der älteste abgeschlossene wird beim nächsten Start
+entfernt. Abgeschlossene Vergleiche lassen sich zusätzlich manuell löschen.
+Der Wrapper entfernt seinen mit `replay-` gekennzeichneten Arbeitsordner im
+Exit-Handler auch nach einem Laufabbruch. Dagu hält Logs und Artefakte sieben Tage
+vor; manuelles Löschen in der Anwendung entfernt zunächst die Datenbankergebnisse.
+Verwaiste temporäre Arbeitsordner werden beim nächsten Workflow-Data-Aufruf nach
+sieben Tagen entfernt. Reguläre Auswertungsordner werden nicht gelöscht.
+
+Graph Matching verwendet Serviceversion
+`2.10.0`, Analytical Feedback `2.3.0`, Synonym Matching `1.6.0`, Feedback Generation
+`2.2.1`, Workflow-Data `1.3.0`, die übrigen Dienste `1.0.0`. Graphvergleich verwendet
 `reference-comparison/v2`, Analyse/Feedback `/v3`, übrige Artefakte und vollständige
 stdout-Envelopes `/v1`; Matcher-Fakten `1.1`, Identitätsevidenzen `1.1`.
-Image-Tags: Analyse `v12`, Feedback `v11`, Matcher `v14`, Workflow-Data `v6`, Synonym `v5`, Parser und Inventar `v2`.
+Image-Tags: Analyse `v12`, Feedback `v39`, Matcher `v19`, Workflow-Data `v10`, Synonym `v9`, Parser und Inventar `v2`.
 Jede Auswertung verwendet die Evidenzstufen: `workflow-data` friert vor dem Eingabehash
 `graphMatching.textEvidence.tiers` (kanonisch gleich → Schreibvariante → Bedeutung) mit
 `semantics.methods: [damerau_canonical, multilingual_expanded]` in `comparisonConfig` ein.
@@ -194,7 +282,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v6 modeling-copilot/graph-parser:v2 modeling-copilot/model-label-extraction:v2 modeling-copilot/synonym-matching:v5 modeling-copilot/one-to-one-graph-matching:v14 modeling-copilot/analytical-feedback:v12 modeling-copilot/feedback-generation:v39 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v10 modeling-copilot/graph-parser:v2 modeling-copilot/model-label-extraction:v2 modeling-copilot/synonym-matching:v9 modeling-copilot/one-to-one-graph-matching:v22 modeling-copilot/analytical-feedback:v12 modeling-copilot/feedback-generation:v40 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Danach `kubectl apply -f dagu/infra/workflow-services.yaml`; bei geänderten Tags

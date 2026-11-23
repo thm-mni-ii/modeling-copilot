@@ -1,8 +1,9 @@
 """Need-based help feedback for marked submission objects.
 
-Reads only matcher facts, identities and reference hints of the analytical feedback; it never decides
-identity or correctness itself. Each help type has a fixed disclosure level (LEVELS); reference labels
-leave this module only at level "labels".
+Reads matcher facts, identities and reference hints of the analytical feedback; it never decides
+identity or correctness itself. Only help.next_step also reads candidate scores, for a placement guess
+that is never counted. Each help type has a fixed disclosure level (LEVELS); reference labels leave this
+module only at level "labels".
 """
 
 import copy
@@ -73,14 +74,17 @@ class Model:
         self.nodes = {node["id"]: node for node in submission["nodes"]}
         self.reference_nodes = {node["id"]: node for node in reference["nodes"]}
         # Containment (child -> parent) and connection ends (connection -> role -> element) of both graphs.
-        self.parents, self.ends, self.reference_ends = {}, {}, {}
-        for edges, ends, parents in ((submission["edges"], self.ends, self.parents), (reference["edges"], self.reference_ends, None)):
+        self.parents, self.reference_parents, self.ends, self.reference_ends = {}, {}, {}, {}
+        for edges, ends, parents in ((submission["edges"], self.ends, self.parents), (reference["edges"], self.reference_ends, self.reference_parents)):
             for row in edges:
                 if row.get("kind") == "endpoint":  # follows the flow: element -> connection (source), connection -> element (target)
                     connection, element = (row["target"], row["source"]) if row.get("role") == "source" else (row["source"], row["target"])
                     ends.setdefault(connection, {})[row.get("role")] = element
-                elif row.get("kind") == "contains" and parents is not None:
+                elif row.get("kind") == "contains":
                     parents[row["source"]] = row["target"]
+        self.store, self.reference_key = store, reference_key
+        tiers = bundle.get("comparisonConfig", {}).get("graphMatching", {}).get("textEvidence", {}).get("tiers") or [{}]
+        self.strongest_text = tiers[0].get("minimumSimilarity", {})
         self.annotations = {row["target"]["id"]: row for row in analysis["annotations"]}
         self.proven = {row["referenceId"]: sub for sub, row in self.annotations.items()
                        if row.get("referenceId") and row.get("identity", {}).get("status") == "uniquely_supported"}
@@ -533,12 +537,41 @@ def semantic_children(model: Model, cell_id: str) -> list[str]:
     return result
 
 
+def semantic_owner(parents: dict, nodes: dict, identity: str) -> str | None:
+    current = parents.get(identity)
+    while nodes.get(current, {}).get("kind") == "structuralElement":
+        current = parents.get(current)
+    return current if current in nodes else None
+
+
+def likely_owner(model: Model, cell_id: str) -> str | None:
+    """Guess another owner only for a one-off term whose single open counterpart sits under a recognized element."""
+    label = clean(model.nodes[cell_id].get("label") or "").casefold()
+    own = semantic_owner(model.parents, model.nodes, cell_id)
+    if not label or own is None or sum(clean(node.get("label") or "").casefold() == label for node in model.nodes.values()
+                                       if node.get("kind") == "modelElement") != 1:
+        return None
+    counterparts = [row["referenceElementId"] for row in model.store.read(f"candidates/{model.reference_key}.json")["result"]["synonymMatrix"]
+                    for match in row["matches"] if match["submissionElementId"] == cell_id and row["referenceElementId"] not in model.proven
+                    and match.get("scoreStatus") == "scored"
+                    and any(((match.get("scores") or {}).get(method) or 0) >= value for method, value in model.strongest_text.items())]
+    if len(counterparts) != 1:
+        return None
+    target = model.proven.get(semantic_owner(model.reference_parents, model.reference_nodes, counterparts[0]))
+    return target if target != own else None
+
+
 def element_steps(model: Model, cell_id: str):
     """Element itself, in order: assignable label, type, placement, then its nested elements, then their completeness."""
     annotation, name = model.annotations.get(cell_id), model.name(cell_id)
     identity = (annotation or {}).get("identity", {}).get("status")
     if annotation is None or identity is None:
         return  # not evaluated (e.g. structural or out of scope)
+    target = likely_owner(model, cell_id) if identity != "uniquely_supported" else None
+    if target is not None:
+        yield step([cell_id, target], "hierarchy", {"code": "child.likely_elsewhere", "cellId": cell_id, "target": target},
+                   f"{name} gehört vermutlich zu {model.name(target)}. Prüfe, ob du es dorthin verschieben solltest.")
+        return
     if identity == "unresolved" and not annotation.get("referenceId"):
         text = (f"{name} konnte keinem Element der Musterlösung zugeordnet werden. Wähle eine Beschriftung, die näher an der Aufgabe ist, "
                 "oder lösche das Element, wenn du es nicht brauchst." if clean(model.nodes[cell_id].get("label") or "")

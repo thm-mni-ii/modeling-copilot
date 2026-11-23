@@ -348,6 +348,13 @@ zweiter Durchlauf für Substruktur-Kinder semantischer Besitzer, GM-18b Graubere
 Nach Analyse der Nachbarschaft (Forscher stützt Arbeitseinsatz und Projektbeteiligung gleich) würde keine
 allgemeine Bestätigungsregel `arbeitet mit an` auflösen, ohne zugleich Recall zu kosten. Ergebnisse: `08-TESTMODELLE-V15.md`.
 
+**Nachtrag 23.11.2026 · Teilerkennung ohne Identität (Graph-Matcher `2.11.1`, Image `v22`):** Im Glossar
+standen korrekte Begriffe als nicht akzeptiert, wenn gleichnamige Elemente oder ein unerkannter Besitzer die
+Eindeutigkeit verhinderten. Solche Begriffe erscheinen jetzt als `partial` und zählen weiterhin nicht
+(GM-40 in `04-GRAPH-MATCHING.md`). Damit bleibt das Stufenkonzept erhalten: Stufen gelten lexikografisch,
+innerhalb einer Stufe entscheidet die Dominanz über alle gemeinsamen Methoden, und Vetos gelten unverändert.
+Vom Menschen akzeptierte Begriffe bleiben als `identified_glossary` von automatischer Textevidenz getrennt.
+
 ## 9. Grenzen dieser Erprobung
 
 - Schwellen sind auf demselben Goldkorpus gewählt, auf dem gemessen wurde; die Werte sind optimistisch.

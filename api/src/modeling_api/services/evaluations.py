@@ -15,6 +15,7 @@ from modeling_api.db.client import db
 from modeling_api.db.store import Document, insert, list_page, to_api, utcnow
 from modeling_api.services import dagu, languages
 from modeling_api.services.models import get_version, ensure_task_questionnaire_completed
+from modeling_api.services.synonym_glossary import frozen_glossaries
 from modeling_api.services.tasks import ensure_release_reference, get_sample_solution
 
 
@@ -75,6 +76,9 @@ def _run_steps(run: dict[str, Any], workflow: dict[str, Any]) -> list[dict[str, 
                 by_name[str(name)] = raw
     result = []
     for definition in workflow.get("steps", []):
+        # Optional glossary by-product: never part of a run's visible progress or result.
+        if definition["id"] == "export_synonym_signals":
+            continue
         raw = by_name.get(definition["id"], {})
         result.append({
             **definition,
@@ -326,7 +330,12 @@ async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None
                            for version in references]
     evaluation_id = str(uuid4())
     task_snapshot = {**task_ref, "data": task_version["data"], "workspaceLanguages": task_version.get("workspaceLanguages", [])}
-    bundle, parser_models = await _evaluation_input(evaluation_id, task_snapshot, snapshot, reference_snapshots)
+    glossaries = await frozen_glossaries(task_ref["taskId"], [
+        {"key": f"reference_{index}", "modelId": item["modelId"], "versionId": item["versionId"]}
+        for index, item in enumerate(reference_snapshots, start=1)])
+    bundle, parser_models = await _evaluation_input(
+        evaluation_id, task_snapshot, snapshot, reference_snapshots,
+        comparison_config={"graphMatching": {"glossaries": glossaries}} if glossaries else None)
     if feedback_request is not None:
         bundle["feedbackRequest"] = feedback_request
     encoded = base64.b64encode(gzip.compress(json.dumps(bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"), mtime=0)).decode("ascii")
@@ -350,7 +359,7 @@ async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None
             "task": task_ref, "submission": {"modelId": str(model_id), "versionId": str(version_id)},
             "submissionSnapshot": snapshot, "parserModels": parser_models, "dagName": workflow_name, "dagRunId": evaluation_id,
             "startedAt": utcnow(), "state": "unknown", "startStatus": "starting", "workflow": workflow,
-            "parameters": {"textEvidence": text_evidence},
+            "parameters": {"textEvidence": text_evidence}, "glossarySnapshots": glossaries,
             "helpRequestId": str(help_request_id) if help_request_id else None, "feedbackRequest": feedback_request,
         })
     except Exception:

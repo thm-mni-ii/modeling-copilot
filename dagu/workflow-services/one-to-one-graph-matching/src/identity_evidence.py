@@ -1,11 +1,12 @@
 """Explain identity separately from compatibility and structural correctness."""
 
+from collections import Counter
 import unicodedata
 
 from artifacts import _key
 from assignment_capacity import necessary_pairs
 from structural_evidence import analyze_child_owner_evidence, analyze_containment
-from text_similarity import configured_tiers, legacy_thresholds, pair_similarity
+from text_similarity import GLOSSARY_TIER, configured_tiers, legacy_thresholds, pair_similarity, with_glossary, connection_source_similarity
 
 
 METHODS = ("exact_label", "text_similarity", "type_compatibility", "independent_children", "combined_children", "identified_owner", "connection_structure")
@@ -29,7 +30,7 @@ def dependency_pairs(row):
 
 
 def evaluate_identity(indices, candidates, proposals, *, combined=(), connection_pairs=(), connection_candidates=(),
-                      minimum_similarity=None, text_evidence=None, label_conflicts=()):
+                      minimum_similarity=None, text_evidence=None, label_conflicts=(), glossary=None):
     """No new correspondence selection: explain the supplied one-to-one pairs.
 
     Unique means forced among evidence-backed alternatives after independent
@@ -42,7 +43,9 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
         graph_matching["textEvidence"] = text_evidence
     tiers = configured_tiers(candidates, graph_matching)
     thresholds = legacy_thresholds(tiers)
-    similarity = pair_similarity(candidates, tiers) if tiers else {}
+    tiers = with_glossary(tiers, glossary)
+    similarity = pair_similarity(candidates, tiers, glossary) if tiers else {}
+    similarity.update(connection_source_similarity(candidates, tiers, glossary) if tiers else {})
     proposals = list(proposals) + list(connection_pairs)
     selected = {(row["referenceId"], row["studentId"]): row for row in proposals}
     if (len(selected) != len(proposals) or len({r for r, _ in selected}) != len(selected)
@@ -100,7 +103,8 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
                                     if text["tierRank"] is not None else {}),
                                  **({"veto": text["veto"]} if text["veto"] else {})})
                 evidence.append(criterion("text_similarity", SIMILARITY_RESULTS[text["status"]], [ref], [sub],
-                                          scores=text["scores"], **details))
+                                          scores=text["scores"], **details,
+                                          **({"sourceTerm": text["sourceTerm"]} if text.get("sourceTerm") else {})))
             rows[pair] = {"referenceId": ref, "studentId": sub, "status": "unresolved", "criteria": evidence}
 
     element_mapping = {r: s for r, s in selected if indices["reference"].nodes[r]["kind"] == "modelElement"}
@@ -120,6 +124,11 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
             criterion("type_compatibility", "satisfied" if _key(left) == _key(right) else "violated", [pair[0]], [pair[1]]),
             criterion("connection_structure", "satisfied" if source["sameEndpoints"] else "violated", [pair[0]], [pair[1]],
                       dependencies, uniquenessVerified=source["uniquenessVerified"])]}
+        text = similarity.get(pair)
+        if text is not None:
+            rows[pair]["criteria"].append(criterion("text_similarity", "satisfied", [pair[0]], [pair[1]],
+                scores=text["scores"], tier=text["tier"], sourceTerm=text["sourceTerm"],
+                minimumSimilarity=tiers[text["tierRank"]]["minimumSimilarity"]))
 
     def satisfied_pairs(method):
         return {pair for pair, row in rows.items()
@@ -196,4 +205,83 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
         if row["status"] != "uniquely_supported" and positive:
             competitors = {other for other in strong if other != pair and (other[0] == pair[0] or other[1] == pair[1])}
             row["status"] = "unresolved" if pair in strong and competitors else "supported"
-    return {"version": "1.1", "pairs": [rows[pair] for pair in sorted(rows)]}
+    return {"version": "1.1", "pairs": [rows[pair] for pair in sorted(rows)], "decisions": pair_decisions(rows, containment)}
+
+
+def pair_decisions(rows, containment):
+    """Compact verdict per text-relevant pair; `partial` is positive evidence and never an identity (GM-40).
+
+    Partial: the text fits, nothing else competes, and only the unidentified owner keeps it open.
+    """
+    def criterion(row, method):
+        return next((item for item in row["criteria"] if item["method"] == method), {})
+
+    def owners_of(pair):
+        return tuple(containment.get(pair, {}).get(key) for key in ("referenceOwnerId", "studentOwnerId"))
+
+    unique = [pair for pair, row in rows.items() if row["status"] == "uniquely_supported"]
+    by_reference, by_student = dict(unique), {student: reference for reference, student in unique}
+    open_text = {pair for pair, row in rows.items() if pair[0] not in by_reference and pair[1] not in by_student
+                 and criterion(row, "text_similarity").get("result") == "satisfied"}
+
+    def verdict(pair, row, text):
+        if row["status"] == "uniquely_supported":
+            anchors = {item["method"] for item in row["criteria"] if item["role"] == "identity_anchor"}
+            return "identified", ("identified_glossary" if text.get("tier") == GLOSSARY_TIER else
+                                  "identified_owner" if "identified_owner" in anchors else
+                                  "identified_structure" if anchors & {"independent_children", "combined_children", "connection_structure"} else
+                                  "identified_text" if "text_similarity" in anchors else "identified_label")
+        if text.get("result") != "satisfied":
+            return "open", text["veto"]
+        if criterion(row, "label_structure").get("result") == "violated":
+            return "open", "label_structure_conflict"
+        if pair[0] in by_reference or pair[1] in by_student:
+            return "open", "assigned_elsewhere"
+        owner = criterion(row, "identified_owner").get("result")
+        reference_owner, student_owner = owners_of(pair)
+        owner_row = rows.get((reference_owner, student_owner))
+        # Owners must be comparable themselves and must not sit under a parent pair that already contradicts them.
+        if owner == "violated" or owner == "unresolved" and (
+                by_reference.get(reference_owner, student_owner) != student_owner
+                or by_student.get(student_owner, reference_owner) != reference_owner
+                or reference_owner and student_owner and (
+                    owner_row is None or criterion(owner_row, "identified_owner").get("result") == "violated")):
+            return "open", "owner_conflict"
+        if any(other != pair and (other[0] == pair[0] or other[1] == pair[1]) for other in open_text):
+            return "open", "ambiguous_candidates"
+        if owner == "unresolved":
+            return ("partial" if reference_owner and student_owner else "open"), "owner_unresolved"
+        return "open", "no_unique_match"
+
+    decisions = {}
+    for pair, row in sorted(rows.items()):
+        text = criterion(row, "text_similarity")
+        if row["status"] == "uniquely_supported" or text.get("result") == "satisfied" or text.get("veto"):
+            decision, reason = verdict(pair, row, text)
+            decisions[pair] = {"referenceId": pair[0], "studentId": pair[1], "decision": decision, "reason": reason}
+
+    def stronger(pair, other):
+        """Like GM-16: a stronger tier wins, otherwise every shared method must agree; contradictions stay open."""
+        left, right = (criterion(rows[item], "text_similarity") for item in (pair, other))
+        if left.get("tierRank") != right.get("tierRank"):
+            return left.get("tierRank", 0) < right.get("tierRank", 0)
+        shared = left["scores"].keys() & right["scores"].keys()
+        return (bool(shared) and all(left["scores"][name] >= right["scores"][name] for name in shared)
+                and any(left["scores"][name] > right["scores"][name] for name in shared))
+
+    # At least two clean children must favour one owner pair on both sides before it scopes its other children.
+    seeds = Counter(owners_of(pair) for pair, item in decisions.items() if item["decision"] == "partial")
+    scoped = {owners for owners, count in seeds.items() if count >= 2 and all(
+        other_count < count for other, other_count in seeds.items()
+        if other != owners and (other[0] == owners[0] or other[1] == owners[1]))}
+    for pair, item in decisions.items():
+        owners = owners_of(pair)
+        if item["decision"] == "partial" and owners not in scoped and any(
+                other[0] == owners[0] or other[1] == owners[1] for other in scoped):
+            decisions[pair] = {**item, "decision": "open", "reason": "owner_conflict"}
+    contested = [pair for pair, item in decisions.items() if item["reason"] == "ambiguous_candidates" and owners_of(pair) in scoped]
+    for pair in contested:
+        if all(stronger(pair, other) for other in contested
+               if other != pair and owners_of(other) == owners_of(pair) and (other[0] == pair[0] or other[1] == pair[1])):
+            decisions[pair] = {**decisions[pair], "decision": "partial", "reason": "owner_unresolved"}
+    return list(decisions.values())

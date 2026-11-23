@@ -7,10 +7,10 @@ from assignment_capacity import capacity_preserving_proposals
 from decision_diagnostics import record
 from correspondence_state import _neighbors
 from structural_evidence import analyze_containment
-from text_similarity import configured_tiers, legacy_thresholds, pair_similarity
+from text_similarity import configured_tiers, legacy_thresholds, pair_similarity, with_glossary
 
 
-def refine_semantic_proposals(indices, candidates, state, thresholds, *, text_evidence=None):
+def refine_semantic_proposals(indices, candidates, state, thresholds, *, text_evidence=None, glossary=None):
     """Assess candidate evidence and propose only mutually unambiguous pairs.
 
     `thresholds` is the single-tier `minimumSimilarity`; `text_evidence` replaces it with ordered tiers.
@@ -20,12 +20,15 @@ def refine_semantic_proposals(indices, candidates, state, thresholds, *, text_ev
         graph_matching["textEvidence"] = text_evidence
     tiers = configured_tiers(candidates, graph_matching)
     thresholds = legacy_thresholds(tiers)
-    similarity = pair_similarity(candidates, tiers)
+    ranked = with_glossary(tiers, glossary)
+    similarity = pair_similarity(candidates, ranked, glossary)
     events = []
     excluded = {(item["referenceId"], item["studentId"])
                 for field in ("conflictingProposals", "blockedProposals") for item in state[field]}
+    # Owners inferred from their children scope the remaining children just like exact-label owners.
     anchors = [item for item in state["proposals"]
-               if item["reason"] == "unique_exact_label" and not item["dependsOn"]
+               if (item["reason"] == "unique_exact_label" and not item["dependsOn"]
+                   or item["reason"] in ("independent_child_evidence", "combined_child_structure"))
                and (item["referenceId"], item["studentId"]) not in excluded]
     containment = analyze_containment(deepcopy(indices), candidates, anchors)
     owners = {(item["referenceId"], item["studentId"]): item for item in containment}
@@ -66,7 +69,9 @@ def refine_semantic_proposals(indices, candidates, state, thresholds, *, text_ev
         # A stronger tier wins outright; a weaker one never does.
         if competitor_rank is not None and competitor_rank != rank:
             return competitor_rank > rank
-        methods = tiers[rank]["minimumSimilarity"]
+        methods = ranked[rank]["minimumSimilarity"]
+        if not methods:  # glossary tier: no score to compare, two accepted pairs stay a tie unless the owner decides
+            return competitor_rank is None or item_owner > competitor_owner
         if any(name not in item["_scores"] or name not in competitor["_scores"] for name in methods):
             return False
         return (all(item["_scores"][name] >= competitor["_scores"][name] for name in methods)

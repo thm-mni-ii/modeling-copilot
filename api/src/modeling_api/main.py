@@ -25,6 +25,7 @@ from modeling_api.routes import (
     share,
     tasks,
     submissions,
+    synonym_glossary,
     tours,
 )
 
@@ -87,6 +88,7 @@ api.include_router(evaluations.router)
 api.include_router(server_time.router)
 api.include_router(share.router)
 api.include_router(submissions.router)
+api.include_router(synonym_glossary.router)
 app.include_router(api)
 
 

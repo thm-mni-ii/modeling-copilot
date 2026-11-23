@@ -13,6 +13,7 @@ from initial_evaluation import evaluate_initial_coverage, evaluate_type_comparis
 from initial_recognition import evaluate_connections, propose_connections, recognition_metrics
 from initial_structure import evaluate_containment_relations, evaluate_provisional_owners
 from semantic_refinement import refine_semantic_proposals
+from text_similarity import glossary_decisions, validate_matching_sources
 import workflow_io
 from workflow_io import Workspace, workspace, write_output
 
@@ -27,9 +28,11 @@ def run(store: Workspace, reference_key: str | None, *, include_diagnostics=Fals
     graph_matching = bundle["comparisonConfig"].get("graphMatching", {})
     if not isinstance(graph_matching, dict):
         raise ValueError("comparisonConfig.graphMatching must be an object")
+    validate_matching_sources(candidates, graph_matching, reference_key)
+    glossary = glossary_decisions(graph_matching, candidates["pair"]["referenceKey"])
     semantics = refine_semantic_proposals(
         indices, candidates, state, graph_matching.get("minimumSimilarity", {}),
-        text_evidence=graph_matching.get("textEvidence"),
+        text_evidence=graph_matching.get("textEvidence"), glossary=glossary,
     )
     semantic_proposals = semantics["proposals"]
     evaluation["mapping"]["provisionalElements"].extend(
@@ -53,7 +56,7 @@ def run(store: Workspace, reference_key: str | None, *, include_diagnostics=Fals
         "coverage": len(semantic_proposals) / reference_count if reference_count else None,
     }
     evaluation["semanticRefinement"] = semantics
-    connections = propose_connections(indices, evaluation["mapping"]["provisionalElements"], candidates)
+    connections = propose_connections(indices, evaluation["mapping"]["provisionalElements"], candidates, glossary, graph_matching)
     evaluation["mapping"]["provisionalConnections"] = connections["proposals"]
     evaluation["decisionEvents"] = sorted(
         state["decisionEvents"] + semantics["decisionEvents"] + connections["decisionEvents"],
@@ -85,17 +88,18 @@ def run(store: Workspace, reference_key: str | None, *, include_diagnostics=Fals
         connection_pairs=connections["proposals"],
         connection_candidates=connections["candidateEvidence"],
         minimum_similarity=semantics["minimumSimilarity"],
-        text_evidence=semantics.get("textEvidence"),
+        text_evidence=semantics.get("textEvidence"), glossary=glossary,
         label_conflicts={(item["referenceId"], item["studentId"]) for item in state["conflictingProposals"]
                          if item.get("conflictReason") == "label_structure_conflict"},
     )
+    evaluation["pairDecisions"] = evaluation["identityEvidence"].pop("decisions")
     evaluation["propertyFacts"] = evaluate_facts(indices, evaluation, graphs, candidates, {
         side: store.read(candidates["inventoryPaths"][side])["result"] for side in indices
     })
     semantic_configuration = {key: semantics[key] for key in ("configurationStatus", "minimumSimilarity", "textEvidence")
                               if key in semantics}
     diagnostics = {key: value for key, value in evaluation.items() if key not in (
-        "mapping", "propertyFacts", "unresolvedReferenceIds", "unresolvedStudentIds",
+        "mapping", "propertyFacts", "pairDecisions", "unresolvedReferenceIds", "unresolvedStudentIds",
         "unresolvedReferenceConnectionIds", "unresolvedStudentConnectionIds")}
     evaluation = {key: value for key, value in evaluation.items() if key not in diagnostics}
     source_dir = Path(__file__).parent
@@ -105,7 +109,7 @@ def run(store: Workspace, reference_key: str | None, *, include_diagnostics=Fals
     })
     producer = {
         "service": SERVICE,
-        "version": "2.7.1",
+        "version": "2.11.1",
         "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()}),
     }
     incomplete = (candidates["completeness"]["interpretation"] == "partial"

@@ -5,6 +5,7 @@ from copy import deepcopy
 import numpy as np
 
 from .methods.registry import METHOD_REGISTRY, PREPROCESSORS, resolve_methods
+from .term_key import term_key
 
 
 def _language_key(element):
@@ -127,7 +128,46 @@ def _method_metadata(methods, config, method_states):
     return metadata
 
 
-def compare_pair(inventories, config):
+def _matching_sources(entries, inventories):
+    sources = {}
+    known = {item["id"] for item in inventories["reference"]["elements"]}
+    known.update(item["ownerConnectionId"] for item in inventories["reference"].get("connectionTexts", []) if item["kind"] == "self")
+    for entry in entries:
+        if "matchingSource" in entry and type(entry["matchingSource"]) is not bool:
+            raise ValueError("matchingSource must be a boolean")
+        if not entry.get("matchingSource"):
+            continue
+        text, identity = entry.get("term"), entry["referenceElementId"]
+        if (entry["status"] != "accepted" or identity not in known or not isinstance(text, str)
+                or not text.strip() or len(text) > 256 or term_key(text) != entry["termKey"]):
+            raise ValueError("invalid approved matching source")
+        if any(term_key(value) == entry["termKey"] for value in sources.get(identity, [])):
+            raise ValueError("duplicate matching source")
+        sources.setdefault(identity, []).append(text)
+    return {identity: sorted(texts) for identity, texts in sources.items()}
+
+
+def _score_sources(references, submissions, sources, right_texts, methods, preprocessing, method_states, *, connection=False):
+    aliases, originals = [], {}
+    for reference in references:
+        identity = reference["ownerConnectionId"] if connection else reference["id"]
+        for text in sources.get(identity, []):
+            alias_id = f"matching-source-{len(aliases)}"
+            aliases.append({**reference, "id": alias_id, "matchText": text, "labelStatus": "present"})
+            originals[alias_id] = identity, text
+    if not aliases:
+        return {}
+    prepared = {method.name: _valid_text_map(aliases, preprocessing if preprocessing is not None else list(method.preprocessing), "element")
+                for method in methods}
+    scores = _score_group(aliases, submissions, prepared, right_texts, methods, method_states)
+    result = {}
+    for (alias_id, submission_id), values in scores.items():
+        identity, text = originals[alias_id]
+        result.setdefault((identity, submission_id), []).append({"term": text, "termKey": term_key(text), "scores": values})
+    return result
+
+
+def compare_pair(inventories, config, glossary_entries=()):
     methods = resolve_methods(config["methods"])
     preprocessing = config["preprocessing"]
     elements = {
@@ -187,8 +227,16 @@ def compare_pair(inventories, config):
             if key is not None:
                 element_buckets[side].setdefault(key, []).append(element)
 
+    sources = _matching_sources(glossary_entries, inventories)
+    additional_count = sum(len(sources.get(reference["id"], [])) * len(element_buckets["student"].get(key, []))
+                           for key, references in element_buckets["reference"].items() for reference in references)
+    additional_count += sum(len(sources.get(text["ownerConnectionId"], []))
+                            for text in connection_texts["reference"] if text["kind"] == "self") * sum(
+                                text["kind"] == "self" and text["labelStatus"] == "present" for text in connection_texts["student"])
+
     method_states = {}
     element_scores = {}
+    source_scores = {}
     for key, references in element_buckets["reference"].items():
         submissions = element_buckets["student"].get(key, [])
         if not submissions:
@@ -197,6 +245,7 @@ def compare_pair(inventories, config):
             references, submissions, prepared_elements["reference"], prepared_elements["student"],
             methods, method_states,
         ))
+        source_scores.update(_score_sources(references, submissions, sources, prepared_elements["student"], methods, preprocessing, method_states))
 
     eligible = {}
     for key, references in element_buckets["reference"].items():
@@ -234,6 +283,8 @@ def compare_pair(inventories, config):
                     "submissionLabel": student_elements[submission_id]["matchText"],
                     "comparisonBasis": basis,
                     "scoreStatus": "scored", "scores": scores,
+                    **({"matchingSources": source_scores[(reference["id"], submission_id)]}
+                       if (reference["id"], submission_id) in source_scores else {}),
                 })
         matches.sort(key=lambda item: item["submissionElementId"])
         matrix.append({
@@ -251,6 +302,7 @@ def compare_pair(inventories, config):
                 continue
             connection_buckets[side].setdefault(key, []).append(text)
     connection_scores = {}
+    connection_source_scores = {}
     for key, references in connection_buckets["reference"].items():
         submissions = connection_buckets["student"].get(key, [])
         if submissions:
@@ -259,6 +311,9 @@ def compare_pair(inventories, config):
                 prepared_connections["student"],
                 methods, method_states,
             ))
+            if key[0] == "self":
+                connection_source_scores.update(_score_sources(references, submissions, sources, prepared_connections["student"],
+                    methods, preprocessing, method_states, connection=True))
     connection_by_id = {
         side: {text["id"]: text for text in items}
         for side, items in connection_texts.items()
@@ -274,6 +329,8 @@ def compare_pair(inventories, config):
             "kind": connection_by_id["reference"][reference_id]["kind"],
             "connectionLabelId": connection_by_id["reference"][reference_id]["connectionLabelId"],
             "scores": scores,
+            **({"matchingSources": connection_source_scores[(connection_by_id["reference"][reference_id]["ownerConnectionId"], submission_id)]}
+               if (connection_by_id["reference"][reference_id]["ownerConnectionId"], submission_id) in connection_source_scores else {}),
         }
         for (reference_id, submission_id), scores in sorted(connection_scores.items())
     ]
@@ -291,6 +348,7 @@ def compare_pair(inventories, config):
         "candidatePairCount": candidate_count,
         "scoredPairCount": scored_count,
         "unavailablePairCount": unavailable_count,
+        **({"matchingSourcePairCount": additional_count} if sources else {}),
         "methods": _method_metadata(methods, config, method_states),
         "semanticConfig": {
             "methods": list(config["methods"]),

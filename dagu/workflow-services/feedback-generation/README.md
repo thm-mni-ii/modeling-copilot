@@ -35,6 +35,8 @@ Lehrende stellen sie nicht ein.
 | `help.solution` | Beschriftungen | je markiertem Objekt die vollständige Soll-Konstellation: korrekt, vermutlich überflüssig (keine Entsprechung) oder alle Änderungen inkl. Anzahlen und Musterlösungsbeschriftungen, dazu `example` mit dem zugeordneten Element der Musterlösung: Art, Beschriftung, Typname, `xml` (Ein-Schritt-Umgebung als eigenständiges maxGraph-XML aus der Musterlösung: bei Verbindungen beide Endelemente, bei Elementen alles Verschachtelte samt strukturierter Container und alle Verbindungen, deren anderes Ende offen bleibt: schematisch auf der Seite zum verborgenen Element, parallel und gleichmäßig verteilt) und `definition` (Sprachdefinition laut `definition.path`) als Rückfall |
 | `help.catalog` | – | nur Analyseansicht: je Abgabeobjekt die Einträge aller fünf Hilfetypen, als wäre nur dieses Objekt markiert; ohne `context`. Die API fordert ihn bei Läufen von Administrierenden/Moderierenden an und gibt ihn nie an Lernende weiter |
 
+`help.next_step` nennt den Hinweis `child.likely_elsewhere` nur, wenn die Beschriftung in der Abgabe genau einmal vorkommt, genau ein offenes Gegenstück der Musterlösung die Textschwelle erreicht und dessen Besitzer bereits als anderes Abgabeelement erkannt ist. Eine Teilerkennung (`partial`) löst ihn nicht aus, weil ihr Besitzer unbelegt ist.
+
 Hilfetypen außer `help.check` erwarten in `context`: `markedIds` (1–200 Zellen-IDs der Abgabe) und
 optional `previousIssueKeys` (markiert wiederholte Hinweise über `focus.repeated`).
 Jeder Hilfeeintrag enthält zusätzlich `overview` (Gesamterkennung). Alle Texte sind

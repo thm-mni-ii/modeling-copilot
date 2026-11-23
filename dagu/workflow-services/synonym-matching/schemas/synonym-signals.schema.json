@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "synonym-signals/v1 in workflow-result/v1",
+  "type": "object",
+  "required": ["schema", "schemaVersion", "status", "capability", "mode", "summary", "result"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "workflow-result/v1"},
+    "schemaVersion": {"const": 1, "type": "integer"},
+    "status": {"const": "ok"},
+    "capability": {"const": "synonym-signals"},
+    "mode": {"const": "signals"},
+    "summary": {"type": "string"},
+    "result": {
+      "type": "object",
+      "required": ["schema", "evaluationId", "inputHash", "candidateHash", "comparisonHash", "reference", "producer", "glossaryRevision", "termNormalization", "coverage", "signals"],
+      "additionalProperties": false,
+      "properties": {
+        "schema": {"const": "synonym-signals/v1"},
+        "evaluationId": {"type": "string", "minLength": 1},
+        "inputHash": {"$ref": "#/definitions/hash"},
+        "candidateHash": {"$ref": "#/definitions/hash"},
+        "comparisonHash": {"$ref": "#/definitions/hash"},
+        "reference": {
+          "type": "object",
+          "required": ["key", "modelId", "versionId"],
+          "additionalProperties": false,
+          "properties": {"key": {"type": "string"}, "modelId": {"type": "string"}, "versionId": {"type": "string"}}
+        },
+        "producer": {
+          "type": "object",
+          "required": ["service", "version", "resourceHash"],
+          "additionalProperties": false,
+          "properties": {"service": {"const": "synonym-matching"}, "version": {"type": "string"}, "resourceHash": {"$ref": "#/definitions/hash"}}
+        },
+        "glossaryRevision": {"type": "integer", "minimum": 0},
+        "termNormalization": {"const": "nfc-casefold-space-v1"},
+        "coverage": {
+          "type": "object",
+          "required": ["openReferenceElements", "openSubmissionTexts", "signals"],
+          "additionalProperties": false,
+          "properties": {
+            "openReferenceElements": {"type": "integer", "minimum": 0},
+            "openSubmissionTexts": {"type": "integer", "minimum": 0},
+            "signals": {"type": "integer", "minimum": 0}
+          }
+        },
+        "signals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["referenceElementId", "targetKind", "comparisonKey", "term", "termKey", "evidence", "contextBasis", "scores"],
+            "additionalProperties": false,
+            "properties": {
+              "referenceElementId": {"type": "string", "minLength": 1},
+              "targetKind": {"enum": ["element", "connection"]},
+              "comparisonKey": {"type": "string", "minLength": 1},
+              "term": {"type": "string", "minLength": 1},
+              "termKey": {"type": "string", "minLength": 1},
+              "evidence": {"enum": ["context_unique", "context_best", "text_only"]},
+              "contextBasis": {"enum": ["owner", "neighbors", "endpoints", "none"]},
+              "scores": {"type": "object", "additionalProperties": {"type": "number"}}
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

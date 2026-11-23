@@ -153,6 +153,7 @@ async def _purge_model(model_id: str, owner_id: str) -> None:
     await db.feedback.delete_many({"modelId": model_id})
     await db.model_versions.delete_many({"modelId": model_id})
     await db.task_edit_versions.delete_many({"modelId": model_id})
+    await db.synonym_signal_sets.delete_many({"modelId": model_id})
     session_ids = await db.model_activity_sessions.distinct("_id", {"modelId": model_id})
     await db.model_activity_interactions.delete_many({"sessionId": {"$in": session_ids}})
     await db.model_activity_sessions.delete_many({"modelId": model_id})

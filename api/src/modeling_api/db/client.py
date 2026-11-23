@@ -113,6 +113,25 @@ async def create_indexes() -> None:
         [("dagName", ASCENDING), ("dagRunId", ASCENDING)], unique=True
     )
 
+    await db.synonym_glossaries.create_index(
+        [("taskId", ASCENDING), ("referenceModelId", ASCENDING), ("referenceVersionId", ASCENDING)], unique=True
+    )
+    await db.synonym_signal_sets.create_index(
+        [("referenceVersionId", ASCENDING), ("modelVersionId", ASCENDING)], unique=True
+    )
+    await db.synonym_signal_sets.create_index("modelId")
+    await db.synonym_signal_jobs.create_index(
+        [("taskId", ASCENDING), ("taskVersionId", ASCENDING)], unique=True,
+        partialFilterExpression={"state": "running"},
+    )
+    await db.evaluation_replays.create_index(
+        [("taskId", ASCENDING), ("taskVersionId", ASCENDING)], unique=True,
+        partialFilterExpression={"state": "running"},
+    )
+    await db.evaluation_replays.create_index("expiresAt", expireAfterSeconds=0)
+    await db.evaluation_replay_results.create_index("batchId")
+    await db.evaluation_replay_results.create_index("expiresAt", expireAfterSeconds=0)
+
     await db.learning_path_template_steps.create_index("templateId")
     await db.learning_path_help_requests.create_index(
         [("runId", ASCENDING), ("stepId", ASCENDING), ("createdAt", DESCENDING)]

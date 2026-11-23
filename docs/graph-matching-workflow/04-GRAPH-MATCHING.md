@@ -1,6 +1,6 @@
 # 04 · One-to-One Graph Matching
 
-> **Ist-Dokumentation** · Stand: `dagu(6).zip`, 16.11.2026 · Service `one-to-one-graph-matching` · `reference-comparison/v2`  
+> **Ist-Dokumentation** · Stand: `dagu(6).zip`, 16.11.2026; Teilerkennung (GM-40) und Ausgabe ergänzt am 23.11.2026 für Version `2.11.1`, Image `v22` · Service `one-to-one-graph-matching` · `reference-comparison/v2`  
 > **Aufgabe:** Für Abgabe und **eine** Musterlösung aus zulässigen Kandidaten und Graphstruktur eine **partielle 1:1-Korrespondenz** entwickeln, ihre Identitätsevidenz bewerten und **Eigenschaften/Relationen getrennt** prüfen. **Noch keine Note und keine endgültige Korrektheitsaussage über das Gesamtmodell.**
 
 ## Gesamtbild: genau ein Graph-Matching-Aufruf
@@ -118,6 +118,23 @@ Aktivierte minimumSimilarity-Schwellen?
 
 **GM-27 · Evidenzzeitpunkt:** `evaluate_identity()` bewertet die **bereits vorgeschlagenen** Paare und erklärt auch konkurrierende zulässige Paare; es ist **kein vollständig zentraler Korrespondenz-Selektor**. Die Statusbegründung setzt eine nachweisbare 1:1-Zuordnung voraus.
 
+**GM-40 · Teilerkennung und Entscheidungsgrund (`pairDecisions`):** `pair_decisions()` hält für jedes textrelevante Paar fest, wie es ausging: `identified`, `partial` oder `open`, jeweils mit einem Grund. `partial` heißt, dass der Begriff zum Element passt, sein Besitzer aber nicht identifiziert ist. Mapping, Fakten und Erkennungsquote bleiben davon unberührt (GM-39).
+
+Ein Paar wird `partial`, wenn alle vier Bedingungen gelten:
+
+1. Der Text erreicht eine Stufe, kein Veto greift und `label_structure` widerspricht nicht.
+2. Keine der beiden Seiten ist bereits anderswo eindeutig zugeordnet.
+3. Beide Besitzer existieren und sind als Paar zulässig (GM-02). Weder ein identifizierter noch ein übergeordneter Besitzer spricht dagegen, sonst gilt `owner_conflict`.
+4. Kein anderes offenes Textpaar konkurriert um eines der beiden Elemente, sonst gilt `ambiguous_candidates`.
+
+Bei gleichnamigen Elementen in verschiedenen Strukturen lockert sich Bedingung 4 nur, wenn mindestens zwei saubere Kinder auf dasselbe Besitzerpaar zeigen und dieses Paar auf beiden Seiten mehr solche Kinder hat als jedes konkurrierende. Innerhalb des Besitzerpaars setzt sich ein Kind dann wie in GM-16 durch: mit der höheren Stufe oder, bei gleicher Stufe, mit mindestens gleichem Wert in jeder gemeinsamen Methode und einem höheren in einer davon. Widersprechen sich die Methoden, bleibt das Paar offen. Saubere Kinder eines unterlegenen Besitzerpaars erhalten `owner_conflict`.
+
+*Begründung:* Ein Element gehört in seine eigene Struktur, deshalb widerlegt ein gleicher Name in einer anderen Struktur die Zuordnung nicht. Textnähe allein beweist aber keine Identität (GM-02, GM-08). Die Teilerkennung bleibt daher eine eigene Aussage ohne Punkte. Die Mindestzahl von zwei Kindern ist nicht kalibriert: Ein einzelnes generisches Attribut wie `Name` belegt noch keine Elternbeziehung.
+
+*Gründe:* `identified_glossary`, `identified_owner`, `identified_structure`, `identified_text`, `identified_label`, `owner_unresolved`, `ambiguous_candidates`, `owner_conflict`, `assigned_elsewhere`, `label_structure_conflict`, `no_unique_match` sowie die Textvetos `glossary_rejected`, `digit_mismatch` und `start_mismatch`.
+
+*Messung vom 23.11.2026 (35 gespeicherte Abgaben, offline):* Mapping und Fakten blieben in allen Läufen gleich. Es gibt 128 Teiltreffer aus 21 verschiedenen Begriffspaaren. Der zuvor gefundene Fehltreffer `Arbeitseinsatz.EtagenNr. <- Einsatz.WissNr` tritt nicht mehr auf.
+
 ## Ebene G · Faktauswertung (keine neue Identitätswahl)
 
 | Prüffamilie | Was wird verglichen? | Regel für Aussage |
@@ -143,7 +160,8 @@ reference-comparison/v2 (im Normalbetrieb)
   unresolvedReferenceIds[] / unresolvedStudentIds[]
   unresolvedReferenceConnectionIds[] / unresolvedStudentConnectionIds[]
   propertyFacts {version, items[]}
-  semanticConfiguration {configurationStatus, minimumSimilarity}
+  pairDecisions[] {referenceId, studentId, decision, reason}
+  semanticConfiguration {configurationStatus, minimumSimilarity, textEvidence}
   Provenienz, completeness, comparisonHash
 
 nur bei GRAPH_MATCHING_DIAGNOSTICS=1 zusätzlich:
@@ -169,15 +187,17 @@ nur bei GRAPH_MATCHING_DIAGNOSTICS=1 zusätzlich:
 | GM-26–27: Identitätsbewertung | `identity_evidence.py` |
 | GM-28–37: Eigenschafts-, Struktur-, Präsenzfakten | `facts.py` |
 | GM-38–39: Orchestrierung, Projektion, Herkunft | `main.py`, `initial_evaluation.py` |
+| GM-40: Teilerkennung und Entscheidungsgrund | `identity_evidence.py` (`pair_decisions`), Anzeige über `api/.../synonym_outcomes.py` und `GlossaryTermSimilarity.vue` |
 | Workflow-Aufruf | `dagu/workflows/model-evaluation-graph-matching.yaml` · `one-to-one-graph-matching-pair` |
 | Tests | `one-to-one-graph-matching/tests/` |
 
 ## Noch offene fachliche/architektonische Grenzen (nicht als implementiert ausgeben)
 
 1. **Konkurrenzentscheidung:** Ein gemeinsam konflikthafter Vorschlagssatz kann in derselben Komponente noch konfliktunabhängige zulässige Vorschläge verlieren (GM-12).
-2. **Semantische Identität:** Nur Levenshtein ist angebunden; die Schwelle ist noch nicht an einem Gold-Korpus kalibriert, Groß-/Kleinschreibung wird nicht normalisiert, Verbindungstexte nutzen keine Ähnlichkeit.
+2. **Semantische Identität:** Die Textstufen sind angebunden und in `07-KONZEPT-TEXTEVIDENZ-STUFEN.md` beschrieben. Ihre Schwellen wurden auf demselben Goldkorpus gewählt, auf dem sie gemessen wurden; die unabhängige Probe ist klein.
 3. **Zentrale Entscheidung:** Text-/Owner-/Kinder-/Semantik-/Verbindungsphasen sind noch nicht durch eine vollständig gemeinsame, evidenzgetriebene Auswahl ersetzt (GM-27).
 4. **Selektive Semantik:** Der vorgelagerte Synonymdienst liefert weiterhin die **vollständige** zulässige Kandidatenmatrix; keine produktive aggressive Textanker-Trimmung.
 5. **Ressourcen:** Diagnosedaten werden vielfach noch berechnet, auch wenn sie nicht ausgegeben werden.
+6. **Teilerkennung:** Ein `partial`-Paar kann fachlich falsch sein, weil sein Besitzer unbelegt bleibt. Ob Teilerkennung später Punkte geben darf, ist nicht entschieden.
 
 **Änderungsregel:** Zuerst das gewünschte `GM-xx`-Verhalten **mit positivem und adversarialem Gegenbeispiel** spezifizieren, dann den benannten Codepfad ändern. Eine verbesserte Erkennungsquote darf nicht durch falsche 1:1-Identitäten erkauft werden.

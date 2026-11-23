@@ -1,6 +1,6 @@
 # one-to-one-graph-matching
 
-Serviceversion `2.7.1`, Image `v13`, Ausgabeschema `reference-comparison/v2`.
+Serviceversion `2.11.1`, Image `v22`, Ausgabeschema `reference-comparison/v2`.
 Mit konfigurierter `minimumSimilarity` bewertet `text_similarity.py` jedes zulässige
 Paar gegen die Schwelle. `identity_evidence.py` (Version `1.1`) führt daraus das
 Kriterium `text_similarity`; es ist nur dann Identitätsanker, wenn das Paar unter allen
@@ -18,6 +18,9 @@ Die historischen Methodennachweise unten beziehen sich auf ihre jeweiligen Versi
 Regulaer werden ausgewaehlte Zuordnungen, `propertyFacts`, offene Original-IDs,
 Konfiguration und Herkunft gespeichert. Identitaetsfakten nennen zusaetzlich ihre
 Auswertbarkeit. Die vollstaendige kompakte JSON-Ausgabe bleibt auf stdout erhalten.
+`pairDecisions` nennt je textrelevantem Paar `decision` (`identified`, `partial`, `open`)
+und `reason` für die Glossar-Evidenz. `partial` zählt nie als Identität und ändert weder
+Mapping noch Fakten (GM-40 in `docs/graph-matching-workflow/04-GRAPH-MATCHING.md`).
 
 Mit `GRAPH_MATCHING_DIAGNOSTICS=1` werden Kandidatenlisten, `identityEvidence`,
 `decisionEvents`, `semanticRefinement`, Besitzer-/Containment-/Verbindungsdiagnosen

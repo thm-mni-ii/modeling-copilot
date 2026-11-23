@@ -114,6 +114,11 @@ const router = createRouter({
       component: () => import('../views/ViewTaskEditor.vue')
     },
     {
+      path: '/synonym-glossary/:taskId?',
+      name: 'SynonymGlossary',
+      component: () => import('../views/ViewSynonymGlossary.vue')
+    },
+    {
       path: '/collab',
       name: 'Collab',
       component: () => import('@/collab/rooms/ViewCollab.vue')

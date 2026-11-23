@@ -5,7 +5,11 @@ import gzip
 import json
 import math
 import os
+from pathlib import Path
+import re
+import shutil
 import sys
+import time
 from typing import Literal, NotRequired, TypedDict
 
 from workflow_io import INPUT_SCHEMA, VERSION, Workspace, identifier, input_hash, workspace, write_output
@@ -26,6 +30,24 @@ class EvaluationInput(TypedDict):
 # the label-variant gold corpus (precision target), see docs/graph-matching-workflow/07-*.
 TEXT_EVIDENCE_METHODS = ["damerau_canonical", "multilingual_expanded"]
 TEXT_EVIDENCE_DEFAULTS = {"spelling": 0.85, "meaning": 0.85, "meaningFloor": 0.70}
+SERVICE_VERSION = "1.3.0"
+TEMPORARY_ID = re.compile(r"replay-[a-f0-9-]{36}-[0-9]+")
+
+
+def cleanup_temporary(evaluation_id: str | None = None) -> None:
+    """Delete only isolated replay workspaces; expire leftovers after seven days."""
+    root = Path(os.environ.get("WORKFLOW_DATA_ROOT", "/work/evaluations")).resolve()
+    if evaluation_id is not None and not TEMPORARY_ID.fullmatch(evaluation_id):
+        raise ValueError("cleanup requires a temporary replay identifier")
+    targets = [root / evaluation_id] if evaluation_id else list(root.glob("replay-*"))
+    for target in targets:
+        if not TEMPORARY_ID.fullmatch(target.name) or target.is_symlink():
+            continue
+        resolved = target.resolve()
+        if resolved.parent != root:
+            raise ValueError("temporary workspace leaves its configured root")
+        if target.is_dir() and (evaluation_id is not None or time.time() - target.stat().st_mtime > 7 * 86400):
+            shutil.rmtree(resolved)
 
 
 def text_evidence_thresholds(raw: str | None) -> dict:
@@ -66,6 +88,33 @@ def apply_text_evidence(config: dict, raw: str | None) -> dict:
         raise ValueError("text_evidence conflicts with the configured comparison methods")
     return {**config, "graphMatching": {**graph_matching, "textEvidence": expected[0]},
             "semantics": {**semantics, "methods": expected[1]}}
+
+
+def validate_glossaries(config: dict, reference_keys: set[str]) -> None:
+    """Frozen administrator decisions per reference; part of the hashed input."""
+    glossaries = config.get("graphMatching", {}).get("glossaries", {})
+    if not isinstance(glossaries, dict) or not set(glossaries) <= reference_keys:
+        raise ValueError("graphMatching.glossaries must be keyed by reference model")
+    for glossary in glossaries.values():
+        if (not isinstance(glossary, dict) or set(glossary) != {"revision", "termNormalization", "entries"}
+                or type(glossary["revision"]) is not int or glossary["revision"] < 1
+                or glossary["termNormalization"] != "nfc-casefold-space-v1"
+                or not isinstance(glossary["entries"], list) or not glossary["entries"]):
+            raise ValueError("invalid frozen glossary")
+        pairs = set()
+        for entry in glossary["entries"]:
+            if (not isinstance(entry, dict) or not {"referenceElementId", "termKey", "status"} <= set(entry) <= {"referenceElementId", "termKey", "status", "matchingSource", "term"}
+                    or not all(isinstance(entry[key], str) and entry[key] for key in ("referenceElementId", "termKey"))
+                    or entry["status"] not in ("accepted", "rejected")):
+                raise ValueError("invalid frozen glossary entry")
+            if "matchingSource" in entry and type(entry["matchingSource"]) is not bool:
+                raise ValueError("matchingSource must be a boolean")
+            if entry.get("matchingSource"):
+                if entry["status"] != "accepted" or not isinstance(entry.get("term"), str) or not entry["term"].strip() or len(entry["term"]) > 256:
+                    raise ValueError("matching sources require accepted terms")
+            pairs.add((entry["referenceElementId"], entry["termKey"]))
+        if len(pairs) != len(glossary["entries"]):
+            raise ValueError("duplicate frozen glossary entry")
 
 
 def prepare(store: Workspace, bundle: EvaluationInput, text_evidence: str | None = None) -> dict:
@@ -143,6 +192,7 @@ def prepare(store: Workspace, bundle: EvaluationInput, text_evidence: str | None
                                 for model in models if model["source"]["role"] == "reference")
     if reference_versions != sorted((reference["modelId"], reference["versionId"]) for reference in expected_references):
         raise ValueError("reference models do not match the complete task release reference list")
+    validate_glossaries(bundle["comparisonConfig"], set(keys) - {"submission"})
     digest = input_hash(bundle)
     if "inputHash" in bundle and bundle["inputHash"] != digest:
         raise ValueError("input hash does not match the frozen snapshot")
@@ -158,6 +208,11 @@ def prepare(store: Workspace, bundle: EvaluationInput, text_evidence: str | None
 
 def main() -> int:
     try:
+        if os.environ.get("WORKFLOW_INPUT_PATH") == "cleanup-temporary":
+            cleanup_temporary(identifier(os.environ.get("WORKFLOW_EVALUATION_ID")))
+            write_output({"status": "ok", "capability": "temporary-workspace-cleanup", "version": SERVICE_VERSION})
+            return 0
+        cleanup_temporary()
         encoded = os.environ["EVALUATION_INPUT_GZIP_BASE64"]
         bundle = json.loads(gzip.decompress(base64.b64decode(encoded, validate=True)).decode("utf-8"))
         if not isinstance(bundle, dict):

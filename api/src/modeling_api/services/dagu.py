@@ -111,6 +111,11 @@ async def get_run(name: str, run_id: str) -> dict[str, Any]:
     return await _request("GET", f"/dag-runs/{name}/{run_id}")
 
 
+async def find_run(name: str, run_id: str) -> dict[str, Any] | None:
+    """Like get_run, but an unknown run is an answer instead of an error."""
+    return await _request("GET", f"/dag-runs/{name}/{run_id}", allow_missing=True)
+
+
 async def get_run_outputs(name: str, run_id: str) -> dict[str, Any]:
     """Read explicitly published outputs; Dagu transports scalar values as strings."""
     payload = await _request("GET", f"/dag-runs/{name}/{run_id}/outputs")
