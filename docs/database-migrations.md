@@ -27,6 +27,16 @@ add or change their single model selection. Saved text ranges and the help-sourc
 draft are retained. Reopening advances the survey revision so stale action saves
 cannot complete the flow while the marking step is being reopened.
 
+Migration `20_remove_user_profiles` removes every field from `submission_users`
+except `_id`, `firstSeenAt`, `lastSeenAt` and `isStaff`. IDs, permission references
+and application activity remain pseudonymous; names, email addresses and profile
+cache metadata are deleted. Stop older API writers before applying it. The new
+API never persists FBS profiles. Names are fetched per request using a global
+ADMIN's bearer token and the FBS API's authorization; other callers and failed
+lookups receive IDs. The submission CSV no longer includes email addresses.
+Existing backup archives are not modified and may still contain old profiles;
+after restoring an older backup, apply this migration before starting the API.
+
 ## Code organization
 
 ```text

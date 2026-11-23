@@ -260,10 +260,10 @@ async def person_rows(match, include_staff):
         {"$group": {"_id": "$createdBy", "seconds": {"$sum": {"$divide": [{"$subtract": ["$endedAt", "$createdAt"]}, 1000]}}}},
     ])}
     users = db.submission_users.find(
-        {} if include_staff else {"isStaff": {"$ne": True}}, {"name": 1, "fbsName": 1, "lastSeenAt": 1}
+        {} if include_staff else {"isStaff": {"$ne": True}}, {"lastSeenAt": 1}
     )
     return [{
-        "userId": user["_id"], "userName": user.get("fbsName") or user.get("name") or user["_id"],
+        "userId": user["_id"], "userName": user["_id"],
         "lastSeenAt": user.get("lastSeenAt"),
         "models": models.get(user["_id"], {}).get("models", 0), "tasks": models.get(user["_id"], {}).get("tasks", 0),
         "evaluations": counts["evaluations"].get(user["_id"], 0),
@@ -277,6 +277,10 @@ async def platform_persons(period, include_staff, sort_by, sort_desc, skip, limi
     _, match = await scope(period, include_staff)
     rows = await person_rows(match, include_staff)
     field = "userName" if sort_by == "name" else sort_by
+    if field == "userName":
+        names = await resolve_names((row["userId"] for row in rows), user, token)
+        for row in rows:
+            row["userName"] = names[row["userId"]]
 
     def key(row):
         value = row[field]
@@ -289,6 +293,9 @@ async def platform_persons(period, include_staff, sort_by, sort_desc, skip, limi
 
     rows.sort(key=key, reverse=sort_desc)
     page = rows[skip:skip + limit]
-    # Fresh names are resolved for the visible page only.
-    names = await resolve_names((row["userId"] for row in page), user, token)
-    return {"items": [{**row, "userName": names.get(row["userId"], row["userName"])} for row in page], "total": len(rows)}
+    # Resolve only the page unless live names were needed for sorting.
+    if field != "userName":
+        names = await resolve_names((row["userId"] for row in page), user, token)
+        for row in page:
+            row["userName"] = names[row["userId"]]
+    return {"items": page, "total": len(rows)}

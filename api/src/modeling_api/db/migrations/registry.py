@@ -114,4 +114,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v19_initialize_dashboard.migration",
         ("18_game_development",),
     ),
+    Migration(
+        "20_remove_user_profiles",
+        "modeling_api.db.migrations.versions.v20_remove_user_profiles.migration",
+        ("19_initialize_dashboard",),
+    ),
 )
