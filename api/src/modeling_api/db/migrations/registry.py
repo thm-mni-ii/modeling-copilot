@@ -119,4 +119,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v20_remove_user_profiles.migration",
         ("19_initialize_dashboard",),
     ),
+    Migration(
+        "21_task_help_feedback",
+        "modeling_api.db.migrations.versions.v21_task_help_feedback.migration",
+        ("20_remove_user_profiles",),
+    ),
 )

@@ -2,9 +2,10 @@ name: modeling-copilot
 
 services:
   mongo:
-    image: mongo:8.0
+    # Match the application database version used in k3s-portainer.yaml.
+    image: mongo:4.4.29
     ports:
-      # Host access: mongodb://admin:admin@localhost:27017/?authSource=admin
+      # Host access: mongodb://admin:admin@localhost:27222/?authSource=admin
       - "127.0.0.1:27222:27017"
     restart: unless-stopped
     environment:

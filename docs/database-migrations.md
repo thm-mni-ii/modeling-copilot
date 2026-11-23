@@ -275,6 +275,36 @@ source had no tour events, so transfer checks used representative data rather
 than a populated production snapshot. Temporary verification storage was removed;
 the application database was not migrated or modified.
 
+## Task feedback limits (V21)
+
+Migration `21_task_help_feedback` follows `20_remove_user_profiles`. Release
+`v0.2.1` stored `exampleLimit` and `solutionLimit` in a path's `helpRequests`.
+The current schema stores these limits in each task station's `task.helpFeedback`.
+The released migration `17_help_feedback_quotas` is already completed in existing
+databases and cannot perform this transition on a later startup.
+
+V21 copies each legacy limit to every task station of its path, including archived
+stations. Explicit station settings take precedence, including zero and `null`
+(unlimited); other feedback settings are preserved. After all stations of a path
+are updated, only the two legacy fields are removed from its `helpRequests`.
+The path revision advances to invalidate stale editor drafts. Paths without
+legacy fields and survey stations remain unchanged. Help-request snapshots,
+feedback usage and learner progress are not rewritten.
+
+Preview validates all affected settings without writing. Apply rejects concurrent
+changes, resumes partial copies and skips completed runs. Source limits remain on
+the path until its stations are copied. Stop path editors and other path writers
+before applying. This step also runs on restored development databases where
+V18-V20 have already completed; their completion records must not be deleted.
+
+Verification on 2026-11-23 restored a MongoDB 4.4.29 backup with 25,243 documents
+into an isolated instance of the same version, then applied V18-V21 and created
+all API indexes. All four learning-path responses validated after transferring
+the limits to 17 task stations. The local application database was subsequently
+recreated from the same backup and migrated successfully; collection counts
+matched the rehearsal, and readiness passed directly and through the web proxy.
+The production instance and original backup were not modified.
+
 ## Preview
 
 Migration `18_game_development` renames the shared graphical modeling
