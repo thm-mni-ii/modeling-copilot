@@ -19,6 +19,9 @@ class AppModelXmlSerializer extends ModelXmlSerializer {
     // ConnectionConstraint: fehlt in registerModelCodecs() (maxGraph-Bug)
     if (!CodecRegistry.getCodecByName('ConnectionConstraint')) {
       const codec = new ObjectCodec(new ConnectionConstraint(new Point(0, 0), false))
+      // Der Export lässt `perimeter` weg, wenn es der Vorlage gleicht (false). Ohne dies baut das Laden mit dem
+      // Konstruktor, der true setzt (ObjectCodec.js:232 cloneTemplate), und jeder Export danach schreibt perimeter="1".
+      codec.cloneTemplate = () => new ConnectionConstraint(new Point(0, 0), false)
       codec.setName('ConnectionConstraint')
       CodecRegistry.register(codec)
       CodecRegistry.addAlias('mxConnectionConstraint', 'ConnectionConstraint')

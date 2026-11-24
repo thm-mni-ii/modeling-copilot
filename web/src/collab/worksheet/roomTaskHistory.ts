@@ -8,10 +8,8 @@ import { loadTaskEditHistory } from '@/utils/taskEditTimeline'
 import type { CollabKitApi } from '@/collab/kit/collabKitV1'
 import { withMarks, type SharedMark, type SharedMarks } from '@/collab/converters/task/marks'
 import { MARKS_MAP } from '@/collab/converters/task/taskLink'
-import type { TaskHistorySource } from '@/collab/worksheet/sharedTask'
-
-/** States read at once while catching up on the task history. */
-const BATCH = 6
+import { forEachState } from '@/collab/storage/workpiece'
+import type { TaskHistorySource } from './sharedTask'
 
 /** The text as the editor reads it, with the same marks, so offsets count the same way everywhere. */
 export const baseOf = (html: string): JsonObject => {
@@ -37,6 +35,34 @@ const changesBetween = (before: SharedMarks, after: SharedMarks, previous: JsonO
     return [{ kind: !before[id] ? 'create' : !after[id] ? 'remove' : 'update', editId: id, editType, text: textOfEdit(after[id] ? document : previous, id) }]
   })
 
+/** One change of the marks of a room that changed them; notes change the same workpiece. */
+export interface RoomTaskStep {
+  id: string
+  createdAt: string
+  marks: SharedMarks
+}
+
+/** What is read of the task of a room: its steps, and where the next read goes on. */
+export interface TaskRead {
+  steps: RoomTaskStep[]
+  marks: SharedMarks
+  seen: string | null
+}
+
+/** Reads the changes of the marks since the last read. */
+export const readTaskSteps = async (ck: CollabKitApi, workpieceId: string, read: TaskRead): Promise<TaskRead> => {
+  const updates = await ck.workpieces.updates(workpieceId, read.seen ? { since: read.seen } : {})
+  const steps = [...read.steps]
+  let { marks, seen } = read
+  await forEachState(ck, workpieceId, updates, MARKS_MAP, (update, units: ReadonlyMap<string, SharedMark>) => {
+    const next: SharedMarks = Object.fromEntries(units)
+    if (JSON.stringify(next) !== JSON.stringify(marks)) steps.push({ id: update._id, createdAt: update.createdAt, marks: next })
+    marks = next
+    seen = update._id
+  })
+  return { steps, marks, seen }
+}
+
 /**
  * The history of the task of a room, read from the changes of its marks the way the model history is
  * read from the changes of its cells. Notes change the same workpiece, so a change that leaves the
@@ -48,26 +74,22 @@ export const taskHistoryOf = (ck: CollabKitApi, workpieceId: string, base: JsonO
   const steps: Step[] = []
   let marks: SharedMarks = {}
   let document: JsonObject = base
-  let since: string | undefined
+  // What is read of the marks so far; each read goes on after it.
+  let task: TaskRead = { steps: [], marks: {}, seen: null }
   // One read after the other, as two dialogs may ask at once.
   let reading: Promise<void> = Promise.resolve()
   const read = () => {
     reading = reading
       .catch(() => undefined)
       .then(async () => {
-        const updates = await ck.workpieces.updates(workpieceId, since ? { since } : {})
-        for (let start = 0; start < updates.length; start += BATCH) {
-          const batch = updates.slice(start, start + BATCH)
-          const states = await Promise.all(batch.map((update) => ck.workpieces.unitsAt<SharedMark>(workpieceId, { at: update._id, map: MARKS_MAP })))
-          batch.forEach((update, index) => {
-            since = update._id
-            const next: SharedMarks = Object.fromEntries(states[index].units)
-            const nextDocument = withMarks(base, next)
-            const changes = changesBetween(marks, next, document, nextDocument)
-            if (changes.length) steps.push({ info: { id: update._id, revision: steps.length + 1, createdAt: update.createdAt, savedAt: update.createdAt, changes }, document: nextDocument })
-            marks = next
-            document = nextDocument
-          })
+        const known = task.steps.length
+        task = await readTaskSteps(ck, workpieceId, task)
+        for (const { id, createdAt, marks: next } of task.steps.slice(known)) {
+          const nextDocument = withMarks(base, next)
+          const changes = changesBetween(marks, next, document, nextDocument)
+          if (changes.length) steps.push({ info: { id, revision: steps.length + 1, createdAt, savedAt: createdAt, changes }, document: nextDocument })
+          marks = next
+          document = nextDocument
         }
       })
     return reading

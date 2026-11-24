@@ -10,7 +10,7 @@ import time
 import jwt
 
 from modeling_api.core.config import settings
-from modeling_api.core.errors import ApiError
+from modeling_api.services.collab_kit.errors import sharing_disabled
 
 # CK accepts service tokens at most 10 minutes ahead.
 LIFETIME_SECONDS = 300
@@ -36,7 +36,7 @@ def _mint() -> tuple[str, int]:
         and settings.service_actor
         and settings.service_private_key
     ):
-        raise ApiError(503, "SHARING_DISABLED", "Sharing is not configured on this server.")
+        raise sharing_disabled()
     issued_at = _now()
     expires_at = issued_at + LIFETIME_SECONDS
     token = jwt.encode(

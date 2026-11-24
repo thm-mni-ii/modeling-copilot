@@ -8,15 +8,12 @@ from typing import Any
 
 from modeling_api.core.errors import ApiError, not_found
 from modeling_api.services import models
-from modeling_api.services.collab_kit import client, store
+from modeling_api.services.collab_kit import archive, client, store
+from modeling_api.services.collab_kit.errors import link_closed, not_sharing
+from modeling_api.services.collab_kit.workpieces import create_model_workpiece
 
 # The host may do everything in the room.
 HOST_RIGHTS = ["see", "speak", "edit", "plan", "decide", "manage"]
-
-
-# The workpiece of the shared task and the map of its marks, as the web reads them.
-TASK_FORMAT = "copilot-task"
-MARKS_MAP = "marks"
 
 # What goes back to the visitors on reopening; the backend restores nothing more.
 RESTORABLE = ["see", "speak", "edit"]
@@ -50,7 +47,7 @@ async def join(user_id: str, room_id: str) -> tuple[str, str, str]:
     """
     current = await store.read(room_id)
     if not current["open"] or not current["workpieceId"]:
-        raise ApiError(403, "SHARE_CLOSED", "The host is not sharing in this room.")
+        raise not_sharing(403)
     hosts = await client.get_group(current["groups"][store.HOSTS])
     visitors = await client.get_group(current["groups"][store.VISITORS])
     if user_id in hosts["members"]:
@@ -58,7 +55,7 @@ async def join(user_id: str, room_id: str) -> tuple[str, str, str]:
     if user_id in visitors["members"]:
         return current["workpieceId"], "visitor", current["hostId"]
     if not current["joinable"]:
-        raise ApiError(403, "SHARE_CLOSED", "The host has closed the link for new visitors.")
+        raise link_closed()
     await client.add_member(visitors["_id"], user_id)
     return current["workpieceId"], "visitor", current["hostId"]
 
@@ -74,13 +71,13 @@ async def leave(user_id: str, room_id: str) -> None:
     except ApiError as error:
         if error.status != 404:
             raise
-        # Ohne Raum ist die Arbeitskopie erst recht verwaist.
+        # Without a room the working copy is orphaned all the more.
         await models.delete_room_models(room_id, user_id)
         return
     visitors = await client.get_group(current["groups"][store.VISITORS])
     if user_id in visitors["members"]:
         await client.remove_member(visitors["_id"], user_id)
-    # Die Arbeitskopie des Hosts geht erst mit `close`.
+    # The working copy of the host goes only with `close`.
     if user_id != current["hostId"]:
         await models.delete_room_models(room_id, user_id)
 
@@ -103,14 +100,8 @@ async def share(
     Returns the room, the workpiece and whether it was newly created. If the host is already
     sharing, everything stays as it is, including the rights they have changed in the room since.
     """
-    try:
-        current = await store.find_by_owner(host_id)
-    except ApiError as error:
-        # A half-created room (aborted while creating) is skipped and left as it is.
-        if error.status not in (404, 409):
-            raise
-        current = None
-    current = current or await _create_room(host_id, name)
+    # A half-created room (aborted while creating) is already skipped in find_by_owner.
+    current = await store.find_by_owner(host_id) or await _create_room(host_id, name)
     room_id = current["roomId"]
 
     if current["open"] and current["workpieceId"]:
@@ -119,60 +110,28 @@ async def share(
     await client.set_grant(
         current["groups"][store.VISITORS], visitor_rights(edit, comment), room_id, anonymous
     )
-    task_workpiece_id = None
-    if task is not None:
-        # The task first, because the contract of the model cannot be changed once created.
-        task_workpiece = await client.create_workpiece(
-            {
-                "name": f"{name} – Task",
-                "roomId": room_id,
-                "contract": {"tool": "modeling-copilot", "format": TASK_FORMAT, "version": 1, "taskVersion": task["taskVersion"]},
-                "units": [{"path": [MARKS_MAP]}],
-            }
-        )
-        task_workpiece_id = task_workpiece["_id"]
-        ck_task = await client.create_task(
-            {
-                "kind": "assignment",
-                "title": task["title"],
-                "state": "open",
-                "anchor": {"kind": "workpiece", "id": task_workpiece_id},
-                "detail": {
-                    "contentHtml": task["contentHtml"],
-                    "taskVersion": task["taskVersion"],
-                    **({"settings": task["settings"]} if "settings" in task else {}),
-                },
-            }
-        )
-        contract = {**contract, "task": {"workpieceId": task_workpiece_id, "taskId": ck_task["_id"]}}
-    workpiece = await client.create_workpiece(
-        {"name": name, "roomId": room_id, "contract": contract, "units": units}
-    )
-    # Auffangnetz: Kopien früherer Shares dieses Raums, die beim Schließen noch offen waren und liegen blieben.
-    await models.delete_room_models(room_id, keep_workpiece_id=workpiece["_id"])
+    workpiece_id, task_workpiece_id = await create_model_workpiece(room_id, name, contract, units, task)
+    # Safety net: copies of earlier shares of this room that were still open when it closed and were left behind.
+    await models.delete_room_models(room_id, keep_workpiece_id=workpiece_id)
     # A new share starts clean: nothing remembered from a lock before may carry over.
     await store.save(
         room_id,
         open=True,
         joinable=True,
-        workpieceId=workpiece["_id"],
+        workpieceId=workpiece_id,
         taskWorkpieceId=task_workpiece_id,
         before=None,
         autoLocked=False,
     )
-    return room_id, workpiece["_id"], True
-
-
-async def _own_share(host_id: str) -> dict[str, Any]:
-    current = await store.find_by_owner(host_id)
-    if current is None:
-        raise not_found()
-    return current
+    return room_id, workpiece_id, True
 
 
 async def own_share(host_id: str) -> dict[str, Any]:
     """The share of the host as stored; a host who never shared gets a 404."""
-    return await _own_share(host_id)
+    current = await store.find_by_owner(host_id)
+    if current is None:
+        raise not_found()
+    return current
 
 
 def _restored(before: dict[str, Any]) -> list[str]:
@@ -190,7 +149,7 @@ async def set_open(host_id: str, open_: bool, auto: bool = False) -> None:
     Two ends are kept apart: what the host does is orderly and never counts as `auto`; only the sweep
     locks with `auto=True`, because the host is gone, and only such a lock does it open again.
     """
-    current = await _own_share(host_id)
+    current = await own_share(host_id)
     room_id, visitors = current["roomId"], current["groups"][store.VISITORS]
     if not open_:
         # Already locked: what was remembered stays, otherwise the already reduced rights would be in there.
@@ -206,7 +165,7 @@ async def set_open(host_id: str, open_: bool, auto: bool = False) -> None:
         await client.set_grant(visitors, frozen, room_id, before.get("anonymous") is True)
         return
     if not current["workpieceId"]:
-        raise ApiError(409, "SHARE_CLOSED", "The host is not sharing in this room.")
+        raise not_sharing()
     if current["before"] is not None:
         await client.set_grant(
             visitors, _restored(current["before"]), room_id, current["before"].get("anonymous") is True
@@ -216,20 +175,20 @@ async def set_open(host_id: str, open_: bool, auto: bool = False) -> None:
 
 async def set_joinable(host_id: str, joinable: bool) -> None:
     """Closes the link for new visitors or opens it again; whoever is already in stays, rights stay."""
-    current = await _own_share(host_id)
+    current = await own_share(host_id)
     if not current["workpieceId"]:
-        raise ApiError(409, "SHARE_CLOSED", "The host is not sharing in this room.")
+        raise not_sharing()
     await store.save(current["roomId"], joinable=joinable)
 
 
 async def close(host_id: str) -> None:
-    """Ends sharing: visitors out, workpieces out of the room; the room and groups stay.
+    """Ends sharing: visitors out, workpieces out of the room and, if the collab settings say so, into the archive; the room and groups stay.
 
     Every step can be repeated, an aborted call is finished by a new one.
     """
-    current = await _own_share(host_id)
+    current = await own_share(host_id)
     room_id = current["roomId"]
-    # Wer gerade verbunden ist, hat seine Arbeitskopie noch offen; sie geht erst mit seinem `leave`.
+    # Whoever is connected right now still has their working copy open; it goes only with their `leave`.
     try:
         here: set[str] | None = {entry["actorId"] for entry in await client.room_presence(room_id)}
     except ApiError:
@@ -243,10 +202,12 @@ async def close(host_id: str) -> None:
     for workpiece_id in (current["workpieceId"], current["taskWorkpieceId"]):
         if workpiece_id in room["workpieces"]:
             await client.remove_workpiece_from_room(room_id, workpiece_id)
-    # Die Kopie des Hosts geht immer, er hat gespeichert; die der Visitors nur, wenn sie nicht mehr verbunden sind.
-    # Antwortet CK nicht, bleiben die der Visitors stehen, die nächste Share räumt sie auf.
+    # The copy of the host always goes, they have saved; those of the visitors only if they are no longer connected.
+    # If CK does not answer, the visitors' copies stay, and the next share cleans them up.
     if here is None:
         await models.delete_room_models(room_id, host_id)
     else:
         await models.delete_room_models(room_id, except_owners=here - {host_id})
+    # Before forgetting the IDs, so that a repeated call also catches up on archiving.
+    await archive.archive_closed_share([current["workpieceId"], current["taskWorkpieceId"]])
     await store.save(room_id, workpieceId=None, taskWorkpieceId=None, before=None, autoLocked=False)

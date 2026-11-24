@@ -1,9 +1,10 @@
 import { shallowRef } from 'vue'
+import type { Editor } from '@tiptap/core'
 import type { JsonObject, TaskVersionReference } from '@/services/api/types/common'
 import type { TaskEditDocument, TaskEditVersionInfo } from '@/services/api/types/model'
 import type { AutonomyMode } from '@/model/Autonomy'
 
-// Hier und nicht in der Komponente, weil Editor und Sidebar die Task des Raums beide brauchen und beim Teilen neu aufgebaut werden.
+// Here and not in the component, as editor and sidebar both need the task of the room and are rebuilt while sharing.
 
 /** The task edits of the room as the editor shows them; null while no task of a room is shown. */
 export const sharedTaskEdit = shallowRef<TaskEditDocument | null>(null)
@@ -35,3 +36,20 @@ export interface TaskHistorySource {
   restore(document: JsonObject): void
 }
 export const sharedTaskHistory = shallowRef<TaskHistorySource | null>(null)
+
+/** What the floating window of the task needs of a task of a room; null while no task of a room is shown. */
+export interface SharedTaskContent {
+  title: string
+  contentHtml: string
+  /** In a group room the editor of the notes; it moves into the window while that is open. */
+  notes: Editor | null
+  history: TaskEditHistory
+}
+export interface TaskEditHistory {
+  canUndo: boolean
+  canRedo: boolean
+  undo: () => void
+  redo: () => void
+  notes?: { canUndo: boolean; canRedo: boolean; undo: () => void; redo: () => void }
+}
+export const sharedTaskContent = shallowRef<SharedTaskContent | null>(null)
