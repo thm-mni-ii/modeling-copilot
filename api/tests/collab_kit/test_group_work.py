@@ -62,7 +62,7 @@ def ref(number):
 
 def test_each_group_gets_a_room_its_group_and_a_model_per_task(ck, fbs, tasks):
     rooms, groups, grants, workpieces = ck
-    groups_in = [{"name": "Gruppe 01", "usernames": ["malb76", "bobb12"], "names": {"malb76": "Michael Albach", "bobb12": "Bob Bobby"}, "tasks": [ref(1), ref(2)]}]
+    groups_in = [{"name": "Gruppe 01", "usernames": ["malb76", "bobb12"], "tasks": [ref(1), ref(2)]}]
 
     created = asyncio.run(group_work.create(TUTOR, COURSE, groups_in, "token"))
 
@@ -72,8 +72,8 @@ def test_each_group_gets_a_room_its_group_and_a_model_per_task(ck, fbs, tasks):
     assert rooms[room_id]["settings"]["groupWork"]["importedBy"] == "1" and rooms[room_id]["settings"]["groupWork"]["course"] == COURSE
     (group,) = groups.values()
     assert group["members"] == ["2254", "17"]
-    # Die Namen aus der Liste je FBS-ID, bis CK die Personen selbst kennt.
-    assert group["settings"] == {"groupWork": {"roomId": room_id, "names": {"2254": "Michael Albach", "17": "Bob Bobby"}}}
+    # Nur Raumverweis, keine Personennamen.
+    assert group["settings"] == {"groupWork": {"roomId": room_id}}
     assert grants == [{"groupId": group["_id"], "rights": ["see", "speak", "edit"], "anonymous": False, "scope": {"kind": "room", "id": room_id}}]
     # Je Aufgabe wie beim Teilen: Werkstück für Markierungen und Notizen, feste CK-Aufgabe, Modell.
     assert [w["contract"]["format"] for w in workpieces] == [TASK_FORMAT, "copilot-cells", TASK_FORMAT, "copilot-cells"]
