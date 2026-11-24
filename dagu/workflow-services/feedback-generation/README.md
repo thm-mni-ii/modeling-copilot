@@ -1,6 +1,6 @@
 # feedback-generation
 
-Serviceversion `4.9.2`, Image `v39`, Ausgabe `feedback-report/v4` in
+Serviceversion `4.10.0`, Image `v41`, Ausgabe `feedback-report/v4` in
 `workflow-result/v1`.
 
 Der Dienst verlangt `WORKFLOW_EVALUATION_ID`, `REFERENCE_KEY` und
@@ -28,6 +28,7 @@ Lehrende stellen sie nicht ein.
 | Typ | Stufe | Inhalt |
 |---|---|---|
 | `recognition` | – | `recognition` des Analyseartefakts unverändert (Erkennungsübersicht für Auswertung und Aufgabenabschluss) |
+| `hints` | Probe | `labelHints` des Analyseartefakts unverändert: offene, nicht gezählte Zuordnungen mit Abgabebeschriftung, Quellen, Wortteilbeziehung und, solange `showReferenceText` gilt, dem Text der Musterlösung als Vorschlag. Die API fordert den Typ bei jeder Auswertung an; Lernende sehen ihn in der Hinweisansicht und können den Vorschlag übernehmen |
 | `help.clarify` | Diagnose | je markiertem Objekt `identity`, `verdict` und `score` (Vollständigkeit des Objekts in Prozent: Beschriftung erkannt samt Textähnlichkeit, Typ korrekt/abweichend, untergeordnete Elemente und ein-/ausgehende Verbindungen als „vorhanden von erwartet“; bei nicht zuordenbarer Beschriftung ein Hinweis zum Konkretisieren); die UI markiert die Objekte im Diagramm als korrekt, abweichend oder nicht zuordenbar |
 | `help.next_step` | Beschriftungen (nur fehlende Kinder) | genau ein lokaler Hinweis: (1) markiertes Element: Beschriftung zuordenbar (erkannt gen?gt), Typ, Zuordnung, dann vorhandene verschachtelte Elemente einschlie?lich nicht zuordenbarer/?berfl?ssiger Kinder, falsch zugeordnete und fehlende Kinder; strukturelle Container werden ?bersprungen, Verbindungen z?hlen nie als fehlende Kinder. (2) Vorhandene eingehende Verbindungen: Zuordenbarkeit, Endpunkte/Richtung, danach fehlende eingehende Verbindungen. (3) Ebenso ausgehende/ungerichtete Verbindungen. (4) Erst danach die Typen aller angeschlossenen Verbindungen. Keine transitive Pr?fung von Nachbarelementen und keine Aufforderung, benannte Nachbarelemente anzulegen; fehlende Verbindungen werden ohne Musterl?sungsnamen oder Typvorgabe benannt. Verschachtelte Elemente setzen beim Besitzer fort; markierte Verbindungen pr?fen nur sich selbst (Struktur vor Typ). Ohne Befund: kein ?nderungsbedarf an den ?berpr?ften Objekten. |
 | `help.example` | Beschriftungen | Strukturmuster je markiertem Objekt (`pattern.expected`): Ausschnitt der Musterlösung um das Gegenstück mit Nachbarn und deren untergeordneten Elementen; erkannte Elemente unverändert mit der eigenen Bezeichnung, übrige hellgrau, gestrichelt und kursiv als Platzhalter mit ihrem Elementtyp. Im Katalog liegen Muster einmal je Element unter `patterns` |

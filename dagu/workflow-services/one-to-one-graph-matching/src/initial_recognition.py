@@ -10,7 +10,8 @@ from initial_evaluation import _class_key, _language_value, _sort_key, _type_key
 from term_key import term_key
 from text_similarity import configured_tiers, with_glossary, connection_source_similarity
 
-SEMANTIC_REASONS = ("supported_semantic_evidence", "neighbor_confirmed_semantic_evidence")
+# Grey-zone neighbour confirmations are hints since AP-07, never mapped pairs.
+SEMANTIC_REASONS = ("supported_semantic_evidence",)
 
 
 def propose_connections(indices, elements, candidates=None, glossary=None, graph_matching=None):

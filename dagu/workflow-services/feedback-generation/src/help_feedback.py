@@ -10,7 +10,7 @@ import copy
 import re
 from xml.etree import ElementTree
 
-from analysis_contract import content_hash, require
+from analysis_contract import clean_label as clean, content_hash, require
 
 # Fixed per help type: how much of the sample solution the answer may reveal.
 LEVELS = {"help.clarify": "diagnosis", "help.check": "diagnosis", "help.next_step": "labels",
@@ -45,11 +45,6 @@ NEXT_STEPS = {
     "connection": "Schau dir Start, Ziel und Richtung von {name} an.",
     "completeness": "Lies in der Aufgabe nach, was bei {name} noch fehlt.",
 }
-
-
-def clean(label: str) -> str:
-    """Diagram line breaks are layout: a break before a lowercase letter splits a word, others separate words."""
-    return " ".join(re.sub(r"-?\s*\n\s*(?=[a-zäöüß])", "", label).split())
 
 
 def validate_context(context: dict) -> dict:

@@ -9,7 +9,7 @@ from starlette.background import BackgroundTask
 from modeling_api.core.errors import ApiError
 from modeling_api.routes.deps import CurrentUser, Limit, Skip
 from modeling_api.schemas.common import Page
-from modeling_api.schemas.evaluations import Evaluation, EvaluationDetail, EvaluationFeedback, EvaluationWorkflow, StartEvaluation
+from modeling_api.schemas.evaluations import Evaluation, EvaluationDetail, EvaluationFeedback, EvaluationWorkflow, HintEvent, StartEvaluation
 from modeling_api.services import evaluations as service
 from modeling_api.services import evaluation_export
 
@@ -49,6 +49,12 @@ async def get_evaluation(evaluation_id: UUID, user: CurrentUser) -> EvaluationDe
             description="State while running; after a successful run the score and recognition overview only.")
 async def get_feedback(evaluation_id: UUID, user: CurrentUser) -> EvaluationFeedback:
     return EvaluationFeedback.model_validate(await service.feedback(evaluation_id, user))
+
+
+@router.post("/evaluations/{evaluation_id}/hints/{hint_id}/events", status_code=204,
+             summary="Record that a learner saw, accepted or dismissed a hint")
+async def record_hint_event(evaluation_id: UUID, hint_id: str, body: HintEvent, user: CurrentUser) -> None:
+    await service.record_hint_event(evaluation_id, hint_id, body.action, user)
 
 
 @router.get("/evaluations/{evaluation_id}/archive.zip", response_class=StreamingResponse)

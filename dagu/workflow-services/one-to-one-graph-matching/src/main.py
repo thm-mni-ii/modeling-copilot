@@ -5,15 +5,14 @@ from pathlib import Path
 import sys
 
 from artifacts import content_hash, read_artifacts
-from assignment_capacity import analyze_proposal_feasibility
-from correspondence_state import build_provisional_state
 from facts import evaluate_facts
+from hints import derive_hints, hint_config
 from identity_evidence import evaluate_identity
 from initial_evaluation import evaluate_initial_coverage, evaluate_type_comparison
 from initial_recognition import evaluate_connections, propose_connections, recognition_metrics
 from initial_structure import evaluate_containment_relations, evaluate_provisional_owners
-from semantic_refinement import refine_semantic_proposals
-from text_similarity import glossary_decisions, validate_matching_sources
+from resolution import resolve
+from text_similarity import configured_tiers, glossary_decisions, pair_similarity, validate_matching_sources, with_glossary
 import workflow_io
 from workflow_io import Workspace, workspace, write_output
 
@@ -22,33 +21,15 @@ SERVICE = "one-to-one-graph-matching"
 
 def run(store: Workspace, reference_key: str | None, *, include_diagnostics=False) -> dict:
     bundle, graphs, indices, candidates = read_artifacts(store, reference_key)
-    state = build_provisional_state(indices, candidates, graphs=graphs)
-    evaluation = evaluate_initial_coverage(indices, state)
-    evaluation["childOwnerEvidence"] = state["childOwnerEvidence"]
     graph_matching = bundle["comparisonConfig"].get("graphMatching", {})
     if not isinstance(graph_matching, dict):
         raise ValueError("comparisonConfig.graphMatching must be an object")
     validate_matching_sources(candidates, graph_matching, reference_key)
     glossary = glossary_decisions(graph_matching, candidates["pair"]["referenceKey"])
-    semantics = refine_semantic_proposals(
-        indices, candidates, state, graph_matching.get("minimumSimilarity", {}),
-        text_evidence=graph_matching.get("textEvidence"), glossary=glossary,
-    )
+    state, semantics, rounds = resolve(indices, candidates, graphs, graph_matching, glossary)
     semantic_proposals = semantics["proposals"]
-    evaluation["mapping"]["provisionalElements"].extend(
-        {**item, "status": "provisional"} for item in semantic_proposals
-    )
-    evaluation["mapping"]["provisionalElements"].sort(key=lambda item: (item["referenceId"], item["studentId"]))
-    evaluation["unresolvedReferenceIds"] = sorted(
-        set(evaluation["unresolvedReferenceIds"]) - {item["referenceId"] for item in semantic_proposals}
-    )
-    evaluation["unresolvedStudentIds"] = sorted(
-        set(evaluation["unresolvedStudentIds"]) - {item["studentId"] for item in semantic_proposals}
-    )
-    if semantic_proposals:
-        evaluation["proposalFeasibility"] = analyze_proposal_feasibility({
-            **state, "proposals": state["proposals"] + semantic_proposals,
-        })
+    evaluation = evaluate_initial_coverage(indices, state)
+    evaluation["childOwnerEvidence"] = state["childOwnerEvidence"]
     reference_count = evaluation["metrics"]["overall"]["referenceCount"]
     evaluation["metrics"]["semanticProposalCoverage"] = {
         "referenceCount": reference_count,
@@ -93,13 +74,25 @@ def run(store: Workspace, reference_key: str | None, *, include_diagnostics=Fals
                          if item.get("conflictReason") == "label_structure_conflict"},
     )
     evaluation["pairDecisions"] = evaluation["identityEvidence"].pop("decisions")
+    evaluation["decisionRounds"] = rounds
+    tiers = with_glossary(configured_tiers(candidates, {
+        "minimumSimilarity": semantics["minimumSimilarity"],
+        **({"textEvidence": semantics["textEvidence"]} if "textEvidence" in semantics else {})}), glossary)
+    evaluation["hints"] = derive_hints(
+        indices, candidates, evaluation["identityEvidence"]["pairs"],
+        pair_similarity(candidates, tiers, glossary) if tiers else {}, tiers,
+        state["combinedChildEvidence"], hint_config(graph_matching))
+    hinted = {(item["referenceId"], item["studentId"]) for item in evaluation["hints"]["items"]}
+    for row in evaluation["identityEvidence"]["pairs"]:
+        row["zone"] = ("certain" if row["status"] == "uniquely_supported" else
+                       "hint" if (row["referenceId"], row["studentId"]) in hinted else "open")
     evaluation["propertyFacts"] = evaluate_facts(indices, evaluation, graphs, candidates, {
         side: store.read(candidates["inventoryPaths"][side])["result"] for side in indices
     })
     semantic_configuration = {key: semantics[key] for key in ("configurationStatus", "minimumSimilarity", "textEvidence")
                               if key in semantics}
     diagnostics = {key: value for key, value in evaluation.items() if key not in (
-        "mapping", "propertyFacts", "pairDecisions", "unresolvedReferenceIds", "unresolvedStudentIds",
+        "mapping", "propertyFacts", "pairDecisions", "decisionRounds", "hints", "unresolvedReferenceIds", "unresolvedStudentIds",
         "unresolvedReferenceConnectionIds", "unresolvedStudentConnectionIds")}
     evaluation = {key: value for key, value in evaluation.items() if key not in diagnostics}
     source_dir = Path(__file__).parent
@@ -109,7 +102,7 @@ def run(store: Workspace, reference_key: str | None, *, include_diagnostics=Fals
     })
     producer = {
         "service": SERVICE,
-        "version": "2.11.1",
+        "version": "2.12.0",
         "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()}),
     }
     incomplete = (candidates["completeness"]["interpretation"] == "partial"

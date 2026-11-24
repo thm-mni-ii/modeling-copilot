@@ -107,6 +107,8 @@
           <p class="text-caption text-medium-emphasis mb-0">{{ studentResultMessage }}</p>
         </v-alert>
 
+        <!-- Hints are a separate, uncounted view (AP-10); accepting one renames the element in the editor (AP-11). -->
+        <HintsFeedback v-if="!showServiceView && feedback?.state === 'succeeded' && feedback.hints?.length" :evaluation-id="feedback.id" :hints="feedback.hints" :snapshot-xml="feedbackSnapshotXml" :readonly="historical" class="mt-3" />
         <!-- Learners see exactly what the completion check shows: percentages and, in learning paths, the thresholds. -->
         <section v-if="!historical && !showServiceView && feedback?.state === 'succeeded' && !hasCheckFeedback" class="my-3" aria-label="Dein Ergebnis" aria-live="polite">
           <div class="d-flex flex-wrap align-center ga-2 mb-3">
@@ -199,6 +201,7 @@ import JsonResultViewer from './JsonResultViewer.vue'
 import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
 import AnalyticalFeedbackPanel from './AnalyticalFeedbackPanel.vue'
 import FeedbackView from '@/components/feedback/FeedbackView.vue'
+import HintsFeedback from '@/components/feedback/HintsFeedback.vue'
 import FeedbackCatalogPanel from './FeedbackCatalogPanel.vue'
 import { semanticComparisonResult } from '@/utils/semanticComparison'
 import CompletionGateBars from '@/components/learningPaths/CompletionGateBars.vue'

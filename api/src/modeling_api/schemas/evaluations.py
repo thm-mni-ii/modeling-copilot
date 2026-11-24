@@ -32,6 +32,22 @@ class ReferenceRecognition(ApiSchema):
     recognition: JsonObject
 
 
+class LabelHint(ApiSchema):
+    """A positive but insufficient correspondence; the suggestion is the sample-solution text while the probe allows it."""
+
+    id: str
+    submission_id: str
+    submission_label: str = ""
+    suggestion: str | None = None
+    sources: list[str] = Field(default_factory=list)
+    relation: str | None = None
+    state: Literal["new", "shown", "accepted", "dismissed"] = "new"
+
+
+class HintEvent(ApiSchema):
+    action: Literal["shown", "accepted", "dismissed"]
+
+
 class EvaluationFeedback(ApiSchema):
     """Learner-facing result; never carries artifacts, logs or reference-model content."""
 
@@ -43,6 +59,7 @@ class EvaluationFeedback(ApiSchema):
     score_percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
     recognitions: list[ReferenceRecognition] = Field(default_factory=list)
     feedback: list[JsonObject] = Field(default_factory=list, description="Requested feedback entries other than the recognition overview, by type.")
+    hints: list[LabelHint] = Field(default_factory=list, description="Hints of the best recognized sample solution; never counted.")
 
 
 class Evaluation(ApiSchema):

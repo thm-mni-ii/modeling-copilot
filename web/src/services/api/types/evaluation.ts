@@ -11,7 +11,12 @@ export interface EvaluationParameters { textEvidence?: TextEvidenceThresholds | 
 export interface EvaluationDetail extends Evaluation { submissionSnapshot: JsonObject; steps: EvaluationStep[]; finalResult: JsonObject | null; scorePercent: number | null }
 export type EvaluationPage = ApiPage<Evaluation>
 /** Learner-facing result: state, score and recognition overview only. */
-export interface EvaluationFeedback { id: ApiId; startedAt: string; workflowName: string; submission: ModelVersionReference; state: Evaluation['state']; scorePercent: number | null; recognitions: { referenceKey: string; recognition: JsonObject }[]; feedback?: HelpFeedbackEntry[] }
+export interface EvaluationFeedback { id: ApiId; startedAt: string; workflowName: string; submission: ModelVersionReference; state: Evaluation['state']; scorePercent: number | null; recognitions: { referenceKey: string; recognition: JsonObject }[]; feedback?: HelpFeedbackEntry[]; hints?: LabelHint[] }
+export type LabelHintSource = 'text_band' | 'neighbor_profile' | 'child_overlap'
+export type LabelHintRelation = 'notation' | 'reordered' | 'head_form' | 'part_of_term' | 'abbreviation' | 'same_stem'
+export type LabelHintAction = 'shown' | 'accepted' | 'dismissed'
+/** A likely but unproven counterpart; never counted. `suggestion` is the sample-solution text while the probe allows it. */
+export interface LabelHint { id: string; submissionId: string; submissionLabel: string; suggestion: string | null; sources: LabelHintSource[]; relation: LabelHintRelation | null; state: 'new' | LabelHintAction }
 // Learner help feedback produced by feedback-generation (feedback-report/v4); the API passes an allowlisted copy.
 export type HelpFeedbackType = 'help.clarify' | 'help.check' | 'help.next_step' | 'help.example' | 'help.solution'
 export type HelpFeedbackStatus = 'matches' | 'differs' | 'unclear'

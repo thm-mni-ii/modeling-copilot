@@ -1,6 +1,10 @@
 # one-to-one-graph-matching
 
-Serviceversion `2.11.1`, Image `v22`, Ausgabeschema `reference-comparison/v2`.
+Serviceversion `2.12.0`, Image `v23`, Ausgabeschema `reference-comparison/v2`.
+Seit `2.12.0` laufen die Vorschlagsphasen als Fixpunktschleife (`resolution.py`, GM-41), Kinder identifizierter
+Besitzer konkurrieren nur innerhalb des Besitzerpaars (GM-42), und `hints` nennt offene, nicht gezählte
+Paare aus Textband, Nachbarschaftsprofil und Kinderüberlappung (GM-43, Wortteile GM-44). Graubereichspaare
+mit Nachbarbestätigung (GM-18b) sind kein Mapping mehr. Das Image enthält dafür `word_parts.py` aus dem Synonymdienst.
 Mit konfigurierter `minimumSimilarity` bewertet `text_similarity.py` jedes zulässige
 Paar gegen die Schwelle. `identity_evidence.py` (Version `1.1`) führt daraus das
 Kriterium `text_similarity`; es ist nur dann Identitätsanker, wenn das Paar unter allen

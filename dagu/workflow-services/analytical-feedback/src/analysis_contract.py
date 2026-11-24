@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from workflow_io import identifier
 
 
@@ -190,6 +191,35 @@ def recognition_summary(bundle, indices, comparison):
                  for identity, node in sorted(indices["student"].nodes.items()) if identity not in selected and recognition_bucket(bundle, node) is not None]
     return {"basis": "uniquely_supported", "buckets": [{**descriptors[key], **counts(groups[key])} for key in sorted(groups, key=lambda key: (descriptors[key]["label"], key))],
             "overall": counts([identity for ids in groups.values() for identity in ids]), "unmatchedSubmission": unmatched}
+
+
+def clean_label(label: str) -> str:
+    """Diagram line breaks are layout: a break before a lowercase letter splits a word, others separate words."""
+    return " ".join(re.sub(r"-?\s*\n\s*(?=[a-zäöüß])", "", label).split())
+
+
+HINT_SOURCES = ("text_band", "neighbor_profile", "child_overlap")
+HINT_RELATIONS = ("notation", "reordered", "head_form", "part_of_term", "abbreviation", "same_stem", None)
+
+
+def label_hints(bundle, indices, comparison):
+    """Learner hints from the matcher (AP-10); never counted and outside `recognition`.
+
+    The reference text appears only here, and only while the frozen probe switch allows it (P9);
+    everywhere else AF-19 applies unchanged.
+    """
+    show = (bundle["comparisonConfig"].get("graphMatching", {}).get("hints") or {}).get("showReferenceText") is True
+    result = []
+    for item in comparison["hints"]["items"]:
+        reference = indices["reference"].nodes.get(item["referenceId"])
+        submission = indices["student"].nodes.get(item["studentId"])
+        require(reference is not None and submission is not None and submission["kind"] == "modelElement",
+                "hint refers to unknown submission or reference objects")
+        result.append({"id": item["id"], "kind": item["kind"], "submissionId": item["studentId"],
+                       "referenceId": item["referenceId"], "submissionLabel": clean_label(submission.get("label") or ""),
+                       "sources": list(item["sources"]), "relation": (item.get("wordRelation") or {}).get("relation"),
+                       "suggestion": clean_label(reference.get("label") or "") or None if show else None})
+    return result
 
 
 def content_hash(value):
@@ -523,6 +553,14 @@ def validate_current_analysis(report, store=None):
     require(isinstance(report.get("connectionGroups"), list), "missing connection groups")
     for group in report["connectionGroups"]:
         facts_valid(group.get("facts"))
+    hint_ids = set()
+    for hint in report.get("labelHints", []):
+        require(isinstance(hint, dict) and set(hint) == {"id", "kind", "submissionId", "referenceId", "submissionLabel", "sources", "relation", "suggestion"}
+                and hint["kind"] == "label_differs" and hint["id"] not in hint_ids and isinstance(hint["submissionId"], str)
+                and isinstance(hint["sources"], list) and hint["sources"] and set(hint["sources"]) <= set(HINT_SOURCES)
+                and hint["relation"] in HINT_RELATIONS and (hint["suggestion"] is None or isinstance(hint["suggestion"], str)),
+                "invalid label hint")
+        hint_ids.add(hint["id"])
     if store is not None:
         bundle = store.snapshot()
         catalogs = {"submission": {node["id"]: node for node in store.read("graphs/submission.json")["result"]["graph"]["nodes"]},
@@ -565,6 +603,9 @@ def validate_current_analysis(report, store=None):
             from types import SimpleNamespace
             indices = {"reference": SimpleNamespace(nodes=catalogs["reference"]), "student": SimpleNamespace(nodes=catalogs["submission"])}
             require(report["recognition"] == recognition_summary(bundle, indices, comparison), "recognition differs from matcher and reference buckets")
+            require(("labelHints" in report) == ("hints" in comparison)
+                    and report.get("labelHints", []) == (label_hints(bundle, indices, comparison) if "hints" in comparison else []),
+                    "label hints differ from matcher")
         else:
             recognized = recognized_reference_ids(comparison)
             for category, row in report["recognition"]["categories"].items():

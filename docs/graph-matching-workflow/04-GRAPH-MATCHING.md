@@ -1,6 +1,6 @@
 # 04 · One-to-One Graph Matching
 
-> **Ist-Dokumentation** · Stand: `dagu(6).zip`, 16.11.2026; Teilerkennung (GM-40) und Ausgabe ergänzt am 23.11.2026 für Version `2.11.1`, Image `v22` · Service `one-to-one-graph-matching` · `reference-comparison/v2`  
+> **Ist-Dokumentation** · Stand: `dagu(6).zip`, 16.11.2026; Teilerkennung (GM-40) und Ausgabe ergänzt am 23.11.2026; Fixpunktschleife, besitzerbezogene Konkurrenz und Hinweise (GM-41 bis GM-44) am 24.11.2026 für Version `2.12.0`, Image `v23` · Service `one-to-one-graph-matching` · `reference-comparison/v2`  
 > **Aufgabe:** Für Abgabe und **eine** Musterlösung aus zulässigen Kandidaten und Graphstruktur eine **partielle 1:1-Korrespondenz** entwickeln, ihre Identitätsevidenz bewerten und **Eigenschaften/Relationen getrennt** prüfen. **Noch keine Note und keine endgültige Korrektheitsaussage über das Gesamtmodell.**
 
 ## Gesamtbild: genau ein Graph-Matching-Aufruf
@@ -75,7 +75,7 @@ Aktivierte minimumSimilarity-Schwellen?
 | **GM-17 · Strukturbedingung** | Bekannter Ownerkonflikt verhindert den **semantischen Vorschlag**; bei enthaltenen Objekten mit ungeklärter Besitzerlage wird er ebenfalls zurückgestellt. Wurzelobjekte ohne Besitzer können ohne Owneranker vorgeschlagen werden. |
 | **GM-18 · Kapazität** | Semantische Vorschläge durchlaufen dieselbe kapazitätserhaltende Vorschlagsprüfung. |
 | **GM-18a · Kinder semantischer Besitzer** | Zweiter Durchlauf: Substruktur-Kinder eines semantisch vorgeschlagenen Besitzerpaars konkurrieren nur innerhalb dieses Paars (Kandidaten mit anderem Besitzer zählen nicht), mit denselben Stufen und Schwellen und `dependsOn` auf das Besitzerpaar. In der Identität trägt `identified_owner`, wenn der Text innerhalb des eindeutig erkannten Besitzers notwendig ist. Beispiel: `Labor-Raum/RaumNr` ↔ `Laborraum/RaumNr.`. Ein falsch erkannter Besitzer zieht seine Kinder mit (sie fallen mit ihm). |
-| **GM-18b · Graubereich mit Nachbarbestätigung** | Zuordnungsgrund `neighbor_confirmed_semantic_evidence`.  Nur Hauptelemente ohne Substruktur-Besitzer. Liegt ein Score unter der Stufenschwelle, aber über deren `confirmationFloor`, wird das Paar nur vorgeschlagen, wenn bereits zugeordnete Nachbarn es bestätigen und kein Konkurrent mindestens gleich viele Bestätigungen hat; `dependsOn` nennt die bestätigenden Nachbarpaare. Text-Identität bleibt `violated`, das Paar daher höchstens `supported`. Beispiel: `Lab Room` (0,76) über `Ausstattung Labor`; Gegenbeispiel `Scientist` ~ `Laborraum` (0,80) ohne passende Nachbarn. |
+| **GM-18b · Graubereich mit Nachbarbestätigung** | Seit `2.12.0` **kein Mapping mehr**, sondern Hinweis nach GM-43 (Quelle `neighbor_profile`). Bis `2.11.1` wurde ein Graubereichspaar mit Grund `neighbor_confirmed_semantic_evidence` vorgeschlagen; es konnte nie `uniquely_supported` werden, belegte aber Elemente und trug Verbindungen und Fakten. |
 
 **Adapter:** `text_similarity.py` liest die Kandidatenmatrix und klassifiziert jedes zulässige Paar als `supported`, `below_threshold` oder `unavailable`. `semantic_refinement.py` (Vorschläge) und `identity_evidence.py` (Anker) nutzen denselben Adapter.
 
@@ -135,6 +135,22 @@ Bei gleichnamigen Elementen in verschiedenen Strukturen lockert sich Bedingung 4
 
 *Messung vom 23.11.2026 (35 gespeicherte Abgaben, offline):* Mapping und Fakten blieben in allen Läufen gleich. Es gibt 128 Teiltreffer aus 21 verschiedenen Begriffspaaren. Der zuvor gefundene Fehltreffer `Arbeitseinsatz.EtagenNr. <- Einsatz.WissNr` tritt nicht mehr auf.
 
+**GM-41 · Fixpunktschleife (`resolution.py`):** Die Strukturphasen (`residual_exact`, `child_owner`, `combined_children`, `inferred_owner_children` in `correspondence_state.py`) und die semantische Verfeinerung laufen in Runden, bis eine Runde kein neues Paar annimmt. Paare kommen nur hinzu, keines wird zurückgenommen; die Schleife endet daher von selbst. Jedes Paar trägt `round`, das Ergebnis `decisionRounds` (ausgeführte Runden einschließlich der letzten ohne neues Paar). Ein angenommenes Paar reserviert beide Elemente; damit scheiden alle anderen Kandidaten dieser Elemente in der nächsten Runde aus. Semantisch vorgeschlagene Besitzer begrenzen ab der zweiten Runde die Konkurrenz ihrer Kinder wie exakte Besitzer. Neue Paare entstehen nur über `accept_proposals`. Eine Runde ohne neues Paar verändert nichts. *Beispiel:* `Nachname` ↔ `Name` neben dem exakten `Vorname` wird erst gefunden, nachdem der Personenbesitzer in Runde 1 semantisch erkannt wurde.
+
+**GM-42 · Besitzerbezogene Konkurrenz:** Ist der Besitzer eines Kindes eindeutig identifiziert, konkurrieren nur Kandidaten unter dem zugeordneten Besitzer. Innerhalb dieses Bereichs reservieren die Textstufen in ihrer Reihenfolge (wie GM-16): Eine Schreibvariante setzt sich gegen eine Bedeutungsähnlichkeit durch. `pair_decisions` wertet `ambiguous_candidates` bei identifizierten Besitzern ebenfalls nur innerhalb des Besitzerpaars. *Beispiel:* `Bezeichung` (Tippfehler, Stufe Schreibvariante) gegen `Beschreibung` (Stufe Bedeutung) unter demselben Besitzer; *Gegenbeispiel:* gleichnamige Kinder anderer Besitzer zählen weiterhin global, solange ihr Besitzer offen ist.
+
+**GM-43 · Hinweise (`hints.py`):** Ein Hinweis ist positive, nicht hinreichende Evidenz für ein offenes Elementpaar. Er zählt nie, steht nie in `dependsOn`, reserviert nichts und ändert weder Mapping, Fakten noch Erkennung. Er entsteht erst nach `evaluate_identity` aus nur lesenden Eingaben. Jede Identitätszeile erhält `zone` (`certain`, `hint`, `open`). Quellen:
+
+- `text_band`: Score höchstens `textBand` unter einer Stufenschwelle, kein Veto, gleiche Vergleichsgruppe, kein Besitzerkonflikt, einziger Kandidat beider Elemente im Band oder darüber, und mindestens einer dieser Belege: identifizierter Besitzer, bestätigender Nachbar, Wortteilbeziehung (GM-44).
+- `neighbor_profile`: Hauptelemente ohne Substruktur-Besitzer. Sicher erkannte Nachbarpaare verbinden beide Elemente. Mit Graubereichstext reicht ein Nachbar, ohne Text braucht es `minimumNeighbors`. Kein Konkurrent hat gleich viele oder mehr solcher Nachbarn (bei Graubereichstext blockiert ein gleich gestützter Konkurrent nur, wenn er selbst Text im Graubereich oder darüber hat).
+- `child_overlap`: keine geschlossene Komposition, mindestens `minimumChildren` gleiche Kinder, und die Überlappung (gleiche Kinder geteilt durch die Vereinigung beider Kindermengen) ist für beide Elemente strikt die beste.
+
+Widersprechen sich zwei Hinweise in einem Element, entfallen beide (`withdrawnCount`). Alle Parameter stehen eingefroren in `comparisonConfig.graphMatching.hints`; ohne diese Angabe (Eingaben vor Workflow-Data `1.4.0`) gilt `configurationStatus: not_configured` ohne Hinweise.
+
+**GM-44 · Wortteilbeziehung (`synonym_matching/word_parts.py`):** Beschriftungen werden an Nicht-Alphanumerik, Groß-/Kleinwechseln und Ziffern geteilt. Zusammengesetzte Wörter werden nur an Teilen getrennt, die in den beiden verglichenen Modellen selbst vorkommen; es gibt keine Wortliste. Ergebnis ist eine beschreibende Beziehung (`notation`, `reordered`, `head_form`, `part_of_term`, `abbreviation`, `same_stem`), nie ein Score oder eine Zuordnung. *Beispiele:* `Arbeitseinsatz`/`Einsatz` → `head_form`, `GebäudeNr.`/`GNr` → `abbreviation`, `customerId`/`CustomerID` → `notation`; *Gegenbeispiel:* `Ende`/`Dauer` → keine Beziehung.
+
+*Messung vom 24.11.2026 (73 gespeicherte Vergleichspaare, offline gegen `2.11.1`):* Die Fixpunktschleife und die besitzerbezogene Konkurrenz ergeben 13 zusätzliche eindeutige Paare (`EtagenNr.`/`EtagenNr` 6, `Nachname`/`Name` 4, `Bezeichnung`/`Bezeichung` 3), kein verlorenes. Ohne GM-18b als Mapping entfallen 61 Zuordnungen (Elemente und daran hängende Verbindungen); kein Paar verliert `uniquely_supported`. Es entstehen 42 Hinweise auf 3 Begriffspaare (`Arbeitseinsatz`/`Einsatz`, `Forschungsprojekt`/`Projekt`, `Laborausstattung`/`Inventar`), alle nach Einzelprüfung zutreffend; keiner wurde zurückgezogen. Mit und ohne Hinweisberechnung sind Mapping, Fakten und Identitätsstatus identisch. Nur eine Aufgabe und eine Sprache; die Negativfälle aus `08-TESTMODELLE-V15.md` lagen nicht vor.
+
 ## Ebene G · Faktauswertung (keine neue Identitätswahl)
 
 | Prüffamilie | Was wird verglichen? | Regel für Aussage |
@@ -161,6 +177,8 @@ reference-comparison/v2 (im Normalbetrieb)
   unresolvedReferenceConnectionIds[] / unresolvedStudentConnectionIds[]
   propertyFacts {version, items[]}
   pairDecisions[] {referenceId, studentId, decision, reason}
+  decisionRounds
+  hints {configurationStatus, items[] {id, referenceId, studentId, kind, sources, evidence, wordRelation}, withdrawnCount}
   semanticConfiguration {configurationStatus, minimumSimilarity, textEvidence}
   Provenienz, completeness, comparisonHash
 
@@ -182,6 +200,9 @@ nur bei GRAPH_MATCHING_DIAGNOSTICS=1 zusätzlich:
 | GM-04–09: Text-/Strukturvorschläge | `matching.py`, `correspondence_state.py`, `structural_evidence.py` |
 | GM-10–12: globale Paarbarkeit, Kapazität, Konkurrenz | `assignment_capacity.py`, `correspondence_state.py` |
 | GM-14–18: semantische Vorschläge | `semantic_refinement.py` |
+| GM-41: Fixpunktschleife | `resolution.py`, Phasen in `correspondence_state.py` |
+| GM-42: besitzerbezogene Konkurrenz | `identity_evidence.py` (`owner_scoped`, `pair_decisions`) |
+| GM-43–44: Hinweise und Wortteile | `hints.py`, `synonym-matching/src/synonym_matching/word_parts.py`; Parameter in `workflow-data` |
 | GM-19–22, GM-25: Verbindungen | `initial_recognition.py` |
 | GM-23–24: Containment-/Owner-Evidenz | `initial_structure.py`, `structural_evidence.py` |
 | GM-26–27: Identitätsbewertung | `identity_evidence.py` |

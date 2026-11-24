@@ -150,10 +150,18 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
             tier_ref |= {r for r, _ in found}
             tier_sub |= {s for _, s in found}
         # An identified owner scopes its substructure children: text needs to be unique only within that owner.
-        owner_scoped = necessary_pairs({
-            pair for pair in similar_pairs if pair[0] not in used_ref and pair[1] not in used_sub
-            and any(item["method"] == "identified_owner" and item["result"] == "satisfied"
-                    and dependency_pairs(item) and dependency_pairs(item) <= unique for item in rows[pair]["criteria"])})
+        # An owner-satisfied candidate of a child always lies under the mapped owner, so this competition is
+        # owner-scoped by construction; within it, tiers reserve in order as above (AP-04).
+        in_scope = {pair for pair in similar_pairs if pair[0] not in used_ref and pair[1] not in used_sub
+                    and any(item["method"] == "identified_owner" and item["result"] == "satisfied"
+                            and dependency_pairs(item) and dependency_pairs(item) <= unique for item in rows[pair]["criteria"])}
+        owner_scoped, scope_ref, scope_sub = set(), set(), set()
+        for rank in range(len(tiers)):
+            found = necessary_pairs({pair for pair in in_scope if similarity[pair]["tierRank"] <= rank
+                                     and pair[0] not in scope_ref and pair[1] not in scope_sub})
+            owner_scoped |= found
+            scope_ref |= {r for r, _ in found}
+            scope_sub |= {s for _, s in found}
         eligible = {}
         for pair, row in rows.items():
             if pair[0] in used_ref or pair[1] in used_sub:
@@ -247,7 +255,10 @@ def pair_decisions(rows, containment):
                 or reference_owner and student_owner and (
                     owner_row is None or criterion(owner_row, "identified_owner").get("result") == "violated")):
             return "open", "owner_conflict"
-        if any(other != pair and (other[0] == pair[0] or other[1] == pair[1]) for other in open_text):
+        # With identified owners on both sides only candidates of the same owner pair compete (AP-04).
+        scoped = owner == "satisfied" and reference_owner and student_owner
+        if any(other != pair and (other[0] == pair[0] or other[1] == pair[1])
+               and (not scoped or owners_of(other) == (reference_owner, student_owner)) for other in open_text):
             return "open", "ambiguous_candidates"
         if owner == "unresolved":
             return ("partial" if reference_owner and student_owner else "open"), "owner_unresolved"

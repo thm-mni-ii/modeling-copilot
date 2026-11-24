@@ -146,6 +146,14 @@ def recognition_of(report: Document) -> Any:
 
 
 HELP_TYPES = ("help.clarify", "help.check", "help.next_step", "help.example", "help.solution")
+HINT_FIELDS = ("id", "submissionId", "submissionLabel", "suggestion", "sources", "relation")
+HINT_ACTIONS = ("shown", "accepted", "dismissed")
+
+
+def public_hints_entry(entry: Document) -> Document:
+    """Allowlisted learner hints; the reference text is only present while the frozen probe switch allows it."""
+    return {"type": "hints", "hints": [_pick(item, HINT_FIELDS) for item in entry.get("hints", [])
+                                       if isinstance(item, dict) and isinstance(item.get("id"), str)]}
 
 
 def _pick(value: Any, fields: tuple[str, ...]) -> Document:
@@ -205,7 +213,8 @@ def student_step_results(steps: list[Document]) -> list[Document]:
                     item["result"]["recognition"] = overview
                 item["resultSummary"] = "Erkennungs?bersicht verf?gbar; keine Korrektheitsquote oder Note."
         if isinstance(report, dict) and report.get("schema") == "feedback-report/v4" and isinstance(report.get("feedback"), list):
-            entries = [public_help_entry(entry) for entry in report["feedback"] if isinstance(entry, dict) and entry.get("type") in HELP_TYPES]
+            entries = [public_help_entry(entry) if entry.get("type") in HELP_TYPES else public_hints_entry(entry)
+                       for entry in report["feedback"] if isinstance(entry, dict) and entry.get("type") in (*HELP_TYPES, "hints")]
             if entries:
                 base = item["result"] or {"schema": report["schema"], "evaluationId": report.get("evaluationId"),
                     "pair": {"studentKey": "submission", "referenceKey": report.get("pair", {}).get("referenceKey")},
@@ -304,6 +313,10 @@ async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None
     elif can_view_analysis(user):
         # Staff runs precompute every learner help feedback per object once for the analysis view.
         feedback_request = {"types": ["recognition", "help.catalog"], "context": {}}
+    # Every run collects the label hints for the separate hint view (AP-10); they are never counted.
+    feedback_request = feedback_request or {"types": ["recognition"], "context": {}}
+    if "hints" not in feedback_request["types"]:
+        feedback_request = {**feedback_request, "types": [*feedback_request["types"], "hints"]}
     unresolved =await db.evaluations.find_one({
         "ownerId": user.id, "modelId": str(model_id), "modelVersionId": str(version_id),
         "dagName": workflow_name, "startStatus": {"$in": ["starting", "unknown"]},
@@ -420,8 +433,14 @@ async def feedback(evaluation_id: UUID, user: User) -> Document:
                  for entry in step["result"].get("feedback", []) if entry.get("type") in HELP_TYPES]
         # Several sample solutions: help feedback follows the best recognized one, like the score.
         chosen = min(helps, key=lambda pair: (-(recognition_percent(pair[0].get("overview")) or 0), pair[1]), default=None)
+        best = min(recognitions, key=lambda item: (-(recognition_percent((item["recognition"] or {}).get("overall")) or 0),
+                                                   item["referenceKey"]), default=None)
+        hints = next((entry["hints"] for step in result["steps"] if best and step["status"] == "succeeded"
+                      and isinstance(step.get("result"), dict) and step["result"]["pair"]["referenceKey"] == best["referenceKey"]
+                      for entry in step["result"].get("feedback", []) if entry.get("type") == "hints"), [])
         stored = {"state": result["state"], "scorePercent": result.get("scorePercent"), "recognitions": recognitions,
-                  "feedback": [{**chosen[0], "referenceKey": chosen[1]}] if chosen else []}
+                  "feedback": [{**chosen[0], "referenceKey": chosen[1]}] if chosen else [],
+                  "hints": [{**item, "referenceKey": best["referenceKey"]} for item in hints]}
         # A succeeded run whose feedback artifact could not be read yet is retried on the next call.
         if result["state"] in {"failed", "cancelled", "succeeded"} and (
             result["state"] != "succeeded" or recognitions or chosen
@@ -436,10 +455,32 @@ async def feedback(evaluation_id: UUID, user: User) -> Document:
 def _feedback_projection(evaluation: Document, stored: Document) -> Document:
     """Share the same published feedback between navigation and the learner endpoint."""
     score = learner_score(stored)
+    # A decision outranks a mere view, whatever order the browser reported them in.
+    states = {}
+    for event in stored.get("hintEvents", []):
+        current = states.get(event["hintId"], "new")
+        states[event["hintId"]] = max(current, event["action"], key=("new", *HINT_ACTIONS).index)
+    hints = [{**_pick(item, HINT_FIELDS), "state": states.get(item["id"], "new")} for item in stored.get("hints", [])]
     return {"id": evaluation.get("id", evaluation.get("_id")), "startedAt": evaluation["startedAt"],
             "workflowName": evaluation["workflow"]["name"], "submission": evaluation["submission"],
             "state": stored["state"], "recognitions": stored["recognitions"], "feedback": stored.get("feedback", []),
-            "scorePercent": score}
+            "hints": hints, "scorePercent": score}
+
+
+async def record_hint_event(evaluation_id: UUID, hint_id: str, action: str, user: User) -> None:
+    """One event per hint and action, for the probe evaluation (AP-11); hints never change the recognition."""
+    if action not in HINT_ACTIONS:
+        raise ApiError(422, "INVALID_HINT_ACTION", "Unknown hint action.")
+    query = {"_id": str(evaluation_id), "ownerId": user.id, "studentFeedback.hints.id": hint_id}
+    evaluation = await db.evaluations.find_one(query, {"studentFeedback.hints": 1})
+    if evaluation is None:
+        raise not_found()
+    hint = next(item for item in evaluation["studentFeedback"]["hints"] if item["id"] == hint_id)
+    await db.evaluations.update_one(
+        {**query, "studentFeedback.hintEvents": {"$not": {"$elemMatch": {"hintId": hint_id, "action": action}}}},
+        {"$push": {"studentFeedback.hintEvents": {"hintId": hint_id, "action": action, "createdAt": utcnow(),
+                                                  "sources": hint.get("sources", []), "relation": hint.get("relation"),
+                                                  "withReferenceText": hint.get("suggestion") is not None}}})
 
 
 def learner_score(stored: Document) -> float | None:

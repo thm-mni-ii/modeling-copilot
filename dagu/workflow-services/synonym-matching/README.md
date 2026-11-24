@@ -3,7 +3,7 @@
 Erzeugt für genau ein Abgabe-/Referenzpaar vollständige semantische Kandidatenevidenz.
 Der Service verarbeitet ausschließlich die V1-Inventare aus Paket 03. Er liest kein
 Modell-XML und vergibt keine IDs. Die Implementierung und Capability heißen
-`synonym-matching`, Serviceversion `1.6.0`, Image `v9`.
+`synonym-matching`, Serviceversion `1.6.0`, Image `v10`. Seit `v10` liegt hier zusätzlich `word_parts.py` (GM-44), das der Graphmatcher einbindet; der Dienst selbst nutzt es nicht.
 
 Der Kandidatenvertrag unterstützt zusätzlich `scoreStatus: not_scored` mit
 `scores: null` und `notScoredReason`; `notScoredPairCount` ist optional (sonst 0).

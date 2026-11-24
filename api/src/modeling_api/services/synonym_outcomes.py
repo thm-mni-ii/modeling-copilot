@@ -205,9 +205,19 @@ async def read_outcomes(evaluation: Document) -> Document:
             decisions = {(item["referenceElementId"], item["termKey"]): item["status"] for item in frozen.get("entries", [])}
             for term in terms:
                 term["conditions"]["glossary"] = decisions.get((term["referenceElementId"], term["termKey"]), "none")
+        # Pair report (AP-01): every selected pair with its reason, identity status and decision round,
+        # so two replays can be compared pair by pair instead of only by recognition buckets.
+        rounds = {(row["referenceId"], row["studentId"]): row.get("round") for field in ("provisionalElements", "provisionalConnections")
+                  for row in (comparison or {}).get("mapping", {}).get(field, [])}
+        pairs = [{"referenceId": item["referenceId"], "submissionId": item["target"]["id"], "reason": item.get("mappingReason"),
+                  "identity": (item.get("identity") or {}).get("status"), "round": rounds.get((item["referenceId"], item["target"]["id"]))}
+                 for item in analysis.get("annotations", []) if item.get("referenceId")]
+        hints = [{field: hint.get(field) for field in ("referenceId", "submissionId", "sources", "relation")}
+                 for hint in analysis.get("labelHints", [])]
         return {"referenceVersionId": reference["versionId"], "referenceKey": key,
                 "recognition": recognition_of(feedback), "terms": terms,
-                "workload": comparison_workload(candidates)}
+                "workload": comparison_workload(candidates), "pairs": pairs, "hints": hints,
+                "decisionRounds": (comparison or {}).get("decisionRounds")}
 
     results = await gather(*(read(reference) for reference in references))
     published = evaluation.get("studentFeedback")

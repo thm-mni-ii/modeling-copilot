@@ -30,7 +30,10 @@ class EvaluationInput(TypedDict):
 # the label-variant gold corpus (precision target), see docs/graph-matching-workflow/07-*.
 TEXT_EVIDENCE_METHODS = ["damerau_canonical", "multilingual_expanded"]
 TEXT_EVIDENCE_DEFAULTS = {"spelling": 0.85, "meaning": 0.85, "meaningFloor": 0.70}
-SERVICE_VERSION = "1.3.0"
+# Hint policy (AP-05): band below a tier threshold, neighbours without text, children for an overlap,
+# and the probe switch for reference text in hints (P9). Starting values, not calibrated.
+HINT_DEFAULTS = {"textBand": 0.05, "minimumNeighbors": 2, "minimumChildren": 2, "showReferenceText": True}
+SERVICE_VERSION = "1.4.0"
 TEMPORARY_ID = re.compile(r"replay-[a-f0-9-]{36}-[0-9]+")
 
 
@@ -90,6 +93,18 @@ def apply_text_evidence(config: dict, raw: str | None) -> dict:
             "semantics": {**semantics, "methods": expected[1]}}
 
 
+def apply_hints(config: dict) -> dict:
+    """Freeze the hint parameters into comparisonConfig before hashing; a supplied policy must be complete."""
+    graph_matching = config.get("graphMatching", {})
+    hints = graph_matching.get("hints", HINT_DEFAULTS)
+    if not isinstance(hints, dict) or set(hints) != set(HINT_DEFAULTS) or any(
+            type(hints[key]) is not type(value) for key, value in HINT_DEFAULTS.items()):
+        raise ValueError(f"graphMatching.hints requires exactly {', '.join(HINT_DEFAULTS)}")
+    if not 0 <= hints["textBand"] < 1 or hints["minimumNeighbors"] < 1 or hints["minimumChildren"] < 1:
+        raise ValueError("graphMatching.hints values are out of range")
+    return {**config, "graphMatching": {**graph_matching, "hints": dict(hints)}}
+
+
 def validate_glossaries(config: dict, reference_keys: set[str]) -> None:
     """Frozen administrator decisions per reference; part of the hashed input."""
     glossaries = config.get("graphMatching", {}).get("glossaries", {})
@@ -130,7 +145,7 @@ def prepare(store: Workspace, bundle: EvaluationInput, text_evidence: str | None
     bundle = {**bundle, "comparisonConfig": bundle.get("comparisonConfig", {})}
     if not isinstance(bundle["comparisonConfig"], dict):
         raise ValueError("comparisonConfig must be a JSON object")
-    bundle["comparisonConfig"] = apply_text_evidence(bundle["comparisonConfig"], text_evidence)
+    bundle["comparisonConfig"] = apply_hints(apply_text_evidence(bundle["comparisonConfig"], text_evidence))
     models, definitions = bundle.get("models"), bundle.get("languages")
     if not isinstance(models, list) or not models or not isinstance(definitions, list):
         raise ValueError("complete models and language definitions are required")

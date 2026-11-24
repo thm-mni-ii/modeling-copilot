@@ -3,5 +3,6 @@ WORKDIR /app
 COPY workflow_io.py ./src/workflow_io.py
 COPY one-to-one-graph-matching/src/ ./src/
 COPY synonym-matching/src/synonym_matching/term_key.py ./src/term_key.py
+COPY synonym-matching/src/synonym_matching/word_parts.py ./src/word_parts.py
 COPY workflow_server.py ./workflow_server.py
 ENTRYPOINT ["python", "/app/src/main.py"]
