@@ -10,7 +10,7 @@
           <div class="journey-coins" role="status" aria-live="polite" :aria-label="`${coins} Münzen gesammelt`">
             <TreasureMapArt kind="coin" /><strong>{{ coins }}</strong>
           </div>
-          <FeatureTourMenu v-if="featureTourEnabled && feedbackAvailable" :feedback-legend-available="Boolean(helpUsage)" :check-available="!exhausted({ type: 'help.check' })" :help-request="helpRequest" :help-question="helpQuestion" :help-answer="helpAnswer" />
+          <TourList v-if="tourEnabled" :tour-ids="[tourId]" show-toggle-bar class="feature-tour-trigger" :style="tourTheme" title="Neue Funktionen entdecken" subtitle="Erkunde die automatische Hilfe auf deiner Schatzreise." label="Hilfe-Tour öffnen" />
         </div>
       </div>
     </div>
@@ -46,7 +46,8 @@
 import { ref, watch } from 'vue'
 import JourneyIslandArt from './JourneyIslandArt.vue'
 import TreasureMapArt from './TreasureMapArt.vue'
-import FeatureTourMenu from './FeatureTourMenu.vue'
+import TourList from '@/components/tours/TourList.vue'
+import { useLearningPathTour } from '@/composables/useLearningPathTour'
 import type { HelpFeedbackType, HelpRequest, HelpUsage, HelpTourAnswer } from '@/services/learningPaths'
 import { helpFeedbackOptions as feedbackTypes } from '@/services/learningPaths'
 const props = defineProps<{ coins: number; completed: boolean; completeDisabled: boolean; busy: boolean; evaluationRequired?: boolean; helpUsage?: HelpUsage; featureTourEnabled?: boolean; feedbackAvailable?: boolean; helpRequest?: HelpRequest | null; helpQuestion?: string | null; helpAnswer?: HelpTourAnswer | null }>()
@@ -62,6 +63,7 @@ const usageLabel = (item: { type: HelpFeedbackType; title: string }) => {
   const pending = usage?.pending ? ` (+${usage.pending} in Prüfung)` : ''
   return `${item.title}: ${usage?.used ?? 0} genutzt${pending}${usage?.limit === null ? ', unbegrenzt' : `, ${Math.max(0, (usage?.limit ?? 0) - (usage?.used ?? 0) - (usage?.pending ?? 0))} von ${usage?.limit ?? 0} übrig`}`
 }
+const { tourId, tourEnabled, tourTheme } = useLearningPathTour(props, () => exhausted({ type: 'help.check' }))
 watch(completionDialog, () => { completionAcknowledged.value = false }, { flush: 'sync' })
 const requestCompletion = () => {
   if (props.completeDisabled || props.busy || props.completed) return
