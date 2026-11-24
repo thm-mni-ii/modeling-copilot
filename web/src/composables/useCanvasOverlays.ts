@@ -104,7 +104,8 @@ export const useCanvasOverlays = (wrapperRef: Ref<HTMLElement | null>, entriesRe
   }
 
   const attachOverlayTooltipHandlers = (cell: Cell, overlay: CellOverlay, attempt = 0) => {
-    if (graphRef.value && isValidationWarningOverlay(graphRef.value, overlay)) {
+    // Ein Overlay mit hoverTooltip = false zeigt keinen Tooltip, etwa die Herkunftspunkte im Gruppenmodell.
+    if ((overlay as { hoverTooltip?: boolean }).hoverTooltip === false || (graphRef.value && isValidationWarningOverlay(graphRef.value, overlay))) {
       return
     }
 

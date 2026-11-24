@@ -3,10 +3,8 @@ import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { followRoomHistory } from '@/collab/historyBuilder/fromRoom'
 import { loadCollabKit } from '@/collab/kit/collabKit'
 import type { Session } from '@/collab/kit/collabKitV1'
+import { collabSettings } from '@/collab/settings/collabSettings'
 import { currentShare, hostAway, hostClosed, visitorRights } from './shareModel'
-
-/** How long the host may be missing from the presence before a visitor is told; a reload of the host takes less. */
-const HOST_AWAY_MS = 30000
 
 /**
  * Tells a visitor what the host does. The editor already locks and unlocks the graph on
@@ -72,7 +70,7 @@ export const watchShare = (session: Session) => {
         away = null
         hostAway.value = true
         notifyWarning('The host is disconnected.')
-      }, HOST_AWAY_MS)
+      }, collabSettings.sharing.hostAwayMs)
     }
   }
   let stopPresence: () => void = () => undefined

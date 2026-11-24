@@ -1,5 +1,6 @@
 import type { JsonObject } from '@/services/api/types/common'
 import type { UnitChange } from '@/collab/kit/collabKitV1'
+import { hasChange } from '@/collab/converters/model/modelHistory'
 import { marksOf, type SharedMark, type SharedMarks } from './marks'
 
 /** A state of the private task: its revision, when it came about, and the document. */
@@ -16,8 +17,8 @@ export interface TaskHistoryStep {
   createdAt: string
 }
 
-/** The marks that change from one state to the next, as a change of the units. */
-const changeOf = (before: SharedMarks, after: SharedMarks) => {
+/** The marks that change from one state to the next, as a change of the units: new and changed ones whole, removed ones deleted. */
+export const changeOf = (before: SharedMarks, after: SharedMarks) => {
   const set: SharedMarks = {}
   for (const [id, mark] of Object.entries(after)) if (JSON.stringify(mark) !== JSON.stringify(before[id])) set[id] = mark
   return { set, delete: Object.keys(before).filter((id) => !(id in after)) }
@@ -30,6 +31,6 @@ export const taskStepsOf = (states: readonly PrivateTaskState[]): TaskHistorySte
     const marks = marksOf(document)
     const change = changeOf(previous, marks)
     previous = marks
-    return Object.keys(change.set).length || change.delete.length ? [{ change, revision, createdAt }] : []
+    return hasChange(change) ? [{ change, revision, createdAt }] : []
   })
 }

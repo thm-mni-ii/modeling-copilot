@@ -28,7 +28,7 @@ const charsOfText = (text: string, attributes: Attributes): Char[] => {
 /** The shared text as characters; a line ends with a newline, which carries whether it is a bullet. */
 export const charsOfDelta = (delta: TextDelta): Char[] => delta.flatMap((op) => ('insert' in op && typeof op.insert === 'string' ? charsOfText(op.insert, { ...op.attributes }) : []))
 
-/** Marks ohne Werte, die die Notizen wie die Leiste der Task kennen. */
+/** Marks without values, known to the notes as to the bar of the task. */
 const SIMPLE_MARKS = ['bold', 'italic', 'underline', 'strike', 'code']
 
 const attributesOfMarks = (marks: JSONContent['marks']): Attributes => {

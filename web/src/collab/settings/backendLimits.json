@@ -1,0 +1,14 @@
+{
+  "sharing": {
+    "sweepSeconds": { "default": 30, "min": 10, "max": 120 },
+    "visitorGraceSeconds": { "default": 120, "min": 30, "max": 3600 },
+    "hostGraceSeconds": { "default": 120, "min": 30, "max": 3600 },
+    "hostEndSeconds": { "default": 300, "min": 30, "max": 7200 }
+  },
+  "archive": {
+    "enabled": { "default": false },
+    "archiveOnShareClose": { "default": false },
+    "allowDelete": { "default": false },
+    "archiveUnusedAfterDays": { "default": 0, "min": 0, "max": 365 }
+  }
+}
