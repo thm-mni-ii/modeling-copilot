@@ -86,21 +86,23 @@ class ModelLabelExtractionTests(unittest.TestCase):
             "matchText": "Stockwerk",
             "labelStatus": "present",
             "textLanguage": None,
+            "formatting": ["bold"],
+            "languageFormatting": [],
         })
         self.assertNotIn("properties", result["elements"][0])
         self.assertEqual(result["connectionTexts"], [
             {"id": "orphan-label", "ownerConnectionId": None, "kind": "additionalLabel",
              "connectionLabelId": "role", "matchText": "", "labelStatus": "unsupported",
-             "textLanguage": None},
+             "textLanguage": None, "formatting": [], "languageFormatting": []},
             {"id": "cardinality", "ownerConnectionId": "link", "kind": "additionalLabel",
              "connectionLabelId": "cardinality", "matchText": "1..n", "labelStatus": "present",
-             "textLanguage": None},
+             "textLanguage": None, "formatting": [], "languageFormatting": []},
             {"id": "role-label", "ownerConnectionId": "link", "kind": "additionalLabel",
              "connectionLabelId": "role", "matchText": "", "labelStatus": "missing",
-             "textLanguage": None},
+             "textLanguage": None, "formatting": [], "languageFormatting": []},
             {"id": "link", "ownerConnectionId": "link", "kind": "self",
              "connectionLabelId": None, "matchText": "", "labelStatus": "missing",
-             "textLanguage": None},
+             "textLanguage": None, "formatting": [], "languageFormatting": []},
         ])
         self.assertIn("PARSER_DIAGNOSTIC", {item["code"] for item in result["diagnostics"]})
         self.assertIn("UNRESOLVED_CONNECTION_LABEL_OWNER", {item["code"] for item in result["diagnostics"]})

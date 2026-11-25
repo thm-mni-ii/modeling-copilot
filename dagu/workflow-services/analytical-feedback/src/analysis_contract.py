@@ -193,8 +193,13 @@ def recognition_summary(bundle, indices, comparison):
             "overall": counts([identity for ids in groups.values() for identity in ids]), "unmatchedSubmission": unmatched}
 
 
+# Inline formatting of the editor (same tags as model-label-extraction); it is layout, never label text.
+FORMATTING_TAG = re.compile(r"</?(?P<tag>b|strong|i|em|u|br|div)\s*/?>", re.IGNORECASE)
+
+
 def clean_label(label: str) -> str:
     """Diagram line breaks are layout: a break before a lowercase letter splits a word, others separate words."""
+    label = FORMATTING_TAG.sub(lambda match: "\n" if match.group("tag").lower() in ("br", "div") else "", label)
     return " ".join(re.sub(r"-?\s*\n\s*(?=[a-zäöüß])", "", label).split())
 
 

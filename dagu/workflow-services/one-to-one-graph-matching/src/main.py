@@ -102,7 +102,7 @@ def run(store: Workspace, reference_key: str | None, *, include_diagnostics=Fals
     })
     producer = {
         "service": SERVICE,
-        "version": "2.16.0",
+        "version": "2.19.0",
         "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()}),
     }
     incomplete = (candidates["completeness"]["interpretation"] == "partial"

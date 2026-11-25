@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 
-from analysis_contract import compact_fact, compact_identity, content_hash, label_hints, recognition_summary
+from analysis_contract import clean_label, compact_fact, compact_identity, content_hash, label_hints, recognition_summary
 
 
 def build_evidence_report(bundle, indices, comparison):
@@ -80,8 +80,8 @@ def build_evidence_report(bundle, indices, comparison):
         identity = compact_identity(identity_fact(by_reference[ref]))
         if identity:
             hint["identity"] = identity
-        if node.get("label"):
-            hint["label"] = node["label"]
+        if clean_label(node.get("label") or ""):
+            hint["label"] = clean_label(node["label"])
         hints.append(hint)
 
     groups = []
@@ -96,7 +96,7 @@ def build_evidence_report(bundle, indices, comparison):
             annotations[sub].setdefault("groupIds", []).append(group["id"])
     # Comparisons before matcher 2.12.0 have no hints; their analyses stay without the field.
     extra = {"labelHints": label_hints(bundle, indices, comparison)} if "hints" in comparison else {}
-    return {"schema": "analysis-feedback/v3", "producer": {"service": "analytical-feedback", "version": "2.4.0"},
+    return {"schema": "analysis-feedback/v3", "producer": {"service": "analytical-feedback", "version": "2.5.0"},
             "evaluationId": bundle["evaluationId"], "pair": comparison["pair"], "comparisonHash": comparison["comparisonHash"],
             "status": "provisional", "assessmentAvailable": False, "recognition": recognition_summary(bundle, indices, comparison),
             "annotations": list(annotations.values()), "referenceHints": hints, "connectionGroups": groups, **extra,

@@ -1,6 +1,7 @@
 """Explain identity separately from compatibility and structural correctness."""
 
 from collections import Counter
+import re
 import unicodedata
 
 from artifacts import _key
@@ -10,14 +11,20 @@ from text_similarity import GLOSSARY_TIER, configured_tiers, legacy_thresholds, 
 
 
 METHODS = ("exact_label", "text_similarity", "type_compatibility", "independent_children", "combined_children", "identified_owner",
-           "connection_structure", "context_structure", "neighbor_structure")
+           "connection_structure", "context_structure", "neighbor_structure", "interchangeable_duplicate")
 # Proposals from the graph context (GM-47, GM-48) carry their method; `dependsOn` names the agreeing context pairs.
-STRUCTURE_REASONS = {"context_disambiguated_text": "context_structure", "neighbor_structure": "neighbor_structure"}
+STRUCTURE_REASONS = {"context_disambiguated_text": "context_structure", "loose_context_text": "context_structure",
+                     "neighbor_structure": "neighbor_structure", "interchangeable_duplicate": "interchangeable_duplicate"}
 SIMILARITY_RESULTS = {"supported": "satisfied", "below_threshold": "violated", "unavailable": "not_evaluated"}
 
 
+# Same inline tags as model-label-extraction; formatting is compared separately, never as text.
+FORMATTING_TAG = re.compile(r"</?(?P<tag>b|strong|i|em|u|br|div)\s*/?>", re.IGNORECASE)
+
+
 def normalized(value):
-    return " ".join(unicodedata.normalize("NFC", value or "").split())
+    text = FORMATTING_TAG.sub(lambda match: " " if match.group("tag").lower() in ("br", "div") else "", value or "")
+    return " ".join(unicodedata.normalize("NFC", text).split())
 
 
 def labelled(index, connection):
@@ -96,7 +103,8 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
             ]
             reason = selected.get(pair, {}).get("reason")
             if reason in STRUCTURE_REASONS:
-                evidence.append(criterion(STRUCTURE_REASONS[reason], "satisfied", [ref], [sub], dependency_pairs(selected[pair])))
+                evidence.append(criterion(STRUCTURE_REASONS[reason], "satisfied", [ref], [sub], dependency_pairs(selected[pair]),
+                                          **({"connectionTypeIgnored": True} if reason == "loose_context_text" else {})))
             if pair in label_conflicts:
                 # GM-04a: equal labels, but children and neighbours point to another counterpart.
                 evidence.append(criterion("label_structure", "violated", [ref], [sub]))
@@ -245,7 +253,8 @@ def pair_decisions(rows, containment):
             return "identified", ("identified_glossary" if text.get("tier") == GLOSSARY_TIER else
                                   "identified_owner" if "identified_owner" in anchors else
                                   "identified_context" if "context_structure" in anchors else
-                                  "identified_structure" if anchors & {"independent_children", "combined_children", "connection_structure", "neighbor_structure"} else
+                                  "identified_structure" if anchors & {"independent_children", "combined_children", "connection_structure", "neighbor_structure",
+                                                                       "interchangeable_duplicate"} else
                                   "identified_text" if "text_similarity" in anchors else "identified_label")
         if text.get("result") != "satisfied":
             return "open", text["veto"]

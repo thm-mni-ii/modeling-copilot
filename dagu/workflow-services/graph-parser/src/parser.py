@@ -453,9 +453,16 @@ def parse_model(value: object) -> dict:
                            **bindings[identity]}
         if properties:
             nodes[identity]["properties"] = properties
-        formatting = text_formatting(style_of(cell))
+        default_style = (entry[1].get("style") if entry else None) or {}
+        if isinstance(default_style, str):
+            default_style = dict(part.split("=", 1) for part in default_style.split(";") if "=" in part)
+        default_formatting = text_formatting(default_style) if isinstance(default_style, dict) else None
+        # The cell style overrides the language default; without its own fontStyle the default is visible.
+        formatting = text_formatting(style_of(cell)) or default_formatting
         if formatting is not None:
             nodes[identity].setdefault("properties", {})["textFormatting"] = formatting
+        if default_formatting is not None:
+            nodes[identity].setdefault("properties", {})["languageTextFormatting"] = default_formatting
         if node_kind == "connectionLabel":
             nodes[identity]["connectionLabelId"] = cell.get("connectionLabelId", "")
 

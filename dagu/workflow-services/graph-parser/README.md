@@ -121,7 +121,9 @@ Das eigene Hashfeld, Zeitstempel und Laufzeitmessungen sind nicht enthalten.
 
 Wenn ein gültiges maxGraph-`fontStyle`-Bitfeld gespeichert ist, enthält
 `properties.textFormatting` dessen ursprünglichen Zahlenwert sowie die Flags
-`bold`, `italic` und `underline` (maxGraph-Bits 1, 2 und 4). Andere visuelle
+`bold`, `italic` und `underline` (maxGraph-Bits 1, 2 und 4). Ohne eigenes
+`fontStyle` der Zelle gilt der Wert aus dem Style der Sprachdefinition; dieser
+Default steht zusätzlich in `properties.languageTextFormatting`. Andere visuelle
 Style-Informationen werden nicht übernommen; die gespeicherte Beschriftung bleibt
 unverändert. Der Parser leitet daraus keine fachliche Bedeutung ab.
 

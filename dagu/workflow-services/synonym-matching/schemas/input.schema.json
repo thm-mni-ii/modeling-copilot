@@ -57,7 +57,9 @@
         ]},
         "matchText": {"type": "string"},
         "labelStatus": {"enum": ["present", "missing", "unsupported"]},
-        "textLanguage": {"type": ["string", "null"], "minLength": 1}
+        "textLanguage": {"type": ["string", "null"], "minLength": 1},
+        "formatting": {"type": "array", "uniqueItems": true, "items": {"enum": ["bold", "italic", "underline"]}},
+        "languageFormatting": {"type": "array", "uniqueItems": true, "items": {"enum": ["bold", "italic", "underline"]}}
       }
     },
     "connectionText": {
@@ -71,7 +73,9 @@
         "connectionLabelId": {"type": ["string", "null"]},
         "matchText": {"type": "string"},
         "labelStatus": {"enum": ["present", "missing", "unsupported"]},
-        "textLanguage": {"type": ["string", "null"], "minLength": 1}
+        "textLanguage": {"type": ["string", "null"], "minLength": 1},
+        "formatting": {"type": "array", "uniqueItems": true, "items": {"enum": ["bold", "italic", "underline"]}},
+        "languageFormatting": {"type": "array", "uniqueItems": true, "items": {"enum": ["bold", "italic", "underline"]}}
       }
     },
     "inventoryBody": {

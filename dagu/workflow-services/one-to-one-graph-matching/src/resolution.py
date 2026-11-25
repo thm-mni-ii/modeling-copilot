@@ -7,7 +7,7 @@ reserves both elements, which removes all other candidates of these elements in 
 
 from copy import deepcopy
 
-from context_evidence import context_proposals, neighbor_proposals
+from context_evidence import context_proposals, interchangeable_proposals, neighbor_proposals
 from correspondence_state import accept_proposals, finish_state, initial_state, reserved_ids, run_structural_phases
 from identity_evidence import normalized
 from semantic_refinement import refine_semantic_proposals
@@ -39,11 +39,16 @@ def resolve(indices, candidates, graphs, graph_matching, glossary):
                                             text_evidence=text_evidence, glossary=glossary)
         added += refined["proposals"]
         # Graph context after text: first where it decides between text candidates (GM-47), then without text (GM-48).
-        for phase in (lambda: context_proposals(indices, state | {"proposals": state["proposals"] + refined["proposals"]},
-                                                 _reserved(state, refined), text_ok),
-                      lambda: neighbor_proposals(indices, state | {"proposals": state["proposals"] + refined["proposals"]},
-                                                 _reserved(state, refined))):
-            structural = accept_proposals({**state, "proposals": state["proposals"] + refined["proposals"]}, phase(), context["events"])
+        current = lambda: state | {"proposals": state["proposals"] + refined["proposals"]}
+        phases = ((lambda: context_proposals(indices, current(), _reserved(state, refined), text_ok), False),
+                  (lambda: neighbor_proposals(indices, current(), _reserved(state, refined)), False),
+                  # GM-51: weaker duplicate rules only when nothing stronger is left, so they never preempt it.
+                  (lambda: context_proposals(indices, current(), _reserved(state, refined), text_ok, loose=True), True),
+                  (lambda: interchangeable_proposals(indices, current(), _reserved(state, refined), text_ok), True))
+        for phase, fallback in phases:
+            if fallback and added:
+                break
+            structural = accept_proposals(current(), phase(), context["events"])
             state["proposals"].extend(structural)
             added += structural
         if semantics is not None and not added:

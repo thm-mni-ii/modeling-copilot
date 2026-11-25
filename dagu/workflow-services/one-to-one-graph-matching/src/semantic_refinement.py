@@ -29,7 +29,8 @@ def refine_semantic_proposals(indices, candidates, state, thresholds, *, text_ev
     anchors = [item for item in state["proposals"]
                if (item["reason"] == "unique_exact_label" and not item["dependsOn"]
                    or item["reason"] in ("independent_child_evidence", "combined_child_structure",
-                                         "supported_semantic_evidence", "context_disambiguated_text", "neighbor_structure"))
+                                         "supported_semantic_evidence", "context_disambiguated_text", "neighbor_structure",
+                                         "loose_context_text", "interchangeable_duplicate"))
                and (item["referenceId"], item["studentId"]) not in excluded]
     containment = analyze_containment(deepcopy(indices), candidates, anchors)
     owners = {(item["referenceId"], item["studentId"]): item for item in containment}

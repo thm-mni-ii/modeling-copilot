@@ -11,7 +11,7 @@ labels:
   purpose: evaluation
   domain: generic
   visibility: frontend
-  version: v30
+  version: v33
   phase: '6'
 params:
   schema:
@@ -175,7 +175,7 @@ name: graph-parser-model
 description: Parst genau einen Modell-Snapshot über den warmen Parser-Dienst.
 tags:
   - visibility=internal
-  - version=v2
+  - version=v3
 # Dagu does not pass its process environment to steps; read the host at load time.
 # Sub-DAGs do not inherit env, so every document declares it.
 env:
@@ -229,7 +229,7 @@ name: model-label-extraction-model
 description: Erstellt das vollständige Elementinventar genau eines Modellgraphen über den warmen Extraktionsdienst.
 tags:
   - visibility=internal
-  - version=v2
+  - version=v3
 # Dagu does not pass its process environment to steps; read the host at load time.
 # Sub-DAGs do not inherit env, so every document declares it.
 env:
@@ -287,7 +287,7 @@ name: synonym-matching-pair
 description: Berechnet semantische Kandidaten für die Abgabe und genau eine Musterlösung.
 tags:
   - visibility=internal
-  - version=v9
+  - version=v10
 # Dagu does not pass its process environment to steps; read the host at load time.
 # Sub-DAGs do not inherit env, so every document declares it.
 env:
@@ -341,7 +341,7 @@ name: one-to-one-graph-matching-pair
 description: Vergleicht die Abgabe vorläufig mit genau einer Musterlösung.
 tags:
   - visibility=internal
-  - version=v22
+  - version=v24
 # Dagu does not pass its process environment to steps; read the host at load time.
 # Sub-DAGs do not inherit env, so every document declares it.
 env:
@@ -436,7 +436,7 @@ name: analytical-feedback-pair
 description: Erzeugt analytische Profile und die kompakte Feedbackprojektion je Musterlösung.
 tags:
   - visibility=internal
-  - version=v17
+  - version=v20
 # Dagu does not pass its process environment to steps; read the host at load time.
 # Sub-DAGs do not inherit env, so every document declares it.
 env:

@@ -5,12 +5,18 @@ candidate whose context agrees with already accepted pairs. GM-48 (neighbour str
 identified by at least two agreeing context relations without a text requirement (E1); a deviating label
 stays a separate `label.*` fact. Both read only connections (type, direction) and containment, so a
 container and a connection are simply two structures that are both searched.
+
+GM-51 (duplicates), only after both found nothing: an edge to the right neighbour still counts when its
+type or direction deviates, which keeps the deviation a `connection.*` fact instead of hiding the element;
+text candidates that nothing distinguishes at all are equally right and are paired in ID order (as GM-46).
 """
 
 from collections import defaultdict
 
 CONTEXT_REASON = "context_disambiguated_text"
 NEIGHBOR_REASON = "neighbor_structure"
+LOOSE_CONTEXT_REASON = "loose_context_text"
+INTERCHANGEABLE_REASON = "interchangeable_duplicate"
 
 
 def _semantic_owner(index, identity):
@@ -54,8 +60,10 @@ def context_relations(index):
 class Context:
     """Agreement of candidate pairs with the accepted pairs, through the context of both elements."""
 
-    def __init__(self, indices, proposals):
+    def __init__(self, indices, proposals, loose=False):
         self.relations = {side: context_relations(index) for side, index in indices.items()}
+        # Loose: an edge between the right elements counts whatever its type and direction.
+        self.loose = loose
         self.mapping = {item["referenceId"]: item["studentId"] for item in proposals
                         if indices["reference"].nodes.get(item["referenceId"], {}).get("kind") == "modelElement"}
         self._cache = {}
@@ -63,11 +71,13 @@ class Context:
     def support(self, pair):
         if pair not in self._cache:
             reference, student = pair
-            observed = self.relations["student"].get(student, set())
+            def key(relation, kind, direction, other):
+                return (relation, other) if self.loose else (relation, kind, direction, other)
+            observed = {key(*item) for item in self.relations["student"].get(student, set())}
             self._cache[pair] = {(other, self.mapping[other])
                                  for relation, kind, direction, other in self.relations["reference"].get(reference, ())
                                  if other in self.mapping and other != reference
-                                 and (relation, kind, direction, self.mapping[other]) in observed}
+                                 and key(relation, kind, direction, self.mapping[other]) in observed}
         return self._cache[pair]
 
 
@@ -99,12 +109,54 @@ def open_element_pairs(indices, state, reserved):
             and indices["student"].nodes[item["studentId"]]["kind"] == "modelElement"}
 
 
-def context_proposals(indices, state, reserved, text_ok):
-    """GM-47: only among pairs the text admits, and only where the text alone leaves several candidates."""
+def _ambiguous_text_pairs(indices, state, reserved, text_ok):
     pairs = {pair for pair in open_element_pairs(indices, state, reserved) if text_ok(pair)}
-    ambiguous = {pair for pair in pairs if any(other != pair and (other[0] == pair[0] or other[1] == pair[1]) for other in pairs)}
-    context = Context(indices, state["proposals"])
-    return [_proposal(pair, context, CONTEXT_REASON) for pair in _strict_best(ambiguous, context, 1)]
+    return {pair for pair in pairs if any(other != pair and (other[0] == pair[0] or other[1] == pair[1]) for other in pairs)}
+
+
+def context_proposals(indices, state, reserved, text_ok, loose=False):
+    """GM-47 (GM-51 when loose): only among pairs the text admits, and only where the text alone leaves several candidates."""
+    context = Context(indices, state["proposals"], loose)
+    return [_proposal(pair, context, LOOSE_CONTEXT_REASON if loose else CONTEXT_REASON)
+            for pair in _strict_best(_ambiguous_text_pairs(indices, state, reserved, text_ok), context, 1)]
+
+
+def interchangeable_proposals(indices, state, reserved, text_ok):
+    """GM-51: a group of text candidates whose elements no context tells apart; any one-to-one pairing is equally right."""
+    pairs = _ambiguous_text_pairs(indices, state, reserved, text_ok)
+    mapping = {item["referenceId"]: item["studentId"] for item in state["proposals"]}
+    known = {"reference": {identity: identity for identity in mapping}, "student": {s: r for r, s in mapping.items()}}
+    relations = {side: context_relations(index) for side, index in indices.items()}
+
+    def signature(side, identity):
+        """Context in reference terms: identified neighbours by identity, open ones by type and text."""
+        nodes = indices[side].nodes
+        return sorted(repr((relation, kind, direction, known[side].get(other)
+                            or (nodes[other]["type"], " ".join(str(nodes[other].get("label") or "").casefold().split()))))
+                      for relation, kind, direction, other in relations[side].get(identity, ()))
+
+    groups, seen = [], set()
+    for start in sorted(pairs):
+        if start in seen:
+            continue
+        group, todo = set(), [start]
+        while todo:
+            pair = todo.pop()
+            if pair in group:
+                continue
+            group.add(pair)
+            todo += [other for other in pairs if other[0] == pair[0] or other[1] == pair[1]]
+        seen |= group
+        groups.append(group)
+    proposals = []
+    for group in groups:
+        references, students = sorted({r for r, _ in group}), sorted({s for _, s in group})
+        if (len(group) == len(references) * len(students)
+                and len({repr(signature("reference", r)) for r in references}) == 1
+                and len({repr(signature("student", s)) for s in students}) == 1):
+            proposals += [{"referenceId": r, "studentId": s, "reason": INTERCHANGEABLE_REASON, "dependsOn": []}
+                          for r, s in zip(references, students)]
+    return proposals
 
 
 def neighbor_proposals(indices, state, reserved):
