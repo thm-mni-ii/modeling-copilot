@@ -32,6 +32,12 @@ async def migrate_limits(*, apply):
         HelpRequestConfig.model_validate({key: value for key, value in config.items() if key not in limits})
         steps = []
         async for step in db.learning_path_template_steps.find({"templateId": template["_id"], "kind": "task"}):
+            # Path saves reject feedback limits on releases without sample solutions; those stations offer no automatic feedback.
+            release = await db.task_version.find_one(
+                {"_id": step["task"].get("releaseId"), "taskId": step["task"].get("taskId"), "kind": "release"},
+                {"data.sampleSolutions": 1})
+            if not (release or {}).get("data", {}).get("sampleSolutions"):
+                continue
             feedback = step["task"].get("helpFeedback") or {}
             merged = {**limits, **feedback}
             TaskHelpFeedbackConfig.model_validate(merged)
