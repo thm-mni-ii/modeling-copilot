@@ -25,7 +25,7 @@ from modeling_api.schemas.synonym_glossary import SynonymSignals
 from modeling_api.services import dagu
 from modeling_api.services import synonym_outcomes
 from modeling_api.services.evaluations import _dag_run, _evaluation_input, _state
-from modeling_api.services.synonym_glossary import scope_of, solution_elements
+from modeling_api.services.synonym_glossary import scope_of, solution_elements, term_key
 from modeling_api.services.tasks import ensure_release_reference, get_sample_solution
 
 SIGNAL_DAG = "synonym-signals-model"
@@ -325,7 +325,8 @@ def _suggestions(sets: list[Document], owners: dict[str, str], elements: dict[st
             "variants": [{"text": text, "count": count} for text, count in variants],
             "persons": len(row["persons"]), "submissions": len(row["submissions"]),
             "evidence": {"contextUnique": row["evidence"]["context_unique"], "contextBest": row["evidence"]["context_best"],
-                         "textOnly": row["evidence"]["text_only"], "recognized": row["evidence"]["recognized"]},
+                         "textOnly": row["evidence"]["text_only"], "recognized": row["evidence"]["recognized"],
+                         "hintAccepted": row["evidence"]["hint_accepted"]},
             "comparisons": synonym_outcomes.merge_comparisons([row]),
             "alsoSuggestedFor": [{"referenceElementId": other, "label": elements[other]["label"],
                                   "persons": len(rows[(other, key)]["persons"])}
@@ -333,6 +334,22 @@ def _suggestions(sets: list[Document], owners: dict[str, str], elements: dict[st
         })
     result.sort(key=lambda item: (-item["evidence"]["contextUnique"], -item["persons"], item["term"].casefold(), item["referenceElementId"]))
     return result
+
+
+def _accepted_hint_sets(sources: list[Document], reference_version_id: str) -> list[Document]:
+    """Hints learners accepted (AP-11) become glossary candidates; a person still decides (S6)."""
+    sets = []
+    for source in sources:
+        feedback = source.get("studentFeedback") or {}
+        accepted = {event["hintId"] for event in feedback.get("hintEvents", []) if event.get("action") == "accepted"}
+        keys = {model["key"] for model in source.get("parserModels", []) if model.get("versionId") == reference_version_id}
+        signals = [{"referenceElementId": hint["referenceId"], "termKey": term_key(hint["submissionLabel"]), "term": hint["submissionLabel"],
+                    "evidence": "hint_accepted"}
+                   for hint in feedback.get("hints", []) if hint.get("id") in accepted and hint.get("referenceKey") in keys
+                   and hint.get("referenceId") and (hint.get("submissionLabel") or "").strip()]
+        if signals:
+            sets.append({"modelVersionId": source["modelVersionId"], "signals": signals})
+    return sets
 
 
 def _public_entry(entry: Document) -> Document:
@@ -392,6 +409,7 @@ async def solution_view(task_id: UUID, version_id: UUID, model_id: UUID, model_v
                         "evidenceNote": result.get("unavailableReason") or
                             "This term has suggestion evidence, but no recorded result for this pair in the original evaluation."})
                     present.add(pair)
+    sets = sets + _accepted_hint_sets(sources, str(model_version_id))
     outcomes = aggregate_outcomes(results, str(model_version_id))
     return {"revision": (document or {}).get("revision", 0), "elements": list(elements.values()),
             "entries": [_public_entry(item) for item in entries],

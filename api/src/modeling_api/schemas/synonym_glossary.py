@@ -69,6 +69,7 @@ class SuggestionEvidence(ApiSchema):
     context_best: int
     text_only: int
     recognized: int = 0
+    hint_accepted: int = 0
 
 
 class TermComparison(ApiSchema):

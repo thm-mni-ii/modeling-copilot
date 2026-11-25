@@ -100,7 +100,7 @@
                 <template #item="{ item }">
                   <tr :class="{ 'selected-row': item.referenceElementId === selectedId }">
                     <td><v-btn variant="text" size="small" class="text-none px-1" @click="selectCell(item.referenceElementId)">{{ elementsById.get(item.referenceElementId)?.label }}</v-btn></td>
-                    <td>{{ item.term }}</td><td>{{ item.submissions }} {{ item.submissions === 1 ? 'case' : 'cases' }}</td>
+                    <td>{{ item.term }}<v-chip v-if="item.evidence?.hintAccepted" size="x-small" color="info" variant="tonal" label class="ms-1" title="Learners accepted this term from a hint; it still needs your decision.">accepted from hint ×{{ item.evidence.hintAccepted }}</v-chip></td><td>{{ item.submissions }} {{ item.submissions === 1 ? 'case' : 'cases' }}</td>
                     <td class="reason-cell"><GlossaryConditionGroups :comparisons="item.comparisons" :outcome="outcomeOf(item)" /></td>
                     <td><GlossaryDecisionActions :status="findEntry(item)?.status" :matching-source="findEntry(item)?.matchingSource" :disabled="saving" @decide="decide(item, $event)" @source="toggleSource(item)" @remove="removeTerm(item)" /></td>
                   </tr>

@@ -152,7 +152,8 @@ HINT_ACTIONS = ("shown", "accepted", "dismissed")
 
 def public_hints_entry(entry: Document) -> Document:
     """Allowlisted learner hints; the reference text is only present while the frozen probe switch allows it."""
-    return {"type": "hints", "hints": [_pick(item, HINT_FIELDS) for item in entry.get("hints", [])
+    # The reference ID stays server-side for glossary suggestions; `_feedback_projection` never returns it.
+    return {"type": "hints", "hints": [_pick(item, (*HINT_FIELDS, "referenceId")) for item in entry.get("hints", [])
                                        if isinstance(item, dict) and isinstance(item.get("id"), str)]}
 
 

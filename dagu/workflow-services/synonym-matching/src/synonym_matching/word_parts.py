@@ -6,9 +6,25 @@ are split only at parts that occur as labels or label parts in the two compared 
 there is no word list and no language-specific rule.
 """
 
+import re
 import unicodedata
 
 MINIMUM_PART = 3
+# Punctuation that separates notation parts of a label (`+ name: Type`, `m(a: int)`, `e [g] / a`, `«stereotype»`).
+# Hyphen and full stop join word parts (`E-Mail`, `Nr.`) and never separate.
+SEGMENT_SEPARATORS = re.compile(r"[:()\[\]/=<>{}«»]+")
+LEADING_SYMBOL = re.compile(r"^[^\w\s]\s+")
+
+
+def segments(label):
+    """Notation parts of a label (GM-49); empty when the label has no separating punctuation."""
+    text = " ".join(unicodedata.normalize("NFC", label or "").split())
+    stripped = LEADING_SYMBOL.sub("", text)
+    parts = [" ".join(part.split()) for part in SEGMENT_SEPARATORS.split(stripped)]
+    found = list(dict.fromkeys(part for part in parts if part and part != text))
+    return found if (len(found) > 1 or stripped != text) else []
+
+
 RELATIONS = ("notation", "reordered", "head_form", "part_of_term", "abbreviation", "same_stem")
 
 

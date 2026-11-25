@@ -9,7 +9,10 @@ from structural_evidence import analyze_child_owner_evidence, analyze_containmen
 from text_similarity import GLOSSARY_TIER, configured_tiers, legacy_thresholds, pair_similarity, with_glossary, connection_source_similarity
 
 
-METHODS = ("exact_label", "text_similarity", "type_compatibility", "independent_children", "combined_children", "identified_owner", "connection_structure")
+METHODS = ("exact_label", "text_similarity", "type_compatibility", "independent_children", "combined_children", "identified_owner",
+           "connection_structure", "context_structure", "neighbor_structure")
+# Proposals from the graph context (GM-47, GM-48) carry their method; `dependsOn` names the agreeing context pairs.
+STRUCTURE_REASONS = {"context_disambiguated_text": "context_structure", "neighbor_structure": "neighbor_structure"}
 SIMILARITY_RESULTS = {"supported": "satisfied", "below_threshold": "violated", "unavailable": "not_evaluated"}
 
 
@@ -91,6 +94,9 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
                           [ref], [sub], [(owner["referenceOwnerId"], owner["studentOwnerId"])] if owner["ownerAnchorRelation"] == "consistent" else []),
                 criterion("connection_structure", "not_evaluated", [ref], [sub]),
             ]
+            reason = selected.get(pair, {}).get("reason")
+            if reason in STRUCTURE_REASONS:
+                evidence.append(criterion(STRUCTURE_REASONS[reason], "satisfied", [ref], [sub], dependency_pairs(selected[pair])))
             if pair in label_conflicts:
                 # GM-04a: equal labels, but children and neighbours point to another counterpart.
                 evidence.append(criterion("label_structure", "violated", [ref], [sub]))
@@ -104,7 +110,8 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
                                  **({"veto": text["veto"]} if text["veto"] else {})})
                 evidence.append(criterion("text_similarity", SIMILARITY_RESULTS[text["status"]], [ref], [sub],
                                           scores=text["scores"], **details,
-                                          **({"sourceTerm": text["sourceTerm"]} if text.get("sourceTerm") else {})))
+                                          **({"sourceTerm": text["sourceTerm"]} if text.get("sourceTerm") else {}),
+                                          **({"segment": text["segment"]} if text.get("segment") else {})))
             rows[pair] = {"referenceId": ref, "studentId": sub, "status": "unresolved", "criteria": evidence}
 
     element_mapping = {r: s for r, s in selected if indices["reference"].nodes[r]["kind"] == "modelElement"}
@@ -206,7 +213,7 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
     for pair, row in rows.items():
         for item in row["criteria"]:
             # Evidence resting on endpoints or owners that are not identified themselves stays open.
-            if (item["method"] in ("identified_owner", "independent_children", "connection_structure")
+            if (item["method"] in ("identified_owner", "independent_children", "connection_structure", "context_structure", "neighbor_structure")
                     and item["result"] == "satisfied" and not dependency_pairs(item) <= unique):
                 item["result"] = "unresolved"
         positive = any(item["role"] == "support" and item["result"] == "satisfied" for item in row["criteria"])
@@ -237,7 +244,8 @@ def pair_decisions(rows, containment):
             anchors = {item["method"] for item in row["criteria"] if item["role"] == "identity_anchor"}
             return "identified", ("identified_glossary" if text.get("tier") == GLOSSARY_TIER else
                                   "identified_owner" if "identified_owner" in anchors else
-                                  "identified_structure" if anchors & {"independent_children", "combined_children", "connection_structure"} else
+                                  "identified_context" if "context_structure" in anchors else
+                                  "identified_structure" if anchors & {"independent_children", "combined_children", "connection_structure", "neighbor_structure"} else
                                   "identified_text" if "text_similarity" in anchors else "identified_label")
         if text.get("result") != "satisfied":
             return "open", text["veto"]

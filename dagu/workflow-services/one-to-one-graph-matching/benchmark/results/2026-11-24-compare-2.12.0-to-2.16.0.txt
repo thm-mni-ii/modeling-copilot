@@ -1,0 +1,622 @@
+activity-order-process__condition_labels: recognition 9/29 -> 29/29
+  gained E1 (exact): missed -> certain
+  gained E2 (exact): missed -> certain
+  gained G1 (exact): missed -> certain
+  gained G2 (exact): missed -> certain
+  gained G3 (exact): hint -> certain
+  gained S (exact): missed -> certain
+  gained T6 (exact): missed -> certain
+  gained T7 (exact): missed -> certain
+activity-order-process__gateway_type_changed: recognition 9/29 -> 29/29
+  gained E1 (exact): missed -> certain
+  gained E2 (exact): missed -> certain
+  gained G1 (type_changed): missed -> certain
+  gained G2 (exact): missed -> certain
+  gained G3 (exact): hint -> certain
+  gained S (exact): missed -> certain
+  gained T6 (exact): missed -> certain
+  gained T7 (exact): missed -> certain
+activity-order-process__identical: recognition 9/29 -> 29/29
+  gained E1 (exact): missed -> certain
+  gained E2 (exact): missed -> certain
+  gained G1 (exact): missed -> certain
+  gained G2 (exact): missed -> certain
+  gained G3 (exact): hint -> certain
+  gained S (exact): missed -> certain
+  gained T6 (exact): missed -> certain
+  gained T7 (exact): missed -> certain
+activity-order-process__implicit_parallelism: recognition 9/29 -> 20/29
+  gained E1 (exact): missed -> certain
+  gained G1 (exact): missed -> certain
+  gained S (exact): missed -> certain
+  gained T6 (exact): missed -> certain
+  gained T7 (exact): missed -> certain
+activity-order-process__lane_changed: recognition 9/29 -> 29/29
+  gained E1 (exact): missed -> certain
+  gained E2 (exact): missed -> certain
+  gained G1 (exact): missed -> certain
+  gained G2 (exact): missed -> certain
+  gained G3 (exact): hint -> certain
+  gained S (exact): missed -> certain
+  gained T6 (exact): missed -> certain
+  gained T7 (exact): missed -> certain
+activity-order-process__nominalization: recognition 8/29 -> 29/29
+  gained E1 (exact): missed -> certain
+  gained E2 (exact): missed -> certain
+  gained G1 (exact): missed -> certain
+  gained G2 (exact): missed -> certain
+  gained G3 (exact): missed -> certain
+  gained S (exact): missed -> certain
+  gained T5 (nominalization): hint -> certain
+  gained T6 (nominalization): missed -> certain
+  gained T7 (nominalization): missed -> certain
+activity-order-process__reordered: recognition 8/29 -> 29/29
+  gained E1 (exact): missed -> certain
+  gained E2 (exact): missed -> certain
+  gained G1 (exact): missed -> certain
+  gained G2 (exact): missed -> certain
+  gained G3 (exact): hint -> certain
+  gained S (exact): missed -> certain
+  gained T2 (reordered): missed -> certain
+  gained T6 (reordered): missed -> certain
+  gained T7 (reordered): missed -> certain
+activity-order-process__rephrased: recognition 9/29 -> 29/29
+  gained E1 (exact): missed -> certain
+  gained E2 (exact): missed -> certain
+  gained G1 (exact): missed -> certain
+  gained G2 (exact): missed -> certain
+  gained G3 (exact): hint -> certain
+  gained S (exact): missed -> certain
+  gained T6 (exact): missed -> certain
+  gained T7 (exact): missed -> certain
+activity-order-process__subset_half: recognition 3/29 -> 12/29
+  gained E1 (exact): missed -> certain
+  gained G1 (exact): missed -> certain
+  gained S (exact): missed -> certain
+  gained T6 (exact): missed -> certain
+activity-order-process__swapped_order: recognition 9/29 -> 27/29
+  gained E1 (exact): missed -> certain
+  gained E2 (exact): missed -> certain
+  gained G1 (exact): missed -> certain
+  gained G2 (exact): missed -> certain
+  gained G3 (exact): missed -> certain
+  gained S (exact): missed -> certain
+  gained T6 (exact): missed -> certain
+  gained T7 (exact): missed -> certain
+bpmn-order-process__condition_labels: recognition 16/29 -> 29/29
+  gained G2 (exact): hint -> certain
+  gained G3 (exact): hint -> certain
+  gained T6 (exact): hint -> certain
+  gained T7 (exact): missed -> certain
+bpmn-order-process__gateway_type_changed: recognition 16/29 -> 29/29
+  gained G2 (exact): hint -> certain
+  gained G3 (exact): hint -> certain
+  gained T6 (exact): hint -> certain
+  gained T7 (exact): missed -> certain
+bpmn-order-process__identical: recognition 16/29 -> 29/29
+  gained G2 (exact): hint -> certain
+  gained G3 (exact): hint -> certain
+  gained T6 (exact): hint -> certain
+  gained T7 (exact): missed -> certain
+bpmn-order-process__implicit_parallelism: recognition 16/29 -> 21/29
+  gained T6 (exact): hint -> certain
+  gained T7 (exact): missed -> certain
+bpmn-order-process__lane_changed: recognition 16/29 -> 29/29
+  gained G2 (exact): hint -> certain
+  gained G3 (exact): hint -> certain
+  gained T6 (exact): hint -> certain
+  gained T7 (exact): missed -> certain
+bpmn-order-process__nominalization: recognition 15/29 -> 29/29
+  gained G2 (exact): hint -> certain
+  gained G3 (exact): hint -> certain
+  gained T5 (nominalization): hint -> certain
+  gained T6 (nominalization): hint -> certain
+  gained T7 (nominalization): missed -> certain
+bpmn-order-process__reordered: recognition 13/29 -> 29/29
+  gained G2 (exact): hint -> certain
+  gained G3 (exact): hint -> certain
+  gained T2 (reordered): hint -> certain
+  gained T6 (reordered): hint -> certain
+  gained T7 (reordered): missed -> certain
+bpmn-order-process__rephrased: recognition 14/29 -> 29/29
+  gained G1 (rephrased): missed -> certain
+  gained G2 (exact): missed -> certain
+  gained G3 (exact): hint -> certain
+  gained T6 (exact): missed -> certain
+  gained T7 (exact): missed -> certain
+bpmn-order-process__subset_half: recognition 9/29 -> 12/29
+  gained T6 (exact): hint -> certain
+bpmn-order-process__swapped_order: recognition 16/29 -> 27/29
+  gained G2 (exact): missed -> certain
+  gained G3 (exact): hint -> certain
+  gained T6 (exact): hint -> certain
+  gained T7 (exact): missed -> certain
+bpmn-order-process__translation: recognition 5/29 -> 13/29
+  gained G1 (translation): missed -> certain
+  gained L1 (translation): missed -> certain
+  gained T2 (translation): hint -> certain
+  gained T6 (translation): missed -> certain
+epc-order-process__connector_type_changed: recognition 21/33 -> 33/33
+  gained K1 (type_changed): hint -> certain
+  gained K2 (exact): hint -> certain
+  gained K3 (exact): hint -> certain
+epc-order-process__identical: recognition 21/33 -> 33/33
+  gained K1 (exact): hint -> certain
+  gained K2 (exact): hint -> certain
+  gained K3 (exact): hint -> certain
+epc-order-process__nominalization: recognition 17/33 -> 33/33
+  gained F3 (nominalization): hint -> certain
+  gained K1 (exact): hint -> certain
+  gained K2 (exact): hint -> certain
+  gained K3 (exact): hint -> certain
+epc-order-process__org_unit_changed: recognition 20/33 -> 32/33
+  gained K1 (exact): hint -> certain
+  gained K2 (exact): hint -> certain
+  gained K3 (exact): hint -> certain
+epc-order-process__rephrased: recognition 21/33 -> 33/33
+  gained K1 (exact): hint -> certain
+  gained K2 (exact): hint -> certain
+  gained K3 (exact): hint -> certain
+epc-order-process__subset_half: recognition 9/33 -> 13/33
+  gained K1 (exact): hint -> certain
+epc-order-process__translation: recognition 2/33 -> 5/33
+  gained K1 (exact): hint -> certain
+  changed V3 (translation): missed -> hint
+erm-laboratory__abbreviation: recognition 32/96 -> 86/96
+  gained 106 (abbreviation): missed -> certain
+  gained 107 (abbreviation): missed -> certain
+  gained 108 (abbreviation): missed -> certain
+  gained 23 (abbreviation): missed -> certain
+  gained 25 (abbreviation): missed -> certain
+  gained 27 (abbreviation): missed -> certain
+  gained 28 (abbreviation): missed -> certain
+  gained 29 (abbreviation): missed -> certain
+  gained 30 (abbreviation): missed -> certain
+  gained 32 (abbreviation): missed -> certain
+  gained 33 (abbreviation): missed -> certain
+  gained 34 (abbreviation): missed -> certain
+  gained 36 (abbreviation): missed -> certain
+  gained 38 (abbreviation): missed -> certain
+  gained 41 (abbreviation): missed -> certain
+  gained 42 (abbreviation): missed -> certain
+  gained 43 (abbreviation): missed -> certain
+  gained 45 (abbreviation): missed -> certain
+  gained 49 (abbreviation): missed -> certain
+  gained 50 (abbreviation): missed -> certain
+  gained 51 (exact): missed -> certain
+  gained 52 (exact): missed -> certain
+  gained 54 (abbreviation): missed -> certain
+  gained 55 (abbreviation): missed -> certain
+  gained 56 (abbreviation): missed -> certain
+  gained 76 (exact): missed -> certain
+  gained 77 (exact): missed -> certain
+erm-laboratory__distractors: recognition 34/96 -> 78/96
+  gained 106 (exact): missed -> certain
+  gained 107 (exact): missed -> certain
+  gained 108 (exact): missed -> certain
+  gained 24 (exact): missed -> certain
+  gained 25 (exact): missed -> certain
+  gained 26 (exact): missed -> certain
+  gained 30 (exact): missed -> certain
+  gained 31 (exact): missed -> certain
+  gained 33 (exact): missed -> certain
+  gained 34 (exact): missed -> certain
+  gained 37 (exact): missed -> certain
+  gained 41 (exact): missed -> certain
+  gained 42 (exact): missed -> certain
+  gained 43 (exact): missed -> certain
+  gained 50 (exact): missed -> certain
+  gained 51 (exact): missed -> certain
+  gained 52 (exact): missed -> certain
+  gained 54 (exact): missed -> certain
+  gained 55 (exact): missed -> certain
+  gained 56 (exact): missed -> certain
+  gained 76 (exact): missed -> certain
+  gained 77 (exact): missed -> certain
+erm-laboratory__identical: recognition 34/96 -> 96/96
+  gained 106 (exact): missed -> certain
+  gained 107 (exact): missed -> certain
+  gained 108 (exact): missed -> certain
+  gained 23 (exact): missed -> certain
+  gained 24 (exact): missed -> certain
+  gained 25 (exact): missed -> certain
+  gained 26 (exact): missed -> certain
+  gained 27 (exact): missed -> certain
+  gained 28 (exact): missed -> certain
+  gained 29 (exact): missed -> certain
+  gained 30 (exact): missed -> certain
+  gained 31 (exact): missed -> certain
+  gained 32 (exact): missed -> certain
+  gained 33 (exact): missed -> certain
+  gained 34 (exact): missed -> certain
+  gained 36 (exact): missed -> certain
+  gained 37 (exact): missed -> certain
+  gained 38 (exact): missed -> certain
+  gained 41 (exact): missed -> certain
+  gained 42 (exact): missed -> certain
+  gained 43 (exact): missed -> certain
+  gained 45 (exact): missed -> certain
+  gained 49 (exact): missed -> certain
+  gained 50 (exact): missed -> certain
+  gained 51 (exact): missed -> certain
+  gained 52 (exact): missed -> certain
+  gained 54 (exact): missed -> certain
+  gained 55 (exact): missed -> certain
+  gained 56 (exact): missed -> certain
+  gained 76 (exact): missed -> certain
+  gained 77 (exact): missed -> certain
+erm-laboratory__moved_attributes: recognition 32/96 -> 76/96
+  gained 106 (exact): missed -> certain
+  gained 107 (exact): missed -> certain
+  gained 108 (exact): missed -> certain
+  gained 25 (exact): missed -> certain
+  gained 27 (exact): missed -> certain
+  gained 30 (exact): missed -> certain
+  gained 32 (exact): missed -> certain
+  gained 33 (exact): missed -> certain
+  gained 34 (moved): missed -> certain
+  gained 36 (moved): wrong_hint -> certain
+  gained 37 (exact): missed -> certain
+  gained 38 (exact): missed -> certain
+  gained 41 (exact): missed -> certain
+  gained 42 (exact): missed -> certain
+  gained 43 (exact): missed -> certain
+  gained 45 (exact): missed -> certain
+  gained 49 (moved): missed -> certain
+  gained 50 (exact): missed -> certain
+  gained 51 (exact): missed -> certain
+  gained 52 (exact): missed -> certain
+  gained 54 (exact): missed -> certain
+  gained 56 (exact): missed -> certain
+  gained 76 (moved): missed -> certain
+  gained 77 (exact): missed -> certain
+erm-laboratory__notation: recognition 34/96 -> 96/96
+  gained 106 (notation): missed -> certain
+  gained 107 (notation): missed -> certain
+  gained 108 (notation): missed -> certain
+  gained 23 (notation): missed -> certain
+  gained 24 (notation): missed -> certain
+  gained 25 (notation): missed -> certain
+  gained 26 (notation): missed -> certain
+  gained 27 (notation): missed -> certain
+  gained 28 (notation): missed -> certain
+  gained 29 (notation): missed -> certain
+  gained 30 (notation): missed -> certain
+  gained 31 (notation): missed -> certain
+  gained 32 (notation): missed -> certain
+  gained 33 (notation): missed -> certain
+  gained 34 (notation): missed -> certain
+  gained 36 (notation): missed -> certain
+  gained 37 (notation): missed -> certain
+  gained 38 (notation): missed -> certain
+  gained 41 (notation): missed -> certain
+  gained 42 (notation): missed -> certain
+  gained 43 (notation): missed -> certain
+  gained 45 (notation): missed -> certain
+  gained 49 (notation): missed -> certain
+  gained 50 (notation): missed -> certain
+  gained 51 (notation): missed -> certain
+  gained 52 (notation): missed -> certain
+  gained 54 (notation): missed -> certain
+  gained 55 (notation): missed -> certain
+  gained 56 (notation): missed -> certain
+  gained 76 (notation): missed -> certain
+  gained 77 (notation): missed -> certain
+erm-laboratory__realistic_mix: recognition 24/96 -> 70/96
+  changed 106 (synonym): missed -> hint
+  gained 107 (exact): missed -> certain
+  gained 108 (exact): missed -> certain
+  gained 23 (exact): missed -> certain
+  gained 24 (exact): missed -> certain
+  gained 25 (abbreviation): missed -> certain
+  gained 26 (exact): missed -> certain
+  gained 27 (exact): missed -> certain
+  gained 30 (exact): missed -> certain
+  gained 32 (exact): missed -> certain
+  gained 33 (exact): missed -> certain
+  gained 34 (exact): missed -> certain
+  gained 36 (exact): missed -> certain
+  gained 37 (synonym): missed -> certain
+  gained 45 (exact): missed -> certain
+  gained 49 (exact): missed -> certain
+  gained 50 (exact): missed -> certain
+  gained 51 (exact): missed -> certain
+  gained 52 (exact): missed -> certain
+  gained 54 (exact): missed -> certain
+  gained 55 (exact): missed -> certain
+  gained 56 (exact): missed -> certain
+  gained 76 (exact): missed -> certain
+  gained 77 (exact): missed -> certain
+erm-laboratory__short_form: recognition 16/96 -> 96/96
+  gained 106 (exact): missed -> certain
+  gained 107 (exact): missed -> certain
+  gained 108 (exact): missed -> certain
+  gained 11 (short_form): hint -> certain
+  gained 13 (short_form): hint -> certain
+  gained 23 (exact): missed -> certain
+  gained 24 (exact): missed -> certain
+  gained 25 (exact): missed -> certain
+  gained 26 (exact): missed -> certain
+  gained 27 (exact): missed -> certain
+  gained 28 (exact): missed -> certain
+  gained 29 (exact): missed -> certain
+  gained 3 (short_form): missed -> certain
+  gained 30 (exact): missed -> certain
+  gained 31 (exact): missed -> certain
+  gained 32 (exact): missed -> certain
+  gained 33 (exact): missed -> certain
+  gained 34 (exact): missed -> certain
+  gained 36 (exact): missed -> certain
+  gained 37 (exact): missed -> certain
+  gained 38 (exact): missed -> certain
+  gained 41 (exact): missed -> certain
+  gained 42 (exact): missed -> certain
+  gained 43 (exact): missed -> certain
+  gained 45 (exact): missed -> certain
+  gained 49 (exact): missed -> certain
+  gained 5 (short_form): missed -> certain
+  gained 50 (exact): missed -> certain
+  gained 51 (exact): missed -> certain
+  gained 52 (exact): missed -> certain
+  gained 54 (exact): missed -> certain
+  gained 55 (exact): missed -> certain
+  gained 56 (exact): missed -> certain
+  gained 7 (short_form): missed -> certain
+  gained 76 (exact): missed -> certain
+  gained 77 (exact): missed -> certain
+  gained 78 (short_form): hint -> certain
+erm-laboratory__shuffled_labels: recognition 15/96 -> 41/96
+  WRONG 106 (exact): missed -> wrong (32)
+  gained 11 (shuffled): structural_hint -> structural
+  WRONG 25 (exact): missed -> wrong (54)
+  WRONG 28 (exact): missed -> wrong (106)
+  WRONG 29 (exact): missed -> wrong (28)
+  WRONG 32 (exact): missed -> wrong (29)
+  WRONG 34 (exact): missed -> wrong (30)
+  gained 36 (exact): missed -> certain
+  gained 38 (exact): missed -> certain
+  gained 41 (exact): missed -> certain
+  gained 42 (exact): missed -> certain
+  gained 43 (exact): missed -> certain
+  WRONG 54 (exact): missed -> wrong (25)
+  WRONG 55 (exact): missed -> wrong (27)
+  WRONG connection 28-link: None -> 106-link
+  WRONG connection 29-link: None -> 28-link
+  WRONG connection 32-link: None -> 29-link
+  WRONG connection 34-link: None -> 30-link
+  WRONG connection 54-link: None -> 25-link
+  WRONG connection 55-link: None -> 27-link
+  WRONG connection eef939a4-ed0c-400f-96fe-98506fd67d44: None -> 0ecb2004-da04-44a9-838d-33a75dbc8f06
+erm-laboratory__subset_large: recognition 28/96 -> 82/96
+  gained 106 (exact): missed -> certain
+  gained 107 (exact): missed -> certain
+  gained 108 (exact): missed -> certain
+  gained 25 (exact): missed -> certain
+  gained 26 (exact): missed -> certain
+  gained 27 (exact): missed -> certain
+  gained 28 (exact): missed -> certain
+  gained 31 (exact): missed -> certain
+  gained 32 (exact): missed -> certain
+  gained 33 (exact): missed -> certain
+  gained 34 (exact): missed -> certain
+  gained 36 (exact): missed -> certain
+  gained 37 (exact): missed -> certain
+  gained 38 (exact): missed -> certain
+  gained 41 (exact): missed -> certain
+  gained 42 (exact): missed -> certain
+  gained 43 (exact): missed -> certain
+  gained 45 (exact): missed -> certain
+  gained 49 (exact): missed -> certain
+  gained 50 (exact): missed -> certain
+  gained 51 (exact): missed -> certain
+  gained 52 (exact): missed -> certain
+  gained 54 (exact): missed -> certain
+  gained 55 (exact): missed -> certain
+  gained 56 (exact): missed -> certain
+  gained 76 (exact): missed -> certain
+  gained 77 (exact): missed -> certain
+erm-laboratory__subset_medium: recognition 13/96 -> 51/96
+  gained 106 (exact): missed -> certain
+  gained 107 (exact): missed -> certain
+  gained 108 (exact): missed -> certain
+  gained 23 (exact): missed -> certain
+  gained 24 (exact): missed -> certain
+  gained 25 (exact): missed -> certain
+  gained 26 (exact): missed -> certain
+  gained 27 (exact): missed -> certain
+  gained 28 (exact): missed -> certain
+  gained 31 (exact): missed -> certain
+  gained 38 (exact): missed -> certain
+  gained 41 (exact): missed -> certain
+  gained 42 (exact): missed -> certain
+  gained 43 (exact): missed -> certain
+  gained 54 (exact): missed -> certain
+  gained 55 (exact): missed -> certain
+  gained 56 (exact): missed -> certain
+  gained 76 (exact): missed -> certain
+  gained 77 (exact): missed -> certain
+erm-laboratory__subset_small: recognition 4/96 -> 14/96
+  gained 23 (exact): missed -> certain
+  gained 24 (exact): missed -> certain
+  gained 32 (exact): missed -> certain
+  gained 33 (exact): missed -> certain
+  gained 34 (exact): missed -> certain
+erm-laboratory__synonym: recognition 4/96 -> 27/96
+  changed 105 (synonym): missed -> hint
+  gained 15 (synonym): hint -> certain
+  gained 17 (synonym): hint -> certain
+  gained 19 (synonym): hint -> certain
+  gained 24 (synonym): missed -> certain
+  gained 26 (synonym): missed -> certain
+  changed 27 (synonym): missed -> hint
+  gained 31 (synonym): missed -> certain
+  changed 45 (synonym): missed -> hint
+  changed 49 (synonym): missed -> hint
+  changed 50 (synonym): missed -> hint
+  gained 51 (synonym): missed -> certain
+  gained 52 (synonym): missed -> certain
+  gained 76 (synonym): missed -> certain
+  gained 77 (synonym): missed -> certain
+erm-laboratory__translation: recognition 9/96 -> 36/96
+  gained 15 (translation): hint -> certain
+  gained 19 (translation): hint -> certain
+  gained 24 (translation): missed -> certain
+  gained 26 (translation): missed -> certain
+  changed 27 (translation): missed -> hint
+  gained 31 (translation): missed -> certain
+  gained 5 (translation): hint -> certain
+  gained 51 (translation): missed -> certain
+  gained 52 (translation): missed -> certain
+  changed 55 (translation): missed -> hint
+  gained 76 (translation): missed -> certain
+  gained 77 (translation): missed -> certain
+  gained 78 (translation): missed -> certain
+erm-laboratory__typo: recognition 32/96 -> 80/96
+  gained 108 (exact): missed -> certain
+  gained 23 (typo): missed -> certain
+  gained 24 (typo): missed -> certain
+  gained 25 (exact): missed -> certain
+  gained 26 (typo): missed -> certain
+  gained 27 (exact): missed -> certain
+  gained 28 (typo): missed -> certain
+  gained 31 (typo): missed -> certain
+  gained 33 (typo): missed -> certain
+  gained 36 (exact): missed -> certain
+  gained 37 (exact): missed -> certain
+  gained 38 (exact): missed -> certain
+  gained 41 (exact): missed -> certain
+  gained 42 (exact): missed -> certain
+  gained 43 (exact): missed -> certain
+  gained 45 (exact): missed -> certain
+  gained 49 (typo): missed -> certain
+  gained 50 (exact): missed -> certain
+  gained 51 (exact): missed -> certain
+  gained 52 (exact): missed -> certain
+  gained 54 (exact): missed -> certain
+  gained 55 (exact): missed -> certain
+  gained 56 (typo): missed -> certain
+  changed 76 (typo): missed -> hint
+  gained 77 (exact): missed -> certain
+erm-laboratory__wrong_label: recognition 21/96 -> 75/96
+  gained 106 (exact): missed -> certain
+  gained 107 (exact): missed -> certain
+  gained 13 (wrong_label): absent_ok -> structural
+  gained 19 (wrong_label): absent_ok -> structural
+  gained 24 (exact): missed -> certain
+  gained 25 (exact): missed -> certain
+  changed 26 (wrong_label): absent_ok -> structural_hint
+  gained 27 (exact): missed -> certain
+  gained 29 (exact): missed -> certain
+  gained 30 (exact): missed -> certain
+  gained 31 (exact): missed -> certain
+  gained 32 (exact): missed -> certain
+  gained 34 (exact): missed -> certain
+  gained 36 (exact): missed -> certain
+  gained 38 (exact): missed -> certain
+  gained 41 (exact): missed -> certain
+  gained 43 (exact): missed -> certain
+  gained 45 (exact): missed -> certain
+  gained 50 (exact): missed -> certain
+  gained 51 (exact): missed -> certain
+  gained 52 (exact): missed -> certain
+  gained 54 (exact): missed -> certain
+  gained 55 (exact): missed -> certain
+  gained 56 (exact): missed -> certain
+  gained 7 (wrong_label): structural_hint -> structural
+  gained 77 (exact): missed -> certain
+serm-game-studio__abbreviation: recognition 62/70 -> 68/70
+serm-game-studio__distractors: recognition 64/70 -> 70/70
+serm-game-studio__identical: recognition 64/70 -> 70/70
+serm-game-studio__moved_attributes: recognition 60/70 -> 66/70
+serm-game-studio__notation: recognition 64/70 -> 70/70
+serm-game-studio__realistic_mix: recognition 49/70 -> 54/70
+serm-game-studio__short_form: recognition 45/70 -> 51/70
+serm-game-studio__shuffled_labels: recognition 12/70 -> 12/70
+  changed 11 (shuffled): absent_ok -> structural_hint
+  changed 16 (shuffled): absent_ok -> structural_hint
+  changed 21 (shuffled): absent_ok -> structural_hint
+  changed 26 (shuffled): wrong_hint -> structural_hint
+  changed 3 (shuffled): absent_ok -> structural_hint
+  changed 31 (shuffled): wrong_hint -> structural_hint
+  changed 35 (shuffled): wrong_hint -> structural_hint
+  changed 41 (shuffled): wrong_hint -> structural_hint
+  changed 45 (shuffled): absent_ok -> structural_hint
+  changed 54 (shuffled): absent_ok -> structural_hint
+  changed 56 (shuffled): absent_ok -> structural_hint
+  changed 62 (shuffled): absent_ok -> structural_hint
+  changed 7 (shuffled): absent_ok -> structural_hint
+  changed 9 (shuffled): absent_ok -> structural_hint
+serm-game-studio__subset_large: recognition 55/70 -> 57/70
+serm-game-studio__subset_medium: recognition 31/70 -> 33/70
+serm-game-studio__synonym: recognition 4/70 -> 5/70
+  gained 34 (synonym): missed -> certain
+serm-game-studio__translation: recognition 13/70 -> 16/70
+  gained 21 (translation): hint -> certain
+serm-game-studio__typo: recognition 63/70 -> 69/70
+serm-game-studio__wrong_label: recognition 52/70 -> 58/70
+serm-laboratory__realistic_mix: recognition 44/58 -> 45/58
+  gained 24 (synonym): missed -> certain
+serm-laboratory__shuffled_labels: recognition 7/58 -> 7/58
+  changed 11 (shuffled): absent_ok -> structural_hint
+  changed 13 (shuffled): wrong_hint -> structural_hint
+  changed 15 (shuffled): absent_ok -> structural_hint
+  changed 17 (shuffled): wrong_hint -> structural_hint
+  changed 19 (shuffled): wrong_hint -> structural_hint
+  changed 3 (shuffled): absent_ok -> structural_hint
+  changed 5 (shuffled): absent_ok -> structural_hint
+  changed 7 (shuffled): absent_ok -> structural_hint
+  changed 78 (shuffled): wrong_hint -> structural_hint
+  changed 9 (shuffled): absent_ok -> structural_hint
+serm-laboratory__subset_medium_synonym: recognition 1/58 -> 2/58
+  gained 31 (synonym): missed -> certain
+serm-laboratory__synonym: recognition 5/58 -> 11/58
+  gained 19 (synonym): hint -> certain
+  gained 24 (synonym): missed -> certain
+  gained 26 (synonym): missed -> certain
+  gained 31 (synonym): missed -> certain
+  changed 7 (synonym): missed -> wrong_hint
+serm-laboratory__translation: recognition 6/58 -> 8/58
+  gained 24 (translation): missed -> certain
+  gained 31 (translation): missed -> certain
+serm-laboratory__typo: recognition 50/58 -> 57/58
+  gained 29 (typo): missed -> certain
+  gained 30 (exact): missed -> certain
+  gained 34 (typo): missed -> certain
+  gained 42 (typo): missed -> certain
+  gained 5 (typo): hint -> certain
+serm-laboratory__wrong_label: recognition 43/58 -> 47/58
+  gained 13 (wrong_label): structural_hint -> structural
+  gained 24 (exact): missed -> certain
+uml-order-management__realistic_mix: recognition 5/13 -> 8/13
+  gained 5 (wrong_label): structural_hint -> structural
+uml-order-management__short_form: recognition 10/13 -> 13/13
+  gained 7 (short_form): hint -> certain
+uml-order-management__typo: recognition 10/13 -> 13/13
+  gained 5 (typo): hint -> certain
+uml-order-management__wrong_label: recognition 7/13 -> 12/13
+  gained 7 (wrong_label): absent_ok -> structural
+  gained 9 (wrong_label): absent_ok -> structural
+uml-shared-attributes__identical: recognition 13/21 -> 21/21
+  gained id-0 (exact): missed -> certain
+  gained id-1 (exact): missed -> certain
+  gained id-2 (exact): missed -> certain
+  gained id-3 (exact): missed -> certain
+  gained name-0 (exact): missed -> certain
+  gained name-1 (exact): missed -> certain
+  gained name-2 (exact): missed -> certain
+  gained name-3 (exact): missed -> certain
+uml-shared-attributes__typed_attributes: recognition 9/21 -> 21/21
+  gained 10 (typed): missed -> certain
+  gained 4 (typed): missed -> certain
+  gained 6 (typed): missed -> certain
+  gained 8 (typed): missed -> certain
+  gained id-0 (typed): missed -> certain
+  gained id-1 (typed): missed -> certain
+  gained id-2 (typed): missed -> certain
+  gained id-3 (typed): missed -> certain
+  gained name-0 (typed): missed -> certain
+  gained name-1 (typed): missed -> certain
+  gained name-2 (typed): missed -> certain
+  gained name-3 (typed): missed -> certain
+totals {'gained': 499, 'connections_gained': 640, 'hints_added': 36, 'hints_removed': 87, 'changed': 36, 'wrong': 8, 'connections_wrong': 7}
+FAIL

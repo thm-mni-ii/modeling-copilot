@@ -1,6 +1,10 @@
 # one-to-one-graph-matching
 
-Serviceversion `2.12.0`, Image `v23`, Ausgabeschema `reference-comparison/v2`.
+Serviceversion `2.16.0`, Image `v24`, Ausgabeschema `reference-comparison/v2`.
+Seit `2.16.0` (Plan „Verallgemeinerung“, Schritte S1 bis S5): Kinderüberlappung berücksichtigt blockierte geschlossene
+Kompositionen, ununterscheidbare parallele Kanten werden als Gruppe zugeordnet (GM-46), der Graphkontext
+entscheidet zwischen Textkandidaten (GM-47) und identifiziert Elemente über ihre Nachbarstruktur (GM-48,
+`context_evidence.py`), Notationsteile einer Beschriftung sind zusätzliche Vergleichstexte (GM-49).
 Seit `2.12.0` laufen die Vorschlagsphasen als Fixpunktschleife (`resolution.py`, GM-41), Kinder identifizierter
 Besitzer konkurrieren nur innerhalb des Besitzerpaars (GM-42), und `hints` nennt offene, nicht gezählte
 Paare aus Textband, Nachbarschaftsprofil und Kinderüberlappung (GM-43, Wortteile GM-44). Graubereichspaare

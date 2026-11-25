@@ -6,6 +6,7 @@ import numpy as np
 
 from .methods.registry import METHOD_REGISTRY, PREPROCESSORS, resolve_methods
 from .term_key import term_key
+from .word_parts import segments
 
 
 def _language_key(element):
@@ -167,6 +168,30 @@ def _score_sources(references, submissions, sources, right_texts, methods, prepr
     return result
 
 
+def _score_segments(references, submissions, prepared_right, prepared_left, methods, preprocessing, method_states):
+    """GM-49: every combination of a label and its notation parts, except label against label."""
+    left, right, origins = [], [], {}
+    for side, items, target in (("reference", references, left), ("student", submissions, right)):
+        for item in items:
+            if item["labelStatus"] != "present":
+                continue
+            for index, text in enumerate([item["matchText"], *segments(item["matchText"])]):
+                alias = f"segment-{side}-{item['id']}-{index}"
+                target.append({**item, "id": alias, "matchText": text})
+                origins[alias] = item["id"], text, index == 0
+    if not any(not full for _identity, _text, full in origins.values()):
+        return {}
+    prepared = {side: {method.name: _valid_text_map(items, preprocessing if preprocessing is not None else list(method.preprocessing), "element")
+                       for method in methods} for side, items in (("reference", left), ("student", right))}
+    result = {}
+    for (left_id, right_id), values in _score_group(left, right, prepared["reference"], prepared["student"], methods, method_states).items():
+        (reference, reference_text, reference_full), (submission, submission_text, submission_full) = origins[left_id], origins[right_id]
+        if reference_full and submission_full:
+            continue
+        result.setdefault((reference, submission), []).append({"referenceText": reference_text, "submissionText": submission_text, "scores": values})
+    return result
+
+
 def compare_pair(inventories, config, glossary_entries=()):
     methods = resolve_methods(config["methods"])
     preprocessing = config["preprocessing"]
@@ -237,6 +262,7 @@ def compare_pair(inventories, config, glossary_entries=()):
     method_states = {}
     element_scores = {}
     source_scores = {}
+    segment_scores = {}
     for key, references in element_buckets["reference"].items():
         submissions = element_buckets["student"].get(key, [])
         if not submissions:
@@ -246,6 +272,8 @@ def compare_pair(inventories, config, glossary_entries=()):
             methods, method_states,
         ))
         source_scores.update(_score_sources(references, submissions, sources, prepared_elements["student"], methods, preprocessing, method_states))
+        segment_scores.update(_score_segments(references, submissions, prepared_elements["student"], prepared_elements["reference"],
+                                              methods, preprocessing, method_states))
 
     eligible = {}
     for key, references in element_buckets["reference"].items():
@@ -285,6 +313,9 @@ def compare_pair(inventories, config, glossary_entries=()):
                     "scoreStatus": "scored", "scores": scores,
                     **({"matchingSources": source_scores[(reference["id"], submission_id)]}
                        if (reference["id"], submission_id) in source_scores else {}),
+                    **({"segmentSources": sorted(segment_scores[(reference["id"], submission_id)],
+                                                 key=lambda item: (item["referenceText"], item["submissionText"]))}
+                       if (reference["id"], submission_id) in segment_scores else {}),
                 })
         matches.sort(key=lambda item: item["submissionElementId"])
         matrix.append({

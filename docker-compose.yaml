@@ -163,7 +163,7 @@ services:
     restart: unless-stopped
 
   workflow-synonym-matching:
-    image: modeling-copilot/synonym-matching:v10
+    image: modeling-copilot/synonym-matching:v11
     build:
       context: ./dagu/workflow-services
       dockerfile: synonym-matching/Dockerfile
@@ -184,7 +184,7 @@ services:
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:
-    image: modeling-copilot/one-to-one-graph-matching:v23
+    image: modeling-copilot/one-to-one-graph-matching:v24
     build:
       context: ./dagu/workflow-services
       dockerfile: one-to-one-graph-matching/Dockerfile

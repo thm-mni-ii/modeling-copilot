@@ -9,6 +9,7 @@ import math
 import re
 
 from term_key import TERM_NORMALIZATION, term_key
+from word_parts import segments
 
 LEGACY_TIER = "minimumSimilarity"
 # Administrator knowledge ranks before every configured tier; it exists only while a term is accepted.
@@ -134,7 +135,10 @@ def pair_similarity(candidates, tiers, glossary=None):
         for match in row["matches"]:
             pair = (row["referenceElementId"], match["submissionElementId"])
             variants = [{"term": row["referenceLabel"], "scores": match.get("scores") if match.get("scoreStatus") == "scored" else None},
-                        *match.get("matchingSources", [])]
+                        *match.get("matchingSources", []),
+                        # GM-49: notation parts of either label; each part pair is its own source, never mixed.
+                        *({"term": item["referenceText"], "submissionText": item["submissionText"], "scores": item["scores"], "segment": True}
+                          for item in match.get("segmentSources", []))]
             evaluated = []
             for index, variant in enumerate(variants):
                 scores, available = variant.get("scores"), {}
@@ -147,7 +151,7 @@ def pair_similarity(candidates, tiers, glossary=None):
                         raise ValueError(f"invalid candidate score: {name}")
                     available[name] = score
                 # Every approved source is guarded using its own text; scores of different sources are never mixed.
-                veto = None if legacy else text_veto(variant["term"], match["submissionLabel"])
+                veto = None if legacy else text_veto(variant["term"], variant.get("submissionText", match["submissionLabel"]))
                 usable = ({} if veto == "digit_mismatch" else
                           {name: score for name, score in available.items() if name not in CHARACTER_METHODS}
                           if veto == "start_mismatch" else available)
@@ -157,7 +161,8 @@ def pair_similarity(candidates, tiers, glossary=None):
                 status = "supported" if rank is not None else "below_threshold" if methods and len(available) == len(methods) else "unavailable"
                 evaluated.append({"status": status, "scores": available, "tierRank": rank, "greyRank": grey,
                                   "supportingMethods": supported, "veto": veto,
-                                  **({"sourceTerm": variant["term"]} if index else {})})
+                                  **({"segment": {"reference": variant["term"], "submission": variant["submissionText"]}} if variant.get("segment")
+                                     else {"sourceTerm": variant["term"]} if index else {})})
             selected = min(enumerate(evaluated), key=lambda item: (
                 item[1]["tierRank"] if item[1]["tierRank"] is not None else len(tiers),
                 item[1]["greyRank"] if item[1]["greyRank"] is not None else len(tiers),
@@ -174,7 +179,8 @@ def pair_similarity(candidates, tiers, glossary=None):
             pairs[pair] = {"status": status, "scoreStatus": match.get("scoreStatus", "unavailable"),
                            "supportingMethods": supported, "scores": available,
                            "tier": tiers[rank]["name"] if rank is not None else None, "tierRank": rank, "greyRank": grey, "veto": veto,
-                           **({"sourceTerm": selected["sourceTerm"]} if selected.get("sourceTerm") and decision is None else {})}
+                           **({"sourceTerm": selected["sourceTerm"]} if selected.get("sourceTerm") and decision is None else {}),
+                           **({"segment": selected["segment"]} if selected.get("segment") and decision is None else {})}
     return pairs
 
 
@@ -210,10 +216,26 @@ def validate_matching_sources(candidates, graph_matching, reference_key):
     for row in candidates["synonymMatrix"]:
         for match in row["matches"]:
             check(row["referenceElementId"], match.get("matchingSources", []))
+            check_segments(row["referenceLabel"], match["submissionLabel"], match.get("segmentSources", []), ranges)
     for row in candidates.get("connectionTextMatrix", []):
         if row.get("matchingSources") and row["kind"] != "self":
             raise ValueError("connection matching sources require own connection text")
         check(row["referenceOwnerConnectionId"], row.get("matchingSources", []))
+
+
+def check_segments(reference_label, submission_label, sources, ranges):
+    """Segments must be recomputable from both labels; label against label is never a segment source."""
+    if not isinstance(sources, list):
+        raise ValueError("invalid segment source list")
+    left, right = [reference_label, *segments(reference_label)], [submission_label, *segments(submission_label)]
+    for source in sources:
+        scores = source.get("scores") if isinstance(source, dict) else None
+        if (source.get("referenceText") not in left or source.get("submissionText") not in right
+                or (source["referenceText"] == reference_label and source["submissionText"] == submission_label)
+                or not isinstance(scores, dict) or set(scores) != set(ranges)
+                or any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+                       or not ranges[method][0] <= value <= ranges[method][1] for method, value in scores.items())):
+            raise ValueError("candidate uses an invalid segment source")
 
 
 def legacy_thresholds(tiers):

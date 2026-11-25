@@ -14,7 +14,7 @@ export interface Suggestion {
   variants: { text: string; count: number }[]
   persons: number
   submissions: number
-  evidence: { contextUnique: number; contextBest: number; textOnly: number; recognized: number }
+  evidence: { contextUnique: number; contextBest: number; textOnly: number; recognized: number; hintAccepted?: number }
   comparisons: TermComparison[]
   alsoSuggestedFor: { referenceElementId: string; label: string; persons: number }[]
 }

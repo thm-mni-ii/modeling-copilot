@@ -112,8 +112,38 @@ def propose_connections(indices, elements, candidates=None, glossary=None, graph
             proposals.append({"referenceId": ref, "studentId": sub, "reason": rule,
                               "status": "provisional", "dependsOn": dependencies})
             record(events, "connections", rule, ref, sub, "proposed", [rule], depends_on=dependencies)
+    # GM-46: connections with the same type, direction, mapped endpoints and text cannot be told apart.
+    # Any one-to-one assignment inside such a group is equally right, so the group is paired in ID order.
+    def texts(index, identity):
+        own = normalized(index.nodes[identity].get("label"))
+        extra = [normalized(index.nodes[edge["source"]].get("label")) for edge in index.children.get(identity, ())
+                 if index.nodes[edge["source"]]["kind"] == "connectionLabel"]
+        return tuple(sorted(text for text in [own, *extra] if text))
+
+    interchangeable = set()
+    reserved_refs = {row["referenceId"] for row in proposals}
+    reserved_subs = {row["studentId"] for row in proposals}
+    for key, refs in sorted(grouped["reference"].items(), key=lambda item: str(item[0])):
+        subs = grouped["student"].get(key, [])
+        by_text = {}
+        for side, items, index in (("reference", refs, indices["reference"]), ("student", subs, indices["student"])):
+            for identity in items:
+                if identity not in (reserved_refs if side == "reference" else reserved_subs):
+                    by_text.setdefault(texts(index, identity), {"reference": [], "student": []})[side].append(identity)
+        for group in by_text.values():
+            if max(len(group["reference"]), len(group["student"])) < 2:
+                continue
+            for ref, sub in zip(sorted(group["reference"]), sorted(group["student"])):
+                endpoints = indices["reference"].endpoints.get(ref, {})
+                dependencies = [{"referenceId": identity, "studentId": mapping[identity]}
+                                for identity in sorted(set(endpoints.values()) & set(mapping))]
+                proposals.append({"referenceId": ref, "studentId": sub, "reason": "interchangeable_parallel_connections",
+                                  "status": "provisional", "dependsOn": dependencies})
+                record(events, "connections", "interchangeable_parallel_connections", ref, sub, "proposed",
+                       ["interchangeable_parallel_connections"], depends_on=dependencies)
+                interchangeable.add((ref, sub))
     selected = {(row["referenceId"], row["studentId"]) for row in proposals}
-    endpoint_anchors = necessary_pairs(strict) | necessary_pairs(broad)
+    endpoint_anchors = necessary_pairs(strict) | necessary_pairs(broad) | interchangeable
     for ref, sub in sorted(all_candidates - selected):
         record(events, "connections", "connection_identity", ref, sub, "deferred", ["ambiguous_candidates"])
     proposals.sort(key=lambda item: (item["referenceId"], item["studentId"]))

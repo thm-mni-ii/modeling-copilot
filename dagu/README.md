@@ -188,11 +188,11 @@ Verwaiste temporäre Arbeitsordner werden beim nächsten Workflow-Data-Aufruf na
 sieben Tagen entfernt. Reguläre Auswertungsordner werden nicht gelöscht.
 
 Graph Matching verwendet Serviceversion
-`2.12.0`, Analytical Feedback `2.4.0`, Synonym Matching `1.6.0`, Feedback Generation
+`2.16.0`, Analytical Feedback `2.4.0`, Synonym Matching `1.7.0`, Feedback Generation
 `4.10.0`, Workflow-Data `1.4.0`, die übrigen Dienste `1.0.0`. Graphvergleich verwendet
 `reference-comparison/v2`, Analyse/Feedback `/v3`, übrige Artefakte und vollständige
 stdout-Envelopes `/v1`; Matcher-Fakten `1.1`, Identitätsevidenzen `1.1`.
-Image-Tags: Analyse `v13`, Feedback `v41`, Matcher `v23`, Workflow-Data `v11`, Synonym `v10`, Parser und Inventar `v2`.
+Image-Tags: Analyse `v13`, Feedback `v41`, Matcher `v24`, Workflow-Data `v11`, Synonym `v11`, Parser und Inventar `v2`.
 `workflow-data` friert zusätzlich `graphMatching.hints` ein (`textBand` 0,05, `minimumNeighbors` 2,
 `minimumChildren` 2, `showReferenceText` als Probe aktiv). Der Matcher leitet daraus Hinweise ab, die nie zählen
 (GM-41 bis GM-44 in `docs/graph-matching-workflow/04-GRAPH-MATCHING.md`); Lernende sehen sie in einer eigenen Ansicht.
@@ -286,7 +286,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v11 modeling-copilot/graph-parser:v2 modeling-copilot/model-label-extraction:v2 modeling-copilot/synonym-matching:v10 modeling-copilot/one-to-one-graph-matching:v23 modeling-copilot/analytical-feedback:v13 modeling-copilot/feedback-generation:v41 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v11 modeling-copilot/graph-parser:v2 modeling-copilot/model-label-extraction:v2 modeling-copilot/synonym-matching:v11 modeling-copilot/one-to-one-graph-matching:v24 modeling-copilot/analytical-feedback:v13 modeling-copilot/feedback-generation:v41 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Danach `kubectl apply -f dagu/infra/workflow-services.yaml`; bei geänderten Tags

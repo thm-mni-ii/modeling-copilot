@@ -139,12 +139,16 @@ def _neighbor_profile(open_pairs, similarity, config, support, found):
 
 
 def _child_overlap(open_pairs, combined, config, found):
-    """AP-08: the best child overlap of both elements, without a closed composition."""
+    """AP-08: the best child overlap of both elements.
+
+    A closed composition that stayed open (blocked by a label conflict) competes too; excluding it would
+    let a weaker pair win as the "best" one.
+    """
     overlap = {}
     for row in combined:
         pair = (row["referenceId"], row["studentId"])
         union = row["expected"] + row["observed"] - row["matched"]
-        if pair in open_pairs and not row["complete"] and row["matched"] >= config["minimumChildren"] and union:
+        if pair in open_pairs and row["matched"] >= config["minimumChildren"] and union:
             overlap[pair] = (row["matched"] / union, row)
     for pair, (value, row) in overlap.items():
         if all(other_value < value for other, (other_value, _) in overlap.items()
