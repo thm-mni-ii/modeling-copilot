@@ -52,7 +52,9 @@ def week_start(value):
 
 
 def week_expression(field):
-    return {"$dateTrunc": {"date": field, "unit": "week", "startOfWeek": "monday"}}
+    # Monday 00:00 UTC like `week_start`; $dateTrunc needs MongoDB 5.0, production runs 4.4.
+    day = {"$dateFromParts": {"year": {"$year": field}, "month": {"$month": field}, "day": {"$dayOfMonth": field}}}
+    return {"$subtract": [day, {"$multiply": [{"$subtract": [{"$isoDayOfWeek": field}, 1]}, 86_400_000]}]}
 
 
 def fill_weeks(rows, since):
@@ -76,9 +78,9 @@ def counted(rows):
     return [{"key": row["_id"], "count": row["count"]} for row in sorted(rows, key=lambda row: -row["count"])]
 
 
-# Median of the pushed per-user counts, computed in the database.
+# Median of the per-user counts, pushed in ascending order ($sortArray needs MongoDB 5.2; production runs 4.4).
 MEDIAN = {"$let": {
-    "vars": {"sorted": {"$sortArray": {"input": "$counts", "sortBy": 1}}, "size": {"$size": "$counts"}},
+    "vars": {"sorted": "$counts", "size": {"$size": "$counts"}},
     "in": {"$avg": [
         {"$arrayElemAt": ["$$sorted", {"$floor": {"$divide": [{"$subtract": ["$$size", 1]}, 2]}}]},
         {"$arrayElemAt": ["$$sorted", {"$floor": {"$divide": ["$$size", 2]}}]},
@@ -136,6 +138,7 @@ async def model_kpis(match):
         {"$group": {"_id": "$ownerId", "n": {"$sum": 1}}},
         {"$facet": {
             "summary": [
+                {"$sort": {"n": 1}},
                 {"$group": {"_id": None, "users": {"$sum": 1}, "avg": {"$avg": "$n"}, "counts": {"$push": "$n"}}},
                 {"$project": {"users": 1, "avg": 1, "median": MEDIAN}},
             ],
