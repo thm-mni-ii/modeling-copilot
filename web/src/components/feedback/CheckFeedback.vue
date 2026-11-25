@@ -8,6 +8,12 @@
         <span>{{ deviationText(object) }}</span>
       </li>
     </ul>
+    <ul v-if="notes.length" class="check-feedback__list" aria-label="Beobachtungen">
+      <li v-for="note in notes" :key="note.cellId">
+        <v-icon icon="mdi-information-outline" :color="NOTE_COLOR" size="14" />
+        <span>{{ note.text }}</span>
+      </li>
+    </ul>
   </div>
 </template>
 
@@ -35,6 +41,9 @@ const gate = computed(() => {
 // Recognized, but an own property (type, formatting, owner, endpoints) differs: outlined mark instead of green.
 const deviating = computed(() => (props.entry.objects ?? []).filter(object => object.checks.length && (!props.isCurrent || props.isCurrent(object.cellId))))
 const deviationText = (object: HelpFeedbackObject) => `Erkannt, aber: ${object.checks.map(check => check.text).join(' ')}`
+// Observations on open elements (e.g. same-named copies): information only, no verdict.
+const NOTE_COLOR = '#2196F3'
+const notes = computed(() => (props.entry.notes ?? []).filter(note => !props.isCurrent || props.isCurrent(note.cellId)))
 
 // Check marks on every recognized object; runtime overlays only, the model stays unchanged.
 const graphContext = useGraphContextOptional()
@@ -55,6 +64,14 @@ watch([() => graphContext?.graph.value, () => props.entry, () => props.isCurrent
       const overlay = createOverlayFromConfig({ image: { src: '', width: 16, height: 16 },
         icon: differs ? recognizedWithLocalIssuesDisplay.icon : 'mdi-check-circle', color: differs ? recognizedWithLocalIssuesDisplay.color : '#2E7D32',
         tooltip: differs ? deviationText(object) : `${object.label || 'Objekt'}: richtig erkannt`, align: 'right', verticalAlign: 'top', offset: { x: 8, y: -8 } })
+      graph.addCellOverlay(cell, overlay)
+      installed.push({ cell, overlay })
+    }
+    for (const note of notes.value) {
+      const cell = graph.getDataModel().getCell(note.cellId)
+      if (!cell) continue
+      const overlay = createOverlayFromConfig({ image: { src: '', width: 16, height: 16 }, icon: 'mdi-information-outline', color: NOTE_COLOR,
+        tooltip: note.text, align: 'right', verticalAlign: 'top', offset: { x: 8, y: -8 } })
       graph.addCellOverlay(cell, overlay)
       installed.push({ cell, overlay })
     }

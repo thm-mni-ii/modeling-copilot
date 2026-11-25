@@ -131,10 +131,10 @@ def reserved_ids(state):
     return ({item["referenceId"] for item in reserved}, {item["studentId"] for item in reserved})
 
 
-def initial_state(indices, candidates, *, graphs=None):
+def initial_state(indices, candidates, *, graphs=None, contested=frozenset()):
     """Exact anchors, owner anchors and blocked conflicts; returns the state and the phase context."""
     events = []
-    anchors, unresolved = propose_exact_anchors(indices, candidates, events)
+    anchors, unresolved = propose_exact_anchors(indices, candidates, events, skip=contested)
     complete_graphs = graphs is None or all(graph["completeness"]["interpretation"] == "complete" for graph in graphs.values())
     # No automatic swap: a contradicted label anchor and its alternatives stay open for review.
     contradicted = _label_structure_conflicts(indices, candidates, anchors, complete_graphs)

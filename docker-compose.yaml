@@ -184,14 +184,14 @@ services:
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:
-    image: modeling-copilot/one-to-one-graph-matching:v27
+    image: modeling-copilot/one-to-one-graph-matching:v31
     build:
       context: ./dagu/workflow-services
       dockerfile: one-to-one-graph-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-feedback-generation:
-    image: modeling-copilot/feedback-generation:v46
+    image: modeling-copilot/feedback-generation:v54
     build:
       context: ./dagu/workflow-services
       dockerfile: feedback-generation/Dockerfile

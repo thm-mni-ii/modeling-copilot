@@ -7,7 +7,7 @@ from decision_diagnostics import record
 from assignment_capacity import necessary_pairs
 
 
-def propose_exact_anchors(indices, candidates, events=None, phase="exact_label"):
+def propose_exact_anchors(indices, candidates, events=None, phase="exact_label", skip=frozenset()):
     """Return unique exact-label anchors and competing exact candidate pairs.
 
     The validated graph indices are reserved for later stages; graph structure
@@ -20,7 +20,8 @@ def propose_exact_anchors(indices, candidates, events=None, phase="exact_label")
             continue
         for candidate in row["matches"]:
             student_label = " ".join(unicodedata.normalize("NFC", candidate["submissionLabel"]).split())
-            if reference_label == student_label:
+            # GM-52: an exact pair with a text-supported rival is decided by context, not anchored here.
+            if reference_label == student_label and (row["referenceElementId"], candidate["submissionElementId"]) not in skip:
                 pairs_by_label[reference_label].append((row["referenceElementId"], candidate["submissionElementId"]))
 
     anchors, unresolved = [], []

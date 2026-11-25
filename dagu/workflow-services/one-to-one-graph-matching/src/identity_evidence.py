@@ -15,6 +15,9 @@ METHODS = ("exact_label", "text_similarity", "type_compatibility", "independent_
 # Proposals from the graph context (GM-47, GM-48) carry their method; `dependsOn` names the agreeing context pairs.
 STRUCTURE_REASONS = {"context_disambiguated_text": "context_structure", "loose_context_text": "context_structure",
                      "neighbor_structure": "neighbor_structure", "interchangeable_duplicate": "interchangeable_duplicate"}
+# Proposal reasons where element structure chose between text candidates (GM-53).
+STRUCTURAL_CHOICES = {"independent_child_evidence", "combined_child_structure", "context_disambiguated_text",
+                      "loose_context_text", "neighbor_structure"}
 SIMILARITY_RESULTS = {"supported": "satisfied", "below_threshold": "violated", "unavailable": "not_evaluated"}
 
 
@@ -150,6 +153,17 @@ def evaluate_identity(indices, candidates, proposals, *, combined=(), connection
                 if any(item["method"] == method and item["result"] == "satisfied" for item in row["criteria"])}
 
     exact_pairs, similar_pairs = satisfied_pairs("exact_label"), satisfied_pairs("text_similarity")
+    # GM-52/53: exact label and text tiers only rank text candidates. Where element structure (children,
+    # context, neighbours) chose a text candidate over a textually stronger one, text must not discriminate
+    # against that choice; where text agrees (equally strong rivals, or the text-best pair was chosen), it
+    # stays an anchor.
+    def text_rank(pair):
+        return 0 if pair in exact_pairs else 1 + similarity[pair]["tierRank"] if pair in similar_pairs else None
+    text_open = {r for (r, s), row in selected.items() if row.get("reason") in STRUCTURAL_CHOICES and text_rank((r, s)) is not None
+                 and any(other[0] == r and other[1] != s and text_rank(other) is not None and text_rank(other) < text_rank((r, s))
+                         for other in exact_pairs | similar_pairs)}
+    exact_pairs = {pair for pair in exact_pairs if pair[0] not in text_open}
+    similar_pairs = {pair for pair in similar_pairs if pair[0] not in text_open}
     unique = set()
     while True:
         used_ref, used_sub = {r for r, _ in unique}, {s for _, s in unique}

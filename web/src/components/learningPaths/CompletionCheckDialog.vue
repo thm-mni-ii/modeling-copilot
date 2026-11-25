@@ -9,7 +9,7 @@
         </template>
         <template v-else>
           <CompletionGateBars :result="result" animate @done="decided = true" />
-          <HintNotice :count="hintCount ?? 0" @open="emit('hints')" />
+          <HintNotice :hints="labelHints ?? []" @open="emit('hints')" />
           <template v-if="decided">
             <v-alert v-if="result.passed" type="success" variant="tonal" density="compact" class="mt-4">
               Du hast genug erreicht. Nach der Abgabe steht deine Punktzahl fest; dein Modell kannst du weiter bearbeiten.
@@ -36,8 +36,9 @@ import { computed, ref, watch } from 'vue'
 import CompletionGateBars from './CompletionGateBars.vue'
 import HintNotice from '@/components/feedback/HintNotice.vue'
 import type { GateResult } from '@/utils/completionGate'
+import type { LabelHint } from '@/services/api/types/evaluation'
 
-const props = defineProps<{ result: GateResult | null; error?: string; busy?: boolean; helpAvailable?: boolean; hintCount?: number }>()
+const props = defineProps<{ result: GateResult | null; error?: string; busy?: boolean; helpAvailable?: boolean; labelHints?: LabelHint[] }>()
 const emit = defineEmits<{ submit: []; help: []; hints: [] }>()
 const open = defineModel<boolean>({ default: false })
 const acknowledged = ref(false)

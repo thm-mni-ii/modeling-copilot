@@ -148,7 +148,7 @@ def recognition_of(report: Document) -> Any:
 
 
 HELP_TYPES = ("help.clarify", "help.check", "help.next_step", "help.example", "help.solution")
-HINT_FIELDS = ("id", "submissionId", "submissionLabel", "suggestion", "sources", "relation")
+HINT_FIELDS = ("id", "submissionId", "submissionLabel", "suggestion", "sources", "relation", "note")
 HINT_ACTIONS = ("shown", "accepted", "dismissed")
 
 

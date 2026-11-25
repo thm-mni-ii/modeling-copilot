@@ -165,7 +165,7 @@ spec:
       serviceAccountName: workflow-runner
       containers:
         - name: service
-          image: modeling-copilot/one-to-one-graph-matching:v27
+          image: modeling-copilot/one-to-one-graph-matching:v31
           imagePullPolicy: IfNotPresent
           command: [python, -u, /app/workflow_server.py, /app/src/main.py, --port, "30085"]
           ports: [{name: graph-matching, containerPort: 30085}]
@@ -223,7 +223,7 @@ spec:
       serviceAccountName: workflow-runner
       containers:
         - name: service
-          image: modeling-copilot/feedback-generation:v46
+          image: modeling-copilot/feedback-generation:v54
           imagePullPolicy: IfNotPresent
           command: [python, -u, /app/workflow_server.py, /app/src/main.py, --port, "30087"]
           ports: [{name: feedback, containerPort: 30087}]

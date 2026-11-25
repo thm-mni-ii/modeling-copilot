@@ -109,7 +109,7 @@
       </template>
     </DrawingCanvas>
 
-    <CompletionCheckDialog v-model="completionCheckOpen" :result="completionCheck" :error="completionCheckError" :busy="pathBusy" :help-available="helpEnabled" :hint-count="completionHintCount" @submit="submitCheckedCompletion" @help="helpFromCompletionCheck" @hints="checkedEvaluationId && openEvaluationHints(checkedEvaluationId)" />
+    <CompletionCheckDialog v-model="completionCheckOpen" :result="completionCheck" :error="completionCheckError" :busy="pathBusy" :help-available="helpEnabled" :label-hints="completionHints" @submit="submitCheckedCompletion" @help="helpFromCompletionCheck" @hints="checkedEvaluationId && openEvaluationHints(checkedEvaluationId)" />
     <v-dialog v-model="recoveryDialog" max-width="1000" persistent
       ><v-card
         ><v-card-title>Unsaved changes found</v-card-title
@@ -146,7 +146,7 @@ import { completionGate, type GateResult } from '@/utils/completionGate'
 import modelService from '@/services/model/model.service'
 import type { ModelVersion } from '@/services/api/types/model'
 import evaluationService from '@/services/evaluation/evaluation.service'
-import type { EvaluationOutcome, EvaluationParameters } from '@/services/api/types/evaluation'
+import type { EvaluationOutcome, EvaluationParameters, LabelHint } from '@/services/api/types/evaluation'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import ChallengeOverlay from '@/components/learningPaths/ChallengeOverlay.vue'
 import LearningJourneyDock from '@/components/learningPaths/LearningJourneyDock.vue'
@@ -261,7 +261,7 @@ const completionNotice = ref('')
 // Completion check: the dialog shows the gate result of the evaluation started by "Abschließen".
 const completionCheckOpen = ref(false)
 const completionCheck = ref<GateResult | null>(null)
-const completionHintCount = ref(0)
+const completionHints = ref<LabelHint[]>([])
 const completionCheckError = ref('')
 const checkedEvaluationId = ref<string | null>(null)
 watch(completionCheckOpen, (open) => { if (!open) completionEvaluationId.value = null })
@@ -328,7 +328,7 @@ const returnToPath = async (complete: boolean, evaluationId?: string) => {
       if (path.minimumScorePercent != null && !evaluationId && !path.completedAt) {
         completionNotice.value = ''
         completionCheck.value = null
-        completionHintCount.value = 0
+        completionHints.value = []
         completionCheckError.value = ''
         completionCheckOpen.value = true
         const evaluation = await startEvaluation('student')
@@ -364,7 +364,7 @@ watch(() => props.modelId, () => {
   hintNavigation.value = null
   helpEvaluationId.value = null
   helpEvaluationCellIds.value = []
-  completionHintCount.value = 0
+  completionHints.value = []
 })
 const openEvaluationHints = (evaluationId: string, cellId?: string, noticeViewed = true) => {
   completionCheckOpen.value = false
@@ -619,7 +619,7 @@ watch([completionResult, pathBusy], async ([evaluation, busy]) => {
     if (!result) throw new Error('No recognition')
     checkedEvaluationId.value = evaluation.id
     completionCheck.value = result
-    completionHintCount.value = feedback.hints?.length ?? 0
+    completionHints.value = feedback.hints ?? []
   } catch {
     completionCheckError.value = 'Für diese Prüfung liegt kein Ergebnis vor. Versuche es gleich noch einmal.'
   }

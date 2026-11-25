@@ -22,7 +22,7 @@ def recognition(analysis: dict, context: dict, store: Workspace, bundle: dict) -
 
 def hints(analysis: dict, context: dict, store: Workspace, bundle: dict) -> dict:
     """Validated learner hints of the analytical feedback (AP-10); never part of the recognition."""
-    return {"hints": analysis.get("labelHints", [])}
+    return {"hints": analysis.get("labelHints", []) + help_feedback.observation_hints(analysis, store, bundle)}
 
 
 def help_builder(kind: str):
@@ -68,7 +68,7 @@ def run(store: Workspace, reference_key: str, analysis_path: str | None = None) 
         "analysisHash": analysis["analysisHash"], "analysisPath": analysis_path,
         "requested": types,
         "feedback": [{"type": kind, **BUILDERS[kind](analysis, context, store, bundle)} for kind in types],
-        "producer": {"service": SERVICE, "version": "4.15.0",
+        "producer": {"service": SERVICE, "version": "4.22.0",
                      "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()})},
     }
     report["feedbackHash"] = content_hash(report)

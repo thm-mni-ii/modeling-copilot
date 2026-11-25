@@ -1,5 +1,6 @@
 import { CellHighlight, InternalEvent, Rectangle, RectangleShape, type Cell, type CellOverlay, type Graph } from '@maxgraph/core'
 import { createOverlayFromConfig } from './feedbackOverlays'
+import type { HelpFeedbackNote } from '@/services/api/types/evaluation'
 import { analysisDisplay, analysisHintText, analysisStudentQuestions, analysisOverviewAppearance, analysisOverviewStatus, analysisStatus, displayStatusOrder, type AdaptedAnalysis, type AnalysisTarget, type DisplayStatus, type ReferenceHint } from './analysisFeedback'
 
 /** A runtime frame without custom element fills, selection handles or model changes. */
@@ -39,8 +40,9 @@ export const referenceHintTarget = (graph: Graph, hint: ReferenceHint) => analys
 /** Runtime overlays only: no style/XML mutation and no removal of other feedback overlays.
  * All findings of one cell merge into a single marker (most severe status, every finding in the tooltip),
  * so markers never stack on top of each other. */
-export function installAnalysisOverlays(graph: Graph, analysis: AdaptedAnalysis, select: (id: string, showQuestion?: boolean) => void, overview = false) {
-  if (overview) return installOverviewOverlays(graph, analysis, select)
+export function installAnalysisOverlays(graph: Graph, analysis: AdaptedAnalysis, select: (id: string, showQuestion?: boolean) => void, overview = false,
+  notes: HelpFeedbackNote[] = []) {
+  if (overview) return installOverviewOverlays(graph, analysis, select, notes)
   const markers = new Map<Cell, { status: DisplayStatus; lines: string[]; selectedId: string }>()
   // The first registration owns the click target; own annotations are registered first.
   const add = (cell: Cell, status: DisplayStatus, tooltip: string, selectedId = cell.getId()!) => {
@@ -92,6 +94,11 @@ export function installAnalysisOverlays(graph: Graph, analysis: AdaptedAnalysis,
       if (cell) add(cell, group.facts?.some(fact => fact.status === 'violated') || group.status === 'different' ? 'warning' : 'unresolved', `Verbindungsgruppe: ${group.hints?.map(analysisHintText).join('\n') || 'Abweichende oder offene Gruppenprüfungen; kein individueller Verbindungsfehler.'}`, id)
     }
   }
+  // Observations from the learner feedback (e.g. same-named copies) join the tooltip; they never change the status.
+  for (const note of notes) {
+    const cell = graph.getDataModel().getCell(note.cellId)
+    if (cell) markers.get(cell)?.lines.push(note.text)
+  }
   const installed: { cell: Cell; overlay: CellOverlay }[] = []
   for (const [cell, marker] of markers) {
     const display = analysisDisplay[marker.status]
@@ -105,7 +112,7 @@ export function installAnalysisOverlays(graph: Graph, analysis: AdaptedAnalysis,
 }
 
 /** One identity icon per domain object; property and group findings remain in the details. */
-function installOverviewOverlays(graph: Graph, analysis: AdaptedAnalysis, select: (id: string, showQuestion?: boolean) => void) {
+function installOverviewOverlays(graph: Graph, analysis: AdaptedAnalysis, select: (id: string, showQuestion?: boolean) => void, notes: HelpFeedbackNote[]) {
   const installed: { cell: Cell; overlay: CellOverlay }[] = []
   const marked = new Set<string>()
   const undisplayedAnnotations = analysis.report.annotations.filter(item => {
@@ -121,9 +128,11 @@ function installOverviewOverlays(graph: Graph, analysis: AdaptedAnalysis, select
     overlay.addListener(InternalEvent.CLICK, () => { graph.setSelectionCell(cell); select(item.target.id) })
     graph.addCellOverlay(cell, overlay)
     installed.push({ cell, overlay })
-    if (questions.length) {
+    const information = [...questions.map(question => question.text), ...notes.filter(note => note.cellId === item.target.id).map(note => note.text)]
+    if (information.length) {
       const info = createOverlayFromConfig({ image: { src: '', width: 16, height: 16 }, icon: 'mdi-information-outline',
-        color: '#2196F3', tooltip: questions.map(question => question.text).join('\n'), align: 'right', verticalAlign: 'top', offset: { x: 20, y: 0 }, cursor: 'pointer' })
+        color: '#2196F3', tooltip: information.join('\n'), align: 'right', verticalAlign: 'top', offset: { x: 20, y: 0 }, cursor: 'pointer' })
+      // Questions and observations are both learner hints, so the icon opens the hint list for either.
       info.addListener(InternalEvent.CLICK, () => select(item.target.id, true))
       graph.addCellOverlay(cell, info)
       installed.push({ cell, overlay: info })

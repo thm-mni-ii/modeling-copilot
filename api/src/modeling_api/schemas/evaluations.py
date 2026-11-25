@@ -41,6 +41,7 @@ class LabelHint(ApiSchema):
     suggestion: str | None = None
     sources: list[str] = Field(default_factory=list)
     relation: str | None = None
+    note: str | None = Field(default=None, description="Observation about the element (e.g. a surplus copy) instead of a label question.")
     state: Literal["new", "shown", "accepted", "dismissed"] = "new"
     retention: Literal["retained", "reverted", "removed"] | None = Field(
         default=None, description="Last observed editor state after acceptance; not proof of a saved model version.")

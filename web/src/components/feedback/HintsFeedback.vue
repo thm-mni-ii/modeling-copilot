@@ -10,7 +10,9 @@
         <p v-if="!readonly" class="hints-feedback__meta">Erst zeigen, dann entscheiden.</p>
         <ul class="hints-feedback__list">
           <li v-for="hint in hints" :key="hint.id" ref="hintItems" :data-hint-id="hint.id" tabindex="-1" class="hints-feedback__item">
-            <p class="hints-feedback__text">
+            <!-- An observation only reports what the evaluation found; there is nothing to replace or reject. -->
+            <p v-if="hint.note" class="hints-feedback__text">{{ hint.note }}</p>
+            <p v-else class="hints-feedback__text">
               <strong>„{{ hint.submissionLabel || 'Ohne Beschriftung' }}“</strong>:
               <template v-if="hint.suggestion">Meinst du damit „{{ hint.suggestion }}“?</template>
               <template v-else>Ist das der passende Begriff?</template>
@@ -23,7 +25,7 @@
               <template v-else>
                 <v-btn size="x-small" variant="text" prepend-icon="mdi-crosshairs-gps" :disabled="!exists(hint)" @click="show(hint)">Zeigen</v-btn>
                 <v-btn v-if="hint.suggestion" size="x-small" variant="tonal" color="primary" prepend-icon="mdi-check" :disabled="!canDecide(hint) || !editable(hint)" @click="accept(hint)">Ersetzen</v-btn>
-                <v-btn size="x-small" variant="text" prepend-icon="mdi-close" :disabled="!canDecide(hint)" @click="dismiss(hint)">Ablehnen</v-btn>
+                <v-btn v-if="!hint.note" size="x-small" variant="text" prepend-icon="mdi-close" :disabled="!canDecide(hint)" @click="dismiss(hint)">Ablehnen</v-btn>
               </template>
             </div>
           </li>

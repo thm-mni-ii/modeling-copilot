@@ -11,7 +11,7 @@
     <v-alert v-if="tab !== 'hints' && error" type="warning" density="compact" variant="tonal" class="my-2">{{ error }}</v-alert>
 
     <template v-else-if="analysis && tab === 'overview'">
-      <HintNotice v-if="!noticeViewed" :count="learnerFeedback?.hints?.length ?? 0" @open="noticeViewed = true; openHints()" />
+      <HintNotice v-if="!noticeViewed" :hints="learnerFeedback?.hints ?? []" @open="noticeViewed = true; openHints()" />
       <section v-if="overviewMode" class="analysis-panel__section" aria-label="Evaluation result">
         <div class="d-flex align-center justify-space-between ga-3 mb-2">
           <div><h3 class="text-body-2 font-weight-medium">Erkennungsquote</h3><span class="text-caption text-medium-emphasis">Gewählte Musterlösung</span></div>
@@ -146,7 +146,7 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue'
 import { InternalEvent, type Cell } from '@maxgraph/core'
-import type { EvaluationDetail } from '@/services/api/types/evaluation'
+import type { EvaluationDetail, HelpFeedbackCatalogObject, HelpFeedbackNote } from '@/services/api/types/evaluation'
 import { useUserStore } from '@/stores/userStore'
 import { useEvaluationResult } from '@/composables/useEvaluationResult'
 import evaluationService from '@/services/evaluation/evaluation.service'
@@ -359,7 +359,14 @@ const showGroup = (group: FindingGroup) => {
 }
 
 watch(analysis, () => { selectedKey.value = null; filter.value = 'all' })
-watch([() => graphContext?.graph.value, analysis], ([graph, value], _, onCleanup) => {
+// Observations of the learner check (e.g. same-named copies), taken from the feedback catalog of this reference.
+const checkNotes = computed<HelpFeedbackNote[]>(() => {
+  const step = props.detail.steps.find(item => item.status === 'succeeded' && item.result?.schema === 'feedback-report/v4' &&
+    (item.result.pair as { referenceKey?: string } | undefined)?.referenceKey === referenceKey.value)
+  const entries = Array.isArray(step?.result?.feedback) ? step.result.feedback as unknown as { type: string; catalog?: HelpFeedbackCatalogObject[] }[] : []
+  return entries.find(entry => entry.type === 'help.catalog')?.catalog?.[0]?.help['help.check']?.notes ?? []
+})
+watch([() => graphContext?.graph.value, analysis, checkNotes], ([graph, value], _, onCleanup) => {
   stale.value = false
   currentFindingKeys.value = new Set()
   if (!graph || !value) return
@@ -375,7 +382,7 @@ watch([() => graphContext?.graph.value, analysis], ([graph, value], _, onCleanup
       ...applicable.report.annotations.filter(item => item.target.kind !== 'structuralElement').map(item => `submission:${item.target.id}`),
       ...applicable.report.referenceHints.filter(item => item.kind !== 'structuralElement').map(item => `reference:${item.referenceId}`)
     ])
-    removeOverlays = installAnalysisOverlays(graph, applicable, openSubmission, props.overviewMode).remove
+    removeOverlays = installAnalysisOverlays(graph, applicable, openSubmission, props.overviewMode, checkNotes.value).remove
   }
   // Selecting an analysed cell in the diagram opens its findings; other selections leave the panel as it is.
   const selectionChanged = () => {

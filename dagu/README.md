@@ -188,8 +188,8 @@ Verwaiste temporäre Arbeitsordner werden beim nächsten Workflow-Data-Aufruf na
 sieben Tagen entfernt. Reguläre Auswertungsordner werden nicht gelöscht.
 
 Graph Matching verwendet Serviceversion
-`2.19.0`, Analytical Feedback `2.5.0`, Synonym Matching `1.7.1`, Feedback Generation
-`4.15.0`, Workflow-Data `1.4.0`, Parser und Inventar `1.1.0`, die übrigen Dienste `1.0.0`. Graphvergleich verwendet
+`2.22.0`, Analytical Feedback `2.5.0`, Synonym Matching `1.7.1`, Feedback Generation
+`4.22.0`, Workflow-Data `1.4.0`, Parser und Inventar `1.1.0`, die übrigen Dienste `1.0.0`. Graphvergleich verwendet
 `reference-comparison/v2`, Analyse/Feedback `/v3`, übrige Artefakte und vollständige
 stdout-Envelopes `/v1`; Matcher-Fakten `1.1`, Identitätsevidenzen `1.1`.
 Image-Tags: Analyse `v14`, Feedback `v45`, Matcher `v26`, Workflow-Data `v11`, Synonym `v12`, Parser und Inventar `v3`.
@@ -286,7 +286,7 @@ mit einer binären Pipe aus `cmd.exe` erfolgen (Tags bei Änderungen gemeinsam m
 Compose und Workflow aktualisieren):
 
 ```cmd
-docker image save modeling-copilot/workflow-data:v11 modeling-copilot/graph-parser:v3 modeling-copilot/model-label-extraction:v3 modeling-copilot/synonym-matching:v12 modeling-copilot/one-to-one-graph-matching:v27 modeling-copilot/analytical-feedback:v14 modeling-copilot/feedback-generation:v46 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
+docker image save modeling-copilot/workflow-data:v11 modeling-copilot/graph-parser:v3 modeling-copilot/model-label-extraction:v3 modeling-copilot/synonym-matching:v12 modeling-copilot/one-to-one-graph-matching:v31 modeling-copilot/analytical-feedback:v14 modeling-copilot/feedback-generation:v54 | docker exec -i desktop-control-plane ctr -n k8s.io images import -
 ```
 
 Danach `kubectl apply -f dagu/infra/workflow-services.yaml`; bei geänderten Tags
