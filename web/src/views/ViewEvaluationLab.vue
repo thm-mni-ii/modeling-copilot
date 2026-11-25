@@ -1,38 +1,88 @@
 <template>
-  <div class="glossary-page">
-    <header class="glossary-toolbar d-flex flex-wrap align-center ga-2 pa-2 border-b">
-      <h1 class="text-h6 mr-2">Synonym glossary</h1>
-      <v-select v-model="taskId" :items="tasks" item-title="name" item-value="id" label="Task" density="compact" hide-details class="header-select" />
-      <v-select v-model="releaseId" :items="releaseItems" label="Release" density="compact" hide-details class="header-select-small" :disabled="!task" />
-      <v-select v-model="solutionIndex" :items="solutionItems" label="Sample solution" density="compact" hide-details class="header-select-solution" :disabled="!solutions.length" />
-      <v-select v-if="view && outcomeSources.length > 1 && excludeStaff" v-model="outcomeSource" :items="outcomeSources" label="Results" density="compact" hide-details class="header-select-solution" />
-      <v-spacer />
-      <template v-if="view">
-        <span class="text-caption" role="status">{{ view.signals.evaluated }} submissions<span v-if="view.signals.missing"> · {{ view.signals.missing }} missing</span></span>
-        <v-btn class="toolbar-action" size="small" variant="tonal" :disabled="!view.signals.missing || jobRunning" :loading="starting" @click="recalculate('missing')"><span>Calculate<br>missing</span></v-btn>
-        <v-btn class="toolbar-action" size="small" variant="tonal" :disabled="!view.signals.evaluated" @click="replayOpen = true"><span>Compare full<br>evaluations</span></v-btn>
-        <v-menu>
-          <template #activator="{ props: menu }"><v-btn v-bind="menu" size="small" variant="text" icon="mdi-dots-vertical" aria-label="More glossary actions" /></template>
-          <v-list density="compact">
-            <v-list-item :disabled="jobRunning || !view.signals.evaluated" title="Recalculate all signals" @click="confirmAll = true" />
-            <v-list-item :disabled="!importSources.length" title="Import from another release" @click="openImport" />
-          </v-list>
-        </v-menu>
-      </template>
+  <div class="lab-page">
+    <header class="lab-header">
+      <div class="lab-identity">
+        <div class="lab-symbol"><v-icon icon="mdi-flask-outline" size="26" /></div>
+        <div>
+          <h1 class="text-h6 font-weight-bold">Evaluation Lab</h1>
+          <p class="text-body-2 text-medium-emphasis mb-0">Matching decisions and workflow analysis</p>
+        </div>
+      </div>
+      <v-chip v-if="replayRunning" color="info" size="small" variant="tonal" prepend-icon="mdi-progress-clock" @click="openActiveRun">Test run in progress</v-chip>
     </header>
-
+    <div class="lab-layout">
+      <aside class="lab-sidebar" :class="{ 'lab-sidebar--expanded': sidebarExpanded }" aria-label="Evaluation Lab navigation">
+        <div class="lab-context-row">
+          <button type="button" class="lab-context" :disabled="!tasks.length || saving" aria-label="Change task and release" @click="openContext">
+            <v-icon icon="mdi-clipboard-text-outline" size="20" />
+            <span class="lab-context-copy">
+              <span class="lab-eyebrow">Task / Release</span>
+              <strong>{{ task?.name ?? 'Choose a task' }}</strong>
+              <span class="text-caption text-medium-emphasis">{{ release ? `Release ${release.versionNumber}` : 'No release selected' }}</span>
+            </span>
+            <v-icon icon="mdi-swap-horizontal" size="18" />
+          </button>
+          <v-btn class="lab-browse-button" variant="tonal" size="small" :prepend-icon="sidebarExpanded ? 'mdi-chevron-up' : 'mdi-menu'" :aria-expanded="sidebarExpanded" aria-controls="lab-context-navigation" @click="sidebarExpanded = !sidebarExpanded">Browse</v-btn>
+        </div>
+        <v-list nav density="compact" class="lab-workspaces" aria-label="Choose a workspace">
+          <v-list-item :active="workspaceTab === 'glossary'" color="primary" prepend-icon="mdi-book-alphabet" title="Synonym glossary" subtitle="Terms and matching decisions" @click="chooseWorkspace('glossary')" />
+          <v-list-item :active="workspaceTab === 'tests'" color="primary" prepend-icon="mdi-flask-outline" title="Test suite" subtitle="Cases and workflow analysis" @click="chooseWorkspace('tests')" />
+          <v-list-item :active="workspaceTab === 'live'" color="primary" prepend-icon="mdi-pencil-ruler" title="Live test" subtitle="Edit, submit and inspect" @click="chooseWorkspace('live')" />
+        </v-list>
+        <div id="lab-context-navigation" class="lab-sidebar-content">
+          <template v-if="workspaceTab === 'glossary'">
+            <div class="lab-nav-heading"><h2>Sample solutions</h2><span>{{ solutions.length }}</span></div>
+            <v-list nav density="compact" class="lab-nav-list" aria-label="Choose a sample solution">
+              <v-list-item v-for="(_solution, index) in solutions" :key="_solution.versionId" :active="solutionIndex === index" :disabled="saving" color="primary" prepend-icon="mdi-vector-square" :title="`Solution ${index + 1}`" @click="selectSolution(index)" />
+            </v-list>
+            <div class="lab-nav-heading"><h2>Result sources</h2></div>
+            <v-list nav density="compact" class="lab-nav-list" aria-label="Original evaluation results">
+              <v-list-item :active="outcomeSource === 'original'" color="primary" prepend-icon="mdi-account-school-outline" title="Original evaluations" :subtitle="view ? `${view.signals.evaluated} submissions` : 'Learner results'" :disabled="loading" @click="selectOutcome('original')" />
+            </v-list>
+            <EvaluationRunList :runs="replays" :selected-id="outcomeSource" :disabled="loading" aria-label="Test run results in the glossary" @select="selectOutcome" />
+            <p v-if="!loading && !replays.length" class="text-caption text-medium-emphasis px-4 pb-3">Test runs appear here after you start one in the test suite.</p>
+          </template>
+          <template v-else-if="workspaceTab === 'tests'">
+            <div class="lab-nav-heading"><h2>Test runs</h2><span>{{ replays.length }} saved</span></div>
+            <EvaluationRunList :runs="replays" :selected-id="replayId" :disabled="loading" @select="selectReplay" />
+            <p v-if="!loading && !replays.length" class="text-caption text-medium-emphasis px-4 pb-3">Start a test run to compare saved submissions.</p>
+          </template>
+          <p v-else class="text-body-2 text-medium-emphasis px-4 py-3">Live test models belong to your account and this task release. Each evaluation saves the model state it analyzes.</p>
+        </div>
+        <p class="lab-retention text-caption text-medium-emphasis">Test runs: up to 3 per release, retained for 7 days.</p>
+      </aside>
+      <section class="lab-main" :aria-label="workspaceTab === 'glossary' ? 'Synonym glossary workspace' : workspaceTab === 'live' ? 'Live test workspace' : 'Test suite workspace'">
     <v-alert v-if="!loading && !tasks.length" type="info" variant="tonal" class="ma-3">No evaluable tasks. A task needs a release with a sample solution.</v-alert>
     <template v-else>
-      <div v-if="error || view?.signals.unavailable || job?.state === 'running' || job?.failed" class="px-3 pt-2 d-flex flex-column ga-2">
+      <div v-if="error || (workspaceTab === 'glossary' && (view?.signals.unavailable || job?.state === 'running' || job?.failed))" class="px-3 pt-2 d-flex flex-column ga-2">
         <v-alert v-if="error" type="error" variant="tonal" density="compact" closable @click:close="error = ''">{{ error }}</v-alert>
-        <v-alert v-if="view?.signals.unavailable" type="warning" variant="tonal" density="compact">The workflow service is unavailable. Saved glossary entries stay editable, suggestions may be out of date.</v-alert>
-        <div v-if="job?.state === 'running'" role="status">
+        <v-alert v-if="workspaceTab === 'glossary' && view?.signals.unavailable" type="warning" variant="tonal" density="compact">The workflow service is unavailable. Saved glossary entries stay editable, suggestions may be out of date.</v-alert>
+        <div v-if="workspaceTab === 'glossary' && job?.state === 'running'" role="status">
           <div class="text-caption">Calculating signals: {{ job.done + job.failed }} of {{ job.total }}. This continues while the view is open.</div>
           <v-progress-linear :model-value="100 * (job.done + job.failed) / Math.max(job.total, 1)" color="primary" />
         </div>
-        <v-alert v-else-if="job?.failed" type="warning" variant="tonal" density="compact">{{ job.failed }} of {{ job.total }} submissions could not be calculated. They stay missing until you calculate them again.</v-alert>
+        <v-alert v-else-if="workspaceTab === 'glossary' && job?.failed" type="warning" variant="tonal" density="compact">{{ job.failed }} of {{ job.total }} submissions could not be calculated. They stay missing until you calculate them again.</v-alert>
       </div>
       <v-progress-linear v-if="loading" indeterminate />
+      <section v-if="workspaceTab === 'glossary'" class="lab-workspace">
+        <header class="workspace-heading">
+          <div class="workspace-title">
+            <h2 class="text-subtitle-1 font-weight-bold" tabindex="-1" data-workspace-heading>Synonym glossary</h2>
+            <p class="text-caption text-medium-emphasis mb-0">Solution {{ solutionIndex + 1 }} / {{ glossaryResultLabel }}</p>
+          </div>
+          <template v-if="view">
+            <v-chip size="small" variant="tonal" :color="outcomeSource === 'original' ? undefined : 'info'">{{ outcomeSource === 'original' ? `${view.signals.evaluated} submissions` : `${glossaryReplay?.items.length ?? 0} test cases` }}</v-chip>
+            <v-btn v-if="outcomeSource === 'original'" size="small" variant="tonal" prepend-icon="mdi-calculator-variant-outline" :disabled="!view.signals.missing || jobRunning" :loading="starting" @click="recalculate('missing')">Calculate missing ({{ view.signals.missing }})</v-btn>
+            <v-menu>
+              <template #activator="{ props: menu }"><v-btn v-bind="menu" size="small" variant="text" icon="mdi-dots-vertical" aria-label="Glossary actions" /></template>
+              <v-list density="compact">
+                <v-list-item :disabled="jobRunning || !view.signals.evaluated" title="Recalculate all original signals" prepend-icon="mdi-refresh" @click="confirmAll = true" />
+                <v-list-item :disabled="!importSources.length" title="Import from another release" prepend-icon="mdi-import" @click="openImport" />
+                <v-list-item v-if="glossaryReplay" title="Analyze this test run" prepend-icon="mdi-flask-outline" @click="analyzeGlossaryRun" />
+              </v-list>
+            </v-menu>
+          </template>
+        </header>
       <div ref="splitContainer" class="glossary-layout pa-3" :style="{ '--model-width': `${modelWidth}%` }">
         <SubmissionReviewCanvas
           v-if="modelPackage" ref="canvas" class="glossary-canvas" :package="modelPackage" :marks="marks" :selected-cell-id="selectedId"
@@ -43,15 +93,15 @@
           <div class="d-flex align-center flex-wrap ga-2 px-3 py-2 border-b">
             <v-icon icon="mdi-source-branch" size="small" />
             <span class="text-body-2">{{ matchingSources.length }} additional sources</span>
-            <span class="workload-indicator text-caption" :style="workloadStyle">{{ workloadLabel }}</span>
+            <v-chip size="x-small" variant="tonal" :color="matchingSources.length ? 'info' : undefined">{{ workloadLabel }}</v-chip>
             <v-tooltip :text="workloadNote"><template #activator="{ props: tip }"><v-icon v-bind="tip" icon="mdi-information-outline" size="small" aria-label="How comparison effort is estimated" /></template></v-tooltip>
             <v-btn size="x-small" variant="text" @click="tab = 'sources'">Manage sources</v-btn>
           </div>
-          <v-tabs v-model="tab" density="compact">
-            <v-tab value="selected">Selected element</v-tab>
-            <v-tab value="all">Review terms ({{ reviewTerms.length }})</v-tab>
-            <v-tab value="results">Evaluation results ({{ activeOutcomes.length }})</v-tab>
-            <v-tab value="sources">Matching sources ({{ matchingSources.length }})</v-tab>
+          <v-tabs v-model="tab" density="compact" aria-label="Glossary section">
+            <v-tab value="selected">Element</v-tab>
+            <v-tab value="all">Terms ({{ reviewTerms.length }})</v-tab>
+            <v-tab value="results">Results ({{ activeOutcomes.length }})</v-tab>
+            <v-tab value="sources">Sources ({{ matchingSources.length }})</v-tab>
           </v-tabs>
           <v-divider />
           <v-window v-model="tab" class="panel-body">
@@ -128,43 +178,154 @@
           </v-window>
         </aside>
       </div>
+      </section>
     </template>
 
-    <v-dialog v-model="replayOpen" max-width="1050" scrollable>
-      <v-card title="Compare full evaluations">
-        <v-card-text>
-          <p class="text-body-2 mb-3">Runs parsing, synonym matching, graph matching, analysis and final learner feedback again for every evaluated submission version in this release, using current workflow services and the glossary frozen at comparison start. Original learner results stay unchanged.</p>
-          <p class="text-caption mb-3">Comparisons expire after 7 days. At most 3 are kept per release; starting another removes the oldest completed comparison. Workspace files are removed after each run; workflow logs and artifacts expire after 7 days. New runs start while this view is open.</p>
-          <v-alert v-if="replayError" type="error" variant="tonal" density="compact" class="mb-3">{{ replayError }}</v-alert>
-          <div class="d-flex flex-wrap align-center ga-3 mb-3">
-            <v-switch v-model="customThresholds" label="Custom similarity thresholds" density="compact" hide-details :disabled="replayRunning" />
-            <v-btn color="primary" :loading="replayStarting" :disabled="replayRunning || !thresholdsValid" @click="startReplay">Start full comparison ({{ view?.signals.evaluated }})</v-btn>
-          </div>
-          <div v-if="customThresholds" class="d-flex flex-wrap ga-3 mb-3">
-            <v-text-field v-model.number="thresholds.spelling" type="number" min="0" max="1" step="0.01" label="Spelling threshold (0–1)" density="compact" hide-details :disabled="replayRunning" />
-            <v-text-field v-model.number="thresholds.meaning" type="number" min="0" max="1" step="0.01" label="Meaning threshold (0–1)" density="compact" hide-details :disabled="replayRunning" />
-            <v-text-field v-model.number="thresholds.meaningFloor" type="number" min="0" max="1" step="0.01" label="Meaning floor (≤ meaning)" density="compact" hide-details :disabled="replayRunning" />
-          </div>
-          <v-select v-model="replayId" :items="replayOptions" label="Saved comparison" density="compact" hide-details class="mb-3" />
-          <template v-if="selectedReplay">
-            <div class="d-flex flex-wrap align-center ga-3 mb-3">
-              <span class="text-caption">{{ selectedReplay.workflowName }} {{ selectedReplay.workflowVersion }} · Expires {{ formatDate(selectedReplay.expiresAt) }} · {{ selectedReplay.items.filter(item => item.status === 'done').length }} done, {{ selectedReplay.items.filter(item => item.status === 'failed').length }} failed of {{ selectedReplay.items.length }}</span>
-              <v-btn size="small" variant="text" @click="outcomeSource = selectedReplay.id; tab = 'results'; replayOpen = false">Show term results</v-btn>
-              <v-btn size="small" variant="text" color="error" :disabled="selectedReplay.state === 'running'" @click="deleteReplayId = selectedReplay.id">Delete comparison</v-btn>
+    <section v-show="workspaceTab === 'tests' && tasks.length" class="lab-workspace suite-workspace" aria-label="Workflow test suite">
+        <v-alert v-if="replayError" type="error" variant="tonal" density="compact" class="ma-3 mb-0">{{ replayError }}<v-btn size="small" variant="text" @click="refreshReplays">Retry</v-btn></v-alert>
+        <template v-if="selectedReplay">
+          <header class="suite-run-header workspace-heading">
+            <div class="d-flex flex-wrap align-center ga-2">
+              <div class="flex-grow-1">
+                <h2 class="text-subtitle-1 font-weight-bold" tabindex="-1" data-workspace-heading>Test suite</h2>
+                <p class="text-caption text-medium-emphasis mb-0">Test run / {{ formatDate(selectedReplay.createdAt) }}</p>
+              </div>
+              <v-btn color="primary" size="small" prepend-icon="mdi-plus" :disabled="loading || replayRunning" @click="newRunOpen = true">New test run</v-btn>
+              <v-chip :color="selectedReplay.state === 'running' ? 'info' : replayCounts.failed ? 'warning' : 'success'" size="small" variant="tonal">{{ selectedReplay.state === 'running' ? 'Running' : replayCounts.failed ? 'Completed with failures' : 'Completed' }}</v-chip>
+              <v-btn variant="text" size="small" icon="mdi-refresh" aria-label="Refresh selected run" @click="replayError = ''; poll(true)" />
+              <v-menu>
+                <template #activator="{ props: menu }"><v-btn v-bind="menu" size="small" variant="text" icon="mdi-dots-vertical" aria-label="Test run actions" /></template>
+                <v-list density="compact">
+                  <v-list-item title="View run settings" prepend-icon="mdi-tune" @click="runSettingsOpen = true" />
+                  <v-list-item title="Show term results in glossary" prepend-icon="mdi-book-alphabet" @click="showGlossaryResults" />
+                  <v-list-item title="Delete test run" prepend-icon="mdi-delete-outline" base-color="error" :disabled="selectedReplay.state === 'running'" @click="deleteReplayId = selectedReplay.id" />
+                </v-list>
+              </v-menu>
             </div>
-            <div class="text-caption mb-3">Thresholds: {{ selectedReplay.textEvidence ? `spelling ${selectedReplay.textEvidence.spelling}, meaning ${selectedReplay.textEvidence.meaning}, floor ${selectedReplay.textEvidence.meaningFloor}` : 'workflow defaults' }}. Percentages show the best recognition across all sample solutions.</div>
-            <v-alert v-if="selectedReplay.unavailable" type="warning" variant="tonal" density="compact">The workflow service is unavailable. The comparison resumes when the service can be reached.</v-alert>
-            <v-progress-linear v-if="selectedReplay.state === 'running'" :model-value="100 * selectedReplay.items.filter(item => ['done', 'failed'].includes(item.status)).length / Math.max(selectedReplay.items.length, 1)" class="mb-3" />
-            <v-data-table :headers="replayHeaders" :items="selectedReplay.items" item-value="runId" :items-per-page="10" density="compact">
-              <template #[`item.modelVersionId`]="{ item }"><span :title="item.modelVersionId">{{ item.modelVersionId.slice(0, 8) }}</span></template>
+            <div class="d-flex flex-wrap align-center ga-4 text-caption mt-2" role="status">
+              <span>{{ selectedReplay.items.length }} cases</span>
+              <span>{{ replayCounts.done }} completed</span>
+              <span v-if="replayCounts.running">{{ replayCounts.running }} running</span>
+              <span v-if="replayCounts.pending">{{ replayCounts.pending }} queued</span>
+              <span v-if="replayCounts.failed" class="text-error font-weight-medium">{{ replayCounts.failed }} failed</span>
+            </div>
+            <p v-if="selectedReplay.state === 'running'" class="text-caption text-medium-emphasis mt-2 mb-0">Keep the Lab open to process queued cases.</p>
+            <v-progress-linear v-if="selectedReplay.state === 'running'" :model-value="100 * (replayCounts.done + replayCounts.failed) / Math.max(selectedReplay.items.length, 1)" class="mt-2" aria-label="Processed test cases" />
+          </header>
+          <v-alert v-if="selectedReplay.unavailable" type="warning" variant="tonal" density="compact" class="ma-3 mb-0">The workflow service is unavailable. Saved results remain available; execution resumes when it can be reached.</v-alert>
+
+          <section v-if="!inspectionId" class="suite-cases pa-3" aria-label="Test cases in this run">
+            <div class="d-flex flex-wrap align-center ga-3 mb-3">
+              <h3 class="suite-cases-heading text-subtitle-2" tabindex="-1">Test cases</h3>
+              <v-spacer />
+              <v-select v-model="caseStatus" :items="caseStatusOptions" label="Status" density="compact" hide-details class="case-status-filter" />
+            </div>
+            <v-data-table v-model:page="casePage" v-model:sort-by="caseSort" :headers="replayHeaders" :items="filteredReplayItems" item-value="runId" :items-per-page="10" density="comfortable">
+              <template #[`item.modelName`]="{ item }">
+                <v-btn variant="text" class="case-name text-none px-0" :data-case-id="item.evaluationId" @click="openInspection(item.evaluationId)">{{ caseName(item.modelVersionId) }}</v-btn>
+                <div class="text-caption text-medium-emphasis" :title="item.modelVersionId">Version {{ item.modelVersionId.slice(0, 8) }}</div>
+              </template>
+              <template #[`item.status`]="{ item }"><v-chip :color="caseStatusColor(item.status)" size="small" variant="tonal">{{ caseStatusLabel(item.status) }}</v-chip><div v-if="item.error" class="case-error text-caption text-error mt-1">{{ item.error }}</div></template>
               <template #[`item.beforePercent`]="{ item }">{{ percentText(item.beforePercent) }}</template>
               <template #[`item.afterPercent`]="{ item }">{{ percentText(item.afterPercent) }}</template>
-              <template #[`item.delta`]="{ item }">{{ item.beforePercent != null && item.afterPercent != null ? `${item.afterPercent - item.beforePercent > 0 ? '+' : ''}${(item.afterPercent - item.beforePercent).toFixed(1)} pp` : '—' }}</template>
+              <template #[`item.delta`]="{ item }">{{ deltaText(item.beforePercent, item.afterPercent) }}</template>
+              <template #[`item.actions`]="{ item }"><v-btn size="small" variant="tonal" append-icon="mdi-arrow-right" @click="openInspection(item.evaluationId)">Analyze</v-btn></template>
+              <template #no-data>No cases with this status. Choose another status to see the other cases.</template>
             </v-data-table>
+            <p class="text-caption text-medium-emphasis mt-2">Recognition shows the best result across all sample solutions. Changes are in percentage points.</p>
+          </section>
+
+          <template v-else>
+            <div class="suite-case-navigation d-flex flex-wrap align-center ga-2 px-3 py-2 border-b">
+              <v-btn variant="text" size="small" prepend-icon="mdi-arrow-left" @click="closeInspection">All test cases</v-btn>
+              <v-spacer />
+              <v-select :model-value="inspectionId" :items="inspectionOptions" label="Test case" density="compact" hide-details class="case-select" @update:model-value="openInspection" />
+              <span class="text-caption text-medium-emphasis">{{ inspectionIndex + 1 }} / {{ selectedReplay.items.length }}</span>
+              <v-btn icon="mdi-chevron-left" variant="text" size="small" aria-label="Previous test case" :disabled="inspectionIndex <= 0" @click="stepInspection(-1)" />
+              <v-btn icon="mdi-chevron-right" variant="text" size="small" aria-label="Next test case" :disabled="inspectionIndex >= selectedReplay.items.length - 1" @click="stepInspection(1)" />
+            </div>
+            <section ref="inspectionContainer" tabindex="-1" class="suite-analysis" aria-label="Selected test case analysis">
+              <v-progress-linear v-if="inspectionLoading" indeterminate aria-label="Loading run analysis" />
+              <v-alert v-if="inspectionError" type="error" variant="tonal" density="compact" class="ma-3">{{ inspectionError }}<v-btn size="small" variant="text" @click="loadInspection()">Retry</v-btn></v-alert>
+              <EvaluationRunAnalysis v-if="inspectionDetail" :key="`${replayId}:${inspectionId}`" v-model:model-width="testModelWidth" :detail="inspectionDetail" />
+            </section>
           </template>
-          <p v-else class="text-body-2">No comparisons saved for this release yet.</p>
+        </template>
+        <div v-else class="suite-empty pa-6">
+          <v-icon icon="mdi-flask-outline" size="40" color="medium-emphasis" />
+          <h2 class="text-h6 mt-3" tabindex="-1" data-workspace-heading>Test the evaluation workflow</h2>
+          <p class="text-body-2 text-medium-emphasis mt-2 mb-4">Choose saved submissions, run an evaluation and inspect each case alongside its model.</p>
+          <v-btn color="primary" prepend-icon="mdi-plus" :disabled="loading || !solutionRef" @click="newRunOpen = true">New test run</v-btn>
+        </div>
+    </section>
+    <EvaluationLiveTest v-if="liveOpened && taskId && releaseId" v-show="workspaceTab === 'live'" ref="liveTest" :task-id="taskId" :release-id="releaseId" :task-name="task?.name ?? 'Task'" />
+      </section>
+    </div>
+
+    <v-dialog v-model="contextOpen" max-width="560" scrollable>
+      <v-card title="Choose a task and release">
+        <v-card-text>
+          <v-alert v-if="contextError" type="error" variant="tonal" density="compact" class="mb-3">{{ contextError }}</v-alert>
+          <p class="text-body-2 text-medium-emphasis mb-4">Glossary decisions and test runs belong to the selected release.</p>
+          <v-autocomplete v-model="contextTaskId" :items="tasks" item-title="name" item-value="id" label="Task" density="comfortable" hide-details class="mb-4" />
+          <v-select v-model="contextReleaseId" :items="contextReleaseItems" label="Release" density="comfortable" hide-details :disabled="!contextTaskId" />
         </v-card-text>
-        <v-card-actions><v-spacer /><v-btn @click="replayOpen = false">Close</v-btn></v-card-actions>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer /><v-btn @click="contextOpen = false">Cancel</v-btn>
+          <v-btn color="primary" variant="flat" :disabled="!contextReleaseItems.some(item => item.value === contextReleaseId)" @click="applyContext">Open workspace</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="newRunOpen" max-width="1100" scrollable :persistent="replayStarting">
+      <v-card title="New test run">
+        <v-card-text>
+          <p class="text-body-2 mb-4">Select submissions for {{ task?.name }} · Release {{ release?.versionNumber }}. The run uses the current glossary and leaves learner results unchanged.</p>
+          <v-alert v-if="replayError" type="error" variant="tonal" density="compact" class="mb-3">{{ replayError }}</v-alert>
+          <div class="d-flex flex-wrap align-center ga-3 mb-3">
+            <v-text-field v-model="candidateSearch" label="Find a submission" prepend-inner-icon="mdi-magnify" density="compact" hide-details clearable />
+            <v-checkbox v-model="studentCasesOnly" label="Student submissions only" density="compact" hide-details :disabled="replayStarting" />
+            <v-btn variant="text" size="small" :loading="candidatesLoading" :disabled="replayStarting" @click="loadCandidates">Refresh</v-btn>
+          </div>
+          <v-data-table v-model="selectedCases" :headers="candidateHeaders" :items="visibleCandidates" :search="candidateSearch ?? ''" item-value="evaluationId" :items-per-page="10" density="compact" :loading="candidatesLoading" :show-select="!replayStarting">
+            <template #[`item.modelVersionId`]="{ item }"><span :title="item.modelVersionId">{{ item.modelVersionId.slice(0, 8) }}</span></template>
+            <template #[`item.startedAt`]="{ item }">{{ formatDate(item.startedAt) }}</template>
+            <template #[`item.state`]="{ item }">{{ caseStatusLabel(item.state) }}</template>
+            <template #no-data>{{ candidates.length ? 'No submissions match these filters.' : 'No saved submissions yet. Cases appear after an evaluation has been requested, including failed attempts.' }}</template>
+          </v-data-table>
+          <div class="d-flex flex-wrap align-center ga-3 mt-3">
+            <v-switch v-model="customThresholds" label="Customize similarity thresholds" density="compact" hide-details :disabled="replayStarting" />
+            <span v-if="!customThresholds" class="text-caption text-medium-emphasis">Workflow defaults</span>
+          </div>
+          <div v-if="customThresholds" class="d-flex flex-wrap ga-3 mt-3">
+            <v-text-field v-model.number="thresholds.spelling" type="number" min="0" max="1" step="0.01" label="Spelling (0–1)" density="compact" hide-details :disabled="replayStarting" class="threshold-field" />
+            <v-text-field v-model.number="thresholds.meaning" type="number" min="0" max="1" step="0.01" label="Meaning (0–1)" density="compact" hide-details :disabled="replayStarting" class="threshold-field" />
+            <v-text-field v-model.number="thresholds.meaningFloor" type="number" min="0" max="1" step="0.01" label="Meaning floor (0–meaning)" density="compact" hide-details :disabled="replayStarting" class="threshold-field" />
+          </div>
+          <v-alert v-if="!thresholdsValid" type="warning" variant="tonal" density="compact" class="mt-3">Use values between 0 and 1. The meaning floor must not exceed the meaning threshold.</v-alert>
+          <v-alert v-if="selectedCases.length > 500" type="warning" variant="tonal" density="compact" class="mt-3">Select at most 500 cases per run.</v-alert>
+          <v-alert v-if="replayRunning" type="info" variant="tonal" density="compact" class="mt-3">A test run is already active for this release. Your selection is kept until you can start another.</v-alert>
+        </v-card-text>
+        <v-card-actions class="px-4 py-3 border-t">
+          <span class="text-body-2" role="status">{{ selectedCases.length }} cases selected</span>
+          <v-spacer />
+          <v-btn :disabled="replayStarting" @click="newRunOpen = false">Cancel</v-btn>
+          <v-btn color="primary" variant="flat" :loading="replayStarting" :disabled="replayRunning || !thresholdsValid || !selectedCases.length || selectedCases.length > 500" @click="startReplay">Start test run</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="runSettingsOpen" max-width="560" scrollable>
+      <v-card v-if="selectedReplay" title="Test run settings">
+        <v-card-text>
+          <dl class="run-settings">
+            <dt>Workflow</dt><dd>{{ selectedReplay.workflowName }} {{ selectedReplay.workflowVersion }}</dd>
+            <dt>Spelling threshold</dt><dd>{{ selectedReplay.textEvidence?.spelling ?? 'Workflow default' }}</dd>
+            <dt>Meaning threshold</dt><dd>{{ selectedReplay.textEvidence?.meaning ?? 'Workflow default' }}</dd>
+            <dt>Meaning floor</dt><dd>{{ selectedReplay.textEvidence?.meaningFloor ?? 'Workflow default' }}</dd>
+            <dt>Expires</dt><dd>{{ formatDate(selectedReplay.expiresAt) }}</dd>
+          </dl>
+          <p class="text-caption text-medium-emphasis mt-4 mb-0">The glossary was frozen when this run started. Temporary workspace files are removed after execution; workflow logs and artifacts expire after 7 days.</p>
+        </v-card-text>
+        <v-card-actions><v-spacer /><v-btn @click="runSettingsOpen = false">Close</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog :model-value="!!deleteReplayId" max-width="460" @update:model-value="!$event && (deleteReplayId = null)">
@@ -206,14 +367,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SubmissionReviewCanvas, { type ReviewCanvasMark } from '@/components/submissions/SubmissionReviewCanvas.vue'
 import GlossaryConditionGroups from '@/components/submissions/GlossaryConditionGroups.vue'
 import GlossaryDecisionActions from '@/components/submissions/GlossaryDecisionActions.vue'
+import EvaluationRunAnalysis from '@/components/submissions/EvaluationRunAnalysis.vue'
+import EvaluationRunList from '@/components/submissions/EvaluationRunList.vue'
+import EvaluationLiveTest from '@/components/submissions/EvaluationLiveTest.vue'
+import type { EvaluationDetail } from '@/services/api/types/evaluation'
 import languageService from '@/services/language/language.service'
 import taskService from '@/services/task/task.service'
-import { synonymGlossary, type EntryStatus, type EvaluableTask, type GlossaryChange, type GlossaryElement, type GlossaryEntry, type GlossaryView, type RecalculateScope, type SolutionRef, type Suggestion, type ReplayBatch, type TermOutcome, type TextEvidence } from '@/services/synonymGlossary'
+import { synonymGlossary, type EntryStatus, type EvaluableTask, type GlossaryChange, type GlossaryElement, type GlossaryEntry, type GlossaryView, type RecalculateScope, type SolutionRef, type Suggestion, type ReplayBatch, type ReplayCandidate, type TermOutcome, type TextEvidence } from '@/services/synonymGlossary'
 import type { DiagramLanguage } from '@/model/DiagramLanguage'
 import type { LanguageVersionReference } from '@/services/api/types/common'
 import type { ModelPackage, PackagedLanguage } from '@/utils/modelPackage'
@@ -226,7 +391,8 @@ const headers = [{ title: 'Term', key: 'term' }, { title: 'Evidence', key: 'evid
 const allHeaders = [{ title: 'Element', key: 'element', value: (item: { referenceElementId?: string }) => elementsById.value.get(item.referenceElementId ?? '')?.label ?? '' }, { title: 'Term', key: 'term' }, { title: 'Cases', key: 'submissions' }, { title: 'Evidence', key: 'evidence', sortable: false }, { title: 'Actions', key: 'actions', sortable: false }]
 const outcomeHeaders = [{ title: 'Element', key: 'element', value: (item: { referenceElementId?: string }) => elementsById.value.get(item.referenceElementId ?? '')?.label ?? '' }, { title: 'Term', key: 'term' }, { title: 'Evidence', key: 'similarity', sortable: false }, { title: 'Actions', key: 'actions', sortable: false }]
 const sourceHeaders = [{ title: 'Reference element', key: 'element', sortable: false }, { title: 'Additional source', key: 'term' }, { title: 'Actions', key: 'actions', sortable: false }]
-const replayHeaders = [{ title: 'Submission version', key: 'modelVersionId' }, { title: 'Status', key: 'status' }, { title: 'Original', key: 'beforePercent' }, { title: 'Comparison', key: 'afterPercent' }, { title: 'Change', key: 'delta', sortable: false }, { title: 'Details', key: 'error', sortable: false }]
+const replayHeaders = [{ title: 'Submission', key: 'modelName' }, { title: 'Status', key: 'status' }, { title: 'Original', key: 'beforePercent' }, { title: 'Test run', key: 'afterPercent' }, { title: 'Change', key: 'delta', sortable: false }, { title: '', key: 'actions', sortable: false }]
+const candidateHeaders = [{ title: 'Model', key: 'modelName' }, { title: 'Version', key: 'modelVersionId' }, { title: 'Last evaluation', key: 'startedAt' }, { title: 'Status', key: 'state' }]
 const markImage = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="7" fill="#f9a825" stroke="white" stroke-width="1.5"/></svg>')}`
 
 const route = useRoute()
@@ -234,6 +400,7 @@ const router = useRouter()
 const canvas = ref<InstanceType<typeof SubmissionReviewCanvas>>()
 const splitContainer = ref<HTMLDivElement>()
 const modelWidth = ref(35)
+const testModelWidth = ref(35)
 const resizing = ref(false)
 const setModelWidth = (value: number) => { modelWidth.value = Math.min(70, Math.max(15, value)) }
 const startResize = (event: PointerEvent) => {
@@ -260,12 +427,37 @@ const resizeWithKeyboard = (event: KeyboardEvent) => {
 const tasks = ref<EvaluableTask[]>([])
 const taskId = ref<string | null>(null)
 const releaseId = ref<string | null>(null)
+const contextOpen = ref(false)
+const contextError = ref('')
+const liveTest = ref<InstanceType<typeof EvaluationLiveTest>>()
+const liveOpened = ref(route.query.tab === 'live')
+const contextTaskId = ref<string | null>(null)
+const contextReleaseId = ref<string | null>(null)
+const sidebarExpanded = ref(false)
 const solutionIndex = ref(0)
 const view = ref<GlossaryView | null>(null)
 const modelPackage = ref<ModelPackage | null>(null)
 const selectedId = ref<string | null>(null)
 const selectedPath = ref('')
 const tab = ref('all')
+const workspaceTab = ref<'glossary' | 'tests' | 'live'>(route.query.tab === 'live' ? 'live' : route.query.tab === 'tests' ? 'tests' : 'glossary')
+const candidates = ref<ReplayCandidate[]>([])
+const selectedCases = ref<string[]>([])
+const candidateSearch = ref<string | null>('')
+const studentCasesOnly = ref(true)
+const candidatesLoading = ref(false)
+const newRunOpen = ref(false)
+const runSettingsOpen = ref(false)
+const caseStatus = ref('all')
+const casePage = ref(1)
+const caseSort = ref<{ key: string; order?: boolean | 'asc' | 'desc' }[]>([])
+const caseStatusOptions = [{ title: 'All cases', value: 'all' }, { title: 'Failed', value: 'failed' }, { title: 'Running', value: 'running' }, { title: 'Queued', value: 'pending' }, { title: 'Completed', value: 'done' }]
+const visibleCandidates = computed(() => candidates.value.filter(item => !studentCasesOnly.value || !item.staff))
+const inspectionId = ref<string | null>(null)
+const inspectionContainer = ref<HTMLElement>()
+const inspectionDetail = ref<EvaluationDetail | null>(null)
+const inspectionLoading = ref(false)
+const inspectionError = ref('')
 const newTerm = ref('')
 const newTermError = ref('')
 const showIgnored = ref(false)
@@ -288,7 +480,6 @@ const importOpen = ref(false)
 const importFrom = ref<string | null>(null)
 const replays = ref<ReplayBatch[]>([])
 const replayId = ref<string | null>(null)
-const replayOpen = ref(false)
 const replayStarting = ref(false)
 const replayDeleting = ref(false)
 const replayError = ref('')
@@ -298,12 +489,12 @@ const customThresholds = ref(false)
 const thresholds = ref<TextEvidence>({ spelling: 0.85, meaning: 0.85, meaningFloor: 0.7 })
 let pollTimer: ReturnType<typeof setTimeout> | undefined
 let loadToken = 0
+let inspectionToken = 0
 
 const task = computed(() => tasks.value.find((item) => item.id === taskId.value) ?? null)
 const release = computed(() => task.value?.releases.find((item) => item.id === releaseId.value) ?? null)
-const releaseItems = computed(() => task.value?.releases.map((item) => ({ title: `Release ${item.versionNumber}`, value: item.id })) ?? [])
+const contextReleaseItems = computed(() => tasks.value.find(item => item.id === contextTaskId.value)?.releases.map(item => ({ title: `Release ${item.versionNumber}`, value: item.id })) ?? [])
 const solutions = computed(() => release.value?.sampleSolutions ?? [])
-const solutionItems = computed(() => solutions.value.map((_solution, index) => ({ title: `Solution ${index + 1}`, value: index })))
 const solutionRef = computed<SolutionRef | null>(() => {
   const solution = solutions.value[solutionIndex.value]
   return solution && taskId.value && releaseId.value ? { taskId: taskId.value, versionId: releaseId.value, modelId: solution.modelId, modelVersionId: solution.versionId } : null
@@ -312,9 +503,82 @@ const job = computed(() => view.value?.signals.job ?? null)
 const jobRunning = computed(() => job.value?.state === 'running')
 const replayRunning = computed(() => replays.value.some(item => item.state === 'running'))
 const selectedReplay = computed(() => replays.value.find(item => item.id === replayId.value) ?? null)
+const replayCounts = computed(() => {
+  const counts = { pending: 0, running: 0, done: 0, failed: 0 }
+  for (const item of selectedReplay.value?.items ?? []) counts[item.status]++
+  return counts
+})
+const candidatesByVersion = computed(() => new Map(candidates.value.map(item => [item.modelVersionId, item])))
+const caseName = (versionId: string) => candidatesByVersion.value.get(versionId)?.modelName ?? 'Saved submission'
+const caseStatusLabel = (status: string) => ({ pending: 'Queued', queued: 'Queued', running: 'Running', done: 'Completed', succeeded: 'Completed', failed: 'Failed', cancelled: 'Cancelled', unknown: 'Status unknown' }[status] ?? status)
+const caseStatusColor = (status: string) => ({ done: 'success', succeeded: 'success', running: 'info', failed: 'error', cancelled: 'warning' }[status])
+const filteredReplayItems = computed(() => (selectedReplay.value?.items ?? [])
+  .filter(item => caseStatus.value === 'all' || item.status === caseStatus.value)
+  .map(item => ({ ...item, modelName: caseName(item.modelVersionId) })))
+const inspectionOptions = computed(() => (selectedReplay.value?.items ?? []).map(item => ({
+  title: `${caseName(item.modelVersionId)} / ${item.modelVersionId.slice(0, 8)} / ${caseStatusLabel(item.status)}`, value: item.evaluationId
+})))
+const inspectionIndex = computed(() => selectedReplay.value?.items.findIndex(item => item.evaluationId === inspectionId.value) ?? -1)
+const deltaText = (before: number | null, after: number | null) => before == null || after == null ? 'Not available' : `${after > before ? '+' : ''}${(after - before).toFixed(1)} pp`
 const formatDate = (date: string) => new Date(date).toLocaleString()
-const replayOptions = computed(() => replays.value.map(item => ({ title: `${formatDate(item.createdAt)} · ${item.workflowVersion ?? ''} · ${item.state}`, value: item.id })))
-const outcomeSources = computed(() => [{ title: 'Original learner results', value: 'original' }, ...replayOptions.value.map(item => ({ ...item, title: `Comparison ${item.title}` }))])
+const glossaryReplay = computed(() => replays.value.find(item => item.id === outcomeSource.value) ?? null)
+const glossaryResultLabel = computed(() => glossaryReplay.value ? `Test run ${formatDate(glossaryReplay.value.createdAt)}` : 'Original evaluations')
+const openContext = () => {
+  contextError.value = ''
+  contextTaskId.value = taskId.value
+  contextReleaseId.value = releaseId.value
+  contextOpen.value = true
+}
+const focusWorkspace = async () => {
+  await nextTick()
+  document.querySelector<HTMLElement>('.lab-main [data-workspace-heading]')?.focus({ preventScroll: true })
+}
+const applyContext = async () => {
+  if (!contextTaskId.value || !contextReleaseItems.value.some(item => item.value === contextReleaseId.value)) return
+  try { await liveTest.value?.saveChanges() }
+  catch (cause) { contextError.value = (cause as Error).message; return }
+  taskId.value = contextTaskId.value
+  releaseId.value = contextReleaseId.value
+  contextOpen.value = false
+  sidebarExpanded.value = false
+}
+const chooseWorkspace = (workspace: 'glossary' | 'tests' | 'live') => {
+  if (workspace === 'live') liveOpened.value = true
+  workspaceTab.value = workspace
+  sidebarExpanded.value = false
+  void focusWorkspace()
+}
+const selectSolution = (index: number) => {
+  solutionIndex.value = index
+  sidebarExpanded.value = false
+  void focusWorkspace()
+}
+const selectOutcome = (id: string) => {
+  outcomeSource.value = id
+  sidebarExpanded.value = false
+  void focusWorkspace()
+}
+const selectReplay = (id: string) => {
+  replayId.value = id
+  sidebarExpanded.value = false
+  void focusWorkspace()
+}
+const showGlossaryResults = () => {
+  if (!selectedReplay.value) return
+  outcomeSource.value = selectedReplay.value.id
+  tab.value = 'results'
+  chooseWorkspace('glossary')
+}
+const analyzeGlossaryRun = () => {
+  if (!glossaryReplay.value) return
+  replayId.value = glossaryReplay.value.id
+  chooseWorkspace('tests')
+}
+const openActiveRun = () => {
+  const running = replays.value.find(item => item.state === 'running')
+  if (running) replayId.value = running.id
+  chooseWorkspace('tests')
+}
 const activeOutcomes = computed(() => outcomeSource.value === 'original' ? view.value?.outcomes ?? [] : replays.value.find(item => item.id === outcomeSource.value)?.outcomes ?? [])
 const outcomeOf = (item?: Pick<TermOutcome, 'referenceElementId' | 'termKey'>) => item ? activeOutcomes.value.find(outcome => outcome.referenceElementId === item.referenceElementId && outcome.termKey === item.termKey) : undefined
 const thresholdsValid = computed(() => !customThresholds.value || (Object.values(thresholds.value).every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1) && thresholds.value.meaningFloor <= thresholds.value.meaning))
@@ -334,11 +598,6 @@ const workloadNote = computed(() => {
   return work?.basis === 'text_pairs'
     ? `Baseline + ${work.additional.toLocaleString()} extra text comparisons, based on ${work.covered} of ${work.evaluated} evaluated submissions. Comparison counts, not a runtime forecast.`
     : 'No saved comparison inventory available. This estimate counts original element names plus additional source texts; actual effort depends on submission size.'
-})
-const workloadStyle = computed(() => {
-  const percent = Math.max(0, view.value?.matchingWorkload.percent ?? 0)
-  const ratio = percent / (percent + 100)
-  return { backgroundColor: `hsl(${120 * (1 - ratio)} 65% ${94 - ratio * 62}%)`, color: ratio > 0.82 ? '#fff' : '#202820' }
 })
 const marks = computed<ReviewCanvasMark[]>(() => {
   const counts = new Map<string, number>()
@@ -430,7 +689,7 @@ const schedulePoll = () => {
   clearTimeout(pollTimer)
   if (jobRunning.value || replayRunning.value) pollTimer = setTimeout(poll, 3000)
 }
-const poll = async () => {
+const poll = async (refreshInspection = false) => {
   const current = solutionRef.value
   if (!current || !view.value) return
   try {
@@ -452,13 +711,17 @@ const poll = async () => {
       if (solutionRef.value !== current) return
       replays.value = replays.value.map(item => item.id === data.id ? data : item)
     }
+    if (workspaceTab.value === 'tests' && inspectionId.value && (refreshInspection || !inspectionDetail.value || !['succeeded', 'failed', 'cancelled'].includes(inspectionDetail.value.state))) await loadInspection(true)
   } catch {
-    // The next poll retries; saved glossary data stays usable.
+    replayError.value = 'Live updates could not be loaded. Refresh the saved run to retry.'
+    return
   }
   schedulePoll()
 }
 const load = async () => {
   const current = solutionRef.value
+  const wantedOutcome = outcomeSource.value
+  const wantedReplay = replayId.value
   const token = ++loadToken
   clearTimeout(pollTimer)
   selectedId.value = null
@@ -466,6 +729,12 @@ const load = async () => {
   view.value = null
   modelPackage.value = null
   replays.value = []
+  candidates.value = []
+  candidatesLoading.value = false
+  newRunOpen.value = false
+  runSettingsOpen.value = false
+  selectedCases.value = []
+  inspectionId.value = null
   replayId.value = null
   outcomeSource.value = 'original'
   replayError.value = ''
@@ -481,11 +750,13 @@ const load = async () => {
       const { data } = await synonymGlossary.replays(current)
       if (token !== loadToken) return
       replays.value = data
-      replayId.value = data[0]?.id ?? null
+      replayId.value = data.some(item => item.id === wantedReplay) ? wantedReplay : data[0]?.id ?? null
+      outcomeSource.value = data.some(item => item.id === wantedOutcome) ? wantedOutcome : 'original'
     } catch (cause) {
       if (token === loadToken) replayError.value = message(cause, 'Saved comparisons could not be loaded.')
     }
     schedulePoll()
+    if (workspaceTab.value === 'tests') await loadCandidates()
   } catch (cause) {
     if (token === loadToken) error.value = message(cause, 'The glossary could not be loaded.')
   } finally {
@@ -599,14 +870,16 @@ const recalculate = async (scope: RecalculateScope) => {
 }
 const startReplay = async () => {
   const current = solutionRef.value
-  if (!current || !thresholdsValid.value) return
+  if (!current || !thresholdsValid.value || !selectedCases.value.length || selectedCases.value.length > 500) return
   replayStarting.value = true
   replayError.value = ''
   try {
-    const { data } = await synonymGlossary.startReplay(current, customThresholds.value ? { ...thresholds.value } : null)
+    const { data } = await synonymGlossary.startReplay(current, customThresholds.value ? { ...thresholds.value } : null, [...selectedCases.value])
     if (solutionRef.value !== current) return
     replays.value = [data, ...replays.value.filter(item => item.id !== data.id)].slice(0, 3)
     replayId.value = data.id
+    inspectionId.value = null
+    newRunOpen.value = false
     schedulePoll()
     const saved = await synonymGlossary.replays(current)
     if (solutionRef.value !== current) return
@@ -617,6 +890,68 @@ const startReplay = async () => {
   } finally {
     replayStarting.value = false
   }
+}
+const loadCandidates = async () => {
+  const current = solutionRef.value
+  if (!current) return
+  candidatesLoading.value = true
+  try {
+    const { data } = await synonymGlossary.candidates(current)
+    if (solutionRef.value !== current) return
+    candidates.value = data
+    selectedCases.value = selectedCases.value.filter(id => visibleCandidates.value.some(item => item.evaluationId === id))
+  } catch (cause) {
+    if (solutionRef.value === current) replayError.value = message(cause, 'Saved submissions could not be loaded.')
+  } finally {
+    if (solutionRef.value === current) candidatesLoading.value = false
+  }
+}
+const refreshReplays = async () => {
+  const current = solutionRef.value
+  if (!current) return
+  replayError.value = ''
+  try {
+    const { data } = await synonymGlossary.replays(current)
+    if (solutionRef.value !== current) return
+    replays.value = data
+    if (!data.some(item => item.id === replayId.value)) replayId.value = data[0]?.id ?? null
+    if (outcomeSource.value !== 'original' && !data.some(item => item.id === outcomeSource.value)) outcomeSource.value = 'original'
+    await poll(true)
+  } catch (cause) {
+    if (solutionRef.value === current) replayError.value = message(cause, 'Saved test runs could not be loaded.')
+  }
+}
+const loadInspection = async (background = false) => {
+  const current = solutionRef.value, batchId = replayId.value, evaluationId = inspectionId.value
+  const token = ++inspectionToken
+  if (!current || !batchId || !evaluationId) return
+  if (!background) inspectionLoading.value = true
+  try {
+    const { data } = await synonymGlossary.inspectReplay(current, batchId, evaluationId)
+    if (token !== inspectionToken) return
+    inspectionDetail.value = data
+    inspectionError.value = ''
+  } catch (cause) {
+    if (token === inspectionToken) inspectionError.value = message(cause, 'Run analysis could not be loaded.')
+  } finally {
+    if (token === inspectionToken) inspectionLoading.value = false
+  }
+}
+const openInspection = async (id: string) => {
+  inspectionId.value = id
+  await nextTick()
+  inspectionContainer.value?.focus({ preventScroll: true })
+}
+const closeInspection = async () => {
+  const previousId = inspectionId.value
+  inspectionId.value = null
+  await nextTick()
+  const target = previousId && document.querySelector<HTMLElement>(`.suite-cases [data-case-id="${CSS.escape(previousId)}"]`)
+  ;(target || document.querySelector<HTMLElement>('.suite-cases-heading'))?.focus({ preventScroll: true })
+}
+const stepInspection = (direction: number) => {
+  const next = selectedReplay.value?.items[inspectionIndex.value + direction]
+  if (next) void openInspection(next.evaluationId)
 }
 const deleteReplay = async () => {
   const current = solutionRef.value
@@ -656,8 +991,36 @@ const runImport = async () => {
 }
 
 watch(taskId, (id) => {
-  releaseId.value = task.value?.releases[0]?.id ?? null
-  if (id && route.params.taskId !== id) router.replace({ name: 'SynonymGlossary', params: { taskId: id } })
+  if (!task.value?.releases.some(item => item.id === releaseId.value)) releaseId.value = task.value?.releases[0]?.id ?? null
+  if (id && route.params.taskId !== id) router.replace({ name: 'EvaluationLab', params: { taskId: id }, query: route.query })
+})
+watch(contextTaskId, () => {
+  if (!contextReleaseItems.value.some(item => item.value === contextReleaseId.value)) contextReleaseId.value = contextReleaseItems.value[0]?.value ?? null
+})
+watch(workspaceTab, value => {
+  router.replace({ name: 'EvaluationLab', params: taskId.value ? { taskId: taskId.value } : {}, query: { ...route.query, tab: value === 'glossary' ? undefined : value } })
+  if (value === 'tests' && !candidates.value.length) void loadCandidates()
+})
+watch(studentCasesOnly, () => { selectedCases.value = selectedCases.value.filter(id => visibleCandidates.value.some(item => item.evaluationId === id)) })
+watch(newRunOpen, (open) => {
+  if (open) {
+    replayError.value = ''
+    void loadCandidates()
+  }
+})
+watch([replayId, inspectionId, solutionRef], () => {
+  inspectionToken++
+  inspectionDetail.value = null
+  inspectionError.value = ''
+  inspectionLoading.value = false
+  void loadInspection()
+})
+watch(replayId, () => {
+  inspectionId.value = null
+  caseStatus.value = 'all'
+  casePage.value = 1
+  caseSort.value = []
+  runSettingsOpen.value = false
 })
 watch(releaseId, () => { solutionIndex.value = 0 })
 watch(solutionRef, load)
@@ -676,24 +1039,84 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   loadToken++
+  inspectionToken++
   clearTimeout(pollTimer)
 })
 </script>
 
 <style scoped>
-.glossary-page { display: flex; flex-direction: column; height: calc(100dvh - var(--v-layout-top, 0px) - var(--v-layout-bottom, 0px)); min-height: 0; overflow: hidden; }
-.glossary-toolbar { flex-shrink: 0; }
-.header-select { flex: 0 1 240px; min-width: 180px; }
-.header-select-small { flex: 0 1 120px; min-width: 110px; }
-.header-select-solution { flex: 0 1 165px; min-width: 145px; }
-.toolbar-action { height: auto !important; min-height: 34px; padding: 4px 10px; line-height: 1.2; }
-.toolbar-action :deep(.v-btn__content) { white-space: normal; }
+.lab-page { display: flex; flex-direction: column; height: calc(100dvh - var(--v-layout-top, 0px) - var(--v-layout-bottom, 0px)); min-height: 0; overflow: hidden; }
+.lab-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; flex-shrink: 0; padding: 16px 20px; border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12); }
+.lab-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.lab-symbol { display: grid; place-items: center; flex: 0 0 44px; height: 44px; color: rgb(var(--v-theme-primary-dark)); background: rgba(var(--v-theme-primary), 0.12); border-radius: 12px; }
+.lab-layout { display: flex; flex: 1; min-height: 0; }
+.lab-sidebar { display: flex; flex-direction: column; flex: 0 0 264px; min-height: 0; border-right: 1px solid rgba(var(--v-theme-on-surface), 0.12); background: rgba(var(--v-theme-primary), 0.025); }
+.lab-context-row { padding: 12px; }
+.lab-context { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px; color: rgb(var(--v-theme-on-surface)); text-align: left; border: 1px solid rgba(var(--v-theme-on-surface), 0.12); border-radius: 10px; background: rgb(var(--v-theme-surface)); }
+.lab-context:hover:not(:disabled) { background: rgba(var(--v-theme-primary), 0.06); border-color: rgba(var(--v-theme-primary), 0.45); }
+.lab-context:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); outline-offset: 2px; }
+.lab-context:disabled { opacity: 0.6; }
+.lab-context-copy { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.lab-context-copy strong { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.lab-eyebrow { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(var(--v-theme-on-surface), 0.6); }
+.lab-browse-button { display: none; }
+.lab-workspaces { flex-shrink: 0; padding: 0 8px 12px; background: transparent; border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08); }
+.lab-workspaces :deep(.v-list-item) { min-height: 54px; }
+.lab-workspaces :deep(.v-list-item__spacer), .lab-nav-list :deep(.v-list-item__spacer) { width: 12px; }
+.lab-sidebar-content { flex: 1; min-height: 0; overflow: auto; padding-block: 8px; }
+.lab-nav-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px 8px; }
+.lab-nav-heading h2 { font-size: 12px; font-weight: 600; }
+.lab-nav-heading span { font-size: 12px; color: rgba(var(--v-theme-on-surface), 0.6); }
+.lab-nav-list { background: transparent; padding: 0 8px 8px; }
+.lab-retention { flex-shrink: 0; padding: 12px 16px; margin: 0; border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08); }
+.lab-main { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.lab-workspace { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.workspace-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px; flex-shrink: 0; border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12); }
+.workspace-title { flex: 1; min-width: 180px; }
+.workspace-heading h2:focus-visible { outline: 2px solid rgb(var(--v-theme-primary)); outline-offset: 3px; }
+.suite-run-header { display: block; }
+.suite-run-header, .suite-case-navigation { flex-shrink: 0; }
+.suite-cases { flex: 1; min-height: 0; overflow: auto; }
+.case-status-filter { flex: 0 1 180px; min-width: 140px; }
+.case-select { flex: 0 1 360px; min-width: 180px; }
+.case-name { max-width: 320px; height: auto; min-height: 32px; text-align: left; }
+.case-name :deep(.v-btn__content) { white-space: normal; justify-content: flex-start; overflow-wrap: anywhere; }
+.case-error { max-width: 300px; overflow-wrap: anywhere; }
+.suite-analysis { display: flex; flex-direction: column; flex: 1; min-height: 0; outline-offset: -2px; }
+.suite-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; }
+.suite-empty p { max-width: 440px; }
+.threshold-field { flex: 1 1 180px; }
+.run-settings { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px 20px; font-size: 14px; }
+.run-settings dt { color: rgba(var(--v-theme-on-surface), 0.7); }
+.run-settings dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .lab-header { padding: 12px 16px; }
+  .lab-layout { flex-direction: column; }
+  .lab-sidebar { flex: 0 0 auto; border-right: 0; border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12); }
+  .lab-context-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+  .lab-context { flex: 1; min-width: 0; padding: 8px 10px; }
+  .lab-eyebrow { display: none; }
+  .lab-browse-button { display: inline-flex; }
+  .lab-workspaces { display: flex; gap: 8px; padding: 0 8px 8px; border-bottom: 0; }
+  .lab-workspaces :deep(.v-list-item) { flex: 1; min-width: 0; min-height: 40px; }
+  .lab-workspaces :deep(.v-list-item-subtitle) { display: none; }
+  .lab-workspaces :deep(.v-list-item-title) { white-space: normal; font-size: 12px; line-height: 1.3; }
+  .lab-sidebar-content { display: none; flex: 0 0 auto; max-height: 32dvh; }
+  .lab-sidebar--expanded .lab-sidebar-content { display: block; }
+  .lab-retention { display: none; }
+  .workspace-heading { padding: 12px; }
+  .case-select { flex: 1 1 200px; }
+}
+@media (max-width: 500px) {
+  .lab-header .lab-identity p { display: none; }
+  .lab-symbol { flex-basis: 36px; height: 36px; border-radius: 10px; }
+}
 .glossary-layout { display: grid; grid-template-columns: minmax(0, var(--model-width)) 12px minmax(0, 1fr); gap: 0; flex: 1; min-height: 0; align-items: stretch; overflow: hidden; }
 .glossary-canvas { min-height: 0; height: 100%; }
 .glossary-canvas :deep(.review-graph) { min-height: 0; }
-.glossary-panel { display: flex; flex-direction: column; border: 1px solid #ddd; border-radius: 8px; min-width: 0; min-height: 0; overflow: hidden; }
+.glossary-panel { display: flex; flex-direction: column; border: 1px solid rgba(var(--v-theme-on-surface), 0.12); border-radius: 8px; min-width: 0; min-height: 0; overflow: hidden; }
 .glossary-panel > :not(.panel-body) { flex-shrink: 0; }
-.panel-body { flex: 1; min-height: 0; overflow-x: scroll; overflow-y: auto; scrollbar-gutter: stable; }
+.panel-body { flex: 1; min-height: 0; overflow-x: auto; overflow-y: auto; scrollbar-gutter: stable; }
 .panel-body :deep(.v-window__container) { height: auto; }
 .panel-body :deep(.v-table__wrapper) { overflow: visible; }
 .panel-body::-webkit-scrollbar { width: 12px; height: 12px; }
@@ -705,13 +1128,12 @@ onBeforeUnmount(() => {
 .row-actions > .v-btn { height: auto; min-height: 24px; max-width: 140px; }
 .split-handle { cursor: col-resize; touch-action: none; user-select: none; align-self: stretch; display: flex; align-items: center; justify-content: center; color: rgb(var(--v-theme-on-surface)); background: rgba(var(--v-theme-on-surface), 0.06); border-radius: 4px; }
 .split-handle:hover, .split-handle:focus-visible { background: rgba(var(--v-theme-primary), 0.2); outline: 2px solid rgb(var(--v-theme-primary)); outline-offset: -2px; }
-.workload-indicator { border-radius: 4px; padding: 3px 8px; font-variant-numeric: tabular-nums; }
 .term-field { min-width: 200px; }
 .filter-field { flex: 0 1 120px; }
 .filter-field-wide { flex: 1 1 170px; }
 .section-row td { background: rgba(var(--v-theme-on-surface), 0.04); }
 .selected-row td { background: rgba(var(--v-theme-primary), 0.08); }
-@media (max-width: 1000px) {
+@media (max-width: 1200px) {
   .glossary-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(100px, 30%) minmax(0, 1fr); gap: 12px; }
   .split-handle { display: none; }
 }

@@ -47,7 +47,10 @@ async def _sources(task_id: UUID, version_id: UUID, *, exclude_staff: bool = Tru
         {"taskId": str(task_id), "taskVersionId": str(version_id), "state": "succeeded", "ownerId": {"$nin": staff}},
         _SOURCE_FIELDS,
     ).sort([("startedAt", -1), ("_id", 1)]).to_list(None)
-    existing = set(await db.models.distinct("_id", {"_id": {"$in": list({row["modelId"] for row in rows})}}))
+    model_query = {"_id": {"$in": list({row["modelId"] for row in rows})}}
+    if exclude_staff:
+        model_query["preferences.evaluationLab"] = {"$ne": True}
+    existing = set(await db.models.distinct("_id", model_query))
     latest: dict[str, Document] = {}
     for row in rows:
         if row["modelId"] in existing:
@@ -342,6 +345,9 @@ def _accepted_hint_sets(sources: list[Document], reference_version_id: str) -> l
     for source in sources:
         feedback = source.get("studentFeedback") or {}
         accepted = {event["hintId"] for event in feedback.get("hintEvents", []) if event.get("action") == "accepted"}
+        retention = {event["hintId"]: event["action"] for event in feedback.get("hintEvents", [])
+                     if event.get("action") in ("retained", "reverted", "removed")}
+        accepted -= {hint_id for hint_id, outcome in retention.items() if outcome != "retained"}
         keys = {model["key"] for model in source.get("parserModels", []) if model.get("versionId") == reference_version_id}
         signals = [{"referenceElementId": hint["referenceId"], "termKey": term_key(hint["submissionLabel"]), "term": hint["submissionLabel"],
                     "evidence": "hint_accepted"}

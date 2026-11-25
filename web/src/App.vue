@@ -9,7 +9,7 @@
       </RouterView>
     </v-main>
 
-    <FooterMain v-if="showLayout && route.name !== 'Modeling'" :in-flow="route.name === 'SynonymGlossary'" />
+    <FooterMain v-if="showLayout && route.name !== 'Modeling'" :in-flow="route.name === 'EvaluationLab'" />
     <AppNotification />
   </v-app>
 </template>

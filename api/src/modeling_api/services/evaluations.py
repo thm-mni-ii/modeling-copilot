@@ -2,6 +2,7 @@
 
 import base64
 import gzip
+import hashlib
 import json
 import shlex
 from asyncio import gather
@@ -34,6 +35,7 @@ def _public_evaluation(document: Document, *, detail: bool = False) -> Document:
     api_document = to_api(document) if "_id" in document else document
     fields = _EVALUATION_DETAIL_FIELDS if detail else _EVALUATION_FIELDS
     result = {key: value for key, value in api_document.items() if key in fields}
+    result["feedbackTypes"] = (api_document.get("feedbackRequest") or {}).get("types", [])
     # Reuse final learner feedback in navigation without fetching every run from Dagu.
     stored = api_document.get("studentFeedback")
     result["feedback"] = _feedback_projection(api_document, stored) if stored is not None else None
@@ -165,6 +167,8 @@ def public_help_entry(entry: Document) -> Document:
     """Allowlisted help feedback; the service already omits sample-solution content that is not released."""
     result = {"type": entry["type"], "overview": _pick(entry.get("overview"), ("recognized", "expected", "percent", "evaluationStatus")),
               "notices": [notice for notice in entry.get("notices", []) if isinstance(notice, str)]}
+    if isinstance(entry.get("referenced"), bool):
+        result["referenced"] = entry["referenced"]
     if isinstance(entry.get("objects"), list):
         result["objects"] = [{**_pick(item, ("cellId", "label", "kind", "identity", "notEvaluated", "verdict")),
                               "checks": [_pick(check, ("area", "status", "certainty", "messageCode", "text"))
@@ -281,12 +285,17 @@ async def _evaluation_input(
             "comparisonConfig": config}, descriptors
 
 
-async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None, help_request_id: UUID | None = None) -> Document:
+async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None, help_request_id: UUID | None = None,
+                all_feedback_types: bool = False) -> Document:
     """`text_evidence`: admin overrides {spelling, meaning, meaningFloor}; None runs the workflow defaults.
 
     `help_request_id` runs the feedback type the learner asked for in that help request instead of the overview.
     """
     from modeling_api.services import help_requests  # imported late: learning paths import this module
+    if all_feedback_types and not can_view_analysis(user):
+        raise ApiError(403, "FORBIDDEN", "The feedback catalog requires staff access.")
+    if all_feedback_types and help_request_id is not None:
+        raise ApiError(422, "FEEDBACK_REQUEST_CONFLICT", "Choose either a help request or the full feedback catalog.")
     if text_evidence is not None and not user.is_admin:
         raise ApiError(403, "FORBIDDEN", "Evaluation parameters require administrator access.")
     model = await db.models.find_one({"_id": str(model_id), "ownerId": user.id})
@@ -311,7 +320,7 @@ async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None
             return _public_evaluation(existing)
         if existing:
             await help_requests.release_feedback_reservation(help_request_id)
-    elif can_view_analysis(user):
+    elif all_feedback_types:
         # Staff runs precompute every learner help feedback per object once for the analysis view.
         feedback_request = {"types": ["recognition", "help.catalog"], "context": {}}
     # Every run collects the label hints for the separate hint view (AP-10); they are never counted.
@@ -322,6 +331,7 @@ async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None
         "ownerId": user.id, "modelId": str(model_id), "modelVersionId": str(version_id),
         "dagName": workflow_name, "startStatus": {"$in": ["starting", "unknown"]},
         "helpRequestId": str(help_request_id) if help_request_id else None,
+        "feedbackRequest.types": feedback_request["types"],
     })
     if unresolved is not None:
         # A repeated browser request must not launch again after an ambiguous start.
@@ -398,7 +408,7 @@ async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None
 def student_evaluation(item: Document) -> Document:
     # Workflow step definitions and run parameters are internals; learners only need the name.
     workflow = item.get("workflow") or {}
-    return {**item, "workflow": {"name": workflow.get("name", ""), "labels": {}, "steps": []}, "parameters": {}}
+    return {**item, "workflow": {"name": workflow.get("name", ""), "labels": {}, "steps": []}, "parameters": {}, "feedbackTypes": []}
 
 
 async def list_for_model(model_id: UUID, user: User, skip: int, limit: int) -> Document:
@@ -436,12 +446,15 @@ async def feedback(evaluation_id: UUID, user: User) -> Document:
         chosen = min(helps, key=lambda pair: (-(recognition_percent(pair[0].get("overview")) or 0), pair[1]), default=None)
         best = min(recognitions, key=lambda item: (-(recognition_percent((item["recognition"] or {}).get("overall")) or 0),
                                                    item["referenceKey"]), default=None)
-        hints = next((entry["hints"] for step in result["steps"] if best and step["status"] == "succeeded"
-                      and isinstance(step.get("result"), dict) and step["result"]["pair"]["referenceKey"] == best["referenceKey"]
+        # Object/whole-model help can omit the standalone recognition entry. Its hints follow
+        # the same reference as the displayed help instead of requiring an unrelated report type.
+        hint_reference_key = best["referenceKey"] if best else chosen[1] if chosen else None
+        hints = next((entry["hints"] for step in result["steps"] if hint_reference_key and step["status"] == "succeeded"
+                      and isinstance(step.get("result"), dict) and step["result"]["pair"]["referenceKey"] == hint_reference_key
                       for entry in step["result"].get("feedback", []) if entry.get("type") == "hints"), [])
         stored = {"state": result["state"], "scorePercent": result.get("scorePercent"), "recognitions": recognitions,
                   "feedback": [{**chosen[0], "referenceKey": chosen[1]}] if chosen else [],
-                  "hints": [{**item, "referenceKey": best["referenceKey"]} for item in hints]}
+                  "hints": [{**item, "referenceKey": hint_reference_key} for item in hints]}
         # A succeeded run whose feedback artifact could not be read yet is retried on the next call.
         if result["state"] in {"failed", "cancelled", "succeeded"} and (
             result["state"] != "succeeded" or recognitions or chosen
@@ -458,10 +471,16 @@ def _feedback_projection(evaluation: Document, stored: Document) -> Document:
     score = learner_score(stored)
     # A decision outranks a mere view, whatever order the browser reported them in.
     states = {}
+    retention = {}
     for event in stored.get("hintEvents", []):
+        if event["action"] not in HINT_ACTIONS:
+            if event["action"] in ("retained", "reverted", "removed"):
+                retention[event["hintId"]] = event["action"]
+            continue
         current = states.get(event["hintId"], "new")
         states[event["hintId"]] = max(current, event["action"], key=("new", *HINT_ACTIONS).index)
-    hints = [{**_pick(item, HINT_FIELDS), "state": states.get(item["id"], "new")} for item in stored.get("hints", [])]
+    hints = [{**_pick(item, HINT_FIELDS), "state": states.get(item["id"], "new"),
+              "retention": retention.get(item["id"])} for item in stored.get("hints", [])]
     return {"id": evaluation.get("id", evaluation.get("_id")), "startedAt": evaluation["startedAt"],
             "workflowName": evaluation["workflow"]["name"], "submission": evaluation["submission"],
             "state": stored["state"], "recognitions": stored["recognitions"], "feedback": stored.get("feedback", []),
@@ -469,19 +488,29 @@ def _feedback_projection(evaluation: Document, stored: Document) -> Document:
 
 
 async def record_hint_event(evaluation_id: UUID, hint_id: str, action: str, user: User) -> None:
-    """One event per hint and action, for the probe evaluation (AP-11); hints never change the recognition."""
-    if action not in HINT_ACTIONS:
+    """Deduplicated decisions plus observed retention transitions; hints never change recognition."""
+    if action not in (*HINT_ACTIONS, "retained", "reverted", "removed"):
         raise ApiError(422, "INVALID_HINT_ACTION", "Unknown hint action.")
     query = {"_id": str(evaluation_id), "ownerId": user.id, "studentFeedback.hints.id": hint_id}
     evaluation = await db.evaluations.find_one(query, {"studentFeedback.hints": 1})
     if evaluation is None:
         raise not_found()
     hint = next(item for item in evaluation["studentFeedback"]["hints"] if item["id"] == hint_id)
+    event = {"hintId": hint_id, "action": action, "createdAt": utcnow(),
+             "sources": hint.get("sources", []), "relation": hint.get("relation"),
+             "withReferenceText": hint.get("suggestion") is not None}
+    if action in ("retained", "reverted", "removed"):
+        # Keep transitions (including repeated undo/redo), deduplicating only unchanged observations.
+        key = hashlib.sha256(hint_id.encode()).hexdigest()
+        path = f"studentFeedback.hintRetention.{key}"
+        await db.evaluations.update_one(
+            {**query, path: {"$ne": action},
+             "studentFeedback.hintEvents": {"$elemMatch": {"hintId": hint_id, "action": "accepted"}}},
+            {"$set": {path: action}, "$push": {"studentFeedback.hintEvents": event}})
+        return
     await db.evaluations.update_one(
         {**query, "studentFeedback.hintEvents": {"$not": {"$elemMatch": {"hintId": hint_id, "action": action}}}},
-        {"$push": {"studentFeedback.hintEvents": {"hintId": hint_id, "action": action, "createdAt": utcnow(),
-                                                  "sources": hint.get("sources", []), "relation": hint.get("relation"),
-                                                  "withReferenceText": hint.get("suggestion") is not None}}})
+        {"$push": {"studentFeedback.hintEvents": event}})
 
 
 def learner_score(stored: Document) -> float | None:
@@ -611,10 +640,19 @@ async def detail(evaluation_id: UUID, user: User, *, analysis: bool = True) -> D
             result["steps"] = student_step_results(result["steps"])
         return result
     state = _state(run.get("statusLabel") or run.get("status") or run.get("state"))
+    await db.evaluations.update_one({"_id": evaluation["_id"]}, {
+        "$set": {"state": state, "startStatus": "started", "lastObservedAt": utcnow()}, "$unset": {"startError": ""},
+    })
+    return await inspect_run(evaluation, run, allow_analysis=analysis and can_view_analysis(user))
+
+
+async def inspect_run(evaluation: Document, run: Document, *, allow_analysis: bool,
+                      sub_run_id: str | None = None) -> Document:
+    """Read a run without changing learner history; also used by isolated lab runs."""
+    state = _state(run.get("statusLabel") or run.get("status") or run.get("state"))
     raw_steps = _run_steps(run, evaluation["workflow"])
     # Expand model and reference-pair fan-outs into their persisted artifacts.
     expanded = []
-    allow_analysis = analysis and can_view_analysis(user)
     for step in raw_steps:
         children = step.pop("_subRuns", [])
         if step["id"] in {"parse_models", "extract_labels", "match_synonyms", "match_graphs", "generate_analytical_feedback", "generate_feedback"} and evaluation.get("parserModels"):
@@ -627,7 +665,7 @@ async def detail(evaluation_id: UUID, user: User, *, analysis: bool = True) -> D
     raw_steps = expanded
     completed_steps = [step for step in raw_steps if step["status"] in {"succeeded", "failed"}]
     logs = await gather(*(
-        dagu.get_step_log(evaluation["dagName"], evaluation["dagRunId"], step["id"])
+        dagu.get_step_log(evaluation["dagName"], evaluation["dagRunId"], step["id"], sub_run_id=sub_run_id)
         for step in completed_steps if not step.get("_modelRun") and allow_analysis
     ), return_exceptions=True)
     for step, log in zip([step for step in completed_steps if not step.get("_modelRun") and allow_analysis], logs, strict=True):
@@ -636,14 +674,11 @@ async def detail(evaluation_id: UUID, user: User, *, analysis: bool = True) -> D
     steps = _enrich_step_output(raw_steps)
     for step in steps:
         step.pop("_modelRun", None)
-    await db.evaluations.update_one({"_id": evaluation["_id"]}, {
-        "$set": {"state": state, "startStatus": "started", "lastObservedAt": utcnow()}, "$unset": {"startError": ""},
-    })
     result = _public_evaluation(evaluation, detail=True)
     result["state"] = state
     result["steps"] = steps if allow_analysis else student_step_results(steps)
     final_result = (run.get("result") or run.get("output")) if state == "succeeded" else None
-    if state == "succeeded" and allow_analysis and not isinstance(final_result, dict):
+    if state == "succeeded" and allow_analysis and not sub_run_id and not isinstance(final_result, dict):
         try:
             final_result = await dagu.get_run_outputs(evaluation["dagName"], evaluation["dagRunId"])
         except ApiError:

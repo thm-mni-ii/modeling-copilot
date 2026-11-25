@@ -42,10 +42,12 @@ class LabelHint(ApiSchema):
     sources: list[str] = Field(default_factory=list)
     relation: str | None = None
     state: Literal["new", "shown", "accepted", "dismissed"] = "new"
+    retention: Literal["retained", "reverted", "removed"] | None = Field(
+        default=None, description="Last observed editor state after acceptance; not proof of a saved model version.")
 
 
 class HintEvent(ApiSchema):
-    action: Literal["shown", "accepted", "dismissed"]
+    action: Literal["shown", "accepted", "dismissed", "retained", "reverted", "removed"]
 
 
 class EvaluationFeedback(ApiSchema):
@@ -73,6 +75,7 @@ class Evaluation(ApiSchema):
     state: EvaluationState = "queued"
     workflow: EvaluationWorkflow
     parameters: JsonObject = Field(default_factory=dict)
+    feedback_types: list[str] = Field(default_factory=list)
     feedback: EvaluationFeedback | None = Field(default=None, description="Published learner feedback, when already available.")
 
 
@@ -108,3 +111,4 @@ class StartEvaluation(ApiSchema):
         default=None, description="Tier thresholds for this run; null keeps the workflow defaults.")
     help_request_id: UUID | None = Field(
         default=None, description="Completed help request whose requested feedback type this run produces.")
+    all_feedback_types: bool = False

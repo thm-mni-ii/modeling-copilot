@@ -1,4 +1,4 @@
-import { constants, TextShape, type Cell, type CellState, type Graph, type TooltipHandler } from '@maxgraph/core'
+import { constants, TextShape, type AbstractGraph, type Cell, type CellEditorHandler, type CellState, type Graph, type TooltipHandler } from '@maxgraph/core'
 
 /** Formatierungen, die in HTML-Labels als Tag erhalten bleiben (nur ohne Attribute). */
 const ALLOWED_TAGS = ['b', 'strong', 'i', 'em', 'u', 'br', 'div']
@@ -17,7 +17,7 @@ export function sanitizeLabelHtml(label: string): string {
   return escapeHtml(label).replace(ALLOWED_TAG_PATTERN, '<$1$2>')
 }
 
-/** Formatierungen, die der Label-Editor (Cmd/Strg+B, I, U) ins Label übernimmt. */
+/** Inline tags kept when an existing label is edited; new formatting uses the whole-label style instead. */
 const FORMAT_TAGS = new Set(['b', 'strong', 'i', 'em', 'u'])
 const BLOCK_TAGS = new Set(['div', 'p'])
 
@@ -71,19 +71,70 @@ const FONT_STYLE_FLAGS: Record<TextFormat, number> = {
   underline: constants.FONT_STYLE_MASK.UNDERLINE
 }
 
-/**
- * Formatiert Text: Im offenen Label-Editor nur die Markierung (wie Cmd/Strg+B),
- * sonst das ganze Label der ausgewählten Elemente über `fontStyle`.
- */
-export function formatText(graph: Graph, format: TextFormat): void {
-  if (graph.isEditing()) {
-    document.execCommand(format)
-    return
-  }
+const FORMAT_TAG_NAMES: Record<TextFormat, readonly string[]> = { bold: ['b', 'strong'], italic: ['i', 'em'], underline: ['u'] }
 
-  const cells = graph.getSelectionCells()
-  if (cells.length > 0) {
-    graph.toggleCellStyleFlags('fontStyle', FONT_STYLE_FLAGS[format], cells)
+const labelRoot = (label: string): HTMLElement => {
+  const root = document.createElement('div')
+  root.innerHTML = sanitizeLabelHtml(label) // inspection only; sanitized tags carry no attributes
+  return root
+}
+
+/** Whether tags of the format cover all visible text: the rule the evaluation applies (model-label-extraction). */
+function coveredByTags(root: HTMLElement, format: TextFormat): boolean {
+  const tags = FORMAT_TAG_NAMES[format]
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  let visible = false
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent?.trim()) continue
+    visible = true
+    let parent = node.parentElement
+    while (parent && parent !== root && !tags.includes(parent.tagName.toLowerCase())) parent = parent.parentElement
+    if (!parent || parent === root) return false
+  }
+  return visible
+}
+
+/**
+ * Toggles a format for the whole label, also in the open label editor.
+ * New formatting only sets `fontStyle`; switching off also drops tags of this format
+ * when they cover the whole text. Partial inline formatting is never touched.
+ */
+export function formatText(graph: AbstractGraph, format: TextFormat): void {
+  const editor = graph.getPlugin<CellEditorHandler>('CellEditorHandler')
+  const editing = graph.isEditing() ? editor?.getEditingCell() ?? null : null
+  const textarea = editing ? editor?.textarea ?? null : null
+  const cells = editing ? [editing] : graph.getSelectionCells()
+  if (cells.length === 0) return
+
+  const flag = FONT_STYLE_FLAGS[format]
+  const fontStyleOf = (cell: Cell) => Number(graph.getCurrentCellStyle(cell).fontStyle ?? 0)
+  const textOf = (cell: Cell) => (cell === editing && textarea ? textarea : labelRoot(graph.convertValueToString(cell)))
+  const enable = !cells.every((cell) => (fontStyleOf(cell) & flag) !== 0 || coveredByTags(textOf(cell), format))
+  const model = graph.getDataModel()
+  model.batchUpdate(() => {
+    for (const cell of cells) {
+      // Effective value incl. the language default, so other default flags survive an explicit override.
+      const fontStyle = fontStyleOf(cell)
+      model.setStyle(cell, { ...cell.getClonedStyle(), fontStyle: enable ? fontStyle | flag : fontStyle & ~flag })
+      if (enable) continue
+      if (cell === editing && textarea && coveredByTags(textarea, format)) {
+        textarea.querySelectorAll(FORMAT_TAG_NAMES[format].join(',')).forEach((element) => element.replaceWith(...element.childNodes))
+      }
+      // Also the stored label while editing, so cancelling the editor leaves no covering tag behind.
+      const label = cell.getValue()
+      if (typeof label === 'string' && coveredByTags(labelRoot(label), format)) {
+        model.setValue(cell, label.replace(new RegExp(`</?(${FORMAT_TAG_NAMES[format].join('|')})\\s*/?>`, 'gi'), ''))
+      }
+    }
+  })
+
+  // maxGraph applies fontStyle to the in-place editor only when editing starts.
+  if (editing && textarea) {
+    const fontStyle = fontStyleOf(editing)
+    const masks = constants.FONT_STYLE_MASK
+    textarea.style.fontWeight = fontStyle & masks.BOLD ? 'bold' : 'normal'
+    textarea.style.fontStyle = fontStyle & masks.ITALIC ? 'italic' : ''
+    textarea.style.textDecoration = [fontStyle & masks.UNDERLINE ? 'underline' : '', fontStyle & masks.STRIKETHROUGH ? 'line-through' : ''].filter(Boolean).join(' ')
   }
 }
 

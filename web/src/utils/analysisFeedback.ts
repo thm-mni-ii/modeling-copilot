@@ -65,6 +65,7 @@ export interface RecognitionBucket extends RecognitionCount { id: string; label:
 export interface RecognitionReport { basis: 'uniquely_supported'; buckets?: RecognitionBucket[]; categories?: Record<AnalysisCategory, RecognitionCount>; overall: RecognitionCount; unmatchedSubmission: { id: string; kind: ObjectKind; category?: AnalysisCategory }[] }
 export interface ReferenceHint extends AnalysisHint { target: AnalysisTarget; referenceId: string; kind: ObjectKind; label?: string; facts?: AnalysisFact[]; identity?: AnalysisIdentity }
 export interface AnalysisFeedback {
+  labelHints?: { id: string; submissionId: string; submissionLabel: string; suggestion: string | null; sources?: string[]; relation?: string | null }[]
   schema: 'analysis-feedback/v1' | 'analysis-feedback/v2' | 'analysis-feedback/v3'; evaluationId: string; pair: { studentKey: 'submission'; referenceKey: string }
   contractVersion?: '1.1' | '1.2' | '1.3'
   status: 'provisional'; assessmentAvailable: false
@@ -177,6 +178,8 @@ function adaptCurrentAnalysis(value: Record<string, unknown>, context: AnalysisC
     requireValue(object(hint) && id(hint.referenceId) && reference.get(hint.referenceId)?.kind === hint.kind && !matched.has(hint.referenceId) &&
       !hinted.has(hint.referenceId) && validTarget(hint.target) && hint.target.side === 'submission' && validFacts(hint.facts) && validHints([hint]))
     if (hint.identity !== undefined) requireValue(validIdentity(hint.identity))
+    // Analyses before analytical-feedback 2.5.0 kept inline formatting tags in the reference label.
+    if (typeof hint.label === 'string') hint.label = plainLabel(hint.label)
     hinted.add(hint.referenceId)
   }
   requireValue([...reference.keys()].every(identity => matched.has(identity) || hinted.has(identity)))
@@ -403,7 +406,7 @@ export function analysisFromEvaluation(detail: EvaluationDetail, referenceKey: s
 export type DisplayStatus = 'recognized' | 'supported' | 'provisional' | 'warning' | 'unresolved' | 'not_evaluated'
 /** Most severe first; used for list order and for merging several findings into one diagram marker. */
 export const displayStatusOrder: DisplayStatus[] = ['warning', 'unresolved', 'supported', 'recognized', 'provisional', 'not_evaluated']
-export const individualViolations = (item: { facts?: AnalysisFact[] }) => item.facts?.filter(fact => !fact.code.startsWith('connection_group.') && fact.status === 'violated') ?? []
+export const individualViolations = (item: { facts?: AnalysisFact[] }) => item.facts?.filter(fact => !fact.code.startsWith('connection_group.') && !fact.code.startsWith('label.') && fact.status === 'violated') ?? []
 export const analysisStatus = (item: AnalysisAnnotation): DisplayStatus => {
   if (item.identity) {
     if (individualViolations(item).length) return 'warning'
@@ -423,6 +426,14 @@ export const analysisStatus = (item: AnalysisAnnotation): DisplayStatus => {
   return item.match?.status === 'provisional' ? 'provisional' : 'not_evaluated'
 }
 // Recognition is not correctness, so "recognized" stays blue instead of success green.
+/** Identity markers are independent of property and neighbourhood checks (GM-29/34/37). */
+export const analysisOverviewStatus = (item: AnalysisAnnotation): DisplayStatus => {
+  if (item.identity) return item.identity.status === 'uniquely_supported' ? 'recognized' : item.identity.status === 'supported' ? 'supported' : 'unresolved'
+  if (item.match?.status === 'provisional') return 'provisional'
+  if (item.match?.status === 'unresolved') return 'unresolved'
+  return item.status === 'not_evaluated' || item.status === 'not_applicable' ? 'not_evaluated' : item.referenceId ? 'provisional' : 'unresolved'
+}
+
 export const analysisDisplay = {
   recognized: { icon: 'mdi-check-circle-outline', color: '#1E6FA8', label: 'Eindeutig erkannt' },
   supported: { icon: 'mdi-circle-half-full', color: '#607D8B', label: 'Gestützt, nicht eindeutig' },
@@ -431,8 +442,48 @@ export const analysisDisplay = {
   unresolved: { icon: 'mdi-help-circle-outline', color: '#6D4C9F', label: 'Ungeklärt' },
   not_evaluated: { icon: 'mdi-minus-circle-outline', color: '#757575', label: 'Nicht ausgewertet' }
 } as const
+export const analysisOverviewDisplay = {
+  ...analysisDisplay,
+  recognized: { icon: 'mdi-check-circle', color: '#4CAF50', label: 'Gegenstück eindeutig erkannt' },
+  supported: { icon: 'mdi-circle-half-full', color: '#B26A00', label: 'Kandidat, noch nicht eindeutig erkannt' }
+} as const
+export const recognizedWithLocalIssuesDisplay = {
+  icon: 'mdi-check-circle-outline', color: '#1F242E', label: 'Gegenstück erkannt; lokale Eigenschaft weicht ab'
+} as const
+export const studentQuestionDisplay = {
+  icon: 'mdi-check-circle-outline', color: '#1F242E', label: 'Mögliche Zuordnung; Rückfrage an Studierende'
+} as const
+const hintSourceLabels: Record<string, string> = {
+  text_band: 'ähnliche Schreibweise oder Bedeutung', neighbor_profile: 'gleiche Verbindungen zu erkannten Elementen', child_overlap: 'viele gleiche untergeordnete Elemente'
+}
+const hintRelationLabels: Record<string, string> = {
+  notation: 'gleiche Wortteile, andere Schreibweise', reordered: 'gleiche Wortteile in anderer Reihenfolge', head_form: 'kürzere oder längere Form desselben Begriffs',
+  part_of_term: 'Teil eines längeren Begriffs', abbreviation: 'Abkürzung', same_stem: 'gleicher Wortanfang oder gleiches Wortende'
+}
+/** Why a hint exists, shared by the learner hint list and the analysis view. */
+export const labelHintReason = (sources: readonly string[], relation: string | null) => {
+  const reasons = sources.map(source => hintSourceLabels[source] ?? source)
+  return `Grund: ${reasons.join(', ') || 'nicht angegeben'}${relation ? `; Wortvergleich: ${hintRelationLabels[relation] ?? relation}` : ''}.`
+}
+export const analysisStudentQuestions = (report: AnalysisFeedback, submissionId?: string) =>
+  (Array.isArray(report.labelHints) ? report.labelHints : []).filter(hint => hint && typeof hint.id === 'string' &&
+    typeof hint.submissionId === 'string' && (submissionId === undefined || hint.submissionId === submissionId)).map(hint => ({
+    id: hint.id, submissionId: hint.submissionId, reason: labelHintReason(hint.sources ?? [], hint.relation ?? null),
+    text: typeof hint.suggestion === 'string' && hint.suggestion ? `Meinst du „${hint.suggestion}“?` : 'Die Beschriftung weicht vermutlich vom erwarteten Begriff ab.'
+  }))
+
+/** Only the object's own properties affect its checkmark, never children or group totals. */
+export const analysisOverviewAppearance = (item: AnalysisAnnotation, hasStudentQuestion = false) => {
+  if (hasStudentQuestion) return studentQuestionDisplay
+  const status = analysisOverviewStatus(item)
+  if (status !== 'recognized') return analysisOverviewDisplay[status]
+  const differing = [...new Set((item.facts ?? []).filter(fact =>
+    /^(type|formatting|owner|containment|connection)\./.test(fact.code) && fact.status === 'violated' &&
+    fact.submissionIds.length === 1 && fact.submissionIds[0] === item.target.id).map(fact => analysisFactLabel(fact.code)))]
+  return differing.length ? { ...recognizedWithLocalIssuesDisplay, label: `Gegenstück erkannt; abweichend: ${differing.join(', ')}` } : analysisOverviewDisplay.recognized
+}
 export const categoryLabels: Record<AnalysisCategory, string> = { nodes: 'Knoten', attributes: 'Attribute', connections: 'Verbindungen', other: 'Sonstige' }
-export const checkLabels: Record<string, string> = { label: 'Beschriftung', type: 'Konkreter Typ', owner: 'Besitzer', containment: 'Containment', source: 'Source', target: 'Target', endpoints: 'Endpunkte', direction: 'Richtung', connectionType: 'Verbindungstyp', connectionScope: 'Prüfumfang', configuration: 'Konfiguration', counterpart: 'Gegenstück', children: 'Fachliche Kinder', direct_children: 'Unmittelbare Kinder', directChildren: 'Unmittelbare Kinder', connections: 'Angrenzende Verbindungen', incoming: 'Eingehende Verbindungen', outgoing: 'Ausgehende Verbindungen', undirected: 'Ungerichtete Verbindungen', connection_group: 'Verbindungsgruppe' }
+export const checkLabels: Record<string, string> = { label: 'Beschriftung', type: 'Konkreter Typ', formatting: 'Textauszeichnung', owner: 'Besitzer', containment: 'Containment', source: 'Source', target: 'Target', endpoints: 'Endpunkte', direction: 'Richtung', connectionType: 'Verbindungstyp', connectionScope: 'Prüfumfang', configuration: 'Konfiguration', counterpart: 'Gegenstück', children: 'Fachliche Kinder', direct_children: 'Unmittelbare Kinder', directChildren: 'Unmittelbare Kinder', connections: 'Angrenzende Verbindungen', incoming: 'Eingehende Verbindungen', outgoing: 'Ausgehende Verbindungen', undirected: 'Ungerichtete Verbindungen', connection_group: 'Verbindungsgruppe' }
 export const analysisValueLabel = (value: string) => ({ provisional: 'Vorläufig', evaluated: 'Ausgewertet', ambiguous: 'Mehrdeutig', unresolved: 'Ungeklärt', not_evaluated: 'Nicht ausgewertet', not_applicable: 'Nicht anwendbar', partial: 'Teilweise ausgewertet', exact: 'Gleich', equal: 'Gleich', different: 'Abweichend', same_type: 'Gleicher Typ', compatible_type_difference: 'Anderer Typ innerhalb der Vergleichsgruppe', satisfied: 'Erfüllt', violated: 'Verletzt', endpoint_group: 'Verbindungsgruppe', derived_context: 'Abgeleiteter Strukturkontext', fully_consistent: 'Implementierte lokale Prüfungen vollständig erfüllt (unter vorläufiger Zuordnung)', direct_observation: 'Direkt beobachtet', conditional_mapping: 'Unter vorläufiger Zuordnung', independent_evidence: 'Unabhängig gestützt' })[value] ?? value
 export const analysisFactLabel = (code: string) => {
   const [prefix, dimension] = code.split('.')
@@ -442,14 +493,17 @@ export const analysisFactLabel = (code: string) => {
   return checkLabels[prefix] ?? code
 }
 export const analysisIdentityLabel = (status: string) => ({ uniquely_supported: 'Eindeutig erkannt', supported: 'Identität gestützt; Eindeutigkeit offen', unresolved: 'Identität ungeklärt' })[status] ?? status
-export const analysisIdentityMethodLabel = (method: string) => ({ exact_label: 'Exakte Beschriftung', type_compatibility: 'Typkompatibilität', independent_children: 'Unabhängig erkannte Kinder', combined_children: 'Gemeinsame Kinderstruktur', identified_owner: 'Unabhängig erkannter Besitzer', connection_structure: 'Verbindungsstruktur', text_similarity: 'Textähnlichkeit über Schwelle', label_structure: 'Beschriftung widerspricht Struktur (vermutlich vertauscht)', semantic_proposal: 'Vorhandene semantische Evidenz' })[method] ?? method
+export const analysisIdentityMethodLabel = (method: string) => ({ context_structure: 'Graphkontext entscheidet zwischen Textkandidaten', neighbor_structure: 'Übereinstimmende Nachbarstruktur', interchangeable_duplicate: 'Gleichwertige Kopie (GM-51)', exact_label: 'Exakte Beschriftung', type_compatibility: 'Typkompatibilität', independent_children: 'Unabhängig erkannte Kinder', combined_children: 'Gemeinsame Kinderstruktur', identified_owner: 'Unabhängig erkannter Besitzer', connection_structure: 'Verbindungsstruktur', text_similarity: 'Textähnlichkeit über Schwelle', label_structure: 'Beschriftung widerspricht Struktur (vermutlich vertauscht)', semantic_proposal: 'Vorhandene semantische Evidenz' })[method] ?? method
 export const analysisIdentityRoleLabel = (role: string) => ({ compatibility: 'Vergleich zulässig', support: 'Positive Evidenz', identity_anchor: 'Identitätsanker nach Konkurrenzprüfung' })[role] ?? role
 export const analysisPlacementLabel = (status: unknown) => typeof status === 'string' ? ({ correct_placement: 'Korrekt platziert', wrong_placement: 'Falsch platziert', placement_unresolved: 'Platzierung ungeklärt', unmatched_submission: 'Abgabegegenstück nicht zugeordnet', unmatched_reference: 'Referenzgegenstück nicht zugeordnet', proven_absent: 'Abwesenheit nachgewiesen' })[status] ?? status : ''
+const formattingNames: Record<string, string> = { bold: 'fett', italic: 'kursiv', underline: 'unterstrichen' }
+const factValue = (value: unknown): string => Array.isArray(value) ? value.map(item => formattingNames[String(item)] ?? String(item)).join(', ') || 'keine'
+  : typeof value === 'boolean' ? (value ? 'ja' : 'nein') : value === null || value === undefined || value === '' ? '–' : String(value)
 export const analysisFactEvidence = (fact: AnalysisFact) => {
   const evidence = fact.evidence
   const reasons: Record<string, string> = {
     evaluated_identity_evidence: 'Identität anhand der ausgewiesenen Evidenzmethoden geprüft',
-    compared_labels: 'Beschriftungen verglichen', text_unavailable: 'Beschriftungsvergleich nicht auswertbar', compared_concrete_types: 'Konkrete Typen verglichen',
+    compared_labels: 'Beschriftungen verglichen', text_unavailable: 'Beschriftungsvergleich nicht auswertbar', compared_concrete_types: 'Konkrete Typen verglichen', compared_visible_formatting: 'Textauszeichnung verglichen', difference_explained_by_type: 'Abweichung folgt aus dem Elementtyp', no_formatting: 'Keine Seite ist ausgezeichnet',
     compared_owner: 'Fachliche Besitzer verglichen', compared_containment: 'Unmittelbare Container und Rollen verglichen',
     local_children_under_mapping: 'Lokale Kindstruktur geprüft', local_connections_under_mapping: 'Lokale Verbindungen geprüft',
     existing_correspondence: 'Vorhandenes Gegenstück', identity_unresolved: 'Gegenstück nicht eindeutig identifiziert',
@@ -464,7 +518,9 @@ export const analysisFactEvidence = (fact: AnalysisFact) => {
   const missing = typeof evidence.minimumMissing === 'number' && evidence.minimumMissing > 0 ? ` · mindestens ${evidence.minimumMissing} lokal nicht realisiert` : ''
   const placement = evidence.placementStatus ? ` · ${analysisPlacementLabel(evidence.placementStatus)}` : ''
   const unavailable = evidence.unavailableReason === 'missing_text' ? ' · Beschriftung fehlt' : evidence.unavailableReason === 'unsupported_text' ? ' · Beschriftungsformat nicht unterstützt' : ''
-  return `${analysisValueLabel(evidence.basis)} · ${reason}${counts}${missing}${placement}${unavailable}`
+  const values = fact.code.startsWith('label.') || !('referenceValue' in evidence) ? ''
+    : ` · Referenz: ${factValue(evidence.referenceValue)} · Abgabe: ${factValue(evidence.submissionValue)}`
+  return `${analysisValueLabel(evidence.basis)} · ${reason}${counts}${missing}${placement}${unavailable}${values}`
 }
 export const analysisChildChecklist = (facts: AnalysisFact[] | undefined) => {
   const evidence = facts?.find(fact => fact.code === 'children.complete')?.evidence
@@ -475,7 +531,7 @@ export const analysisChildChecklist = (facts: AnalysisFact[] | undefined) => {
     unresolvedReference: ids('unmatchedReferenceIds').filter(id => !absent.includes(id)),
     unresolvedSubmission: ids('unmatchedSubmissionIds'), foreign: ids('mappedFromOtherTargets'), roleDifferences: ids('roleDifferenceReferenceIds') }
 }
-export const analysisReasonLabel = (reason: string) => ({ combined_child_structure: 'Gemeinsam unterscheidende Kinderstruktur', unique_mapped_endpoints: 'Eindeutig zugeordnete Endpunkte', unique_exact_connection_label: 'Eindeutige Verbindungsbeschriftung', unique_exact_label: 'Eindeutige gleiche Beschriftung', unique_exact_after_reservations: 'Eindeutige gleiche Beschriftung nach bestehenden Zuordnungen', consistent_owner_anchor: 'Konsistenter zugeordneter Besitzer', independent_child_evidence: 'Unabhängige Evidenz enthaltener Elemente', supported_semantic_evidence: 'Semantisch gestützte Zuordnung', neighbor_confirmed_semantic_evidence: 'Textähnlichkeit im Graubereich, durch zugeordnete Nachbarn bestätigt', compatible_type_and_mapped_endpoints: 'Kompatibler Typ und zugeordnete Endpunkte', structural_child_of_mapped_parent: 'Kind eines zugeordneten Parents' })[reason] ?? `Zuordnungsregel: ${reason}`
+export const analysisReasonLabel = (reason: string) => ({ context_disambiguated_text: 'Text mit passendem Graphkontext (GM-47)', neighbor_structure: 'Übereinstimmende Nachbarstruktur (GM-48)', loose_context_text: 'Text mit passendem Nachbarn trotz abweichender Kante (GM-51)', interchangeable_duplicate: 'Gleichwertige Kopie, beliebig zugeordnet (GM-51)', interchangeable_parallel_connections: 'Austauschbare parallele Verbindung (GM-46)', combined_child_structure: 'Gemeinsam unterscheidende Kinderstruktur', unique_mapped_endpoints: 'Eindeutig zugeordnete Endpunkte', unique_exact_connection_label: 'Eindeutige Verbindungsbeschriftung', unique_exact_label: 'Eindeutige gleiche Beschriftung', unique_exact_after_reservations: 'Eindeutige gleiche Beschriftung nach bestehenden Zuordnungen', consistent_owner_anchor: 'Konsistenter zugeordneter Besitzer', independent_child_evidence: 'Unabhängige Evidenz enthaltener Elemente', supported_semantic_evidence: 'Semantisch gestützte Zuordnung', neighbor_confirmed_semantic_evidence: 'Textähnlichkeit im Graubereich, durch zugeordnete Nachbarn bestätigt', compatible_type_and_mapped_endpoints: 'Kompatibler Typ und zugeordnete Endpunkte', structural_child_of_mapped_parent: 'Kind eines zugeordneten Parents' })[reason] ?? `Zuordnungsregel: ${reason}`
 const hintTexts: Record<string, string> = {
   'fact.violated': 'Die Einzelprüfung weist eine Abweichung nach.', 'fact.unresolved': 'Diese Einzelprüfung bleibt ungeklärt.',
   'fact.group_violated': 'Die Verbindungsgruppe weicht ab; einzelne Identitäten bleiben vorläufig.', 'fact.group_unresolved': 'Die Prüfung der Verbindungsgruppe bleibt ungeklärt.',
@@ -513,13 +569,16 @@ export interface GraphDiagnostic { code: string; severity: string; message?: str
 export interface GraphInfo { nodes: Map<string, GraphNode>; interpretation: 'complete' | 'partial' | null; diagnostics: GraphDiagnostic[] }
 
 /** Parser output of one model of this evaluation; null when absent or not bound to the evaluation. */
+/** Same inline tags as the editor and model-label-extraction; breaks become spaces. */
+export const plainLabel = (label: string) => label.replace(/<\/?(b|strong|i|em|u|br|div)\s*\/?>/gi, (tag) => /^<\/?(br|div)/i.test(tag) ? ' ' : '').split(/\s+/).filter(Boolean).join(' ')
 export function graphInfo(detail: EvaluationDetail, key: string): GraphInfo | null {
   const result = detail.steps.find(step => step.result?.schema === 'graph-result/v1' && object(step.result.source) && step.result.source.key === key)?.result
   if (!result || result.evaluationId !== detail.id || !object(result.graph) || !Array.isArray(result.graph.nodes)) return null
   const nodes = (result.graph.nodes as unknown[]).filter((node): node is GraphNode => object(node) && id(node.id))
   const interpretation = object(result.completeness) ? result.completeness.interpretation : null
   return {
-    nodes: new Map(nodes.map(node => [node.id, node])),
+    // Inline formatting is layout (compared as its own check), so names in the analysis are plain text.
+    nodes: new Map(nodes.map(node => [node.id, typeof node.label === 'string' ? { ...node, label: plainLabel(node.label) } : node])),
     interpretation: interpretation === 'complete' || interpretation === 'partial' ? interpretation : null,
     diagnostics: Array.isArray(result.diagnostics) ? (result.diagnostics as unknown[]).filter((item): item is GraphDiagnostic => object(item) && id(item.code)) : []
   }
@@ -534,7 +593,16 @@ export const graphDiagnosticLabel = (diagnostic: GraphDiagnostic) => ({
 
 export interface SimilarityMethod { name: string; range: [number, number]; threshold: number | null; stages: string[]; floor: number | null }
 export interface CandidatePair { referenceId: string; submissionId: string; referenceLabel: string; submissionLabel: string; scores: Record<string, number> | null; unavailableReason: string | null }
-export interface CandidateEvidence { configured: boolean; methods: SimilarityMethod[]; pairs: CandidatePair[] }
+export interface PairDecision { referenceId: string; studentId: string; decision: 'identified' | 'partial' | 'open'; reason: string }
+export interface CandidateEvidence { configured: boolean; methods: SimilarityMethod[]; pairs: CandidatePair[]; decisions: PairDecision[] }
+export const pairDecisionLabels: Record<string, string> = {
+  identified_glossary: 'Im Glossar akzeptiert und eindeutig', identified_owner: 'Eindeutig innerhalb des erkannten Besitzers', identified_structure: 'Durch Kinder, Verbindungen oder Kontext bestätigt',
+  identified_text: 'Text über Schwelle, ohne Konkurrenz', identified_label: 'Gleiche Beschriftung, eindeutig', owner_unresolved: 'Begriff passt, Besitzer aber nicht identifiziert (Teilerkennung, zählt nicht)',
+  ambiguous_candidates: 'Mehrere gleich gute Kandidaten', owner_conflict: 'Liegt unter einem anderen Besitzer als in der Musterlösung', assigned_elsewhere: 'Eine Seite ist bereits anderweitig zugeordnet',
+  label_structure_conflict: 'Beschriftung widerspricht der Struktur', no_unique_match: 'Keine eindeutige Zuordnung möglich', glossary_rejected: 'Im Glossar abgelehnt',
+  digit_mismatch: 'Abweichende Ziffern', start_mismatch: 'Abweichender Wortanfang'
+}
+export const pairDecisionStatusLabels: Record<PairDecision['decision'], string> = { identified: 'Erkannt', partial: 'Teilweise erkannt', open: 'Nicht zugeordnet' }
 /** Prototype tier names from the workflow preset; unknown names are shown as configured. */
 export const tierLabel = (name: string) => ({ glossary: 'Glossary', canonical: 'Kanonisch gleich', spelling: 'Schreibweise', meaning: 'Bedeutung' } as Record<string, string>)[name] ?? name
 export const similarityMethodLabel = (name: string) => ({ levenshtein: 'Levenshtein', jaro_winkler: 'Jaro-Winkler', char_trigram: 'Zeichen-Trigramme', multilingual: 'Multilinguales Embedding', levenshtein_canonical: 'Levenshtein (kanonische Schreibweise)', damerau_canonical: 'Damerau-Levenshtein (kanonische Schreibweise)', multilingual_expanded: 'Multilinguales Embedding (ausgeschriebene Abkürzungen)' } as Record<string, string>)[name] ?? name
@@ -587,7 +655,9 @@ export function candidateEvidence(detail: EvaluationDetail, referenceKey: string
         submissionLabel: String(match.submissionLabel ?? ''), scores, unavailableReason: typeof match.unavailableReason === 'string' ? match.unavailableReason : null })
     }
   }
-  return { configured: methods.some(method => method.threshold !== null), methods, pairs }
+  const decisions = (Array.isArray(comparison.pairDecisions) ? comparison.pairDecisions as unknown[] : []).filter((row): row is PairDecision =>
+    object(row) && id(row.referenceId) && id(row.studentId) && ['identified', 'partial', 'open'].includes(String(row.decision)) && id(row.reason))
+  return { configured: methods.some(method => method.threshold !== null), methods, pairs, decisions }
 }
 /** GM-15: a pair is supported when any configured method reaches its own threshold; methods are never combined. */
 export const aboveThreshold = (pair: CandidatePair, methods: SimilarityMethod[]) =>

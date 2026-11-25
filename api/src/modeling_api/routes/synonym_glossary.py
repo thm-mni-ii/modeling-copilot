@@ -14,6 +14,8 @@ from modeling_api.schemas.synonym_glossary import (
     SaveGlossaryEntries,
     SignalStatus,
     ReplayBatch,
+    ReplayCandidate,
+    ReplayEvaluationDetail,
     StartReplay,
     ExplainOutcome,
     OutcomeExplanation,
@@ -95,13 +97,29 @@ async def list_replays(task_id: UUID, version_id: UUID, model_id: UUID, model_ve
     return await replays.list_batches(task_id, version_id, model_version_id)
 
 
+@router.get(SOLUTION + "/replay-candidates", response_model=list[ReplayCandidate])
+async def replay_candidates(task_id: UUID, version_id: UUID, model_id: UUID, model_version_id: UUID, user: CurrentUser):
+    service.require_admin(user)
+    await get_sample_solution(task_id, version_id, model_id, model_version_id, user)
+    return await replays.candidates(task_id, version_id)
+
+
 @router.post(SOLUTION + "/replays", response_model=ReplayBatch)
 async def start_replay(task_id: UUID, version_id: UUID, model_id: UUID, model_version_id: UUID,
                        body: StartReplay, user: CurrentUser):
     service.require_admin(user)
     await get_sample_solution(task_id, version_id, model_id, model_version_id, user)
     return await replays.start(task_id, version_id, model_version_id, user,
-                               body.text_evidence.model_dump(by_alias=True) if body.text_evidence else None)
+                               body.text_evidence.model_dump(by_alias=True) if body.text_evidence else None,
+                               body.evaluation_ids)
+
+
+@router.get(SOLUTION + "/replays/{batch_id}/evaluations/{evaluation_id}", response_model=ReplayEvaluationDetail)
+async def inspect_replay(task_id: UUID, version_id: UUID, model_id: UUID, model_version_id: UUID,
+                         batch_id: UUID, evaluation_id: UUID, user: CurrentUser):
+    service.require_admin(user)
+    await get_sample_solution(task_id, version_id, model_id, model_version_id, user)
+    return await replays.inspect_item(task_id, version_id, batch_id, evaluation_id)
 
 
 @router.get(SOLUTION + "/replays/{batch_id}", response_model=ReplayBatch)

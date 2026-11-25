@@ -114,9 +114,14 @@ const router = createRouter({
       component: () => import('../views/ViewTaskEditor.vue')
     },
     {
+      path: '/evaluation-lab/:taskId?',
+      name: 'EvaluationLab',
+      component: () => import('../views/ViewEvaluationLab.vue')
+    },
+    {
       path: '/synonym-glossary/:taskId?',
       name: 'SynonymGlossary',
-      component: () => import('../views/ViewSynonymGlossary.vue')
+      redirect: to => ({ name: 'EvaluationLab', params: to.params, query: to.query })
     },
     {
       path: '/collab',

@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from modeling_api.schemas.common import ApiSchema
-from modeling_api.schemas.evaluations import TextEvidenceThresholds
+from modeling_api.schemas.evaluations import EvaluationDetail, TextEvidenceThresholds
 
 ElementId = Annotated[str, Field(min_length=1, max_length=512)]
 Term = Annotated[str, Field(min_length=1, max_length=256)]
@@ -190,6 +190,21 @@ class TermOutcome(ApiSchema):
 
 class StartReplay(ApiSchema):
     text_evidence: TextEvidenceThresholds | None = None
+    evaluation_ids: list[UUID] | None = Field(default=None, min_length=1, max_length=500)
+
+
+class ReplayEvaluationDetail(EvaluationDetail):
+    id: str = Field(pattern=r"^replay-[a-f0-9-]{36}-[0-9]+$")
+
+
+class ReplayCandidate(ApiSchema):
+    evaluation_id: str
+    model_id: str
+    model_version_id: str
+    model_name: str
+    started_at: datetime
+    state: str
+    staff: bool
 
 
 class ReplayItem(ApiSchema):

@@ -27,7 +27,7 @@ export interface ReviewCanvasMark {
   config: FeedbackOverlayConfig
 }
 const props = defineProps<{ package: ModelPackage; marks: ReviewCanvasMark[]; selectedCellId: string | null; showFeedback: boolean; hideFeedbackToggle?: boolean; hideViewControls?: boolean; ariaLabel?: string }>()
-const emit = defineEmits<{ select: [cellId: string, path: string]; overlay: [keys: string[], cellId: string]; 'update:showFeedback': [show: boolean] }>()
+const emit = defineEmits<{ select: [cellId: string, path: string]; overlay: [keys: string[], cellId: string]; 'update:showFeedback': [show: boolean]; 'graph-ready': [graph: Graph | null] }>()
 const container = ref<HTMLDivElement>()
 const error = ref('')
 let graph: Graph | null = null
@@ -126,8 +126,10 @@ onMounted(async () => {
   graph.addMouseListener(mouseListener)
   highlight = new CellHighlight(graph, '#1565c0', 3)
   await load()
+  emit('graph-ready', graph)
 })
 onBeforeUnmount(() => {
+  emit('graph-ready', null)
   highlight?.destroy()
   graph?.removeMouseListener(mouseListener)
   graph = destroyPreviewGraph(graph)

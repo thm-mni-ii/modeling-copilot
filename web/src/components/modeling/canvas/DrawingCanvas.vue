@@ -128,7 +128,7 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" ref="rightSidebar" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :selected-task-edit-ids="props.selectedTaskEditIds" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" :evaluation-perspective="props.evaluationPerspective" @evaluation-updated="emit('evaluation-updated', $event)" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
+        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" ref="rightSidebar" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :selected-task-edit-ids="props.selectedTaskEditIds" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" :evaluation-perspective="props.evaluationPerspective" :hint-request="props.hintRequest" @evaluation-updated="emit('evaluation-updated', $event)" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
           <template v-if="$slots['sidebar-top']" #top><slot name="sidebar-top" /></template>
         </SidebarRightContainer>
         <CollabConnector v-if="props.modelManagement" />
@@ -203,6 +203,8 @@ import img_triangle from '@/assets/images/triangle.gif'
 import img_cloud from '@/assets/images/cloud.gif'
 import img_elementPlaceholder from '@/assets/images/rectangle.gif'
 
+const EDITOR_FORMAT_KEYS: Record<string, TextFormat> = { b: 'bold', i: 'italic', u: 'underline' }
+
 class MyCustomCellEditorHandler extends CellEditorHandler {
   override installListeners(elt: HTMLElement) {
     // Ctrl+Enter has no native line-break action in a contenteditable element.
@@ -211,6 +213,19 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
         elt.ownerDocument.execCommand('insertLineBreak')
         InternalEvent.consume(evt)
       }
+      // Cmd/Ctrl+B, I, U format the whole label like the toolbar instead of inserting tags around the selection.
+      const format = EDITOR_FORMAT_KEYS[evt.key.toLowerCase()]
+      if (format && (Client.IS_MAC ? evt.metaKey : evt.ctrlKey) && !evt.altKey && !evt.shiftKey && !evt.isComposing) {
+        formatText(this.graph, format)
+        InternalEvent.consume(evt)
+      }
+    })
+    // Pasted rich text would bring new inline tags; formatting comes from the whole-label style only.
+    elt.addEventListener('paste', (evt) => {
+      const text = evt.clipboardData?.getData('text/plain')
+      if (text === undefined) return
+      evt.preventDefault()
+      elt.ownerDocument.execCommand('insertText', false, text)
     })
     super.installListeners(elt)
   }
@@ -237,7 +252,7 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
     super.stopEditing(cancel)
   }
 
-  // Rich Text: Formatierungen (Cmd/Strg+B, I, U) bleiben im Label erhalten
+  // Rich text: inline tags of existing labels survive editing
   override getInitialValue(state: CellState, trigger: MouseEvent | null): string {
     if (!this.graph.isHtmlLabel(state.cell)) return super.getInitialValue(state, trigger)
     return labelToEditorHtml(this.graph.getEditingValue(state.cell, trigger) ?? '')
@@ -520,6 +535,7 @@ const props = withDefaults(
     modelId?: string | null
     openEvaluationId?: string | null
     evaluationPerspective?: 'service' | 'student'
+    hintRequest?: { evaluationId: string; cellId?: string; seq: number; noticeViewed?: boolean } | null
     previewConnection?: DiagramConnection
     previewMode?: 'simple' | 'scenario' | 'routing'
     overlays?: FeedbackCanvasOverlayEntry[]
@@ -576,6 +592,7 @@ const connectionPreview = useConnectionPreviewPreference()
 const connectionPreviewEnabled = computed(() => props.connectionPreviewAllowed && connectionPreview.value)
 const activeLayerView = ref<CanvasLayerView>('both')
 const rightSidebarCollapsed = ref(false)
+watch(() => props.hintRequest, request => { if (request && request.noticeViewed !== false) rightSidebarCollapsed.value = false })
 watch(() => props.openEvaluationId, (id) => {
   if (id) rightSidebarCollapsed.value = false
 })
@@ -1292,6 +1309,9 @@ const initGraph = () => {
     keyHandler.value.bindControlKey(68, () => duplicateSelected())
     keyHandler.value.bindControlKey(90, () => undoGraph())
     keyHandler.value.bindControlKey(89, () => redoGraph())
+    keyHandler.value.bindControlKey(66, () => formatSelectedText('bold'))
+    keyHandler.value.bindControlKey(73, () => formatSelectedText('italic'))
+    keyHandler.value.bindControlKey(85, () => formatSelectedText('underline'))
     keyHandler.value.bindKey(46, () => deleteSelected())
     if (Client.IS_MAC) keyHandler.value.bindKey(8, () => deleteSelected())
     ;(keyHandler.value as any)?.bindControlShiftKey?.(90, () => redoGraph())

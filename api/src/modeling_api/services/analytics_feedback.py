@@ -29,14 +29,14 @@ MAX_CURVE_ATTEMPT = 10
 # (question name, help phase that submits it); answers of unsubmitted phases are drafts and ignored.
 HELP_ANSWERS = (("support_need", "reflection"), ("next_action", "action"), ("stuck_duration", "reflection"))
 NO_ATTEMPT = ("failed", "cancelled")
-# Delivered feedback consumes the quota; mirrors the legacy fallback of help_requests.usage.
-DELIVERED = {"$or": [
+# Delivered and counted feedback consumes the quota; mirrors help_requests.usage.
+DELIVERED = {"$and": [{"$ne": ["$feedbackCounted", False]}, {"$or": [
     {"$eq": ["$feedbackSucceeded", True]},
     {"$and": [
         {"$eq": [{"$type": "$feedbackSucceeded"}, "missing"]},
         {"$not": [{"$in": [{"$type": "$feedbackDelivered"}, ["missing", "null"]]}]},
     ]},
-]}
+]}]}
 
 
 def mean_or_none(values, digits=1):

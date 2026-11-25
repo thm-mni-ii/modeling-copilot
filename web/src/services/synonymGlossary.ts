@@ -1,4 +1,5 @@
 import http from '@/services/api/httpClient'
+import type { EvaluationDetail } from '@/services/api/types/evaluation'
 
 export type EntryStatus = 'accepted' | 'rejected' | 'ignored'
 export type RecalculateScope = 'missing' | 'all'
@@ -40,6 +41,7 @@ export interface OutcomeExplanation {
   limitations: string[]
 }
 export interface TextEvidence { spelling: number; meaning: number; meaningFloor: number }
+export interface ReplayCandidate { evaluationId: string; modelId: string; modelVersionId: string; modelName: string; startedAt: string; state: string; staff: boolean }
 export interface ReplayItem { evaluationId: string; modelVersionId: string; runId: string; status: 'pending' | 'running' | 'done' | 'failed'; beforePercent: number | null; afterPercent: number | null; error: string | null }
 export interface ReplayBatch { id: string; state: 'running' | 'completed'; createdAt: string; expiresAt: string; workflowName: string; workflowVersion: string | null; textEvidence: TextEvidence | null; items: ReplayItem[]; outcomes: TermOutcome[]; unavailable: boolean }
 export interface MatchingWorkload { basis: 'text_pairs' | 'reference_texts'; baseline: number; additional: number; total: number; percent: number | null; covered: number; evaluated: number }
@@ -63,7 +65,9 @@ export const synonymGlossary = {
   explainOutcome: (ref: SolutionRef, outcome: TermOutcome, occurrence: OutcomeOccurrence, replayId: string | null) =>
     http.post<OutcomeExplanation[]>(`${solutionPath(ref)}/outcomes/explain`, { evaluationId: occurrence.evaluationId, referenceElementId: outcome.referenceElementId, termKey: outcome.termKey, submissionElementId: occurrence.submissionElementId, replayId }),
   replays: (ref: SolutionRef) => http.get<ReplayBatch[]>(`${solutionPath(ref)}/replays`),
-  startReplay: (ref: SolutionRef, textEvidence: TextEvidence | null) => http.post<ReplayBatch>(`${solutionPath(ref)}/replays`, { textEvidence }),
+  candidates: (ref: SolutionRef) => http.get<ReplayCandidate[]>(`${solutionPath(ref)}/replay-candidates`),
+  inspectReplay: (ref: SolutionRef, batchId: string, evaluationId: string) => http.get<EvaluationDetail>(`${solutionPath(ref)}/replays/${batchId}/evaluations/${evaluationId}`),
+  startReplay: (ref: SolutionRef, textEvidence: TextEvidence | null, evaluationIds?: string[]) => http.post<ReplayBatch>(`${solutionPath(ref)}/replays`, { textEvidence, evaluationIds }),
   replay: (ref: SolutionRef, id: string) => http.get<ReplayBatch>(`${solutionPath(ref)}/replays/${id}`),
   deleteReplay: (ref: SolutionRef, id: string) => http.delete(`${solutionPath(ref)}/replays/${id}`)
 }

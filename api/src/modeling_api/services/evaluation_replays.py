@@ -14,7 +14,7 @@ from modeling_api.core.errors import ApiError, not_found
 from modeling_api.db.client import db
 from modeling_api.db.store import Document, new_id, utcnow
 from modeling_api.services import dagu, synonym_outcomes
-from modeling_api.services.evaluations import _dag_run, _evaluation_input, _state, learner_score
+from modeling_api.services.evaluations import _dag_run, _evaluation_input, _public_evaluation, _state, inspect_run, learner_score
 from modeling_api.services.synonym_glossary import frozen_glossaries
 from modeling_api.services.synonym_signals import _sources, aggregate_outcomes
 from modeling_api.services.tasks import ensure_release_reference, get_sample_solution
@@ -46,14 +46,40 @@ async def list_batches(task_id: UUID, version_id: UUID, reference_version_id: UU
     return [await _public(row, reference_version_id) for row in rows]
 
 
+async def candidates(task_id: UUID, version_id: UUID) -> list[Document]:
+    """Latest attempt per saved model version, including failed evaluations for diagnosis."""
+    rows = await db.evaluations.find({**_scope(task_id, version_id), "submissionSnapshot": {"$exists": True}},
+        {"modelId": 1, "modelVersionId": 1, "ownerId": 1, "startedAt": 1, "state": 1}).sort(
+            [("startedAt", -1), ("_id", 1)]).to_list(None)
+    models = {row["_id"]: row for row in await db.models.find(
+        {"_id": {"$in": list({row["modelId"] for row in rows})}}, {"name": 1, "preferences.evaluationLab": 1}).to_list(None)}
+    staff = set(await db.submission_users.distinct("_id", {"isStaff": True}))
+    latest = {}
+    for row in rows:
+        if row["modelId"] in models:
+            latest.setdefault(row["modelVersionId"], row)
+    return [{"evaluationId": row["_id"], "modelId": row["modelId"], "modelVersionId": row["modelVersionId"],
+             "modelName": models[row["modelId"]].get("name") or "Untitled model", "startedAt": row["startedAt"],
+             "state": row.get("state", "unknown"), "staff": row["ownerId"] in staff or models[row["modelId"]].get("preferences", {}).get("evaluationLab") is True} for row in latest.values()]
+
+
 async def start(task_id: UUID, version_id: UUID, reference_version_id: UUID, user: User,
-                text_evidence: Document | None) -> Document:
+                text_evidence: Document | None, evaluation_ids: list[UUID] | None = None) -> Document:
     scope = _scope(task_id, version_id)
     running = await db.evaluation_replays.find_one({**scope, "state": "running", "expiresAt": {"$gt": utcnow()}})
+    if running and evaluation_ids is not None:
+        raise ApiError(409, "REPLAY_RUNNING", "A test run is already active for this release. Open it before starting another.")
     if running:
         return await _public(running, reference_version_id)
     release = await ensure_release_reference(task_id, version_id, user)
-    sources = await _sources(task_id, version_id)
+    if evaluation_ids is None:
+        sources = await _sources(task_id, version_id)
+    else:
+        available = {row["evaluationId"]: row for row in await candidates(task_id, version_id)}
+        selected = list(dict.fromkeys(str(identity) for identity in evaluation_ids))
+        if any(identity not in available for identity in selected):
+            raise ApiError(409, "REPLAY_SOURCE_CHANGED", "A selected submission is no longer available. Refresh the submission list.")
+        sources = [{"_id": identity, "modelVersionId": available[identity]["modelVersionId"]} for identity in selected]
     if not sources or len(sources) > MAX_SUBMISSIONS:
         raise ApiError(422, "REPLAY_SUBMISSION_LIMIT", f"A comparison requires 1–{MAX_SUBMISSIONS} evaluated submissions.")
     workflow_name = next(iter(release["data"].get("evaluationWorkflows", [])), "model-evaluation-graph-matching")
@@ -82,6 +108,8 @@ async def start(task_id: UUID, version_id: UUID, reference_version_id: UUID, use
     try:
         await db.evaluation_replays.insert_one(batch)
     except DuplicateKeyError:
+        if evaluation_ids is not None:
+            raise ApiError(409, "REPLAY_RUNNING", "Another test run was started for this release. Refresh the run list.")
         running = await db.evaluation_replays.find_one({**scope, "state": "running"})
         return await _public(running, reference_version_id)
     completed = await db.evaluation_replays.find({**scope, "state": "completed"}, {"_id": 1}).sort("createdAt", -1).to_list(None)
@@ -105,8 +133,7 @@ async def _launch(batch: Document, item: Document) -> None:
     try:
         bundle, models = await _evaluation_input(item["runId"], batch["taskSnapshot"], source["submissionSnapshot"],
                                                  batch["references"], comparison_config={"graphMatching": {"glossaries": batch["glossaries"]}})
-        # Recognition is always requested, so comparisons reach the same learner-facing endpoint.
-        bundle["feedbackRequest"] = {"types": ["recognition"], "context": {}}
+        bundle["feedbackRequest"] = {"types": ["recognition", "help.catalog"], "context": {}}
         encoded = base64.b64encode(gzip.compress(json.dumps(bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"), mtime=0)).decode("ascii")
         if len(encoded) > 100_000:
             raise ApiError(422, "EVALUATION_INPUT_TOO_LARGE", "The snapshot exceeds the workflow launch limit.")
@@ -199,3 +226,39 @@ async def delete(task_id: UUID, version_id: UUID, batch_id: UUID) -> None:
     if not removed.deleted_count:
         raise ApiError(409, "REPLAY_RUNNING", "Only completed comparisons can be deleted. Refresh the comparison first.")
     await db.evaluation_replay_results.delete_many({"batchId": str(batch_id)})
+
+
+async def inspect_item(task_id: UUID, version_id: UUID, batch_id: UUID, evaluation_id: UUID) -> Document:
+    batch = await db.evaluation_replays.find_one({"_id": str(batch_id), **_scope(task_id, version_id),
+                                                  "expiresAt": {"$gt": utcnow()}})
+    item = next((item for item in (batch or {}).get("items", []) if item["evaluationId"] == str(evaluation_id)), None)
+    if batch is None or item is None:
+        raise not_found()
+    source = await db.evaluations.find_one({"_id": str(evaluation_id), **_scope(task_id, version_id)})
+    if source is None:
+        raise not_found()
+    evaluation = {**source, "_id": item["runId"], "dagName": REPLAY_DAG, "dagRunId": item["runId"], "workflow": batch["workflow"],
+                  "parserModels": item.get("parserModels", []), "startedAt": batch["createdAt"],
+                  "parameters": {"textEvidence": batch["textEvidence"]}, "studentFeedback": None,
+                  "feedbackRequest": {"types": ["recognition", "help.catalog"]}}
+    if item["status"] == "pending" or not item.get("parserModels"):
+        result = _public_evaluation(evaluation, detail=True)
+        result.update(state="failed" if item["status"] == "failed" else "queued", steps=[{
+            "id": "workflow_start", "label": "Workflow start", "status": "failed" if item["status"] == "failed" else "queued",
+            "resultSummary": item.get("error"), "result": None}], finalResult=None, scorePercent=None)
+        return result
+    outer = _dag_run(await dagu.get_run(REPLAY_DAG, item["runId"]))
+    node = next((node for node in outer.get("nodes", [])
+                 if (node.get("name") or (node.get("step") or {}).get("name")) == "evaluate"), {})
+    children = node.get("subRuns") or []
+    child_id = children[0]["dagRunId"] if len(children) == 1 else None
+    run = _dag_run(await dagu.get_sub_run(REPLAY_DAG, item["runId"], child_id)) if child_id else outer
+    result = await inspect_run(evaluation, run, allow_analysis=True, sub_run_id=child_id)
+    result["scorePercent"] = item.get("afterPercent")
+    # Include wrapper/cleanup failures as well as failures inside the evaluation.
+    outer_state = _state(outer.get("statusLabel") or outer.get("status"))
+    if outer_state in {"failed", "cancelled"} or outer_state != result["state"]:
+        result["state"] = outer_state
+        result["steps"].append({"id": "replay_wrapper", "label": "Test run / cleanup", "status": outer_state,
+                                 "resultSummary": item.get("error") or outer.get("error"), "result": None})
+    return result

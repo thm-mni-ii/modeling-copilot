@@ -51,6 +51,7 @@ async def usage(run_id, step_id, config):
             {"$match": {
                 "runId": str(run_id), "stepId": str(step_id),
                 "supportKind": {"$in": list(HELP_USAGE_KEYS)},
+                "feedbackCounted": {"$ne": False},
                 "$or": [
                     {"feedbackSucceeded": True},
                     {"feedbackSucceeded": {"$exists": False}, "feedbackDelivered": {"$ne": None}},
@@ -424,18 +425,24 @@ async def link_evaluation(request_id, evaluation_id):
 
 
 async def record_feedback(request_id, evaluation_id, entries):
-    """Record a completed help evaluation and settle any reserved quota once."""
+    """Record a completed help evaluation and settle any reserved quota once.
+
+    Help that could not relate the marking to the sample solution is delivered but not counted.
+    """
     evaluation = await db.evaluations.find_one({"_id": str(evaluation_id)}, {"state": 1})
     succeeded = bool(evaluation and evaluation.get("state") == "succeeded")
     if not succeeded:
         await release_feedback_reservation(request_id)
         return
+    # Older feedback reports carry no flag and keep counting.
+    counted = bool(entries) and entries[0].get("referenced", True) is not False
     result = await db.learning_path_help_requests.update_one(
         {"_id": str(request_id), "evaluationId": str(evaluation_id), "feedbackDelivered": {"$exists": False}},
         {"$set": {
             "feedbackDelivered": entries[0] if entries else None,
             "feedbackDeliveredAt": utcnow(),
             "feedbackSucceeded": True,
+            "feedbackCounted": counted,
         }})
     if not result.matched_count:
         return
@@ -445,12 +452,12 @@ async def record_feedback(request_id, evaluation_id, entries):
     if not key:
         return
     reservation = request.get("feedbackQuotaReservation", {})
-    increments = {f"helpUsage.{key}.used": 1}
+    increments = {f"helpUsage.{key}.used": 1} if counted else {}
     if reservation.get("status") == "pending":
         increments[f"helpUsage.{key}.pending"] = -1
         await db.learning_path_help_requests.update_one(
             {"_id": str(request_id), "feedbackQuotaReservation.status": "pending"},
-            {"$set": {"feedbackQuotaReservation.status": "consumed" if succeeded else "failed"}},
+            {"$set": {"feedbackQuotaReservation.status": "consumed" if counted else "not_counted"}},
         )
     if increments:
         await db.learning_path_run_steps.update_one(

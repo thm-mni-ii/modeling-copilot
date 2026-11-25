@@ -27,7 +27,7 @@ async def list_workflows(user: CurrentUser) -> list[EvaluationWorkflow]:
 async def start_evaluation(model_id: UUID, body: StartEvaluation, user: CurrentUser) -> Evaluation:
     result = await service.start(
         model_id, user, text_evidence=body.text_evidence.model_dump(by_alias=True) if body.text_evidence else None,
-        help_request_id=body.help_request_id)
+        help_request_id=body.help_request_id, all_feedback_types=body.all_feedback_types)
     return Evaluation.model_validate(result if service.can_view_analysis(user) else service.student_evaluation(result))
 
 
@@ -52,7 +52,7 @@ async def get_feedback(evaluation_id: UUID, user: CurrentUser) -> EvaluationFeed
 
 
 @router.post("/evaluations/{evaluation_id}/hints/{hint_id}/events", status_code=204,
-             summary="Record that a learner saw, accepted or dismissed a hint")
+             summary="Record a hint decision or whether an accepted replacement is still present")
 async def record_hint_event(evaluation_id: UUID, hint_id: str, body: HintEvent, user: CurrentUser) -> None:
     await service.record_hint_event(evaluation_id, hint_id, body.action, user)
 
