@@ -21,12 +21,13 @@ const workspaceItems: NavigationItem[] = [
 const administrationItems: NavigationItem[] = [
   { title: 'Diagram languages', description: 'Create, edit, and publish diagram languages.', icon: 'mdi-shape-outline', route: 'DiagramLanguages' },
   { title: 'Tasks', description: 'Create and manage modeling tasks and their releases.', icon: 'mdi-clipboard-text-outline', route: 'Tasks' },
+  { title: 'Evaluation Lab', description: 'Manage synonyms, run submission test cases and analyze workflow results live.', icon: 'mdi-flask-outline', route: 'EvaluationLab' },
   { title: 'Path templates', description: 'Build and publish learning paths with tasks and surveys.', icon: 'mdi-map-plus', route: 'LearningPathTemplates' },
   { title: 'Surveys', description: 'Create, edit, and publish questionnaires.', icon: 'mdi-form-select', route: 'Surveys' },
   { title: 'Collaboration', description: 'Manage collaboration rooms, groups, and shared models.', icon: 'mdi-account-group-outline', route: 'Collab' }
 ]
 
-const pathProgressItem: NavigationItem = { title: 'Learning path progress', description: 'Review participation and completed tasks across learning paths.', icon: 'mdi-table-account', route: 'LearningPathProgress' }
+const analyticsItem: NavigationItem = { title: 'Analytics', description: 'Review usage, tours, learning path progress and survey results.', icon: 'mdi-chart-box-outline', route: 'Analytics' }
 
 // Both the home tiles and the navigation menu use the same visibility rules.
 export const useNavigationStore = defineStore('navigation', () => {
@@ -66,7 +67,7 @@ export const useNavigationStore = defineStore('navigation', () => {
 
   const adminItems = computed(() => [
     ...(isAdmin.value ? administrationItems.filter((item) => item.route !== 'Collab' || canManageCollaboration.value) : []),
-    ...(canViewPathProgress.value ? [pathProgressItem] : [])
+    ...(canViewPathProgress.value ? [analyticsItem] : [])
   ])
 
   return { workspaceItems, adminItems, isAdmin, canViewPathProgress }

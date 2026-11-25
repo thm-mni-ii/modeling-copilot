@@ -4,12 +4,12 @@
       <ModelingToolbarGroup title="Model" class="modeling-header__identity">
         <div class="modeling-header__identity-actions">
           <span class="modeling-header__name" :title="modelName">{{ modelName }}</span>
-          <v-btn icon="mdi-pencil-outline" size="x-small" variant="text" aria-label="Change model name" @click="openRename" />
+          <v-btn icon="mdi-pencil-outline" size="x-small" variant="text" color="dark-gray" aria-label="Change model name" @click="openRename" />
         </div>
       </ModelingToolbarGroup>
 
       <ModelingToolbarGroup title="Save" class="modeling-header__save-group">
-        <v-btn-group size="small" density="compact" variant="outlined">
+        <v-btn-group size="small" density="compact" variant="outlined" color="dark-gray">
           <v-btn :icon="saveIcon" :color="saveColor" :loading="workspace.saving" :title="`${stateLabel} — Save model`" @click="saveCheckpoint" />
           <v-menu v-model="releaseMenu" :close-on-content-click="false" location="bottom start" :offset="8" :transition="{ name: 'fade-transition', onAfterEnter: () => releaseInput?.focus() }">
             <template #activator="{ props }">

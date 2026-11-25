@@ -13,11 +13,11 @@
         <v-divider vertical class="mx-1" />
       </template>
       <v-btn-group size="x-small" density="compact" variant="outlined">
-        <v-btn :color="isFormatActive('taskEditBold') ? 'primary' : undefined" :disabled="!canFormat" title="Bold Edit" @mousedown.prevent @click="applyFormat('taskEditBold', 'bold')"><v-icon>mdi-format-bold</v-icon></v-btn>
-        <v-btn :color="isFormatActive('taskEditItalic') ? 'primary' : undefined" :disabled="!canFormat" title="Italic Edit" @mousedown.prevent @click="applyFormat('taskEditItalic', 'italic')"><v-icon>mdi-format-italic</v-icon></v-btn>
-        <v-btn :color="isFormatActive('taskEditUnderline') ? 'primary' : undefined" :disabled="!canFormat" title="Underline Edit" @mousedown.prevent @click="applyFormat('taskEditUnderline', 'underline')"><v-icon>mdi-format-underline</v-icon></v-btn>
-        <v-btn :color="isFormatActive('taskEditStrike') ? 'primary' : undefined" :disabled="!canFormat" title="Strikethrough Edit" @mousedown.prevent @click="applyFormat('taskEditStrike', 'strike')"><v-icon>mdi-format-strikethrough</v-icon></v-btn>
-        <v-btn :color="isFormatActive('taskEditInlineCode') ? 'primary' : undefined" :disabled="!canFormat" title="Inline code Edit" @mousedown.prevent @click="applyFormat('taskEditInlineCode', 'inlineCode')"><v-icon>mdi-code-tags</v-icon></v-btn>
+        <v-btn :color="isFormatActive('taskEditBold') ? 'primary' : undefined" :disabled="!canFormat" title="Bold Edit (Ctrl+B)" @mousedown.prevent @click="applyFormat('taskEditBold', 'bold')"><v-icon>mdi-format-bold</v-icon></v-btn>
+        <v-btn :color="isFormatActive('taskEditItalic') ? 'primary' : undefined" :disabled="!canFormat" title="Italic Edit (Ctrl+I)" @mousedown.prevent @click="applyFormat('taskEditItalic', 'italic')"><v-icon>mdi-format-italic</v-icon></v-btn>
+        <v-btn :color="isFormatActive('taskEditUnderline') ? 'primary' : undefined" :disabled="!canFormat" title="Underline Edit (Ctrl+U)" @mousedown.prevent @click="applyFormat('taskEditUnderline', 'underline')"><v-icon>mdi-format-underline</v-icon></v-btn>
+        <v-btn :color="isFormatActive('taskEditStrike') ? 'primary' : undefined" :disabled="!canFormat" title="Strikethrough Edit (Ctrl+Shift+S)" @mousedown.prevent @click="applyFormat('taskEditStrike', 'strike')"><v-icon>mdi-format-strikethrough</v-icon></v-btn>
+        <v-btn :color="isFormatActive('taskEditInlineCode') ? 'primary' : undefined" :disabled="!canFormat" title="Inline code Edit (Ctrl+E)" @mousedown.prevent @click="applyFormat('taskEditInlineCode', 'inlineCode')"><v-icon>mdi-code-tags</v-icon></v-btn>
       </v-btn-group>
       <TaskColorPicker title="Text color Edit" icon="mdi-format-color-text" :colors="TASK_TEXT_COLORS" size="x-small" :disabled="!canFormat" :active="isFormatActive('taskEditTextColor')" @select="applyFormat('taskEditTextColor', 'textColor', $event)" />
       <TaskColorPicker title="Highlight Edit" icon="mdi-marker" :colors="TASK_HIGHLIGHT_COLORS" size="x-small" :disabled="!canFormat" :active="isFormatActive('taskEditHighlight')" @select="applyFormat('taskEditHighlight', 'highlight', $event)" />
@@ -105,11 +105,11 @@ const EditShortcutGuard = Extension.create({
   name: 'taskEditShortcutGuard',
   priority: 1000,
   addKeyboardShortcuts: () => ({
-    'Mod-b': () => true,
-    'Mod-i': () => true,
-    'Mod-u': () => true,
-    'Mod-Shift-s': () => true,
-    'Mod-e': () => true,
+    'Mod-b': () => applyFormatShortcut('taskEditBold', 'bold'),
+    'Mod-i': () => applyFormatShortcut('taskEditItalic', 'italic'),
+    'Mod-u': () => applyFormatShortcut('taskEditUnderline', 'underline'),
+    'Mod-Shift-s': () => applyFormatShortcut('taskEditStrike', 'strike'),
+    'Mod-e': () => applyFormatShortcut('taskEditInlineCode', 'inlineCode'),
     // Im Raum gibt es keinen eigenen Verlauf, siehe `shared`.
     'Mod-z': () => (props.history ? (props.history.undo(), true) : props.shared),
     'Mod-Shift-z': () => (props.history ? (props.history.redo(), true) : props.shared),
@@ -277,6 +277,12 @@ const applyFormat = (mark: TaskEditMarkName, type: EditType, color?: string) => 
   }
   if (!editor.value || !hasSelection.value) return
   toggleTaskEditMark(editor.value, mark, attributes(type, color))
+}
+
+const applyFormatShortcut = (mark: TaskEditMarkName, type: EditType): boolean => {
+  if (props.mode === 'edit' && editor.value?.isEditable) applyFormat(mark, type)
+  // Consume the shortcut in read/help mode too, preserving the original task text.
+  return true
 }
 
 const isFormatActive = (mark: TaskEditMarkName) => {

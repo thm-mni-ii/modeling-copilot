@@ -1,6 +1,6 @@
 # analytical-feedback
 
-Serviceversion `2.3.0`, Image `v11`, Ausgabe `analysis-feedback/v3` in
+Serviceversion `2.4.0`, Image `v13`, Ausgabe `analysis-feedback/v3` in
 `workflow-result/v1`. Der Dienst projiziert ausschließlich Matcher-Fakten und
 berechnet die verbindliche `recognition`-Übersicht. Er entscheidet keine
 Zuordnungen oder Eigenschaften erneut.

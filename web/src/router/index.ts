@@ -67,8 +67,31 @@ const router = createRouter({
     },
     {
       path: '/learning-path-progress',
-      name: 'LearningPathProgress',
-      component: () => import('../views/ViewLearningPathProgress.vue')
+      redirect: '/analytics/learning-paths'
+    },
+    {
+      path: '/analytics',
+      component: () => import('../views/analytics/ViewAnalytics.vue'),
+      meta: { staff: true },
+      children: [
+        { path: '', name: 'Analytics', redirect: { name: 'AnalyticsPlatformOverview' } },
+        {
+          path: 'platform',
+          component: () => import('../views/analytics/ViewAnalyticsPlatform.vue'),
+          children: [
+            { path: '', redirect: { name: 'AnalyticsPlatformOverview' } },
+            { path: 'overview', name: 'AnalyticsPlatformOverview', component: () => import('../views/analytics/ViewAnalyticsPlatformOverview.vue') },
+            { path: 'tasks', name: 'AnalyticsPlatformTasks', component: () => import('../views/analytics/ViewAnalyticsPlatformTasks.vue') },
+            { path: 'people', name: 'AnalyticsPlatformPeople', component: () => import('../views/analytics/ViewAnalyticsPlatformPeople.vue') }
+          ]
+        },
+        { path: 'tours', name: 'AnalyticsTours', component: () => import('../views/analytics/ViewAnalyticsTours.vue') },
+        { path: 'tours/:tourId', name: 'AnalyticsTour', component: () => import('../views/analytics/ViewAnalyticsTour.vue'), props: true },
+        { path: 'learning-paths', name: 'AnalyticsLearningPaths', component: () => import('../views/analytics/ViewAnalyticsLearningPaths.vue') },
+        { path: 'learning-paths/:templateId', name: 'AnalyticsLearningPath', component: () => import('../views/analytics/ViewAnalyticsLearningPath.vue'), props: true },
+        { path: 'surveys', name: 'AnalyticsSurveys', component: () => import('../views/analytics/ViewAnalyticsSurveys.vue') },
+        { path: 'surveys/:surveyId', name: 'AnalyticsSurvey', component: () => import('../views/analytics/ViewAnalyticsSurvey.vue'), props: true }
+      ]
     },
     {
       path: '/learning-path-runs/:id?',
@@ -89,6 +112,16 @@ const router = createRouter({
       path: '/tasks',
       name: 'Tasks',
       component: () => import('../views/ViewTaskEditor.vue')
+    },
+    {
+      path: '/evaluation-lab/:taskId?',
+      name: 'EvaluationLab',
+      component: () => import('../views/ViewEvaluationLab.vue')
+    },
+    {
+      path: '/synonym-glossary/:taskId?',
+      name: 'SynonymGlossary',
+      redirect: to => ({ name: 'EvaluationLab', params: to.params, query: to.query })
     },
     {
       path: '/collab',
@@ -113,7 +146,7 @@ const router = createRouter({
 })
 
 // Everything outside this list requires ADMIN, including direct URL navigation.
-const nonAdminPages = ['Submissions', 'SubmissionRun', 'SubmissionReview', 'LearningPathRuns', 'LearningPathProgress', 'Login', 'Home', 'Models', 'Modeling', 'Join', 'View404Page']
+const nonAdminPages = ['Submissions', 'SubmissionRun', 'SubmissionReview', 'LearningPathRuns', 'Login', 'Home', 'Models', 'Modeling', 'Join', 'View404Page']
 
 router.beforeEach(async (to) => {
   if (!isEmbedded && isFeedbacksystemCallback()) {
@@ -124,7 +157,8 @@ router.beforeEach(async (to) => {
   const publicPages = ['/login']
   const authRequired = !publicPages.includes(to.path)
   const { bearerToken, clearToken } = useBearerToken()
-  const adminRequired = !nonAdminPages.includes(to.name as string)
+  const staffPage = to.matched.some((record) => record.meta.staff)
+  const adminRequired = !staffPage && !nonAdminPages.includes(to.name as string)
   const userStore = useUserStore()
 
   if (isEmbedded) {
@@ -165,7 +199,7 @@ router.beforeEach(async (to) => {
     if (authRequired) return { path: '/login', query: { returnTo: to.fullPath } }
   }
   if (isEmbedded && to.path === '/login') return '/'
-  if (to.name === 'LearningPathProgress') {
+  if (staffPage) {
     try {
       if (!(await learningPaths.progressAccess()).data.canView) return '/404'
     } catch {

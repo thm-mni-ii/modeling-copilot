@@ -2,9 +2,10 @@ name: modeling-copilot
 
 services:
   mongo:
-    image: mongo:8.0
+    # Match the application database version used in k3s-portainer.yaml.
+    image: mongo:4.4.29
     ports:
-      # Host access: mongodb://admin:admin@localhost:27017/?authSource=admin
+      # Host access: mongodb://admin:admin@localhost:27222/?authSource=admin
       - "127.0.0.1:27222:27017"
     restart: unless-stopped
     environment:
@@ -162,49 +163,49 @@ services:
     restart: unless-stopped
 
   workflow-synonym-matching:
-    image: modeling-copilot/synonym-matching:v5
+    image: modeling-copilot/synonym-matching:v12
     build:
       context: ./dagu/workflow-services
       dockerfile: synonym-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-graph-parser:
-    image: modeling-copilot/graph-parser:v2
+    image: modeling-copilot/graph-parser:v3
     build:
       context: ./dagu/workflow-services
       dockerfile: graph-parser/Dockerfile
     profiles: [workflow-services]
 
   workflow-model-label-extraction:
-    image: modeling-copilot/model-label-extraction:v2
+    image: modeling-copilot/model-label-extraction:v3
     build:
       context: ./dagu/workflow-services
       dockerfile: model-label-extraction/Dockerfile
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:
-    image: modeling-copilot/one-to-one-graph-matching:v14
+    image: modeling-copilot/one-to-one-graph-matching:v31
     build:
       context: ./dagu/workflow-services
       dockerfile: one-to-one-graph-matching/Dockerfile
     profiles: [workflow-services]
 
   workflow-feedback-generation:
-    image: modeling-copilot/feedback-generation:v39
+    image: modeling-copilot/feedback-generation:v54
     build:
       context: ./dagu/workflow-services
       dockerfile: feedback-generation/Dockerfile
     profiles: [workflow-services]
 
   workflow-analytical-feedback:
-    image: modeling-copilot/analytical-feedback:v12
+    image: modeling-copilot/analytical-feedback:v14
     build:
       context: ./dagu/workflow-services
       dockerfile: analytical-feedback/Dockerfile
     profiles: [workflow-services]
 
   workflow-data:
-    image: modeling-copilot/workflow-data:v6
+    image: modeling-copilot/workflow-data:v11
     build:
       context: ./dagu/workflow-services
       dockerfile: workflow-data/Dockerfile

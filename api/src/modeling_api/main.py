@@ -13,6 +13,7 @@ from modeling_api.db.client import client, create_indexes, db
 from modeling_api.db.migrations import require_current
 from modeling_api.services.collab_kit import archive, sweep
 from modeling_api.routes import (
+    analytics,
     learning_paths,
     surveys,
     auth,
@@ -25,6 +26,8 @@ from modeling_api.routes import (
     share,
     tasks,
     submissions,
+    synonym_glossary,
+    tours,
 )
 
 
@@ -80,6 +83,8 @@ api = APIRouter(
 api.include_router(languages.router)
 api.include_router(tasks.router)
 api.include_router(learning_paths.router)
+api.include_router(analytics.router)
+api.include_router(tours.router)
 api.include_router(surveys.router)
 api.include_router(models.router)
 api.include_router(feedback.router)
@@ -88,6 +93,7 @@ api.include_router(server_time.router)
 api.include_router(share.router)
 api.include_router(group_work.router)
 api.include_router(submissions.router)
+api.include_router(synonym_glossary.router)
 app.include_router(api)
 
 

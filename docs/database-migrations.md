@@ -27,6 +27,16 @@ add or change their single model selection. Saved text ranges and the help-sourc
 draft are retained. Reopening advances the survey revision so stale action saves
 cannot complete the flow while the marking step is being reopened.
 
+Migration `20_remove_user_profiles` removes every field from `submission_users`
+except `_id`, `firstSeenAt`, `lastSeenAt` and `isStaff`. IDs, permission references
+and application activity remain pseudonymous; names, email addresses and profile
+cache metadata are deleted. Stop older API writers before applying it. The new
+API never persists FBS profiles. Names are fetched per request using a global
+ADMIN's bearer token and the FBS API's authorization; other callers and failed
+lookups receive IDs. The submission CSV no longer includes email addresses.
+Existing backup archives are not modified and may still contain old profiles;
+after restoring an older backup, apply this migration before starting the API.
+
 ## Code organization
 
 ```text
@@ -222,7 +232,125 @@ directory reorganization. Changing an already completed step does not apply it
 again to an existing database. Freeze existing migration behavior and resources;
 ship subsequent data changes as new registered steps.
 
+## Initialize Dashboard (V19)
+
+Migration `19_initialize_dashboard` follows `18_game_development`.
+It creates the dashboard query indexes on model creation times, editor session
+creation times, evaluations by model/start time and learning-path runs by template.
+It also initializes indexed `tour_events` and `analytics_access_log` storage.
+Startup uses the same idempotent index helper.
+
+Existing `learning_path_feature_events` for `help-feedback-v1` are copied to
+`tour_events` for tour `help-feedback`, version 1: menu openings and the
+`help-feedback-walkthrough` starts, completions and skips. Source IDs, user IDs,
+event types and timestamps are preserved, so existing learner progress remains
+visible. Earlier events have no recorded step and receive `stepId: null`;
+historical step-level analytics cannot be reconstructed. Events for other legacy
+items or tour versions remain in the original collection and are not mapped to
+the walkthrough. The original collection and its indexes are retained.
+
+Preview validates existing target identities without writing. Apply rejects
+conflicting events, resumes interrupted copies without duplicates, and skips
+completed runs. Stop older API instances and tour writers before applying.
+Models, evaluations, submissions, survey answers and learning-path progress are
+not rewritten. Historical `firstSeenAt` and `isStaff` values are not inferred:
+the dashboard excludes users without `firstSeenAt` from new-user counts and
+treats users without `isStaff` as non-staff until their next authenticated
+`/auth/me` request updates that flag. For existing user records, that request
+preserves an absent `firstSeenAt` rather than inventing a registration date.
+
+Verification on 2026-11-20 used an isolated database on MongoDB 8.0.29.
+Ten representative legacy events were transferred with identical source IDs,
+user IDs, event types and timestamps. Other legacy items/versions and existing
+native events were preserved. Learner completion/skip progress matched the old
+queries; tour analytics, timelines and newly recorded events remained valid.
+Read-only preview, missing prerequisites, all six indexes, completed reruns,
+resume after a partial copy, conflicting identities and recovery were checked.
+The complete V00-V19 initialization chain and API startup/shutdown succeeded.
+Dashboard response validation covered platform periods/staff filters, learning
+paths, feedback/activity and surveys. A response-schema mismatch in the learning
+path overview was fixed; the overview now omits the detail-only description.
+Readiness and seven dashboard/tour API requests returned HTTP 200. The local
+source had no tour events, so transfer checks used representative data rather
+than a populated production snapshot. Temporary verification storage was removed;
+the application database was not migrated or modified.
+
+## Task feedback limits (V21)
+
+Migration `21_task_help_feedback` follows `20_remove_user_profiles`. Release
+`v0.2.1` stored `exampleLimit` and `solutionLimit` in a path's `helpRequests`.
+The current schema stores these limits in each task station's `task.helpFeedback`.
+The released migration `17_help_feedback_quotas` is already completed in existing
+databases and cannot perform this transition on a later startup.
+
+V21 copies each legacy limit to every task station of its path, including archived
+stations. Explicit station settings take precedence, including zero and `null`
+(unlimited); other feedback settings are preserved. After all stations of a path
+are updated, only the two legacy fields are removed from its `helpRequests`.
+The path revision advances to invalidate stale editor drafts. Paths without
+legacy fields and survey stations remain unchanged. Help-request snapshots,
+feedback usage and learner progress are not rewritten.
+
+Preview validates all affected settings without writing. Apply rejects concurrent
+changes, resumes partial copies and skips completed runs. Source limits remain on
+the path until its stations are copied. Stop path editors and other path writers
+before applying. This step also runs on restored development databases where
+V18-V20 have already completed; their completion records must not be deleted.
+
+Verification on 2026-11-23 restored a MongoDB 4.4.29 backup with 25,243 documents
+into an isolated instance of the same version, then applied V18-V21 and created
+all API indexes. All four learning-path responses validated after transferring
+the limits to 17 task stations. The local application database was subsequently
+recreated from the same backup and migrated successfully; collection counts
+matched the rehearsal, and readiness passed directly and through the web proxy.
+The production instance and original backup were not modified.
+
 ## Preview
+
+Migration `18_game_development` renames the shared graphical modeling
+path to “Datenmodellierung – ERM, SERM”. Its first station becomes “Erfahrung und
+Einschätzung”, stations 4, 7 and 9 become “Wochenabschluss 1”, “Wochenabschluss 2”
+and “Wochenabschluss 3”, and the laboratory station becomes “Laborverwaltung –
+SERM”. All corrections are maintained together in its `labels.json` resource.
+Fixed station IDs identify the records; the migration does not depend on their
+current titles or positions. Existing learner runs use these live definitions.
+The same migration appends station 10, “Entwicklerstudio – SERM”, and station 11,
+“Wochenabschluss 4”. `game_development.json` contains the full task wording
+and one combined task/weekly questionnaire in station 11. Station 10 has no
+after-task questionnaire; the laboratory station keeps its separate completion
+questionnaire. The combined questionnaire covers the task, feedback usage,
+remaining support needs and study participation. Each of the five feedback types
+has its own six-question page, shown only when selected in `N3`; “Keines” is
+exclusive. Overall feedback questions use the same usage filter. Help-button
+and pulse usage conditions retain their run-based context. Support-source ranking
+and help-button effort (`F3`) appear on the support page. The general feedback
+page follows the five feedback-type pages, before remaining support needs.
+Eight bundled screenshots illustrate the help button, feedback selection and
+each feedback type. The check page pairs its results with highlighted diagram
+elements. Feedback pages follow the platform order: check, explanation, next
+step, example, solution. Their question-level `exampleImages` metadata includes alt
+text and a caption; images follow question visibility and open at full size.
+The laboratory screenshots are examples, including the pictured 50-percent
+threshold; the game development completion threshold remains 60 percent.
+`T3`, `H1`, `F1` and `F4` are omitted; `C3` and `G19` are optional. `sample_solution.json`
+stores the supplied first solution proposal as a dedicated model release, assigned
+through the task's `sampleSolutions`. Its diagram is retained without a content
+review; dedicated seed identities preserve the original authoring model and history.
+The task uses required SERM 2.0, informative assistance, disabled connection
+preview and the `model-evaluation-graph-matching` workflow, matching the laboratory
+configuration. Existing path help and pulse settings also apply to the new task.
+The sample solution supplies the reference for automatic evaluation. Like the
+laboratory station, completion requires a minimum score in every category;
+the game development station requires 60 percent. Path help settings and default
+feedback limits match the laboratory station.
+Both new stations use sequential unlocking. New documents are validated before
+insertion; conflicting fixed identities are rejected without overwriting edits.
+Existing task and questionnaire releases, collected answers, model names and
+progress remain unchanged. The path revision advances to invalidate stale editor drafts.
+Stop path editors and other path writers before applying. Preview is read-only;
+missing or archived target stations fail before any content write, interrupted
+runs can resume, and completed migrations are skipped. Extend this migration
+only while it has not yet been applied; later corrections require a new step.
 
 Without `--apply`, all scripts are read-only:
 

@@ -23,17 +23,26 @@ def content_hash(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def label_text(label: object) -> tuple[str, str]:
+FORMAT_FLAGS = {"b": "bold", "strong": "bold", "i": "italic", "em": "italic", "u": "underline"}
+
+
+def label_text(label: object) -> tuple[str, str, list[str]]:
+    """Return the match text, its status and the inline formats that cover all visible text."""
     if label is None:
-        return "", "missing"
+        return "", "missing", []
     if not isinstance(label, str):
-        return "", "unsupported"
+        return "", "unsupported", []
     parts, position, block_boundary = [], 0, False
+    open_tags = {flag: 0 for flag in set(FORMAT_FLAGS.values())}
+    covered: set[str] | None = None  # None until visible text appears
 
     def append_text(text: str) -> None:
-        nonlocal block_boundary
+        nonlocal block_boundary, covered
         if not text:
             return
+        if text.strip():
+            active = {flag for flag, depth in open_tags.items() if depth > 0}
+            covered = active if covered is None else covered & active
         if block_boundary and parts and not parts[-1].endswith("\n") and not text.startswith("\n"):
             parts.append("\n")
         parts.append(text)
@@ -49,12 +58,16 @@ def label_text(label: object) -> tuple[str, str]:
             block_boundary = False
         elif tag == "div":
             block_boundary = True
+        else:
+            flag = FORMAT_FLAGS[tag]
+            open_tags[flag] = max(0, open_tags[flag] + (-1 if match.group(0).startswith("</") else 1))
         position = match.end()
     append_text(label[position:])
     # XML decoding already happened in the parser. The editor displays stored
     # entity spellings literally, so HTML unescaping here would change content.
     text = "".join(parts)
-    return text, "present" if text.strip() else "missing"
+    # Partly formatted text does not count as formatted.
+    return text, "present" if text.strip() else "missing", sorted(covered or ())
 
 
 def run(payload: dict, store: Workspace | None = None) -> dict:
@@ -159,25 +172,34 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
                 raise ValueError("explicit node.textLanguage must be a non-empty string or null")
             nodes_by_id[identity] = cell
 
-    def project_text(cell: dict, scope: str) -> tuple[str, str, str | None]:
+    def formatting_of(cell: dict, key: str) -> list[str]:
+        value = (cell.get("properties") or {}).get(key)
+        if not isinstance(value, dict):
+            return []
+        return sorted(flag for flag in ("bold", "italic", "underline") if value.get(flag) is True)
+
+    def project_text(cell: dict, scope: str) -> tuple[str, str, str | None, dict]:
         identity = cell["id"]
-        text, status = label_text(cell.get("label"))
+        text, status, inline = label_text(cell.get("label"))
+        # Visible formatting: cell or language fontStyle plus inline tags around the whole text.
+        formatting = {"formatting": sorted(set(formatting_of(cell, "textFormatting")) | set(inline)),
+                      "languageFormatting": formatting_of(cell, "languageTextFormatting")}
         text_language = cell.get("textLanguage")
         if status == "unsupported":
             completeness["interpretation"] = "partial"
             diagnostics.append({"code": "UNSUPPORTED_LABEL_TEXT", "severity": "warning", "scope": scope,
                                 "message": "Label is not textual; its original value was retained.",
                                 "source": deepcopy(source), "elementIds": [identity], "sourceField": "label"})
-        return text, status, text_language
+        return text, status, text_language, formatting
 
     for cell in nodes_by_id.values():
         if cell["kind"] != "modelElement" or cell["comparisonRole"] != "semantic":
             continue
-        match_text, label_status, text_language = project_text(cell, "element")
+        match_text, label_status, text_language, formatting = project_text(cell, "element")
         elements.append({"id": cell["id"], "type": cell["type"],
                          "comparisonGroup": cell["comparisonGroup"],
                          "language": deepcopy(cell["language"]), "matchText": match_text,
-                         "labelStatus": label_status, "textLanguage": text_language})
+                         "labelStatus": label_status, "textLanguage": text_language, **formatting})
 
     connection_owners = {}
     for edge in graph["edges"]:
@@ -186,10 +208,10 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
 
     for cell in nodes_by_id.values():
         if cell["kind"] == "connection":
-            match_text, label_status, text_language = project_text(cell, "connection")
+            match_text, label_status, text_language, formatting = project_text(cell, "connection")
             connection_texts.append({"id": cell["id"], "ownerConnectionId": cell["id"], "kind": "self",
                                      "connectionLabelId": None, "matchText": match_text,
-                                     "labelStatus": label_status, "textLanguage": text_language})
+                                     "labelStatus": label_status, "textLanguage": text_language, **formatting})
         elif cell["kind"] == "connectionLabel":
             parents = connection_owners.get(cell["id"], [])
             owner = parents[0] if len(parents) == 1 and (
@@ -202,18 +224,18 @@ def run(payload: dict, store: Workspace | None = None) -> dict:
                                     "message": "Connection label does not have exactly one connection parent.",
                                     "source": deepcopy(source), "elementIds": [cell["id"]],
                                     "sourceField": "contains"})
-            match_text, label_status, text_language = project_text(cell, "connectionLabel")
+            match_text, label_status, text_language, formatting = project_text(cell, "connectionLabel")
             connection_texts.append({"id": cell["id"], "ownerConnectionId": owner, "kind": "additionalLabel",
                                      "connectionLabelId": cell.get("connectionLabelId"),
                                      "matchText": match_text, "labelStatus": label_status,
-                                     "textLanguage": text_language})
+                                     "textLanguage": text_language, **formatting})
 
     elements.sort(key=lambda element: element["id"])
     connection_texts.sort(key=lambda text: (text["ownerConnectionId"] or "", text["kind"],
                                             text["connectionLabelId"] or "", text["id"]))
     diagnostics.sort(key=lambda item: (item.get("code", ""), item.get("elementIds", []), content_hash(item)))
     resources = {"main.py": Path(__file__), "workflow_io.py": Path(workflow_io.__file__)}
-    producer = {"service": SERVICE, "version": "1.0.0",
+    producer = {"service": SERVICE, "version": "1.1.0",
                 "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()})}
     graph_path = os.environ.get("WORKFLOW_INPUT_PATH", f"graphs/{source['key']}.json")
     if store is not None:

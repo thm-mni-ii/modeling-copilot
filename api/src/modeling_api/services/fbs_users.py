@@ -2,7 +2,6 @@
 
 import asyncio
 from collections.abc import Iterable
-from datetime import timedelta
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -10,8 +9,6 @@ import httpx
 from modeling_api.core.auth import User
 from modeling_api.core.config import settings
 from modeling_api.core.errors import ApiError
-from modeling_api.db.client import db
-from modeling_api.db.store import utcnow
 
 
 def display_name(profile: dict, fallback: str) -> str:
@@ -67,35 +64,11 @@ async def resolve_names(
     identifiers: Iterable[str], user: User, token: str | None = None
 ) -> dict[str, str]:
     ids = set(identifiers)
-    cached = {
-        item["_id"]: item
-        for item in await db.submission_users.find({"_id": {"$in": list(ids)}}).to_list(
-            None
-        )
-    }
-    names = {
-        identifier: cached.get(identifier, {}).get("fbsName")
-        or cached.get(identifier, {}).get("name")
-        or identifier
-        for identifier in ids
-    }
-    if not token:
+    # Profiles exist only for this response, never in a database or shared cache.
+    names = {identifier: identifier for identifier in ids}
+    if not token or not user.is_admin:
         return names
-    privileged = (
-        user.is_admin or user.global_role == "MODERATOR" or "MODERATOR" in user.roles
-    )
-    cutoff = utcnow() - timedelta(minutes=15)
-    pending = sorted(
-        identifier
-        for identifier in ids
-        if identifier.isdecimal()
-        and (privileged or identifier == user.id)
-        and (
-            "email" not in cached.get(identifier, {})
-            or not cached.get(identifier, {}).get("nameResolvedAt")
-            or cached[identifier]["nameResolvedAt"] < cutoff
-        )
-    )
+    pending = sorted(identifier for identifier in ids if identifier.isdecimal())
     if not pending:
         return names
     semaphore = asyncio.Semaphore(6)
@@ -123,26 +96,10 @@ async def resolve_names(
                     ):
                         return False
                     name = display_name(profile, identifier)
-                    email = profile.get("email")
-                    email = email.strip()[:320] if isinstance(email, str) else None
                 except (httpx.HTTPError, ValueError, TypeError):
                     unavailable = True
                     return False
-                if name == identifier and not email:
-                    return False
                 names[identifier] = name
-                await db.submission_users.update_one(
-                    {"_id": identifier},
-                    {
-                        "$set": {
-                            "name": name,
-                            "fbsName": name,
-                            "email": email,
-                            "nameResolvedAt": utcnow(),
-                        }
-                    },
-                    upsert=True,
-                )
                 return True
 
         # An unavailable or forbidden FBS should cost one request, not one timeout per user.

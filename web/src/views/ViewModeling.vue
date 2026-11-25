@@ -29,6 +29,7 @@
       :model-id="workspace.model?.id ?? null"
       :open-evaluation-id="startedEvaluationId"
       :evaluation-perspective="evaluationPerspective"
+      :hint-request="hintNavigation"
       :languages="workspace.editorLanguages"
       :language-connections="connections"
       :connection-groups="connectionGroups"
@@ -86,20 +87,20 @@
             :task-edit="workspace.taskEdit"
             :element-options="taskElementOptions"
             :connection-options="taskConnectionOptions"
-            :evaluation-available="Boolean(workspace.taskVersion?.evaluationAvailable)"
+            :evaluation-available="!evaluationLab && Boolean(workspace.taskVersion?.evaluationAvailable)"
             :help-selection-mode="helpMarking"
             :help-task-document="helpSnapshot?.taskEditSnapshot?.document ?? null"
             :help-text-ranges="helpTextRanges"
             @mark-help-text="markHelpText"
             @pop-out="taskWindowOpen = true"
-            @start-evaluation="evaluationDialog = true"
+            @start-evaluation="startEvaluation('service')"
             @select-connection="selectTaskConnection"
             @select-task-edits="selectTaskEdits"
             @update:task-edit-document="workspace.updateTaskEditDocument"
           />
         </div>
         <!-- Modell eines Raums: die mitgeteilte Aufgabe, sofern der Host eine geteilt hat. -->
-        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" :window-open="taskWindowOpen" class="task-area" @pop-out="taskWindowOpen = true" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" @start-evaluation="evaluationDialog = true" />
+        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" :window-open="taskWindowOpen" class="task-area" @pop-out="taskWindowOpen = true" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" @start-evaluation="startEvaluation('service')" />
       </template>
       <template #window-content="{ definition }">
         <TaskEditEditor v-if="definition.role === 'task' && workspace.diagramTask" :key="workspace.taskReference?.versionId" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :base-document="workspace.taskVersion?.data.contentDocument" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" @update:model-value="workspace.updateTaskEditDocument" />
@@ -108,8 +109,7 @@
       </template>
     </DrawingCanvas>
 
-    <CompletionCheckDialog v-model="completionCheckOpen" :result="completionCheck" :error="completionCheckError" :busy="pathBusy" :help-available="helpEnabled" @submit="submitCheckedCompletion" @help="helpFromCompletionCheck" />
-    <DialogEvaluationParameters v-model="evaluationDialog" :busy="evaluationStarting" @confirm="startServiceEvaluation" />
+    <CompletionCheckDialog v-model="completionCheckOpen" :result="completionCheck" :error="completionCheckError" :busy="pathBusy" :help-available="helpEnabled" :label-hints="completionHints" @submit="submitCheckedCompletion" @help="helpFromCompletionCheck" @hints="checkedEvaluationId && openEvaluationHints(checkedEvaluationId)" />
     <v-dialog v-model="recoveryDialog" max-width="1000" persistent
       ><v-card
         ><v-card-title>Unsaved changes found</v-card-title
@@ -146,8 +146,7 @@ import { completionGate, type GateResult } from '@/utils/completionGate'
 import modelService from '@/services/model/model.service'
 import type { ModelVersion } from '@/services/api/types/model'
 import evaluationService from '@/services/evaluation/evaluation.service'
-import type { EvaluationOutcome, EvaluationParameters } from '@/services/api/types/evaluation'
-import DialogEvaluationParameters from '@/components/dialog/DialogEvaluationParameters.vue'
+import type { EvaluationOutcome, EvaluationParameters, LabelHint } from '@/services/api/types/evaluation'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import ChallengeOverlay from '@/components/learningPaths/ChallengeOverlay.vue'
 import LearningJourneyDock from '@/components/learningPaths/LearningJourneyDock.vue'
@@ -165,6 +164,7 @@ import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
 interface Props {
   modelId?: string
+  evaluationLab?: boolean
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{ 'learning-path-model': [modelId: string | null] }>()
@@ -255,11 +255,13 @@ const completionDialog = ref(false)
 const pendingCompletion = ref(route.query.complete === '1')
 const completionEvaluationId = ref<string | null>(null)
 const helpEvaluationId = ref<string | null>(null)
+const helpEvaluationCellIds = ref<string[]>([])
 const completionResult = ref<EvaluationOutcome | null>(null)
 const completionNotice = ref('')
 // Completion check: the dialog shows the gate result of the evaluation started by "Abschließen".
 const completionCheckOpen = ref(false)
 const completionCheck = ref<GateResult | null>(null)
+const completionHints = ref<LabelHint[]>([])
 const completionCheckError = ref('')
 const checkedEvaluationId = ref<string | null>(null)
 watch(completionCheckOpen, (open) => { if (!open) completionEvaluationId.value = null })
@@ -282,6 +284,10 @@ watch(pulse.coinBalance, (coins) => {
   if (stepRun.value && coins !== null) stepRun.value.coins = coins
 })
 onBeforeRouteLeave(async () => {
+  if (props.evaluationLab) {
+    try { await saveForLab() }
+    catch (cause) { notifyError((cause as Error).message ?? 'The live test could not be saved.'); return false }
+  }
   if (helpBusy.value || helpActive.value) return false
   if (taskSurvey.value?.saving) return false
   return (await taskSurvey.value?.saveDraft()) !== false
@@ -322,6 +328,7 @@ const returnToPath = async (complete: boolean, evaluationId?: string) => {
       if (path.minimumScorePercent != null && !evaluationId && !path.completedAt) {
         completionNotice.value = ''
         completionCheck.value = null
+        completionHints.value = []
         completionCheckError.value = ''
         completionCheckOpen.value = true
         const evaluation = await startEvaluation('student')
@@ -352,8 +359,20 @@ const returnToPath = async (complete: boolean, evaluationId?: string) => {
 }
 const startedEvaluationId = ref<string | null>(null)
 const evaluationPerspective = ref<'service' | 'student'>('service')
+const hintNavigation = ref<{ evaluationId: string; cellId?: string; seq: number; noticeViewed?: boolean } | null>(null)
+watch(() => props.modelId, () => {
+  hintNavigation.value = null
+  helpEvaluationId.value = null
+  helpEvaluationCellIds.value = []
+  completionHints.value = []
+})
+const openEvaluationHints = (evaluationId: string, cellId?: string, noticeViewed = true) => {
+  completionCheckOpen.value = false
+  evaluationPerspective.value = 'student'
+  startedEvaluationId.value = evaluationId
+  hintNavigation.value = { evaluationId, cellId, seq: (hintNavigation.value?.seq ?? 0) + 1, noticeViewed }
+}
 const evaluationStarting = ref(false)
-const evaluationDialog = ref(false)
 const taskWindowOpen = ref(false)
 const taskWindowTitle = computed(() => workspace.diagramTask?.title ?? sharedTaskContent.value?.title)
 const taskWindows = computed<CanvasWindowDefinition[]>(() => (taskWindowOpen.value && taskWindowTitle.value ? [{ id: 'task-description', title: taskWindowTitle.value, x: 260, y: 120, width: 520, height: 360, role: 'task' }] : []))
@@ -377,6 +396,21 @@ const syntax = computed(() => workspace.editorLanguages.flatMap((language) => la
 const captureCanvas = () => {
   if (!helpMarking.value && !helpSnapshot.value && !hydrating.value && !loading.value && !activeSurvey.value && canvas.value) workspace.setData({ ...canvas.value.serializeModel(), name: workspace.model?.name ?? workspace.data.name })
 }
+const saveForLab = async () => {
+  if (pathLoadFailed.value) return
+  if (loading.value || hydrating.value || recoveryDialog.value || evaluationStarting.value) throw new Error('Wait until the model is ready before leaving the live test.')
+  captureCanvas()
+  if (workspace.dirty || workspace.taskEditDirty) await workspace.save('checkpoint')
+}
+defineExpose({
+  saveChanges: saveForLab,
+  ready: computed(() => !pathLoadFailed.value && !loading.value && !hydrating.value && !recoveryDialog.value && workspace.model?.id === props.modelId),
+  evaluate: async (parameters: Partial<EvaluationParameters> = {}) => {
+    if (pathLoadFailed.value) throw new Error('The test model could not be loaded.')
+    await saveForLab()
+    return startEvaluation('service', parameters)
+  }
+})
 const requestHelp = async () => {
   const path = stepRun.value
   if (!path || currentHelp.value || !helpEnabled.value || helpBusy.value || pathBusy.value || recoveryDialog.value || workspace.syncState === 'saving') return
@@ -527,7 +561,7 @@ const startEvaluation = async (perspective: 'service' | 'student' = 'service', p
       if (workspace.dirty || workspace.taskEditDirty) await workspace.save('checkpoint')
       modelId = workspace.model!.id
     }
-    const evaluation = (await evaluationService.start(modelId, parameters)).data
+    const evaluation = (await evaluationService.start(modelId, { ...parameters, allFeedbackTypes: perspective === 'service' })).data
     evaluationPerspective.value = perspective
     startedEvaluationId.value = evaluation.id
     if (evaluation.state === 'failed') notifyError('The evaluation start was rejected. See the evaluation details.')
@@ -540,22 +574,29 @@ const startEvaluation = async (perspective: 'service' | 'student' = 'service', p
     evaluationStarting.value = false
   }
 }
-const startServiceEvaluation = async (parameters: EvaluationParameters) => {
-  if (await startEvaluation('service', parameters)) evaluationDialog.value = false
-}
 const requestAutomaticFeedback = async () => {
   const help = currentHelp.value
+  const requestedCellIds = [...helpCellIds.value]
   // Help types go into the evaluation with the request; the result shows in the evaluation sidebar.
   const evaluation = await startEvaluation('student', help?.supportKind?.startsWith('help.') ? { helpRequestId: help.id } : {})
   if (evaluation) {
     helpEvaluationId.value = evaluation.id
+    helpEvaluationCellIds.value = requestedCellIds
     closeHelp()
   }
 }
 watch(completionResult, async (evaluation) => {
   if (!evaluation || evaluation.id !== helpEvaluationId.value || !['succeeded', 'failed', 'cancelled'].includes(evaluation.state)) return
   helpEvaluationId.value = null
-  try { await evaluationService.getFeedback(evaluation.id) }
+  try {
+    const feedback = (await evaluationService.getFeedback(evaluation.id)).data
+    if (feedback.hints?.length && feedback.submission.modelId === workspace.model?.id) {
+      const targeted = feedback.hints.find(hint => helpEvaluationCellIds.value.includes(hint.submissionId))
+      // Remember the destination; the notice button performs the actual navigation.
+      hintNavigation.value = { evaluationId: evaluation.id, cellId: targeted?.submissionId,
+        seq: (hintNavigation.value?.seq ?? 0) + 1, noticeViewed: false }
+    }
+  }
   catch { notifyError('Der Status der automatischen Hilfe konnte nicht gespeichert werden. Die Nutzungsanzeige wird beim nächsten Laden aktualisiert.') }
   await refreshPathContext()
 })
@@ -573,10 +614,12 @@ watch([completionResult, pathBusy], async ([evaluation, busy]) => {
     return
   }
   try {
-    const result = completionGate(stepRun.value, (await evaluationService.getFeedback(evaluation.id)).data)
+    const feedback = (await evaluationService.getFeedback(evaluation.id)).data
+    const result = completionGate(stepRun.value, feedback)
     if (!result) throw new Error('No recognition')
     checkedEvaluationId.value = evaluation.id
     completionCheck.value = result
+    completionHints.value = feedback.hints ?? []
   } catch {
     completionCheckError.value = 'Für diese Prüfung liegt kein Ergebnis vor. Versuche es gleich noch einmal.'
   }
@@ -622,7 +665,7 @@ onMounted(async () => {
   try {
     if (props.modelId) {
       await workspace.load(props.modelId)
-      stepRun.value = (await paths.modelContext(props.modelId)).data
+      stepRun.value = props.evaluationLab ? null : (await paths.modelContext(props.modelId)).data
       if (stepRun.value && !stepRun.value.removed) stepRun.value = (await paths.resumeStep(stepRun.value.runId, stepRun.value.stepId)).data
       await syncCanvas()
       const recoverySnapshot = await workspace.getRecoverySnapshot()
@@ -641,7 +684,7 @@ onMounted(async () => {
     notifyError('The model could not be loaded.')
   } finally {
     loading.value = false
-    activityReady.value = !pathLoadFailed.value
+    activityReady.value = !props.evaluationLab && !pathLoadFailed.value
   }
 })
 </script>

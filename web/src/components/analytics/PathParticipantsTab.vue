@@ -1,35 +1,6 @@
 <template>
-  <v-container max-width="1440" class="py-8">
-    <v-btn variant="text" prepend-icon="mdi-arrow-left" to="/learning-path-runs" class="mb-3">Learning Paths</v-btn>
-    <div class="d-flex flex-wrap align-start ga-3 mb-5">
-      <span class="page-icon"><v-icon size="26" color="primary-dark">mdi-map-marker-path</v-icon></span>
-      <div class="flex-grow-1 page-heading">
-        <h1 class="text-h4">Learning path progress</h1>
-        <p class="text-body-2 text-medium-emphasis mt-2">Track participation, compare progress and export the filtered results.</p>
-      </div>
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" :disabled="exporting" @click="load">Refresh</v-btn>
-    </div>
+  <div>
     <v-alert v-if="exportError" type="error" variant="tonal" class="mb-4">{{ exportError }}</v-alert>
-    <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
-      {{ error }}
-      <template #append><v-btn variant="text" @click="load">Try again</v-btn></template>
-    </v-alert>
-    <v-sheet border rounded="lg" class="filter-panel pa-4 mb-4">
-      <div class="d-flex align-center flex-wrap ga-2 mb-3">
-        <v-icon color="primary-dark" size="20">mdi-filter-outline</v-icon>
-        <h2 class="text-subtitle-1 font-weight-medium">Filter participants</h2>
-        <v-chip v-if="hasFilters" size="x-small" color="primary-dark" variant="tonal">Filters applied</v-chip>
-        <v-spacer />
-        <v-btn size="small" variant="text" :disabled="!hasFilters || exporting" @click="clearFilters">Clear filters</v-btn>
-      </div>
-      <div class="progress-filters">
-        <v-autocomplete v-model="templateId" :items="templates" item-title="name" item-value="id" label="Learning path" placeholder="All learning paths" persistent-placeholder prepend-inner-icon="mdi-map-marker-path" color="primary-dark" bg-color="surface" variant="outlined" density="compact" hide-details clearable :disabled="exporting" no-data-text="No learning paths found" />
-        <v-select v-model="status" :items="statusOptions" label="Completion status" placeholder="All statuses" persistent-placeholder prepend-inner-icon="mdi-progress-check" color="primary-dark" bg-color="surface" variant="outlined" density="compact" hide-details clearable :disabled="exporting" />
-        <v-text-field v-model="search" label="Search people or learning paths" placeholder="Name, ID or learning path" prepend-inner-icon="mdi-magnify" color="primary-dark" bg-color="surface" variant="outlined" density="compact" hide-details clearable :disabled="exporting" />
-      </div>
-    </v-sheet>
-    <LearningPathProgressStats v-if="!loading && !error" :records="filtered" :template-id="templateId" />
-    <FeatureTourReport />
     <v-sheet border rounded="lg" class="participants-panel">
       <div class="participants-toolbar d-flex flex-wrap align-center ga-3 pa-4">
         <v-icon color="primary-dark" size="22">mdi-account-group-outline</v-icon>
@@ -37,7 +8,13 @@
           <div class="d-flex flex-wrap align-center ga-2"><h2 class="text-subtitle-1 font-weight-medium">Participants</h2><v-chip size="x-small" color="primary-dark" variant="tonal" role="status">{{ filtered.length }} of {{ rows.length }}</v-chip></div>
           <div class="text-caption text-medium-emphasis mt-1">Export includes all {{ filtered.length }} matching participations and their steps, across all pages.</div>
         </div>
-        <v-btn color="primary-dark" variant="flat" prepend-icon="mdi-download" :loading="exporting" :disabled="loading || exporting || !filtered.length || !!error" @click="exportCsv">Export CSV ({{ filtered.length }})</v-btn>
+        <v-btn color="primary-dark" variant="flat" prepend-icon="mdi-download" :loading="exporting" :disabled="loading || exporting || !filtered.length" @click="exportCsv">Export CSV ({{ filtered.length }})</v-btn>
+      </div>
+      <v-divider />
+      <div class="progress-filters pa-4">
+        <v-text-field v-model="search" label="Search people" placeholder="Name or ID" prepend-inner-icon="mdi-magnify" color="primary-dark" bg-color="surface" variant="outlined" density="compact" hide-details clearable :disabled="exporting" />
+        <v-select v-model="status" :items="statusOptions" label="Completion status" placeholder="All statuses" persistent-placeholder prepend-inner-icon="mdi-progress-check" color="primary-dark" bg-color="surface" variant="outlined" density="compact" hide-details clearable :disabled="exporting" />
+        <v-switch v-model="stalledOnly" color="primary-dark" density="compact" hide-details inset :disabled="exporting" label="Stalled only (in progress, inactive for more than 7 days)" />
       </div>
       <v-divider />
       <v-data-table v-model:page="page" v-model:sort-by="sortBy" :headers="headers" :items="filtered" :loading="loading" :items-per-page="25" :items-per-page-options="[25, 50, 100]" items-per-page-text="Records per page" loading-text="Loading progress …" hover class="progress-table">
@@ -49,11 +26,22 @@
           <div>{{ item.completed }} / {{ item.total }}</div><div v-if="item.skipped" class="text-caption text-medium-emphasis">{{ item.skipped }} skipped</div>
           <v-progress-linear :model-value="item.progress" :color="item.status === 'completed' ? 'success' : 'info'" height="4" rounded class="table-progress mt-1" :aria-label="`${item.progress}% of steps finished`" />
         </template>
-        <template #[`item.status`]="{ item }"><v-chip size="small" variant="tonal" :color="item.status === 'completed' ? 'success' : item.status === 'in_progress' ? 'info' : undefined"><v-icon start size="14">{{ item.status === 'completed' ? 'mdi-check-circle-outline' : item.status === 'in_progress' ? 'mdi-progress-clock' : 'mdi-clock-outline' }}</v-icon>{{ statusText(item.status) }}</v-chip></template>
+        <template #[`item.status`]="{ item }">
+          <v-chip size="small" variant="tonal" :color="item.status === 'completed' ? 'success' : item.status === 'in_progress' ? 'info' : undefined"><v-icon start size="14">{{ item.status === 'completed' ? 'mdi-check-circle-outline' : item.status === 'in_progress' ? 'mdi-progress-clock' : 'mdi-clock-outline' }}</v-icon>{{ statusText(item.status) }}</v-chip>
+          <v-chip v-if="isStalled(item)" size="small" variant="tonal" color="warning" class="ml-1">Stalled</v-chip>
+        </template>
+        <template #[`item.workSeconds`]="{ item }">
+          <template v-if="runActivity(item.id)">{{ durationText(runActivity(item.id)!.grossSeconds) }}<div class="text-caption text-medium-emphasis">{{ durationText(runActivity(item.id)!.activeSeconds) }} active · {{ runActivity(item.id)!.sessions }} sessions</div></template>
+          <span v-else class="text-medium-emphasis">—</span>
+        </template>
+        <template #[`item.windowSwitches`]="{ item }">
+          <template v-if="runActivity(item.id)">{{ runActivity(item.id)!.tabHidden + runActivity(item.id)!.focusLost }}<div class="text-caption text-medium-emphasis">{{ runActivity(item.id)!.tabHidden }} tab · {{ runActivity(item.id)!.focusLost }} focus</div></template>
+          <span v-else class="text-medium-emphasis">—</span>
+        </template>
         <template #[`item.createdAt`]="{ value }">{{ date(value) }}</template>
         <template #[`item.lastActivityAt`]="{ value }">{{ date(value) }}</template>
-        <template #[`item.actions`]="{ item }"><v-btn size="small" color="primary-dark" variant="text" append-icon="mdi-chevron-right" :aria-label="`Details for ${item.learnerName} – ${item.name}`" @click="openDetail(item)">Details</v-btn></template>
-        <template #no-data><p class="pa-5 text-body-2 text-medium-emphasis">{{ rows.length ? 'No participation records match these filters.' : 'No learning path participation records yet.' }}</p></template>
+        <template #[`item.actions`]="{ item }"><v-btn size="small" color="primary-dark" variant="text" append-icon="mdi-chevron-right" :aria-label="`Details for ${item.learnerName}`" @click="openDetail(item)">Details</v-btn></template>
+        <template #no-data><p class="pa-5 text-body-2 text-medium-emphasis">{{ rows.length ? 'No participation records match these filters.' : `Nobody has started this learning path yet.${hiddenStaffRuns ? ` ${hiddenStaffRuns} staff runs are hidden.` : ''}` }}</p></template>
       </v-data-table>
     </v-sheet>
     <p class="text-caption text-medium-emphasis mt-3">Progress reflects the current learning path template. Archived steps are excluded. Skipped optional questionnaires count towards path completion.</p>
@@ -95,25 +83,36 @@
               <template #bottom />
             </v-data-table>
           </template>
+          <section v-if="selectedActivity" aria-label="Activity per task">
+            <h3 class="text-subtitle-1 font-weight-medium mt-4 mb-2">Activity per task<InfoTip text="Editor sessions, work time and window switches of this person per task step. Approximations from browser events: idle detection and tab behaviour (also on mobile) are not exact." /></h3>
+            <v-table density="compact" class="mini-table">
+              <thead><tr><th>Task</th><th class="text-end">Sessions</th><th class="text-end">Work time</th><th class="text-end">Active time</th><th class="text-end">Tab switches</th><th class="text-end">Focus losses</th></tr></thead>
+              <tbody>
+                <tr v-for="step in selectedActivity.steps" :key="step.stepId"><td>{{ stepTitles.get(step.stepId) ?? step.stepId }}</td><td class="text-end">{{ step.sessions }}</td><td class="text-end">{{ durationText(step.grossSeconds) }}</td><td class="text-end">{{ durationText(step.activeSeconds) }}</td><td class="text-end">{{ step.tabHidden }}</td><td class="text-end">{{ step.focusLost }}</td></tr>
+              </tbody>
+            </v-table>
+          </section>
+          <AttemptTimeline v-if="selected" :template-id="templateId" :run-id="selected.id" />
         </v-card-text>
       </v-card>
     </v-dialog>
-  </v-container>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import type { PathActivity } from '@/services/analytics'
 import paths, { type PathProgressDetail, type PathProgressSummary, type StepRun } from '@/services/learningPaths'
-import LearningPathProgressStats from '@/components/learningPaths/LearningPathProgressStats.vue'
-import FeatureTourReport from '@/components/learningPaths/FeatureTourReport.vue'
+import AttemptTimeline from '@/components/analytics/AttemptTimeline.vue'
+import InfoTip from '@/components/analytics/InfoTip.vue'
+import { durationText } from '@/components/analytics/labels'
 
-const rows = ref<PathProgressSummary[]>([])
-const loading = ref(false)
-const error = ref('')
+const props = defineProps<{ templateId: string; rows: PathProgressSummary[]; activity: PathActivity | null; loading: boolean; hiddenStaffRuns: number }>()
+const STALLED_MS = 7 * 24 * 3600 * 1000
 const exporting = ref(false)
 const exportError = ref('')
 const exportCsv = async () => {
-  if (exporting.value || loading.value || !filtered.value.length || error.value) return
+  if (exporting.value || props.loading || !filtered.value.length) return
   exporting.value = true
   exportError.value = ''
   try {
@@ -136,60 +135,40 @@ const exportCsv = async () => {
   }
 }
 const search = ref('')
-const templateId = ref<string | null>(null)
 const status = ref<string | null>(null)
+const stalledOnly = ref(false)
 const page = ref(1)
-const hasFilters = computed(() => !!templateId.value || !!status.value || !!search.value?.trim())
-const clearFilters = () => {
-  templateId.value = null
-  status.value = null
-  search.value = ''
-}
-watch([templateId, status, search], () => { page.value = 1 })
+watch([search, status, stalledOnly], () => { page.value = 1 })
 const sortBy = ref<{ key: string; order: 'asc' | 'desc' }[]>([{ key: 'lastActivityAt', order: 'desc' }])
 const detailDialog = ref(false)
 const detailLoading = ref(false)
 const detailError = ref('')
 const selected = ref<PathProgressSummary | null>(null)
 const detail = ref<PathProgressDetail | null>(null)
-let generation = 0
 let detailGeneration = 0
 const statusOptions = [{ title: 'Not started', value: 'not_started' }, { title: 'In progress', value: 'in_progress' }, { title: 'Completed', value: 'completed' }]
 const statusText = (value: string) => statusOptions.find((option) => option.value === value)?.title ?? value
 const stepStatusText = (value: StepRun['status']) => ({ locked: 'Locked', available: 'Available', in_progress: 'In progress', completed: 'Completed', skipped: 'Skipped' })[value]
 const date = (value: string | null) => value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : '—'
-const templates = computed(() => [...new Map(rows.value.map((row) => [row.templateId, { id: row.templateId, name: row.name }])).values()].sort((a, b) => a.name.localeCompare(b.name)))
+const isStalled = (row: PathProgressSummary) => row.status === 'in_progress' && Date.now() - Date.parse(row.lastActivityAt) > STALLED_MS
 const filtered = computed(() => {
   const query = (search.value ?? '').trim().toLocaleLowerCase('en')
-  return rows.value.filter((row) => (!templateId.value || row.templateId === templateId.value) && (!status.value || row.status === status.value) && `${row.learnerName} ${row.learnerId} ${row.name}`.toLocaleLowerCase('en').includes(query))
+  return props.rows.filter((row) => (!status.value || row.status === status.value) && (!stalledOnly.value || isStalled(row)) && `${row.learnerName} ${row.learnerId}`.toLocaleLowerCase('en').includes(query))
 })
+const runActivities = computed(() => new Map((props.activity?.runs ?? []).map((run) => [run.runId, run])))
+const runActivity = (runId: string) => runActivities.value.get(runId)
+const stepTitles = computed(() => new Map((props.activity?.steps ?? []).map((step) => [step.stepId, step.title])))
+const selectedActivity = computed(() => selected.value ? runActivity(selected.value.id) : undefined)
 const headers = [
-  { key: 'learnerName', title: 'Person', fixed: true, width: 180 }, { key: 'name', title: 'Learning path' },
+  { key: 'learnerName', title: 'Person', fixed: true, width: 180 },
   { key: 'completedTasks', title: 'Completed tasks' }, { key: 'completed', title: 'Completed steps' },
-  { key: 'status', title: 'Status' }, { key: 'createdAt', title: 'Created' },
+  { key: 'status', title: 'Status' },
+  { key: 'workSeconds', title: 'Work time', value: (row: Record<string, unknown>) => runActivity(row.id as string)?.grossSeconds ?? 0 },
+  { key: 'windowSwitches', title: 'Window switches', value: (row: Record<string, unknown>) => { const run = runActivity(row.id as string); return (run?.tabHidden ?? 0) + (run?.focusLost ?? 0) } },
+  { key: 'createdAt', title: 'Created' },
   { key: 'lastActivityAt', title: 'Last recorded activity' }, { key: 'actions', title: '', sortable: false }
 ]
 const stepHeaders = [{ key: 'title', title: 'Step' }, { key: 'type', title: 'Type' }, { key: 'status', title: 'Status' }, { key: 'openedAt', title: 'Started' }, { key: 'completedAt', title: 'Completed' }]
-const load = async () => {
-  const request = ++generation
-  loading.value = true
-  error.value = ''
-  try {
-    const result: PathProgressSummary[] = []
-    for (let skip = 0; ; ) {
-      const page = (await paths.progress(skip)).data
-      if (request !== generation) return
-      result.push(...page.items)
-      skip += page.items.length
-      if (!page.items.length || skip >= page.total) break
-    }
-    rows.value = result
-  } catch {
-    if (request === generation) error.value = 'Learning path progress could not be loaded.'
-  } finally {
-    if (request === generation) loading.value = false
-  }
-}
 const loadDetail = async () => {
   if (!selected.value) return
   const request = ++detailGeneration
@@ -210,22 +189,19 @@ const openDetail = (row: PathProgressSummary) => {
   detailDialog.value = true
   void loadDetail()
 }
-onMounted(load)
-onUnmounted(() => { generation++; detailGeneration++ })
+onUnmounted(() => { detailGeneration++ })
 </script>
 
 <style scoped>
-.page-icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 12px; background: rgba(var(--v-theme-primary), 0.1); flex-shrink: 0; }
-.page-heading { min-width: 220px; }
-.filter-panel { background: rgba(var(--v-theme-primary), 0.035); border-color: rgba(var(--v-theme-primary), 0.25); }
-.progress-filters { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 12px; }
 .participants-panel { overflow: hidden; border-color: rgba(var(--v-theme-on-surface), 0.12); }
 .participants-toolbar { background: rgba(var(--v-theme-primary), 0.025); }
+.progress-filters { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 12px; align-items: center; }
 .progress-table :deep(thead) { background: rgba(var(--v-theme-on-surface), 0.035); }
 .progress-table :deep(th) { white-space: normal; }
 .progress-table :deep(td) { min-width: 120px; }
 .person-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; color: rgb(var(--v-theme-primary-dark)); background: rgba(var(--v-theme-primary), 0.08); flex-shrink: 0; }
 .table-progress { max-width: 90px; }
+.mini-table { background: transparent; }
 .detail-heading { background: rgba(var(--v-theme-primary), 0.05); border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08); }
 @media (max-width: 700px) { .progress-filters { grid-template-columns: 1fr; } }
 </style>

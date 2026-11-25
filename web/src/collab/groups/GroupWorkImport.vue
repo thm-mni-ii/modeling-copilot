@@ -272,8 +272,6 @@ const statusOf = (group: CsvGroup) => {
 const requestOf = (group: CsvGroup) => ({
   name: group.name,
   usernames: group.members.map((member) => member.username),
-  // The name from the list; the overview shows it until CK knows the person itself.
-  names: Object.fromEntries(group.members.map((member) => [member.username, member.name])),
   tasks: group.caseStudies.map((caseStudy) => ({ taskId: choices[caseStudy].taskId, versionId: choices[caseStudy].versionId }))
 })
 

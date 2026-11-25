@@ -29,8 +29,9 @@
         </div>
         <p v-if="helpRequest" class="feature-checklist-note">Beende zuerst deine laufende Hilfeanfrage, bevor du die Tour startest.</p>
         <p v-else-if="!feedbackLegendAvailable" class="feature-checklist-note">Die Hilfeanzeigen sind noch nicht verfügbar. Lade die Seite erneut, um die Tour zu starten.</p>
+        <p v-else-if="!checkAvailable" class="feature-checklist-note">Für die geführte Modellprüfung ist in dieser Aufgabe keine Nutzung mehr verfügbar.</p>
         <div class="feature-checklist-actions">
-          <v-btn size="small" variant="flat" color="#765035" :disabled="starting || Boolean(helpRequest) || !feedbackLegendAvailable" @click="startTour">{{ done ? 'Erneut starten' : 'Tour starten' }}</v-btn>
+          <v-btn size="small" variant="flat" color="#765035" :disabled="starting || Boolean(helpRequest) || !feedbackLegendAvailable || !checkAvailable" @click="startTour">{{ done ? 'Erneut starten' : 'Tour starten' }}</v-btn>
           <v-btn v-if="!done" size="small" variant="text" :disabled="starting" @click="skipTour">Überspringen</v-btn>
         </div>
       </div>
@@ -48,37 +49,33 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { driver, type Driver, type DriveStep } from 'driver.js'
 import 'driver.js/dist/driver.css'
-import paths, { type FeatureTourItem, type FeatureTourProgress, type HelpRequest, type HelpTourAnswer } from '@/services/learningPaths'
+import paths, { type HelpRequest, type HelpTourAnswer, type TourEventName, type TourProgress } from '@/services/learningPaths'
 import { notifyError } from '@/composables/useNotifications'
 
-const props = defineProps<{ feedbackLegendAvailable: boolean; helpRequest?: HelpRequest | null; helpQuestion?: string | null; helpAnswer?: HelpTourAnswer | null }>()
-const itemId: FeatureTourItem = 'help-feedback-walkthrough'
+const props = defineProps<{ feedbackLegendAvailable: boolean; checkAvailable: boolean; helpRequest?: HelpRequest | null; helpQuestion?: string | null; helpAnswer?: HelpTourAnswer | null }>()
+const tourId = 'help-feedback'
 const open = ref(false)
 const visible = ref(false)
 const starting = ref(false)
 const loaded = ref(false)
 const error = ref('')
-const progress = ref<FeatureTourProgress>({ completedItems: [], skippedItems: [], firstOpenedAt: null })
-const done = computed(() => progress.value.completedItems.includes(itemId) || progress.value.skippedItems.includes(itemId))
-const skipped = computed(() => progress.value.skippedItems.includes(itemId) && !progress.value.completedItems.includes(itemId))
+const progress = ref<TourProgress>({ completed: false, skipped: false })
+const done = computed(() => progress.value.completed || progress.value.skipped)
+const skipped = computed(() => progress.value.skipped && !progress.value.completed)
 let activeTour: Driver | null = null
 let finishing = false
 let disposed = false
 let loadPromise: Promise<void> | null = null
 let followVersion = 0
 
-const updateProgress = (value: FeatureTourProgress) => {
-  progress.value = {
-    completedItems: [...new Set([...progress.value.completedItems, ...value.completedItems])],
-    skippedItems: [...new Set([...progress.value.skippedItems, ...value.skippedItems])],
-    firstOpenedAt: progress.value.firstOpenedAt ?? value.firstOpenedAt
-  }
+const updateProgress = (value: TourProgress) => {
+  progress.value = { completed: progress.value.completed || value.completed, skipped: progress.value.skipped || value.skipped }
 }
 const loadProgress = () => {
   if (loadPromise) return loadPromise
   loadPromise = (async () => {
     try {
-      const result = await paths.featureTourProgress()
+      const result = await paths.tourProgress(tourId)
       if (!disposed) {
         updateProgress(result.data)
         loaded.value = true
@@ -92,9 +89,9 @@ const loadProgress = () => {
   })()
   return loadPromise
 }
-const record = async (event: 'opened' | 'started' | 'completed' | 'skipped') => {
+const record = async (event: TourEventName, stepId?: string) => {
   try {
-    const result = await paths.recordFeatureTourEvent(event, event === 'opened' ? undefined : itemId)
+    const result = await paths.recordTourEvent(tourId, event, stepId)
     if (!disposed) {
       updateProgress(result.data)
       loaded.value = true
@@ -123,6 +120,13 @@ const skipTour = async () => {
 }
 
 const helpStep = 6
+// Same order as the steps below and the tour registry in the API (services/tours.py).
+const stepIds = ['intro', 'check', 'clarify', 'next-step', 'example', 'solution', 'request-help', 'describe-problem', 'load-questionnaire', 'estimate-duration', 'choose-support', 'confirm-support', 'mark-problem', 'choose-action', 'start-check', 'choose-source']
+const activeStepId = (current: Driver | null) => stepIds[current?.getActiveIndex() ?? -1]
+// Step events are analytics only; a failed request must not disturb the learner.
+const recordStep = (stepId: string | undefined) => {
+  if (stepId) void paths.recordTourEvent(tourId, 'step', stepId).catch(() => undefined)
+}
 const steps: DriveStep[] = [
   {
     element: '[data-help-feedback-legend]',
@@ -130,15 +134,15 @@ const steps: DriveStep[] = [
   },
   {
     element: '[data-help-feedback-type="help.check"]',
-    popover: { title: 'Prüfung', description: 'Prüfe deinen bisherigen Modellstand. Diese Hilfe kannst du unbegrenzt nutzen; die Zahl links zeigt deine bisherigen Nutzungen.', side: 'left', showButtons: ['previous', 'next', 'close'] }
+    popover: { title: 'Prüfung', description: 'Prüfe deinen bisherigen Modellstand. Die Anzeige zeigt deine Nutzungen und das für diese Aufgabe erlaubte Kontingent. ∞ bedeutet unbegrenzt.', side: 'left', showButtons: ['previous', 'next', 'close'] }
   },
   {
     element: '[data-help-feedback-type="help.clarify"]',
-    popover: { title: 'Erklärung', description: 'Lass dir eine ausgewählte Problemstelle erklären. Auch diese Hilfe ist unbegrenzt verfügbar.', side: 'left', showButtons: ['previous', 'next', 'close'] }
+    popover: { title: 'Erklärung', description: 'Lass dir eine ausgewählte Problemstelle erklären. Wie oft diese Hilfe verfügbar ist, zeigt das Kontingent darunter.', side: 'left', showButtons: ['previous', 'next', 'close'] }
   },
   {
     element: '[data-help-feedback-type="help.next_step"]',
-    popover: { title: 'Nächster Schritt', description: 'Erhalte einen Hinweis, wie du an deiner Problemstelle weiterarbeiten kannst. Diese Hilfe ist ebenfalls unbegrenzt.', side: 'left', showButtons: ['previous', 'next', 'close'] }
+    popover: { title: 'Nächster Schritt', description: 'Erhalte einen Hinweis, wie du an deiner Problemstelle weiterarbeiten kannst. Wie oft diese Hilfe verfügbar ist, zeigt das Kontingent darunter.', side: 'left', showButtons: ['previous', 'next', 'close'] }
   },
   {
     element: '[data-help-feedback-type="help.example"]',
@@ -146,7 +150,7 @@ const steps: DriveStep[] = [
   },
   {
     element: '[data-help-feedback-type="help.solution"]',
-    popover: { title: 'Lösung', description: 'Eine konkrete Lösung verrät besonders viel und ist daher begrenzt. Ist das Kontingent aufgebraucht, wird die Anzeige ausgegraut und die Hilfe steht nicht mehr zur Auswahl.', side: 'left', showButtons: ['previous', 'next', 'close'] }
+    popover: { title: 'Lösung', description: 'Zeigt eine konkrete Lösung zur Problemstelle. Ist das eingestellte Kontingent aufgebraucht, wird die Anzeige ausgegraut und die Hilfe steht nicht mehr zur Auswahl.', side: 'left', showButtons: ['previous', 'next', 'close'] }
   },
   {
     element: '[data-help-sign]',
@@ -167,7 +171,7 @@ const steps: DriveStep[] = [
   {
     element: '[data-help-tour-choice="support_need"]',
     allowedElements: ['.help-flow-card'],
-    popover: { title: 'Unterstützung auswählen', description: 'Wähle für diese Tour die Prüfung deiner bisherigen Lösung. Dafür wird kein Beispiel- oder Lösungsjoker verbraucht.', side: 'left', showButtons: ['close'] }
+    popover: { title: 'Unterstützung auswählen', description: 'Wähle für diese Tour die Prüfung deiner bisherigen Lösung. Eine erfolgreiche Auswertung zählt als Nutzung der Feedbackart „Prüfung“.', side: 'left', showButtons: ['close'] }
   },
   {
     element: '.help-flow-card .sd-navigation__complete-btn',
@@ -197,9 +201,10 @@ const steps: DriveStep[] = [
 const finish = (event: 'completed' | 'skipped') => {
   if (!activeTour || finishing) return
   finishing = true
+  const stepId = activeStepId(activeTour)
   activeTour.destroy()
   activeTour = null
-  void record(event)
+  void record(event, event === 'skipped' ? stepId : undefined)
 }
 const followRequest = async () => {
   const version = ++followVersion
@@ -234,7 +239,7 @@ const followRequest = async () => {
   if (version === followVersion && activeTour && !finishing && activeTour.getActiveIndex() !== index) activeTour.moveTo(index)
 }
 const startTour = async () => {
-  if (starting.value || activeTour || props.helpRequest || !props.feedbackLegendAvailable) return
+  if (starting.value || activeTour || props.helpRequest || !props.feedbackLegendAvailable || !props.checkAvailable) return
   starting.value = true
   await record('started')
   if (disposed) return
@@ -251,20 +256,22 @@ const startTour = async () => {
     closeBtnLabel: 'Tour schließen',
     nextBtnText: 'Weiter',
     prevBtnText: 'Zurück',
+    onHighlighted: (_element, _step, { driver: current }) => recordStep(activeStepId(current)),
     onElementMissing: (_element, _step, { driver: current }) => {
       if (finishing) return false
       finishing = true
+      const stepId = activeStepId(current)
       current.destroy()
       activeTour = null
       error.value = 'Der nächste Tour-Schritt ist nicht verfügbar. Du kannst die Tour später erneut starten.'
       notifyError(error.value)
-      void record('skipped')
+      void record('skipped', stepId)
       return false
     },
     onDestroyStarted: (_element, _step, { driver: current }) => {
       if (!finishing) {
         finishing = true
-        void record('skipped')
+        void record('skipped', activeStepId(current))
       }
       current.destroy()
       activeTour = null

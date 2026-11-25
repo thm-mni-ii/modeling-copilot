@@ -7,7 +7,7 @@ from pydantic import Field
 
 from modeling_api.schemas.common import ApiSchema, Name
 from modeling_api.schemas.challenges import ChallengeConfig
-from modeling_api.schemas.learning_paths import UnlockRule, PulseSurveyConfig, HelpRequestConfig, CategoryMinimum, ScoreScope
+from modeling_api.schemas.learning_paths import UnlockRule, PulseSurveyConfig, HelpRequestConfig, CategoryMinimum, ScoreScope, TaskHelpFeedbackConfig
 
 
 class SurveyReference(ApiSchema):
@@ -27,6 +27,7 @@ class TaskSettings(ApiSchema):
     minimum_score_percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
     score_scope: ScoreScope = "overall"
     category_minimums: list[CategoryMinimum] = Field(default_factory=list)
+    help_feedback: TaskHelpFeedbackConfig | None = None
 
 
 class TaskStepDefinition(ApiSchema):

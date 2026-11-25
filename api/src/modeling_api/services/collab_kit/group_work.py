@@ -94,8 +94,6 @@ async def plan(user: User, course: str, groups: list[dict[str, Any]], token: str
                 "newMemberIds": list(new.values()),
                 "newTasks": [task for task in group["tasks"] if str(task["taskId"]) not in tasks],
                 "missing": [name for name in group["usernames"] if name not in ids],
-                # Per FBS ID the name from the list; CK knows names only after the first visit, until then the tab shows this one.
-                "names": {ids[name]: label for name, label in group.get("names", {}).items() if name in ids and label},
                 "settings": room["settings"] if room else {},
             }
         )
@@ -103,19 +101,14 @@ async def plan(user: User, course: str, groups: list[dict[str, Any]], token: str
 
 
 async def _ensure_group(entry: dict[str, Any], room_id: str) -> None:
-    """Creates the group with its rights, or adds new people and names to the existing one."""
+    """Creates the group with its rights, or adds new people to the existing one; no person names are stored."""
     # A new room gets its group; so does an existing one whose group someone deleted by hand.
     if entry["groupId"] is None:
-        ck_group = await client.create_group(entry["name"], entry["newMemberIds"], {KEY: {"roomId": room_id, "names": entry["names"]}})
+        ck_group = await client.create_group(entry["name"], entry["newMemberIds"], {KEY: {"roomId": room_id}})
         await client.set_grant(ck_group["_id"], MEMBER_RIGHTS, room_id)
         return
     for member in entry["newMemberIds"]:
         await client.add_member(entry["groupId"], member)
-    # New names are added to the old ones; CK replaces the settings as a whole, so foreign keys are sent along.
-    mark = entry["settings"].get(KEY, {})
-    names = {**mark.get("names", {}), **entry["names"]}
-    if names != mark.get("names", {}):
-        await client.update_group_settings(entry["groupId"], {**entry["settings"], KEY: {**mark, "names": names}})
 
 
 async def _add_models(room_id: str, references: list[dict[str, Any]], tasks: dict[tuple, dict[str, Any]]) -> list[str]:

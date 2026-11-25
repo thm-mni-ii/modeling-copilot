@@ -78,7 +78,8 @@ analysis-feedback/v3
 
 - **AF-17 · Herkunft:** Vergleichs- und Analysehash, `analysisKey` und tatsächlicher Pfad müssen zusammenpassen; Veröffentlichung immutable/atomar.
 - **AF-18 · Frontend-Transport:** Vollständiges **kompaktes** JSON bleibt ausdrücklich auf `stdout`, da der Dagu-Artefaktzugriff benötigt wird. Nicht durch reine Statuslogs ersetzen.
-- **AF-19 · Berechtigungen:** Detaillierte Analysen/Referenzdaten sind in der vorgesehenen API nur für Moderation/Administration; die studentische Übersicht darf keine geschützten Referenznamen oder Rohdiagnosen offenlegen. Die API selbst liegt außerhalb dieses ZIPs und wird hier nicht neu verifiziert.
+- **AF-19 · Berechtigungen:** Detaillierte Analysen/Referenzdaten sind in der vorgesehenen API nur für Moderation/Administration; die studentische Übersicht darf keine geschützten Referenznamen oder Rohdiagnosen offenlegen. Die API selbst liegt außerhalb dieses ZIPs und wird hier nicht neu verifiziert. **Ausnahme als Probe (seit 24.11.2026):** `labelHints[].suggestion` darf den Text des Musterlösungselements enthalten, solange `comparisonConfig.graphMatching.hints.showReferenceText` gesetzt ist. Die Probe zeigt, wie oft das vorkommt; danach wird festgelegt, was angezeigt werden darf.
+- **AF-21 · Hinweise:** `labelHints` projiziert die Matcher-Hinweise (GM-43) mit Abgabebeschriftung, Quellen und Wortteilbeziehung. Der Validator rechnet sie aus dem Vergleich nach. Sie stehen außerhalb von `recognition` und zählen nie. Analysen zu Vergleichen ohne `hints` haben das Feld nicht.
 - **AF-20 · Feedback Generation:** Übernimmt den validierten Bericht bzw. dessen dynamische Erkennungsdaten. Das ist **kein zweiter** Ort zur Neuberechnung der Wiedererkennung.
 
 ## Grenzen und ausdrücklich **nicht** hier lösen

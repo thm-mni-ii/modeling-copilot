@@ -1,0 +1,38 @@
+description: Temporary full evaluation for administrator comparisons, with isolated inputs and automatic workspace cleanup.
+type: graph
+labels:
+  visibility: internal
+  version: v2
+hist_retention_days: 7
+max_active_runs: 2
+env:
+  - SERVICES_HOST: ${WORKFLOW_SERVICES_HOST}
+params:
+  schema:
+    type: object
+    required: [evaluation_id, evaluation_params]
+    properties:
+      evaluation_id: {type: string, pattern: '^replay-[a-f0-9-]{36}-[0-9]+$'}
+      evaluation_params: {type: string}
+  values:
+    evaluation_id: replay-00000000-0000-0000-0000-000000000000-0
+    evaluation_params: '{}'
+steps:
+  - name: evaluate
+    action: dag.run
+    with:
+      dag: model-evaluation-graph-matching
+      # Forward the JSON object intact; map-form forwarding quotes nested JSON as shell text.
+      params: ${params.evaluation_params}
+handler_on:
+  exit:
+    name: cleanup_temporary_workspace
+    action: http.request
+    with:
+      method: POST
+      url: http://${env.SERVICES_HOST}:30081/run
+      form:
+        WORKFLOW_EVALUATION_ID: ${params.evaluation_id}
+        WORKFLOW_INPUT_PATH: cleanup-temporary
+      silent: true
+      timeout: 120

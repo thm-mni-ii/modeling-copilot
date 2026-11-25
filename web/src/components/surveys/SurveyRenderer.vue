@@ -174,6 +174,7 @@ async function load() {
       delete question.page
       delete question.exclusiveChoices
       delete question.visibleWhen
+      delete question.exampleImages
       const notEqual = question.visibleIf?.match(/^\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} (?:!=|notcontains) /)
       if (notEqual) question.visibleIf = `(${question.visibleIf}) and {${notEqual[1]}} notempty`
       if (q.type === 'ranking' && q.choicesFromQuestion) {
@@ -190,6 +191,34 @@ async function load() {
       : { ...settings, elements: elements.map(displayQuestion) }
     const instance = new Model({ ...displayedDefinition, widthMode: 'responsive', title: pulse || activity?.helpRequestId ? '' : survey.title, ...(pulse || activity?.helpRequestId ? { completeText: activity?.helpPhase === 'action' ? 'Hilfe auswählen' : 'Weiter' } : {}), ...(props.completeText ? { completeText: props.completeText } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
     instance.onAfterRenderQuestion.add((_sender, { question, htmlElement }) => {
+      const definition = survey.definition.elements.find(item => item.name === question.name)
+      if (definition?.exampleImages?.length && !htmlElement.querySelector('.survey-example-images')) {
+        const images = document.createElement('div')
+        images.className = 'survey-example-images'
+        for (const { src, alt, caption } of definition.exampleImages) {
+          const figure = document.createElement('figure')
+          figure.className = 'survey-example-image'
+          const link = document.createElement('a')
+          link.href = src
+          link.target = '_blank'
+          link.rel = 'noopener noreferrer'
+          link.title = 'Beispielbild in Originalgröße öffnen'
+          const image = document.createElement('img')
+          image.src = src
+          image.alt = alt
+          const label = document.createElement('figcaption')
+          label.textContent = `${caption} Zum Vergrößern öffnen.`
+          link.append(image)
+          figure.append(link, label)
+          images.append(figure)
+        }
+        const content = htmlElement.querySelector('.sd-question__content') ?? htmlElement
+        content.prepend(images)
+      }
+      if (question instanceof QuestionRadiogroupModel && definition?.minRateDescription && definition.maxRateDescription) {
+        htmlElement.style.setProperty('--survey-scale-min-label', JSON.stringify(definition.minRateDescription))
+        htmlElement.style.setProperty('--survey-scale-max-label', JSON.stringify(definition.maxRateDescription))
+      }
       if (activity?.helpRequestId) htmlElement.dataset.helpTourQuestion = question.name
       if (activity?.helpRequestId && question.name === 'support_need') {
         const choice = htmlElement.querySelector<HTMLInputElement>('input[value="support_need_4"]')?.closest<HTMLElement>('.sd-item')
@@ -311,6 +340,13 @@ onBeforeUnmount(() => {
 .survey-choice-hint { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; cursor: help; }
 .survey-choice-hint:focus-visible { outline: 2px solid rgb(var(--v-theme-info)); outline-offset: 2px; }
 :deep(.sd-rating fieldset) { flex-wrap: wrap; }
+:deep(.survey-example-images) { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+:deep(.survey-example-image) { flex: 0 1 auto; min-width: 0; margin: 0; }
+:deep(.survey-example-image img) { display: block; max-width: 100%; height: auto; }
+:deep(.survey-example-image figcaption) { margin-top: 8px; font-size: 0.875rem; color: var(--sjs-general-forecolor-light, #909090); }
+@media (max-width: 600px) {
+  :deep(.survey-example-images) { flex-direction: column; }
+}
 :deep(.survey-rating-five .sd-rating.sd-rating--labels-bottom fieldset) {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -383,6 +419,22 @@ onBeforeUnmount(() => {
   outline-offset: 3px;
 }
 :deep(.survey-radio-scale .sd-item:nth-of-type(n+6)) { grid-column: 1 / -1; }
+:deep(.survey-radio-scale .sd-selectbase::before),
+:deep(.survey-radio-scale .sd-selectbase::after) {
+  grid-row: 2;
+  color: var(--sjs-general-forecolor-light, #909090);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+:deep(.survey-radio-scale .sd-selectbase::before) {
+  content: var(--survey-scale-min-label, none);
+  grid-column: 1 / 3;
+}
+:deep(.survey-radio-scale .sd-selectbase::after) {
+  content: var(--survey-scale-max-label, none);
+  grid-column: 4 / -1;
+  text-align: right;
+}
 .survey-introduction {
   line-height: 1.6;
   white-space: pre-line;

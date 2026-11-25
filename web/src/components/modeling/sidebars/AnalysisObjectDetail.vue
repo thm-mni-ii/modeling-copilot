@@ -7,6 +7,13 @@
         <span class="text-medium-emphasis">{{ kindText }}</span>
       </div>
     </header>
+    <slot name="student-questions">
+      <section v-if="studentQuestions.length" class="analysis-detail__section" aria-label="Rückfrage an Studierende">
+        <h5 class="analysis-detail__heading"><v-icon icon="mdi-information-outline" color="info" size="16" /> Rückfrage an Studierende</h5>
+        <div v-for="question in studentQuestions" :key="question.id" class="mb-2">{{ question.text }}<div class="text-medium-emphasis">{{ question.reason }}</div></div>
+        <p class="text-medium-emphasis">Dies ist ein Hinweis auf ein mögliches Gegenstück und zählt nicht als bestätigte Erkennung.</p>
+      </section>
+    </slot>
 
     <section class="analysis-detail__section" aria-label="Ergebnis">
       <ul class="agenda">
@@ -41,6 +48,17 @@
       </div>
     </section>
 
+    <section v-if="decisions.length" class="analysis-detail__section" aria-label="Entscheidung je Textkandidat">
+      <h5 class="analysis-detail__heading">Entscheidung je Textkandidat</h5>
+      <ul class="agenda">
+        <li v-for="row in decisions" :key="`${row.referenceId}:${row.studentId}`">
+          <v-icon size="16" :color="decisionLook[row.decision].color" aria-hidden="true">{{ decisionLook[row.decision].icon }}</v-icon>
+          <span>{{ annotation ? describe('reference', row.referenceId) : describe('submission', row.studentId) }}: {{ pairDecisionStatusLabels[row.decision] }}<br />
+            <span class="text-medium-emphasis">{{ pairDecisionLabels[row.reason] ?? row.reason }}</span></span>
+        </li>
+      </ul>
+    </section>
+
     <section v-if="evidence && isElement" class="analysis-detail__section" aria-label="Textähnlichkeit">
       <h5 class="analysis-detail__heading">Textähnlichkeit</h5>
       <SimilarityEvidence :evidence="evidence" :submission-id="submissionId" :reference-id="annotation?.referenceId ?? referenceHint?.referenceId" :verdict="textVerdict" />
@@ -62,7 +80,7 @@
       </div>
       <p v-if="otherFactCount" class="text-medium-emphasis mb-0">{{ otherFactCount }} weitere Prüfungen nicht anwendbar oder nicht ausgewertet.</p>
       <dl v-if="annotation && !annotation.facts && annotation.checks" class="object-details">
-        <template v-for="(status, check) in annotation.checks" :key="check"><dt>{{ checkLabels[check] ?? check }}{{ groupCheck(check) ? ' (Gruppe)' : '' }}</dt><dd>{{ analysisValueLabel(status) }}</dd></template>
+        <template v-for="(status, check) in visibleChecks" :key="check"><dt>{{ checkLabels[check] ?? check }}{{ groupCheck(String(check)) ? ' (Gruppe)' : '' }}</dt><dd>{{ analysisValueLabel(status) }}</dd></template>
       </dl>
     </section>
 
@@ -145,8 +163,8 @@ import { computed } from 'vue'
 import SimilarityEvidence from './SimilarityEvidence.vue'
 import {
   analysisChildChecklist, analysisDisplay, analysisFactEvidence, analysisFactLabel, analysisHintParameters, analysisHintText, analysisIdentityLabel,
-  analysisIdentityMethodLabel, analysisReasonLabel, analysisStatus, analysisValueLabel, checkLabels, exactText, factOpenReason, graphDiagnosticLabel,
-  identityCriterionNote, identityExplanation, individualViolations, objectKindLabel,
+  analysisIdentityMethodLabel, analysisReasonLabel, analysisStatus, analysisOverviewAppearance, analysisStudentQuestions, analysisValueLabel, checkLabels, exactText, factOpenReason, graphDiagnosticLabel,
+  identityCriterionNote, identityExplanation, individualViolations, objectKindLabel, pairDecisionLabels, pairDecisionStatusLabels,
   type AnalysisAnnotation, type AnalysisFeedback, type CandidateEvidence, type ConnectionValue, type GraphDiagnostic, type GraphNode, type LocalCounts, type ParentRelation, type ReferenceHint
 } from '@/utils/analysisFeedback'
 
@@ -160,15 +178,17 @@ const props = defineProps<{
   diagnostics: GraphDiagnostic[]
   relatedHints: ReferenceHint[]
   targetNote?: string
+  overviewMode?: boolean
   describe: (side: 'submission' | 'reference', id: string) => string
 }>()
 
 const submissionId = computed(() => props.annotation?.target.id)
+const studentQuestions = computed(() => submissionId.value ? analysisStudentQuestions(props.report, submissionId.value) : [])
 const kind = computed(() => props.annotation?.target.kind ?? props.referenceHint?.kind ?? null)
 const isElement = computed(() => kind.value === 'modelElement')
 const title = computed(() => props.annotation ? props.describe('submission', props.annotation.target.id) : props.referenceHint ? `Musterlösung: ${props.referenceHint.label ?? props.describe('reference', props.referenceHint.referenceId)}` : '')
 const kindText = computed(() => [objectKindLabel(kind.value), props.node?.type].filter(Boolean).join(' · '))
-const display = computed(() => props.annotation ? analysisDisplay[analysisStatus(props.annotation)]
+const display = computed(() => props.annotation ? props.overviewMode ? analysisOverviewAppearance(props.annotation, studentQuestions.value.length > 0) : analysisDisplay[analysisStatus(props.annotation)]
   : props.referenceHint?.code === 'reference.missing' ? analysisDisplay.warning : props.referenceHint?.code === 'reference.not_evaluated' ? analysisDisplay.not_evaluated : analysisDisplay.unresolved)
 const statusLabel = computed(() => props.annotation ? display.value.label
   : props.referenceHint?.code === 'reference.missing' ? 'Referenz fehlt' : props.referenceHint?.code === 'reference.not_evaluated' ? 'Nicht ausgewertet' : 'Referenz ohne Gegenstück')
@@ -176,8 +196,21 @@ const identity = computed(() => props.annotation?.identity ?? props.referenceHin
 // Only a mapped annotation's identity describes exactly the shown pair; other identities aggregate all candidates.
 const textVerdict = computed(() => props.annotation?.referenceId ? props.annotation.identity?.criteria.find(item => item.method === 'text_similarity') : undefined)
 const explanation = computed(() => props.annotation ? identityExplanation(props.annotation) : props.referenceHint ? analysisHintText(props.referenceHint) : null)
-const facts = computed(() => (props.annotation?.facts ?? props.referenceHint?.facts ?? []).filter(fact => !fact.code.startsWith('identity.')))
-const hints = computed(() => props.annotation?.hints ?? (props.referenceHint ? [props.referenceHint] : []))
+const facts = computed(() => (props.annotation?.facts ?? props.referenceHint?.facts ?? []).filter(fact => !fact.code.startsWith('identity.') && !fact.code.startsWith('label.')))
+const hints = computed(() => (props.annotation?.hints ?? (props.referenceHint ? [props.referenceHint] : [])).filter(hint => hint.code !== 'label.different'))
+// GM-40: how every text candidate of this object ended (identified, partially recognized or open) and why.
+const decisionOrder = { identified: 0, partial: 1, open: 2 } as const
+const decisions = computed(() => {
+  const referenceId = props.annotation ? undefined : props.referenceHint?.referenceId
+  return (props.evidence?.decisions ?? []).filter(row => submissionId.value !== undefined ? row.studentId === submissionId.value : row.referenceId === referenceId)
+    .sort((a, b) => decisionOrder[a.decision] - decisionOrder[b.decision])
+})
+const decisionLook = {
+  identified: { icon: 'mdi-check', color: analysisDisplay.recognized.color },
+  partial: { icon: 'mdi-circle-half-full', color: analysisDisplay.supported.color },
+  open: { icon: 'mdi-help', color: analysisDisplay.unresolved.color }
+} as const
+const visibleChecks = computed(() => Object.fromEntries(Object.entries(props.annotation?.checks ?? {}).filter(([check]) => check !== 'label')))
 
 const criterionIcon = (result: string) => result === 'satisfied' ? 'mdi-check' : result === 'violated' ? 'mdi-close' : result === 'unresolved' ? 'mdi-help' : 'mdi-minus'
 const criterionColor = (result: string) => result === 'satisfied' ? analysisDisplay.recognized.color : result === 'violated' ? analysisDisplay.warning.color : result === 'unresolved' ? analysisDisplay.unresolved.color : analysisDisplay.not_evaluated.color

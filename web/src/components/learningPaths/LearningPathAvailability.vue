@@ -1,9 +1,5 @@
 <template>
   <section>
-    <div class="d-flex align-center ga-2 mb-2">
-      <v-icon size="21">mdi-lock-open-outline</v-icon>
-      <h3 class="text-subtitle-1 font-weight-bold">Availability</h3>
-    </div>
     <p class="text-body-2 text-medium-emphasis mb-4">Choose when this activity becomes available.</p>
     <v-select :model-value="preset" :items="presets" label="Unlock this activity" variant="outlined" @update:model-value="choosePreset" />
     <v-text-field v-if="preset === 'date'" :model-value="localDate(modelValue.conditions[0]?.at)" type="datetime-local" :label="`Available from (${timezone})`" variant="outlined" @update:model-value="setDate(modelValue.conditions[0], $event)" />

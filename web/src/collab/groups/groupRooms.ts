@@ -39,18 +39,17 @@ export const groupWorkOf = (room: Room): GroupWorkMark | null => {
 
 /**
  * The members per imported room, from the CK group that points to it; without rights on the groups none.
- * CK knows a name only after the first visit; until then the name from the list, stored by the import, applies.
+ * CK knows a name only after the first visit; until then the ID is shown, the import stores no person names.
  */
 const membersByRoom = async (ck: CollabKitApi) => {
   const members = new Map<string, GroupMember[]>()
   try {
     for (const group of await ck.groups.list()) {
-      const mark = group.settings.groupWork as { roomId?: unknown; names?: Record<string, unknown> } | undefined
-      const listed = (id: string) => (typeof mark?.names?.[id] === 'string' ? (mark.names[id] as string) : `ID ${id}`)
+      const mark = group.settings.groupWork as { roomId?: unknown } | undefined
       if (typeof mark?.roomId === 'string')
         members.set(
           mark.roomId,
-          group.members.map((id) => (group.names?.[id] ? { name: group.names[id], visited: true } : { name: listed(id), visited: false }))
+          group.members.map((id) => (group.names?.[id] ? { name: group.names[id], visited: true } : { name: `ID ${id}`, visited: false }))
         )
     }
   } catch {

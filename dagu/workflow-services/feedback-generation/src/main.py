@@ -20,12 +20,17 @@ def recognition(analysis: dict, context: dict, store: Workspace, bundle: dict) -
     return {"recognition": analysis["recognition"]}
 
 
+def hints(analysis: dict, context: dict, store: Workspace, bundle: dict) -> dict:
+    """Validated learner hints of the analytical feedback (AP-10); never part of the recognition."""
+    return {"hints": analysis.get("labelHints", []) + help_feedback.observation_hints(analysis, store, bundle)}
+
+
 def help_builder(kind: str):
     return lambda analysis, context, store, bundle: help_feedback.build(kind, analysis, context, store, bundle)
 
 
 # Every builder returns one feedback entry; only the types named in the input are produced.
-BUILDERS = {"recognition": recognition,
+BUILDERS = {"recognition": recognition, "hints": hints,
             **{kind: help_builder(kind) for kind in ("help.clarify", "help.check", "help.next_step", "help.example", "help.solution")},
             # Staff-only analysis view; the API never forwards it to learners.
             "help.catalog": lambda analysis, context, store, bundle: help_feedback.catalog(analysis, store, bundle)}
@@ -63,7 +68,7 @@ def run(store: Workspace, reference_key: str, analysis_path: str | None = None) 
         "analysisHash": analysis["analysisHash"], "analysisPath": analysis_path,
         "requested": types,
         "feedback": [{"type": kind, **BUILDERS[kind](analysis, context, store, bundle)} for kind in types],
-        "producer": {"service": SERVICE, "version": "4.9.2",
+        "producer": {"service": SERVICE, "version": "4.22.0",
                      "resourceHash": content_hash({name: path.read_text(encoding="utf-8") for name, path in resources.items()})},
     }
     report["feedbackHash"] = content_hash(report)

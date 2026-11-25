@@ -7,6 +7,7 @@ import sys
 
 from workflow_io import workspace, write_output
 from synonym_matching.provenance import SERVICE
+from synonym_matching.signals import run_signals, signal_request
 from synonym_matching.workflow import read_request, run
 
 
@@ -17,6 +18,10 @@ def main() -> int:
     args = cli.parse_args()
     try:
         store = workspace() if os.environ.get("WORKFLOW_EVALUATION_ID") else None
+        signal_key = signal_request() if store is not None else None
+        if signal_key is not None:
+            write_output(run_signals(store, signal_key), args.output)
+            return 0
         payload, bundle, reference_key = read_request(args.input, store)
         write_output(run(payload, bundle, reference_key), args.output)
         return 0

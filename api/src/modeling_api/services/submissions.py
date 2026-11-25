@@ -249,17 +249,16 @@ async def users(
         require(is_moderator(user))
     query = (
         {
-            "$or": [
-                {"name": {"$regex": escape(q), "$options": "i"}},
-                {"_id": {"$regex": escape(q), "$options": "i"}},
-            ]
+            "_id": {"$regex": escape(q), "$options": "i"}
         }
         if q
         else {}
     )
-    page = await list_page(
-        db.submission_users, query, 0, 100, sort_field="name", sort_desc=False
-    )
+    items = await db.submission_users.find(query, {"_id": 1}).sort("_id", 1).limit(100).to_list(None)
+    page = {
+        "items": [{"id": item["_id"]} for item in items],
+        "total": await db.submission_users.count_documents(query),
+    }
     names = await resolve_names(
         [item["id"] for item in page["items"]], user, bearer_token
     )
@@ -1073,12 +1072,6 @@ async def export_submissions_csv(
     )
     owner_ids = {row["ownerId"] for row in rows}
     names = await resolve_names(owner_ids, user, bearer_token)
-    contacts = {
-        item["_id"]: item.get("email") or ""
-        for item in await db.submission_users.find(
-            {"_id": {"$in": list(owner_ids)}}, {"email": 1}
-        ).to_list(None)
-    }
 
     reviews = await db.submission_reviews.find(
         {"runId": str(run_id), "kind": "staff"}
@@ -1110,7 +1103,7 @@ async def export_submissions_csv(
     output.write("\ufeff")
     writer = csv.writer(output, delimiter=";")
     writer.writerow(
-        ["ID", "Student name", "Email", "Overall score (%)", "Published score (%)"]
+        ["ID", "Student name", "Overall score (%)", "Published score (%)"]
     )
     for row in rows:
         owner_id = row["ownerId"]
@@ -1120,7 +1113,6 @@ async def export_submissions_csv(
                 for value in (
                     owner_id,
                     names.get(owner_id, owner_id),
-                    contacts.get(owner_id, ""),
                     str(scores[row["_id"]]) if scores.get(row["_id"]) is not None else "",
                     str(published_scores[row["_id"]])
                     if published_scores.get(row["_id"]) is not None
