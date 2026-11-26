@@ -274,7 +274,13 @@ export const joinShare = async (router: Router, roomId: string) => {
   // Set before the editor mounts, so the connection of the visitor finds the share.
   current.value = { roomId, workpieceId: joined.workpieceId, hostId: joined.hostId, privateModelId: null, linkedModelId: null }
   // The ID from openWorkpiece, not from the store: on switching to an existing model the store still holds the one before.
-  current.value = { ...current.value, linkedModelId: await openWorkpiece(router, room, workpiece) }
+  try {
+    current.value = { ...current.value, linkedModelId: await openWorkpiece(router, room, workpiece) }
+  } catch (error) {
+    // Without a room model the share would count for every model and stay in the browser.
+    current.value = null
+    throw error
+  }
 }
 
 /** Room and the visitors' group of the own share, as the rights and the settings need them. */

@@ -1,7 +1,8 @@
 <template>
   <v-tabs :model-value="modelValue" density="compact" height="34" color="primary" :show-arrows="!iconsOnly" :grow="iconsOnly" :class="['sidebar-tabs', { 'sidebar-tabs--icons': iconsOnly }]" :aria-label="ariaLabel" @update:model-value="updateValue">
-    <v-tab v-for="tab in tabs" :key="tab.value" :value="tab.value" :prepend-icon="iconsOnly ? undefined : tab.icon" :title="tab.label" :aria-label="tab.label">
-      <v-icon v-if="iconsOnly" :icon="tab.icon" />
+    <v-tab v-for="tab in tabs" :key="tab.value" :value="tab.value" :prepend-icon="iconsOnly ? undefined : tab.icon" :title="describe(tab)" :aria-label="describe(tab)">
+      <v-badge v-if="iconsOnly && tab.notice" content="!" color="warning"><v-icon :icon="tab.icon" /></v-badge>
+      <v-icon v-else-if="iconsOnly" :icon="tab.icon" />
       <template v-else>{{ tab.label }}</template>
     </v-tab>
   </v-tabs>
@@ -12,7 +13,11 @@ export interface SidebarTabItem {
   value: string
   icon: string
   label: string
+  /** Marks the tab as needing attention; shown as a badge in icon tabs and named in the tooltip. */
+  notice?: string
 }
+
+const describe = (tab: SidebarTabItem) => (tab.notice ? `${tab.label}: ${tab.notice}` : tab.label)
 
 withDefaults(
   defineProps<{
