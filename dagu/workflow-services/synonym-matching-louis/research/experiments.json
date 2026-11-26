@@ -292,5 +292,38 @@
         "output": "results/whole-components-boundaries-targeted-20261120.json.gz"
       }
     ]
+  },
+  "decision_tree": {
+    "lexicons": [
+      "wordnet",
+      "native",
+      "ili"
+    ],
+    "embedding_actions": [
+      "confirm",
+      "open"
+    ],
+    "thresholds": {
+      "spelling": 0.85,
+      "meaning": 0.85,
+      "meaning_floor": 0.7
+    },
+    "datasets": [
+      {
+        "name": "laboratory",
+        "source": "results/semantic-fusion-laboratory-final-20261119.json.gz",
+        "output": "results/decision-tree-laboratory-20261126.json.gz"
+      },
+      {
+        "name": "control",
+        "source": "results/semantic-fusion-control-20261119.json.gz",
+        "output": "results/decision-tree-control-20261126.json.gz"
+      },
+      {
+        "name": "targeted",
+        "source": "results/component-features-targeted-20261119.json.gz",
+        "output": "results/decision-tree-targeted-20261126.json.gz"
+      }
+    ]
   }
 }

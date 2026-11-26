@@ -26,6 +26,19 @@ def is_wordvec(method):
 def load_config(path=DEFAULT_CONFIG):
     """Lese und prüfe die Experimentkonfiguration."""
     config = json.loads(Path(path).read_text())
+    if 'decision_tree' in config:
+        tree = config['decision_tree']
+        for key, allowed in [('lexicons', {'wordnet', 'native', 'ili'}),
+                             ('embedding_actions', {'confirm', 'open'})]:
+            values = tree[key]
+            if not values or len(values) != len(set(values)) or set(values) - allowed:
+                raise ValueError(f'invalid decision_tree {key}')
+        thresholds = tree['thresholds']
+        if (set(thresholds) != {'spelling', 'meaning', 'meaning_floor'}
+                or any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1
+                       for v in thresholds.values())
+                or thresholds['meaning_floor'] > thresholds['meaning']):
+            raise ValueError('invalid decision tree thresholds')
     if 'whole_component_comparison' in config:
         weights = config['whole_component_comparison']['whole_weights']
         if (not isinstance(weights, list) or not weights

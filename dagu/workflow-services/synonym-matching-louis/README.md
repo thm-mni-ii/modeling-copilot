@@ -1629,3 +1629,74 @@ Neue Artefakte:
 `results/component-boundaries-{laboratory,control,targeted}-20261120.json.gz`,
 `results/whole-components-boundaries-{laboratory,control,targeted}-20261120.json.gz`
 und `results/component-boundaries-summary-20261120.json`.
+
+## Regelbaum auf Ganzlabels (Forschung)
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  .venv/bin/python -m research.decision_tree
+```
+
+`experiments.json → decision_tree` enthält Datenquellen, neue Ausgabenamen,
+Lexikonquellen und Schwellen. Bestehende Ausgaben werden nicht überschrieben.
+Dieser Lauf verändert weder Service noch dessen Schema oder vorhandene Baselines.
+
+Die produktive Methodenregistry, ihre Textformen, das gepinnte multilinguale
+Embedding und der Textstufenadapter des Graphmatchers werden direkt gelesen.
+Die Forschungsvariante importiert sie unter einem eigenen Paketnamen. Ein Modell
+und sein Cache werden über alle Datensätze/Varianten geteilt. Keine neuen Modelle.
+Die Baseline `text_tiers` reproduziert nur die produktive **Textentscheidung**:
+keine Glossareinträge, Vergleichsquellen, Notationssegmente oder Graphstruktur.
+Kanonische Gleichheit hat Vorrang vor Damerau ≥ 0,85 und Embedding ≥ 0,85;
+die produktiven Ziffern-/Wortanfangsschutzregeln bleiben aktiv.
+Die Grauzonengrenze 0,70 wird gespeichert, bestätigt aber allein kein Paar.
+
+Danach werden drei Lexikonquellen mit je zwei Embeddingregeln verglichen:
+`wordnet` nutzt vorhandene Ganzlabelmerkmale nach maschineller Übersetzung;
+`native` nutzt OdeNet direkt für Deutsch und WordNet für Englisch;
+`ili` bildet native deutsche Bedeutungen in englische Synsets/Senses ab.
+Direkte sprachübergreifende Lexikonpaare ohne ILI sind unbekannt, nicht widerlegt.
+Alle Varianten verwenden dieselben Labelpaare und Textscores. Keine Zerlegung.
+
+Entscheidungsreihenfolge:
+
+1. Leere/nicht auswertbare Paare: `not_evaluable`.
+2. Explizite Gegenrelation bei beidseits genau einem Synset: `rejected`.
+   Mehrdeutige oder zugleich synonyme und gegensätzliche Evidenz: `open`.
+3. Gemeinsames Synset bei beidseits genau einem Synset: `confirmed`.
+4. Sonst produktive Textstufen/Schutzregeln auswerten.
+5. `confirm` lässt die Embeddingstufe bestätigen; `open` lässt reine
+   Embeddingbestätigung offen. Sonstige unzureichende Evidenz bleibt `open`.
+
+Genau ein Synset ist nur eine konservative Näherung, keine kontextuelle
+Bedeutungsdisambiguierung. Ontologische Path-/Wu-Palmer-Werte werden als
+Diagnostik gespeichert, bestätigen aber keine Synonymie. Fehlende Einträge
+werden niemals allein als Gegenbeweis benutzt.
+
+Pro Variante enthält das Forschungsartefakt eine vollständige `synonymMatrix`
+mit Labels/IDs, numerischen `scores`, `verdict` und `reason`. **Kein Combined
+Score** und keine erfundene Wahrscheinlichkeit. `open` zählt nicht als Treffer;
+offene positive Paare zählen bei Recall/F1 entsprechend als übersehen. Gespeichert
+werden auch explizite Ablehnungen und Entscheidungsabdeckung. Die binäre Auswahl
+wird nur intern für Precision/Recall/F1 genutzt. Aus ihr werden weder Top-1 noch
+Hungarian-Zuordnungen konstruiert. Aussagen über die vollständige Graphzuordnung
+oder richtige studentische Lösungen sind mit diesem Labelversuch nicht möglich.
+
+Ergebnisse 26.11.2026, **TP / FP / F1**; Labor nur geänderte Schülerlabels gegen
+alle Referenzkandidaten, Kontrollen dieselben 33 auswertbaren Szenarien:
+
+| Variante | Laborlabels | Kontrollfälle |
+|---|---:|---:|
+| Produktive Textstufen ohne Lexikon | 158 / 60 / 0,7707 | 28 / 6 / 0,7273 |
+| WordNet + Embeddingbestätigung | 152 / 60 / 0,7525 | 28 / 3 / 0,7568 |
+| Native Lexika + Embeddingbestätigung | 160 / 60 / 0,7767 | 29 / 3 / 0,7733 |
+| ILI + Embeddingbestätigung | 148 / 60 / 0,7400 | 19 / 3 / 0,5846 |
+| Native Lexika, Embedding allein offen | 93 / 0 / 0,6526 | 19 / 1 / 0,6032 |
+
+Alle Varianten erreichen auf den 24 gezielten Paaren TP 5 / FP 0 / F1 1,0.
+Die kleine gezielte Menge ist kein allgemeiner Qualitätsbeleg. Historische
+vollständige Fusion auf Laborlabels: TP 155 / FP 7 / F1 0,8757, einschließlich
+alter Konfliktregel. Diese wird aufbewahrt und vom neuen Baum nicht übertroffen.
+Alle Daten sind bekannte Entwicklungsdaten, keine unabhängige Validierung.
+Artefakte: `results/decision-tree-{laboratory,control,targeted}-20261126.json.gz`
+und `results/decision-tree-summary-20261126.json`.

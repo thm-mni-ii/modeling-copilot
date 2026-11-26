@@ -1,0 +1,64 @@
+"""Eindeutige Lexikonevidenz, Enthaltung und wiederverwendete produktive Textstufen."""
+
+import pytest
+
+from research.decision_tree import decide, production_modules, _summary
+
+
+def features(**changes):
+    return {'pair_known': 1, 'reference_synset_count': 1, 'student_synset_count': 1,
+            'shared_synset': 0, 'antonym': 0, 'reference_hypernym': 0,
+            'reference_hyponym': 0, 'path_similarity': .99, **changes}
+
+
+def text(tier=None, veto=None):
+    return {'status': 'supported' if tier else 'below_threshold', 'tier': tier, 'veto': veto}
+
+
+@pytest.mark.parametrize('relation', ['antonym', 'reference_hypernym', 'reference_hyponym'])
+def test_explicit_single_sense_counterrelation_precedes_similarity(relation):
+    assert decide(features(**{relation: 1}), text('meaning')) == ('rejected', 'single_sense_counterrelation')
+    assert decide(features(**{relation: 1, 'reference_synset_count': 2}), text('canonical'))[0] == 'open'
+
+
+def test_missing_coverage_does_not_reject_and_ontology_never_confirms():
+    assert decide(features(pair_known=0, reference_synset_count=0), text('spelling'))[0] == 'confirmed'
+    assert decide(features(), text())[0] == 'open'
+    assert decide(features(shared_synset=1), text())[1] == 'single_sense_shared_synset'
+    assert decide(features(shared_synset=1, reference_synset_count=3), text())[0] == 'open'
+    assert decide(features(shared_synset=1, antonym=1), text())[0] == 'open'
+
+
+def test_embedding_policy_empty_labels_and_digit_guard():
+    assert decide(features(), text('meaning'), embedding_action='confirm')[0] == 'confirmed'
+    assert decide(features(), text('meaning'), embedding_action='open')[0] == 'open'
+    assert decide(features(), text('canonical'), valid=False)[0] == 'not_evaluable'
+    assert decide(features(), text(veto='digit_mismatch'))[0] == 'rejected'
+    with pytest.raises(ValueError):
+        decide(features(), text(), embedding_action='other')
+
+
+def test_production_preprocessing_and_guards_are_reused():
+    registry, adapter = production_modules()
+    texts = ['GebäudeNr.', 'Gebaeudenummer']
+    method = registry.resolve_methods(['damerau_canonical'])[0]
+    for step in method.preprocessing:
+        texts = [registry.PREPROCESSORS[step](t) for t in texts]
+    assert method.compute(None, texts[:1], texts[1:])[0,0] == 1
+    assert adapter.text_veto('Version 1', 'Version 2') == 'digit_mismatch'
+    assert adapter.text_veto('Nachname', 'Vorname') == 'start_mismatch'
+
+
+def test_open_is_not_confirmation_and_top1_is_not_invented():
+    case = {'id': 'c', 'reference': [{'id': 'r', 'label': 'Kunde'}],
+            'student': [{'id': 'a', 'label': 'Abnehmer'}, {'id': 'b', 'label': 'Lieferant'}],
+            'annotations': [['correct', 'incorrect']], 'changed_student_ids': ['a']}
+    record = {'variant': 'tree', 'case': 'c', 'eligible': [[True, True]],
+              'verdicts': [['open', 'rejected']]}
+    metrics = _summary([case], [record], ['tree'])['tree']
+    assert metrics['tp'] == metrics['fp'] == 0
+    assert metrics['fn'] == 1
+    assert metrics['automatic_decision_coverage'] == .5
+    assert 'top1' not in metrics
+    changed = _summary([case], [record], ['tree'], changed=True)['tree']
+    assert changed['verdict_counts'] == {'open': 1}
