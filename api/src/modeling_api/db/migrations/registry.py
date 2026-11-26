@@ -129,4 +129,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v22_help_choice_labels.migration",
         ("21_task_help_feedback",),
     ),
+    Migration(
+        "23_epk_language",
+        "modeling_api.db.migrations.versions.v23_epk_language.migration",
+        ("22_help_choice_labels",),
+    ),
 )
