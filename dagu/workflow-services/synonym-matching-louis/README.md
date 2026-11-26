@@ -2266,3 +2266,24 @@ als neue Standardausgabe `results/jina-routing-rule-ablations.json.gz`.
 
 Nach Entfernung der erfolglosen Verschärfungen verwendet der Befehl
 `results/jina-routing-retained-rules.json.gz` für die verbleibenden fünf Varianten.
+
+### Bevorzugter Forschungsstand (26.11.2026)
+
+Festgelegter Kandidat: Jina DE/EN (`jina_de`), OdeNet-zuerst mit WordNet-Fallback
+und sprachübergreifender Synsetverknüpfung (`odenet_linked`),
+Embeddingbestätigung ab 0,85. Der Stringthreshold bleibt ebenfalls bei 0,85.
+Path und Wu-Palmer bleiben diagnostische Merkmale, ohne aktiven Taxonomiefilter.
+Die exakte Gleichheitspriorität bleibt eine separate, nicht aktivierte Ablation.
+
+Die Wahl von 0,85 priorisiert Präzision: Labor 162 TP / 0 FP / 30 FN,
+Precision 1,0, Recall 0,8438, F1 0,9153. Bei 0,80 wären es 163 TP / 1 FP,
+F1 0,9157: 0,85 ist daher keine allgemeine Maximierung von F1 oder Recall.
+Kontrolle bei 0,85: 36 TP / 2 FP, F1 0,8889. Keine Garantie für fehlerfreie
+Bestätigungen auf anderen Aufgaben; die Wahl basiert auf bekannten Entwicklungsdaten.
+Vergleiche bei 0,80 / 0,85 / 0,90 bleiben für weitere Änderungen verpflichtend.
+
+Dies legt den bevorzugten Forschungskandidaten fest. Der Vergleich enthält
+weiterhin alle fünf Varianten; der ältere `research.decision_tree`-Lauf und
+der produktive Service werden dadurch nicht automatisch auf Jina/verknüpfte
+Lexika umgestellt. Für den Kandidaten sind die `odenet_linked`-Ergebnisse bei
+0,85 aus `research.compare_lingua` maßgeblich.
