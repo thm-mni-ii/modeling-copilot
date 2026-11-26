@@ -1,5 +1,7 @@
 """Gleichwertige Bestandteile ohne Objekt-/Attributrollen, dann Evidenzfusion."""
 
+import re
+
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
@@ -17,8 +19,14 @@ def general_components(text, language):
         raise ValueError('component evidence requires explicit de/en language')
     expanded = expand_abbreviations(text, language)
     identified = split_identifiers(expanded)
-    if identified != text:
-        return identified.split()
+    # Sichtbare Grenzen auf beiden Seiten gleich behandeln. Punkte sind keine
+    # pauschalen Trenner; Nr. wurde bereits aufgelöst. E-Mail bleibt ein Begriff.
+    parts = []
+    for token in identified.split():
+        parts.extend([token] if token.casefold() == 'e-mail' else
+                     re.split(r'(?<=[^\W\d_])[-‐‑–](?=[^\W\d_])', token))
+    if len(parts) > 1 or identified != text:
+        return parts
     if language == 'de' and text.isalpha() and text.lower() not in _compound_words():
         return split_label_parts(text, language).split()
     return [text]
@@ -45,12 +53,8 @@ class ComponentEvidence:
             [general_components(text, language) for text, language in zip(texts, languages, strict=True)]
             for texts, languages in [(left, left_languages), (right, right_languages)]
         ]
-        # Eine sonst atomare Phrase darf eine bereits erkannte Zerlegung exakt
-        # wiedergeben (Gebäude Nummer vs. GebäudeNr.), ohne allgemeine Worttrennung.
-        decomposed = {' '.join(parts).casefold() for side in parsed for parts in side if len(parts) > 1}
         for side, languages in zip(parsed, [left_languages, right_languages], strict=True):
-            parts = [group[0].split() if len(group) == 1 and group[0].casefold() in decomposed else group
-                     for group in side]
+            parts = side
             keys = list(dict.fromkeys((word, lang) for group, lang in zip(parts, languages, strict=True)
                                       for word in group))
             positions = {key: i for i, key in enumerate(keys)}

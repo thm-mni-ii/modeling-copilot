@@ -276,20 +276,20 @@
       {
         "name": "laboratory",
         "whole": "results/semantic-fusion-laboratory-final-20261119.json.gz",
-        "components": "results/component-evidence-laboratory-2575-20261120.json.gz",
-        "output": "results/whole-components-laboratory-20261120.json.gz"
+        "components": "results/component-boundaries-laboratory-20261120.json.gz",
+        "output": "results/whole-components-boundaries-laboratory-20261120.json.gz"
       },
       {
         "name": "control",
         "whole": "results/semantic-fusion-control-20261119.json.gz",
-        "components": "results/component-evidence-control-2575-20261120.json.gz",
-        "output": "results/whole-components-control-20261120.json.gz"
+        "components": "results/component-boundaries-control-20261120.json.gz",
+        "output": "results/whole-components-boundaries-control-20261120.json.gz"
       },
       {
         "name": "targeted",
         "whole": "results/component-features-targeted-20261119.json.gz",
-        "components": "results/component-evidence-targeted-2575-20261120.json.gz",
-        "output": "results/whole-components-targeted-20261120.json.gz"
+        "components": "results/component-boundaries-targeted-20261120.json.gz",
+        "output": "results/whole-components-boundaries-targeted-20261120.json.gz"
       }
     ]
   }

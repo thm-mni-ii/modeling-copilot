@@ -1584,3 +1584,48 @@ Keine Fälle wurden in diesen drei Läufen ausgeschlossen. Die Ergebnisse stamme
 von bekannten Entwicklungsdaten, nicht von einem unabhängigen Testdatensatz.
 Keine automatische Auswahl oder Änderung der Servicepipeline.
 Artefakte: `results/whole-components-{laboratory,control,targeted}-20261120.json.gz`.
+
+### Nachvergleich mit sichtbaren Trenngrenzen
+
+Das optionale Verfahren `component_evidence` behandelt jetzt Leerzeichen,
+Unterstriche, CamelCase und Bindestriche zwischen Buchstaben konsistent als
+Trenngrenzen. Die bestehende Auflösung von `Nr.` bleibt vorgeschaltet.
+`Room number` und `Etagen-Nummer` werden damit zweiteilig. `E-Mail` bleibt
+zusammen; Punkte, Dezimalzahlen, Versionsnummern und numerische Bindestriche
+werden nicht pauschal getrennt. Die bestehende Kompositazerlegung für einzelne
+unbekannte deutsche Wörter bleibt unverändert. Allgemeine Phrasen mit sichtbaren
+Grenzen werden jetzt ebenfalls zerlegt, einschließlich möglicher Funktionswörter;
+dies ist keine linguistische Bedeutungsanalyse oder neue Stopwortregel.
+
+Keine Änderungen an Teilzuordnung, Mittelung, Fusion, Gewichten oder Threshold.
+Die neuen Komponentenmerkmale wurden mit denselben lokalen Modellen neu
+berechnet. Der Ganzlabelzweig wurde unverändert wiederverwendet.
+`whole_component_comparison` verweist jetzt auf diese neuen Komponentenartefakte.
+
+Geänderte Laborlabels, Threshold 0,5, beide Zweige ohne Lexikon-/Konfliktregeln:
+
+| Ganzlabel / Komponenten | TP | FP | F1 |
+|---|---:|---:|---:|
+| 100 / 0 | 155 | 56 | 0,7692 |
+| 75 / 25 | 155 | 48 | 0,7848 |
+| 50 / 50 | 158 | 141 | 0,6436 |
+| 25 / 75 | 162 | 532 | 0,3657 |
+| 0 / 100 | 160 | 785 | 0,2814 |
+
+Bei 75/25 werden gegenüber dem Ganzlabelzweig acht falsche Treffer entfernt,
+ohne neue falsche Treffer und ohne Verlust oder Zugewinn richtiger Treffer.
+Gegenüber derselben Mischung mit alter Zerlegung werden 34 richtige Treffer
+zurückgewonnen; zugleich entstehen vier zusätzliche falsche Treffer.
+Beispiel `RaumNr. ↔ Room number`: Mischscore vorher 0,4629, jetzt 0,5757.
+Auf den Kontrollfällen bleibt die 75/25-Mischung bei F1 0,7174 / 16 FP;
+auf den gezielten Fällen bleibt sie bei F1 0,5333 / 6 FP.
+
+Die reine Komponentenbewertung bleibt problematisch: mehr Recall geht hier
+mit erheblich mehr falschen Treffern einher. Die historische vollständige Fusion
+mit alter Konfliktregel (F1 0,8757 / 7 FP) wird nicht übertroffen. Es sind weiterhin
+bekannte Entwicklungsdaten; keine unabhängige Validierung und keine Serviceumstellung.
+
+Neue Artefakte:
+`results/component-boundaries-{laboratory,control,targeted}-20261120.json.gz`,
+`results/whole-components-boundaries-{laboratory,control,targeted}-20261120.json.gz`
+und `results/component-boundaries-summary-20261120.json`.

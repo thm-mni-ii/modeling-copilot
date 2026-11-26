@@ -100,7 +100,25 @@ def test_general_splitting_does_not_use_roles_or_number_room_only_rules(monkeypa
     assert general_components('GebäudeNr.', 'de') == ['Gebäude', 'Nummer']
     assert general_components('customerName', 'en') == ['customer', 'Name']
     assert general_components('Vorname', 'de') == ['Vorname']
-    assert general_components('Kunde registrieren', 'de') == ['Kunde registrieren']
+    assert general_components('Kunde registrieren', 'de') == ['Kunde', 'registrieren']
+
+
+@pytest.mark.parametrize('text,language,expected', [
+    ('Room number', 'en', ['Room', 'number']),
+    ('Etagen-Nummer', 'de', ['Etagen', 'Nummer']),
+    ('room_number', 'en', ['room', 'number']),
+    ('roomNumber', 'en', ['room', 'Number']),
+    ('RaumNr.', 'de', ['Raum', 'Nummer']),
+    ('Room\nnumber', 'en', ['Room', 'number']),
+    ('E-Mail', 'de', ['E-Mail']),
+    ('E-Mail Adresse', 'de', ['E-Mail', 'Adresse']),
+    ('3.14', 'en', ['3.14']),
+    ('42-7', 'en', ['42-7']),
+    ('v1.2', 'en', ['v1.2']),
+    ('', 'de', []),
+])
+def test_visible_boundaries_preserve_fixed_terms_and_numbers(text, language, expected):
+    assert general_components(text, language) == expected
 
 
 def test_partial_synsets_remain_separate_from_whole_synonymy(monkeypatch):
