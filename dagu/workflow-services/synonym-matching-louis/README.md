@@ -1661,10 +1661,11 @@ Alle Varianten verwenden dieselben Labelpaare und Textscores. Keine Zerlegung.
 Entscheidungsreihenfolge:
 
 1. Leere/nicht auswertbare Paare: `not_evaluable`.
-2. Explizite Gegenrelation bei beidseits genau einem Synset: `rejected`.
-   Mehrdeutige oder zugleich synonyme und gegensätzliche Evidenz: `open`.
-3. Gemeinsames Synset: `confirmed`, sofern keine vorherige Konfliktregel greift.
-   Die frühere Bedingung beidseits genau eines Synsets bleibt als Vergleichsvariante.
+2. Gemeinsames Synset: standardmäßig `confirmed`, auch wenn zusätzlich eine
+   Gegenrelation anderer möglicher Lesarten gefunden wird. Alte Reihenfolge als Ablation.
+3. Ohne gemeinsame Bedeutung: explizite Gegenrelation bei beidseits genau einem
+   Synset → `rejected`, bei Mehrdeutigkeit → `open`. Die frühere Ein-Synset-Bedingung
+   für Synonymbestätigung bleibt ebenfalls als Vergleichsvariante.
 4. Sonst produktive Textstufen/Schutzregeln auswerten.
 5. `confirm` lässt die Embeddingstufe bestätigen; `open` lässt reine
    Embeddingbestätigung offen. Sonstige unzureichende Evidenz bleibt `open`.
@@ -1948,3 +1949,37 @@ unverändert. Neue Ausgaben:
 `results/decision-tree-exact-odenet-{laboratory,control,targeted}-20261126.json.gz`,
 `results/language-path-exact-odenet-20261126.json.gz` und
 `results/exact-odenet-comparison-20261126.json`.
+
+### Ablation: gemeinsame Bedeutung vor lesartenübergreifender Gegenrelation
+
+`decision_tree.shared_synset_first: true` lässt die gemeinsame Bedeutung zuerst
+bestätigen. Die vorherige Regel blockierte auch dann, wenn eine Ober-/Unterbegriffs-
+oder Antonymrelation lediglich bei anderen möglichen Lesarten gefunden wurde.
+Mit `false` bleibt diese bisherige Reihenfolge aktiv. Varianten mit Suffix
+`_counter_veto` reproduzieren den Stand vor der Prioritätsänderung;
+`_single_synset` behält zusätzlich die historische Ein-Synset-Bedingung bei.
+Alle Einzelmerkmale bleiben erhalten. Die neue Entscheidung wird mit
+`shared_synset_over_counterrelation` begründet. Dies ist eine Vorranghypothese,
+keine kontextuelle Bedeutungsdisambiguierung. Ohne gemeinsames Synset bleibt
+die gesamte Gegenrelationsprüfung unverändert. Keine neuen Schwellen/Gewichte.
+
+Ergebnisse (Baum mit Embeddingbestätigung):
+
+| Daten / Quelle | Bisher TP / FP / F1 | Gemeinsames Synset zuerst TP / FP / F1 |
+|---|---:|---:|
+| Geänderte Laborlabels / übersetztes WordNet | 169 / 68 / 0,7879 | 175 / 68 / 0,8046 |
+| Geänderte Laborlabels / direkte Lexika | 177 / 68 / 0,8101 | 177 / 68 / 0,8101 |
+| EN-Parallelkorpus / WordNet | 10 / 0 / 0,6250 | 12 / 0 / 0,7059 |
+| DE-Parallelkorpus / MT → WordNet | 16 / 2 / 0,8000 | 17 / 2 / 0,8293 |
+
+Sechs zusätzliche richtige Laborpaarvorkommen betreffen `Beginn ↔ Start` und
+`Ende ↔ Schluss`. Englisch gewinnt `Begin ↔ Start` und `Invoice ↔ Bill` zurück.
+Kontrollfälle, gezielte Fälle und direkter OdeNet-Parallelpfad bleiben unverändert.
+Keine neuen falschen Bestätigungen oder verlorenen richtigen Treffer auf diesen
+Datensätzen. 168 Gegen-Vorrang-Vergleichsdatensätze reproduzieren die vorherigen
+Urteile exakt. Die historische vollständige Fusion bleibt auf Laborlabels mit
+F1 0,8757 / 7 FP besser. Bekannte Entwicklungsdaten, keine allgemeine Garantie.
+
+Artefakte: `results/decision-tree-shared-first-{laboratory,control,targeted}-20261126.json.gz`,
+`results/language-path-shared-first-20261126.json.gz` und
+`results/shared-first-ablation-summary-20261126.json` mit konkreten Paaränderungen.

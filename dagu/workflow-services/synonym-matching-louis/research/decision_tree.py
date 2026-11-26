@@ -51,24 +51,28 @@ def production_modules():
 
 
 def decide(features, text, *, embedding_action='confirm', valid=True, taxonomy_policy=None,
-           require_single_synset=False):
-    """Erst eindeutige Relationen, dann kanonische/lexikalische/semantische Evidenz.
+           require_single_synset=False, shared_synset_first=True):
+    """Gemeinsame Bedeutung, dann Gegenrelationen und sonstige Textevidenz.
 
     Synonymie benötigt standardmäßig nur eine gemeinsame Bedeutung. Die alte
-    Ein-Synset-Bedingung bleibt als Ablation. Gegenrelationen und Taxonomieregeln
-    behalten ihre bisherigen konservativen Bedingungen, um den Effekt zu isolieren.
+    Ein-Synset-Bedingung und früher Counter-Vorrang bleiben als Ablationen.
+    Ohne gemeinsame Bedeutung bleiben Gegenrelations-/Taxonomiebedingungen gleich.
     Fehlende Gegenrelation ist kein Beweis für Gleichwertigkeit.
     """
     if embedding_action not in {'confirm', 'open'}:
         raise ValueError('embedding_action must be confirm or open')
     if type(require_single_synset) is not bool:
         raise ValueError('require_single_synset must be boolean')
+    if type(shared_synset_first) is not bool:
+        raise ValueError('shared_synset_first must be boolean')
     if not valid:
         return 'not_evaluable', 'empty_or_ineligible'
     known = features['pair_known'] == 1
     single = known and features['reference_synset_count'] == features['student_synset_count'] == 1
     shared = features['shared_synset'] == 1
     counter = any(features[name] == 1 for name in ('antonym', 'reference_hypernym', 'reference_hyponym'))
+    if shared_synset_first and known and shared and (single or not require_single_synset):
+        return 'confirmed', 'shared_synset_over_counterrelation' if counter else 'shared_synset'
     if known and counter:
         if not single or shared:
             return 'open', 'ambiguous_or_conflicting_relation'
@@ -151,8 +155,10 @@ def run(config):
     variants = {'text_tiers':None}
     for source in settings['lexicons']:
         for action in settings['embedding_actions']:
-            variants[f'{source}_{action}'] = (source,action,settings.get('require_single_synset',False))
-            variants[f'{source}_{action}_single_synset'] = (source,action,True)
+            variants[f'{source}_{action}'] = (source,action,settings.get('require_single_synset',False),
+                                             settings.get('shared_synset_first',True))
+            variants[f'{source}_{action}_counter_veto'] = (source,action,False,False)
+            variants[f'{source}_{action}_single_synset'] = (source,action,True,False)
     names = list(variants)
     paths = [ROOT / d['output'] for d in settings['datasets']]
     if len(set(paths)) != len(paths) or any(p.exists() for p in paths):
@@ -223,10 +229,11 @@ def run(config):
                             verdicts[i,j] = 'not_evaluable' if not valid[i,j] else 'confirmed' if evidence['status'] == 'supported' else 'open'
                             reasons[i,j] = evidence['tier'] or evidence['veto'] or 'insufficient_evidence'
                         else:
-                            source, action, single_rule = variants[name]
+                            source, action, single_rule, shared_first = variants[name]
                             values = {k:float(v[i,j]) for k,v in sources[source].items()}
                             verdicts[i,j], reasons[i,j] = decide(values, evidence, valid=bool(valid[i,j]),
-                                embedding_action=action,require_single_synset=single_rule)
+                                embedding_action=action,require_single_synset=single_rule,
+                                shared_synset_first=shared_first)
                 matrix = []
                 for i,a in enumerate(left):
                     matches = []
@@ -256,7 +263,8 @@ def run(config):
                   'policy': 'Label-only benchmark; productive text adapter, no glossary, segment sources or graph context. '
                             'Open/not-evaluable are not confirmed. Binary predictions used only for P/R/F1, not as similarity scores. '
                             'No Top-1 from binary verdicts or global assignment; optional single-sense synonym guard is not WSD. '
-                            'Counterrelation and taxonomy guards unchanged. Known development data.'}
+                            'Shared-synset priority is configurable, previous counter-veto ablation retained. '
+                            'Counterrelations without shared synset and taxonomy guards unchanged. Known development data.'}
         output.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(output, 'wt', encoding='utf-8') as stream:
             json.dump(result, stream, ensure_ascii=False, allow_nan=False)

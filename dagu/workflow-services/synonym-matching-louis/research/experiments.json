@@ -294,6 +294,7 @@
   },
   "decision_tree": {
     "require_single_synset": false,
+    "shared_synset_first": true,
     "modeling_abbreviations": {"Anz.": "Anzahl", "Bez.": "Bezeichnung", "Beschr.": "Beschreibung", "PLZ": "Postleitzahl"},
     "candidate_abbreviations": {"Str.": "Straße"},
     "lexicons": [
@@ -313,23 +314,23 @@
       {
         "name": "laboratory",
         "source": "results/semantic-fusion-laboratory-final-20261119.json.gz",
-        "output": "results/decision-tree-exact-odenet-laboratory-20261126.json.gz"
+        "output": "results/decision-tree-shared-first-laboratory-20261126.json.gz"
       },
       {
         "name": "control",
         "source": "results/semantic-fusion-control-20261119.json.gz",
-        "output": "results/decision-tree-exact-odenet-control-20261126.json.gz"
+        "output": "results/decision-tree-shared-first-control-20261126.json.gz"
       },
       {
         "name": "targeted",
         "source": "results/component-features-targeted-20261119.json.gz",
-        "output": "results/decision-tree-exact-odenet-targeted-20261126.json.gz"
+        "output": "results/decision-tree-shared-first-targeted-20261126.json.gz"
       }
     ]
   },
   "language_path_comparison": {
     "taxonomy_guard": {"path_similarity": 0.25, "wup_similarity": 0.8},
     "data": "research/language-path-cases.json",
-    "output": "results/language-path-exact-odenet-20261126.json.gz"
+    "output": "results/language-path-shared-first-20261126.json.gz"
   }
 }

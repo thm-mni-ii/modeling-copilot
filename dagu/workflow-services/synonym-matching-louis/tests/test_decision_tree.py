@@ -26,7 +26,8 @@ def test_missing_coverage_does_not_reject_and_ontology_never_confirms():
     assert decide(features(), text())[0] == 'open'
     assert decide(features(shared_synset=1), text())[1] == 'shared_synset'
     assert decide(features(shared_synset=1, reference_synset_count=3), text())[0] == 'confirmed'
-    assert decide(features(shared_synset=1, antonym=1), text())[0] == 'open'
+    assert decide(features(shared_synset=1, antonym=1), text())[0] == 'confirmed'
+    assert decide(features(shared_synset=1, antonym=1), text(),shared_synset_first=False)[0] == 'open'
 
 
 def test_multiple_senses_can_share_a_synset_and_strict_ablation_is_retained():
@@ -36,6 +37,17 @@ def test_multiple_senses_can_share_a_synset_and_strict_ablation_is_retained():
     assert decide(features(shared_synset=0),text())[0] == 'open'
     with pytest.raises(ValueError):
         decide(f,text(),require_single_synset=1)
+
+
+def test_shared_synset_priority_does_not_disable_counters_without_synonymy():
+    f=features(shared_synset=1,reference_synset_count=10,student_synset_count=22,
+               reference_hypernym=1)
+    assert decide(f,text()) == ('confirmed','shared_synset_over_counterrelation')
+    assert decide(f,text(),shared_synset_first=False)[0] == 'open'
+    assert decide(features(antonym=1),text('meaning'))[0] == 'rejected'
+    assert decide(features(antonym=1,reference_synset_count=2),text('meaning'))[0] == 'open'
+    with pytest.raises(ValueError):
+        decide(f,text(),shared_synset_first=1)
 
 
 def test_embedding_policy_empty_labels_and_digit_guard():

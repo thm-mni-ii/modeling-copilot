@@ -73,6 +73,7 @@ def run(config):
              ('de_translated_wordnet','de',english)]
     taxonomy = settings['taxonomy_guard']
     modes = {'text_only':None, 'lexicon_only':None, 'tree':None,
+             'lexicon_only_counter_veto':None, 'tree_counter_veto':None,
              'lexicon_only_single_synset':None, 'tree_single_synset':None,
              'tree_path':{'path_similarity':taxonomy['path_similarity']},
              'tree_wup':{'wup_similarity':taxonomy['wup_similarity']},
@@ -128,7 +129,9 @@ def run(config):
                             verdicts[i,j],reasons[i,j] = decide({k:float(v[i,j]) for k,v in lexical.items()},
                                 text,taxonomy_policy=policy,require_single_synset=(
                                     True if mode.endswith('_single_synset') else
-                                    config['decision_tree'].get('require_single_synset',False)))
+                                    config['decision_tree'].get('require_single_synset',False)),
+                                shared_synset_first=(False if mode.endswith(('_single_synset','_counter_veto')) else
+                                    config['decision_tree'].get('shared_synset_first',True)))
                 records.append({'variant':path+'_'+mode,'case':case['id'],'eligible':np.ones(shape,dtype=bool).tolist(),
                                 'verdicts':verdicts.tolist(),'reasons':reasons.tolist()})
         names = [path+'_'+mode for mode in modes]
@@ -162,7 +165,8 @@ def run(config):
                  'Taxonomy guards only constrain embedding confirmation with single-sense connected pairs; '
                  'high taxonomy alone never confirms; missing taxonomy abstains. Provisional thresholds, no tuning. '
                  'Single-synset synonym requirement disabled by default, strict ablation retained; '
-                 'counterrelation and taxonomy conditions unchanged. '
+                 'Shared-synset priority enabled by default, old counter-veto ablation retained. '
+                 'Counterrelations without shared synset and taxonomy conditions unchanged. '
                  'B uses authored English variants. Open is not confirmation. '
                  'Single-synset guard is not WSD. No graph matching or Top-1 from binary verdicts. '
                  'First-pass times share caches and are not isolated cold benchmarks; model initialization separated.'}

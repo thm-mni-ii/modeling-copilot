@@ -36,6 +36,8 @@ def load_config(path=DEFAULT_CONFIG):
         tree = config['decision_tree']
         if type(tree.get('require_single_synset',False)) is not bool:
             raise ValueError('require_single_synset must be boolean')
+        if type(tree.get('shared_synset_first',True)) is not bool:
+            raise ValueError('shared_synset_first must be boolean')
         for key in ('modeling_abbreviations', 'candidate_abbreviations'):
             mapping = tree.get(key, {})
             if (not isinstance(mapping, dict) or any(not isinstance(k, str) or not k.strip()
