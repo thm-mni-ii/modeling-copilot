@@ -26,6 +26,12 @@ def is_wordvec(method):
 def load_config(path=DEFAULT_CONFIG):
     """Lese und prüfe die Experimentkonfiguration."""
     config = json.loads(Path(path).read_text())
+    if 'taxonomy_comparison' in config:
+        settings = config['taxonomy_comparison']
+        values = settings['thresholds'] + [settings['path_minimum'], settings['wup_minimum']]
+        if (not settings['thresholds'] or len(settings['thresholds']) != len(set(settings['thresholds']))
+                or any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1 for v in values)):
+            raise ValueError('invalid taxonomy comparison thresholds')
     if 'embedding_comparison' in config:
         from synonym_matching.methods import EMBEDDING_MODELS
         settings = config['embedding_comparison']
@@ -52,7 +58,7 @@ def load_config(path=DEFAULT_CONFIG):
             if (not isinstance(mapping, dict) or any(not isinstance(k, str) or not k.strip()
                     or not isinstance(v, str) or not v.strip() for k,v in mapping.items())):
                 raise ValueError(f'invalid decision_tree {key}')
-        for key, allowed in [('lexicons', {'wordnet', 'native', 'ili'}),
+        for key, allowed in [('lexicons', {'wordnet', 'native', 'ili', 'odenet'}),
                              ('embedding_actions', {'confirm', 'open'})]:
             values = tree[key]
             if not values or len(values) != len(set(values)) or set(values) - allowed:

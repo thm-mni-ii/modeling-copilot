@@ -9,6 +9,18 @@ import pytest
 from research.compare_component_lexicons import LexiconSources, combine_sources
 
 
+def test_odenet_only_does_not_require_or_trust_language_metadata(monkeypatch):
+    sources = LexiconSources()
+    reference = [{'id': 'r', 'label': 'Raum'}]
+    student = [{'id': 's', 'label': 'Room', 'language': 'en'}]
+    calls = []
+    monkeypatch.setattr(sources, 'matrices', lambda a, b: calls.append((a, b)) or 'result')
+    assert sources.odenet_matrices(reference, student) == 'result'
+    assert all(e['language'] == 'de' for side in calls[0] for e in side)
+    assert 'language' not in reference[0]
+    assert student[0]['language'] == 'en'
+
+
 def profile(identifier):
     return {'synsets': {identifier} if identifier else set(), 'nodes': [],
             'ancestors': set(), 'antonym_synsets': set(),

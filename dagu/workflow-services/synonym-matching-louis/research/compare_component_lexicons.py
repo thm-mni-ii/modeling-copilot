@@ -89,6 +89,16 @@ class LexiconSources:
             # Bekannt, aber ohne ILI-Verbindung bleibt pair_known=0, keine negative Evidenz.
         return shared, values, comparable
 
+    def odenet_matrices(self, reference, student):
+        """Alle Texte in OdeNet nachschlagen, ohne Sprachangaben vorauszusetzen.
+
+        Die interne Quellenwahl de bezeichnet nur das Lexikon, keine erkannte
+        Sprache. Originalelemente und ihre Metadaten werden nicht verändert.
+        """
+        left = [{**e, 'language': 'de'} for e in reference]
+        right = [{**e, 'language': 'de'} for e in student]
+        return self.matrices(left, right)
+
 
 def combine_sources(first, second):
     """Nutze verfügbare Evidenz; bei Synonym-/Gegenrelation-Konflikt enthalte dich."""

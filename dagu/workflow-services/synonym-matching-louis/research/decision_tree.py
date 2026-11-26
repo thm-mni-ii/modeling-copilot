@@ -51,7 +51,7 @@ def production_modules():
 
 
 def decide(features, text, *, embedding_action='confirm', valid=True, taxonomy_policy=None,
-           require_single_synset=False, shared_synset_first=True):
+           require_single_synset=False, shared_synset_first=True, taxonomy_single_sense=True):
     """Gemeinsame Bedeutung, dann Gegenrelationen und sonstige Textevidenz.
 
     Synonymie benötigt standardmäßig nur eine gemeinsame Bedeutung. Die alte
@@ -87,8 +87,10 @@ def decide(features, text, *, embedding_action='confirm', valid=True, taxonomy_p
             return 'open', 'semantic_similarity_only'
         # Taxonomische Nähe ist keine eigenständige Synonymbestätigung. Nur bei
         # eindeutig erfassten, verbundenen Bedeutungen zusätzliche Embedding-
-        # Bestätigung prüfen. Unbekannt/unverbunden ist keine negative Evidenz.
-        if (tier == 'meaning' and taxonomy_policy and single
+        # Bestätigung prüfen. Die covered-Ablation lässt mehrere Lesarten zu;
+        # sie ist keine WSD. Unbekannt/unverbunden ist keine negative Evidenz.
+        if (tier == 'meaning' and taxonomy_policy and known
+                and (single or not taxonomy_single_sense)
                 and features.get('taxonomy_available') == 1):
             if any(features[metric] < minimum for metric,minimum in taxonomy_policy.items()):
                 return 'open', 'taxonomy_disagrees_with_embedding'
@@ -151,7 +153,7 @@ def run(config):
     from synonym_matching import MatchingEngine
     from synonym_matching.combinations import SEMANTIC_FEATURES
     wordnet_engine = MatchingEngine({'methods': ['wordnet'],
-        'preprocessing': ['normalize'], 'semantic_features': {'wordnet': list(SEMANTIC_FEATURES)}})
+        'preprocessing': ['normalize'], 'semantic_features': {'wordnet': list(SEMANTIC_FEATURES)}}) if 'wordnet' in settings['lexicons'] else None
     variants = {'text_tiers':None}
     for source in settings['lexicons']:
         for action in settings['embedding_actions']:
@@ -211,6 +213,9 @@ def run(config):
                         raise ValueError('missing successful whole-label WordNet features')
                     sources[source] = {'shared_synset': np.asarray(part['scores']).reshape(shape),
                         **{k: np.asarray(v).reshape(shape) for k,v in part['relation_features'].items()}}
+                elif source == 'odenet':
+                    shared, values, _ = lexicons.odenet_matrices(left, right)
+                    sources[source] = {**values, 'shared_synset': shared}
                 else:
                     shared, values, _ = lexicons.matrices(left, right, linked=source == 'ili')
                     sources[source] = {**values, 'shared_synset': shared}

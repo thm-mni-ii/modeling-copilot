@@ -39,7 +39,8 @@ def evaluate(cases, records, threshold, *, changed=False):
     return result
 
 
-def tree_scores(case, feature, scores, threshold, settings, adapter):
+def tree_scores(case, feature, scores, threshold, settings, adapter, *,
+                taxonomy_policy=None, taxonomy_single_sense=True):
     """Ersetze ausschließlich die Embedding-Matrix; behalte den Textadapter bei."""
     raw = {'damerau_canonical': np.asarray(feature['scores']['damerau_canonical']),
            'multilingual_expanded': scores}
@@ -67,7 +68,8 @@ def tree_scores(case, feature, scores, threshold, settings, adapter):
                 verdict, reasons[i, j] = decide({key: float(v[i, j]) for key, v in values.items()},
                     evidence[a['id'], b['id']], valid=bool(a['label'].strip() and b['label'].strip()),
                     require_single_synset=settings.get('require_single_synset', False),
-                    shared_synset_first=settings.get('shared_synset_first', True))
+                    shared_synset_first=settings.get('shared_synset_first', True),
+                    taxonomy_policy=taxonomy_policy, taxonomy_single_sense=taxonomy_single_sense)
                 predictions[i, j] = verdict == 'confirmed'
         output[source] = {'scores': predictions.tolist(), 'reasons': reasons.tolist()}
     return output

@@ -301,10 +301,7 @@
     "shared_synset_first": true,
     "modeling_abbreviations": {"Anz.": "Anzahl", "Bez.": "Bezeichnung", "Beschr.": "Beschreibung", "PLZ": "Postleitzahl"},
     "candidate_abbreviations": {"Str.": "Straße"},
-    "lexicons": [
-      "wordnet",
-      "native"
-    ],
+    "lexicons": ["odenet"],
     "embedding_actions": [
       "confirm",
       "open"
@@ -318,24 +315,32 @@
       {
         "name": "laboratory",
         "source": "results/semantic-fusion-laboratory-final-20261119.json.gz",
-        "output": "results/decision-tree-shared-first-laboratory-20261126.json.gz"
+        "output": "results/decision-tree-odenet-only-laboratory-20261126.json.gz"
       },
       {
         "name": "control",
         "source": "results/semantic-fusion-control-20261119.json.gz",
-        "output": "results/decision-tree-shared-first-control-20261126.json.gz"
+        "output": "results/decision-tree-odenet-only-control-20261126.json.gz"
       },
       {
         "name": "targeted",
         "source": "results/component-features-targeted-20261119.json.gz",
-        "output": "results/decision-tree-shared-first-targeted-20261126.json.gz"
+        "output": "results/decision-tree-odenet-only-targeted-20261126.json.gz"
       }
     ]
+  },
+  "taxonomy_comparison": {
+    "source": "results/embedding-model-comparison-verified.json.gz",
+    "model": "jina_de",
+    "thresholds": [0.8, 0.85, 0.9],
+    "path_minimum": 0.25,
+    "wup_minimum": 0.8,
+    "output": "results/jina-taxonomy-comparison.json.gz"
   },
   "embedding_comparison": {
     "models": ["multilingual", "jina_de", "e5_base"],
     "thresholds": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
-    "output": "results/embedding-model-comparison.json.gz"
+    "output": "results/embedding-model-comparison-odenet.json.gz"
   },
   "language_path_comparison": {
     "taxonomy_guard": {"path_similarity": 0.25, "wup_similarity": 0.8},

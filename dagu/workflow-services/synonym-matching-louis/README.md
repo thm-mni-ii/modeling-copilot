@@ -2051,3 +2051,90 @@ Das bestehende Outputschema und die Standardmethode bleiben erhalten.
 Modellkonventionen und Lizenzen:
 [Jina DE/EN (Apache-2.0)](https://huggingface.co/jinaai/jina-embeddings-v2-base-de),
 [E5 Base (MIT; query-Präfix, hoher Cosinusbereich)](https://huggingface.co/intfloat/multilingual-e5-base).
+
+### Gezielte Path-/Wu-Palmer-Ablation mit Jina
+
+```sh
+PYTHONPATH=src .venv/bin/python -m research.compare_taxonomy
+```
+
+`taxonomy_comparison` in `research/experiments.json` legt Quelle, Modell,
+Embeddingthresholds 0,80/0,85/0,90 und Taxonomiegrenzen Path 0,25 / Wu-Palmer
+0,80 fest. Der Lauf verwendet gespeicherte Jina-Scores und Lexikonmerkmale,
+lädt keine Modelle und prüft alle Baselineentscheidungen inklusive Gründen exakt.
+Vorhandene Dateien bleiben erhalten; `--output` wählt einen neuen Dateinamen.
+
+Varianten: unveränderter Baum, nur Path, nur Wu-Palmer, beide. Jeder Filter wird
+einmal mit der bisherigen Ein-Synset-Beschränkung (`single`) und einmal für alle
+bekannten, verbundenen Paare (`covered`) geprüft. Nur Embeddingbestätigungen
+können bei unterschrittener Grenze auf offen wechseln. Fehlende Abdeckung oder
+Verbindung bleibt neutral. Gemeinsames Synset, Gegenrelationen und Stringstufen
+bleiben unverändert. Mehrdeutige Maximalwerte sind keine Disambiguierung;
+Path und Wu-Palmer können von unterschiedlichen Synsetpaaren stammen.
+
+Ergebnis vom 26.11.2026: In allen 126 Kombinationen aus Datensatz, Lexikonquelle,
+Embeddingthreshold und Variante bleiben TP/FP/FN identisch. Auch ohne
+Ein-Synset-Beschränkung keine Verbesserung bei den getesteten Taxonomiegrenzen.
+Labor mit direkten Lexika, alle Varianten:
+
+| Threshold | TP | FP | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|---:|
+| 0,80 | 160 | 1 | 0,9938 | 0,8333 | 0,9065 |
+| 0,85 | 159 | 0 | 1,0000 | 0,8281 | 0,9060 |
+| 0,90 | 146 | 0 | 1,0000 | 0,7604 | 0,8639 |
+
+Direkte Lexika haben für 23/192 richtige und 11/3264 falsche Laborpaarvorkommen
+verfügbare Taxonomie. Bei 0,80 haben jedoch 0/48 richtige und 0/1 falsche
+Embeddingbestätigungen verfügbare Taxonomie. Andere Regeln entscheiden die
+abgedeckten Paare bereits vorher. Übersetztes WordNet deckt mehr Paare ab
+(41/192 richtige, 499/3264 falsche), aber ebenfalls 0/40 richtige
+Embeddingbestätigungen. Die eine falsche Embeddingbestätigung
+`Vorname ↔ Familienname` hat Path 0,3333 und Wu-Palmer 0,8571 und passiert beide
+Grenzen. Direkter OdeNet-Pfad: beide Begriffe bekannt, keine Taxonomieverbindung.
+
+Über alle abgedeckten Laborpaare unterscheidet sich die Verteilung: WordNet-Median
+Path richtig/falsch 1,0/0,1429, Wu-Palmer 1,0/0,5556. Diese Statistik wird bei
+richtigen Paaren stark durch gemeinsame Synsets geprägt, ist keine zusätzliche
+Synonymieevidenz. Falsche Paare können ebenfalls Werte bis 1 erreichen.
+Kontrollfehler `Kunde bezahlt Lieferant ↔ Lieferant bezahlt Kunde` bleibt ohne
+Ganzlabel-Lexikoneinträge ebenfalls außerhalb dieser Filter.
+
+Artefakt `results/jina-taxonomy-comparison.json.gz`: Verteilungen nach Goldlabel,
+TP/FP und Embeddinggrund; Abdeckung, Einzelpaare, Vorhersagen/Gründe, Precision,
+Recall, F1, verlorene TP/entfernte FP, Auswertungszeit und Quellenhashes.
+Keine Änderungen am produktiven Service oder den Standardentscheidungen.
+
+### Aktuelle Lexikonwahl: ausschließlich OdeNet
+
+`decision_tree.lexicons` verwendet jetzt `["odenet"]`. Alle Labels werden ohne
+Sprachauswahl und ohne Übersetzung in OdeNet 1.4 nachgeschlagen. Die interne
+Quellenkennung `de` dient nur der Auswahl von OdeNet und ist keine Spracherkennung;
+Originalelemente bleiben erhalten. Fehlende Einträge bleiben unbekannt und
+werden nicht als fachlich falsch bewertet. String-/Embeddingstufen bleiben erhalten.
+WordNet (`wordnet`) und die bisherige sprachabhängige Variante (`native`) bleiben
+optional auswählbar, sind im aktuellen Baum aber deaktiviert. Dies betrifft den
+Forschungsbaum, nicht den produktiven Service und nicht historische Experimente.
+
+Die fünf realen Laborfälle sind nicht ausschließlich deutsch: Vier Varianten
+sind deutsch, `laboratory-languages` enthält 19 englisch annotierte Schülerlabels
+(z.B. Building, Room number, Experiment) und weitere deutsche Labels. Der
+englische Fall bleibt im Vergleich enthalten; Jina vergleicht weiterhin DE/EN.
+Die reine OdeNet-Abfrage benötigt kein `language`-Attribut. Die vorhandene
+DE-spezifische Abkürzungsexpansion verwendet in diesem Forschungsstand weiterhin
+die Sprachangaben der Testdaten; das ist eine getrennte Vorverarbeitung.
+
+Neue Ergebnisdateien: `results/decision-tree-odenet-only-*-20261126.json.gz`
+und `results/embedding-model-comparison-odenet.json.gz`. Historische Vergleiche
+mit WordNet bleiben erhalten; der Taxonomieversuch verweist ausdrücklich auf
+seinen bisherigen, eingefrorenen Eingabestand.
+
+Jina + ausschließlich OdeNet, geänderte Laborlabels inklusive englischer Variante:
+
+| Embeddingthreshold | TP | FP | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|---:|
+| 0,80 | 161 | 1 | 0,9938 | 0,8385 | 0,9096 |
+| 0,85 | 160 | 0 | 1,0000 | 0,8333 | 0,9091 |
+| 0,90 | 151 | 0 | 1,0000 | 0,7865 | 0,8805 |
+
+Kontrollfälle und gezielte Fälle bleiben bei diesen Schwellen gegenüber dem
+bisherigen direkten Lexikonpfad unverändert. Bekannte Entwicklungsdaten.
