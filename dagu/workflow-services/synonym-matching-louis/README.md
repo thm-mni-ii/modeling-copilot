@@ -1983,3 +1983,71 @@ F1 0,8757 / 7 FP besser. Bekannte Entwicklungsdaten, keine allgemeine Garantie.
 Artefakte: `results/decision-tree-shared-first-{laboratory,control,targeted}-20261126.json.gz`,
 `results/language-path-shared-first-20261126.json.gz` und
 `results/shared-first-ablation-summary-20261126.json` mit konkreten Paaränderungen.
+
+### Embeddingvergleich: MiniLM, Jina DE/EN und E5
+
+Aus dem Serviceverzeichnis (lokale venv):
+
+```sh
+PYTHONPATH=src TOKENIZERS_PARALLELISM=false .venv/bin/python -m research.compare_embeddings
+```
+
+Modelle und Threshold-Raster stehen unter `embedding_comparison` in
+`research/experiments.json`. Bei kommenden Anpassungen werden immer mindestens
+0,80 / 0,85 / 0,90 auf identischen Daten vor und nach der Änderung verglichen,
+jeweils mit Precision, Recall, F1 und TP/FP/FN. Keine Modellauswahl anhand
+unterschiedlicher Einzelthresholds; zusätzliche Rasterpunkte bleiben diagnostisch.
+Der Lauf liest die dort unter `decision_tree.datasets`
+referenzierten bisherigen Baum-Ergebnisse: gleiche Originalfälle, expandierte
+Vergleichslabels, kanonische Stringwerte und Lexikonmerkmale. Nur das Embedding
+wird ersetzt. Keine neue Übersetzung, keine Änderung der produktiven Pipeline.
+Die Modellnamen `jina_de` und `e5_base` sind außerdem normale Methoden im
+JSON-Baukasten; ihre festen Ketten normalisieren und trennen Identifier.
+Der gezielte Baumvergleich übernimmt zusätzlich die bisherige Nr.-Expansion
+aus der produktiven `multilingual_expanded`-Vorverarbeitung.
+
+Alle Modelle laufen sequenziell auf CPU mit normierten Embeddings und Cosinus.
+E5 erhält gemäß Modellkarte auf beiden Seiten `query: `; Jina verwendet Mean
+Pooling über Sentence Transformers. Gewichte und separate Jina-Architektur
+sind auf HF-Commits festgelegt. Downloads erfolgen nur beim ersten Laden in
+den bestehenden HF-Cache; Docker lädt keine zusätzlichen Modelle.
+Nach dem Download kann der Befehl mit `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1`
+offline laufen. Vorhandene Ergebnisse werden nicht überschrieben:
+`--output results/neuer-vergleich.json.gz` wählt eine neue Datei.
+
+Das JSON speichert Rohmatrizen, Baumentscheidungen mit Gründen, Quellenhashes,
+Modellrevisionen, Paketversionen, Laufzeiten und Precision/Recall/F1 pro Threshold.
+Top-1 wird ausschließlich aus Rohscores berechnet; Gleichstand: erster Kandidat
+wie in der bestehenden Auswertung. Labor: geänderte Schülerlabels gegen alle
+Referenzkandidaten, Kontrolle/Zielfälle: bisherige vollständige Eingabemengen.
+Modellladezeit, Embeddingberechnung und Gesamtlaufzeit werden getrennt gespeichert;
+die Modelle nutzen jeweils einen Cache für eindeutige Labels über alle Fälle.
+
+Ergebnisse vom 26.11.2026, Baum mit direkten Lexika (de=OdeNet, en=WordNet):
+
+| Modell / Embeddingthreshold | Labor TP / FP / FN | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|
+| MiniLM / 0,80 | 178 / 128 / 14 | 0,5817 | 0,9271 | 0,7149 |
+| MiniLM / 0,85 | 177 / 68 / 15 | 0,7224 | 0,9219 | 0,8101 |
+| MiniLM / 0,90 | 151 / 35 / 41 | 0,8118 | 0,7865 | 0,7989 |
+| Jina / 0,80 | 160 / 1 / 32 | 0,9938 | 0,8333 | 0,9065 |
+| Jina / 0,85 | 159 / 0 / 33 | 1,0000 | 0,8281 | 0,9060 |
+| Jina / 0,90 | 146 / 0 / 46 | 1,0000 | 0,7604 | 0,8639 |
+| E5 / 0,80 | 192 / 2430 / 0 | 0,0732 | 1,0000 | 0,1365 |
+| E5 / 0,85 | 191 / 948 / 1 | 0,1677 | 0,9948 | 0,2870 |
+| E5 / 0,90 | 170 / 220 / 22 | 0,4359 | 0,8854 | 0,5842 |
+
+Top-1 der Rohscores im Labor: MiniLM 0,7647, Jina 0,8824, E5 0,8088.
+E5 hat bei 0,85 allein 952 falsche Laborpaarvorkommen; sein hoher Scorebereich
+verlangt andere Schwellen. Die Tabelle zeigt diagnostische Rasterpunkte, keine
+validierte Modellauswahl. Jina gewinnt Präzision, verliert gegenüber dem bisherigen
+Baum aber bei 0,75 sieben richtige Laborpaarvorkommen; nicht verlustfrei.
+Kontrolle bei 0,80: MiniLM F1 0,7654, Jina 0,8750, E5 0,5089.
+Unabhängige Aufgaben zur Bestätigung und Schwellenvalidierung fehlen weiterhin.
+
+Finaler Offline-Lauf: `results/embedding-model-comparison-verified.json.gz`.
+Das bestehende Outputschema und die Standardmethode bleiben erhalten.
+
+Modellkonventionen und Lizenzen:
+[Jina DE/EN (Apache-2.0)](https://huggingface.co/jinaai/jina-embeddings-v2-base-de),
+[E5 Base (MIT; query-Präfix, hoher Cosinusbereich)](https://huggingface.co/intfloat/multilingual-e5-base).

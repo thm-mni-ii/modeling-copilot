@@ -31,6 +31,8 @@
     "exact_match": {},
     "label_part_compatibility": {"preprocessing_steps": ["normalize"]},
     "multilingual": {},
+    "jina_de": {"preprocessing_steps": ["normalize", "split_identifiers"]},
+    "e5_base": {"preprocessing_steps": ["normalize", "split_identifiers"]},
     "translated_embedding": {"languages": ["de", "en"]},
     "translated_string": {"languages": ["de", "en"]},
     "wn_translation": {"languages": ["de", "en"], "relation_features": []},
@@ -87,6 +89,8 @@
     }
   },
   "chains": {
+    "jina_de": ["normalize", "split_identifiers", "jina_de"],
+    "e5_base": ["normalize", "split_identifiers", "e5_base"],
     "component_evidence": ["normalize", "component_evidence"],
     "components": ["normalize", "component_matching"],
     "component_features": ["normalize", "component_feature_fusion"],
@@ -327,6 +331,11 @@
         "output": "results/decision-tree-shared-first-targeted-20261126.json.gz"
       }
     ]
+  },
+  "embedding_comparison": {
+    "models": ["multilingual", "jina_de", "e5_base"],
+    "thresholds": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
+    "output": "results/embedding-model-comparison.json.gz"
   },
   "language_path_comparison": {
     "taxonomy_guard": {"path_similarity": 0.25, "wup_similarity": 0.8},

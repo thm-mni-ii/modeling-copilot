@@ -26,6 +26,15 @@ def is_wordvec(method):
 def load_config(path=DEFAULT_CONFIG):
     """Lese und prüfe die Experimentkonfiguration."""
     config = json.loads(Path(path).read_text())
+    if 'embedding_comparison' in config:
+        from synonym_matching.methods import EMBEDDING_MODELS
+        settings = config['embedding_comparison']
+        models, thresholds = settings.get('models', []), settings.get('thresholds', [])
+        if (not models or len(models) != len(set(models)) or set(models) - EMBEDDING_MODELS.keys()
+                or not thresholds or len(thresholds) != len(set(thresholds))
+                or any(type(t) not in (int, float) or not math.isfinite(t) or not 0 <= t <= 1
+                       for t in thresholds)):
+            raise ValueError('invalid embedding comparison models/thresholds')
     if 'language_path_comparison' in config:
         policy = config['language_path_comparison'].get('taxonomy_guard')
         if (not isinstance(policy, dict) or set(policy) != {'path_similarity', 'wup_similarity'}

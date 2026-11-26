@@ -242,6 +242,8 @@ METHODS = {
     'odenet': odenet,
     'wn_translation': wn_translation,
     'multilingual': multilingual_embedding,
+    'jina_de': multilingual_embedding,
+    'e5_base': multilingual_embedding,
     'translated_embedding': translated_embedding,
 }
 # Was die Engine für ein Verfahren vorbereitet, statt Namensabfragen in der Engine:
@@ -266,14 +268,19 @@ STRING_BASELINES = [
     'char_bigram', 'char_trigram',
 ]
 EMBEDDING_MODELS = {
+    "jina_de": "jinaai/jina-embeddings-v2-base-de",
+    "e5_base": "intfloat/multilingual-e5-base",
     "multilingual": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     "translated_embedding": "sentence-transformers/all-MiniLM-L6-v2",
 }
 # Feste Commits der Standardmodelle; bei eigenem "model" gilt weiter "main".
 EMBEDDING_REVISIONS = {
+    "jina_de": "3f9eede875721714945b6a99a3198299243cf2be",
+    "e5_base": "d128750597153bb5987e10b1c3493a34e5a4502a",
     "multilingual": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
     "translated_embedding": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
 }
+JINA_CODE_REVISION = 'f3ec4cf7de7e561007f27c9efc7148b0bd713f81'
 
 
 class EmbeddingMethod:
@@ -302,12 +309,22 @@ class EmbeddingMethod:
             name = self.config.get("model", EMBEDDING_MODELS[self.name])
             default = "main" if "model" in self.config else EMBEDDING_REVISIONS[self.name]
             revision = self.config.get("revision", default)
-            self.model = SentenceTransformer(name, revision=revision, device="cpu")
+            options = {}
+            if name == EMBEDDING_MODELS['jina_de']:
+                # Jina benötigt seine eigene Modellarchitektur aus der festen Revision.
+                # Die Architektur liegt in einem anderen HF-Repository als die Gewichte.
+                options = {'trust_remote_code': True,
+                           'model_kwargs': {'code_revision': JINA_CODE_REVISION},
+                           'config_kwargs': {'code_revision': JINA_CODE_REVISION}}
+            self.model = SentenceTransformer(name, revision=revision, device="cpu", **options)
             model_config = self.model[0].auto_model.config
             self.revision = getattr(model_config, "_commit_hash", None) or revision
 
     def _encode(self, texts):
         """Berechne normierte Vektoren für einen Stapel unbekannter Labels."""
+        # Symmetrische Ähnlichkeit: E5 erwartet query: auf BEIDEN Seiten.
+        if self.config.get('model', EMBEDDING_MODELS[self.name]) == EMBEDDING_MODELS['e5_base']:
+            texts = ['query: ' + text for text in texts]
         for text in texts:
             if len(self.model.tokenizer.encode(text)) > self.model.max_seq_length:
                 raise ValueError("label exceeds embedding model token limit")
@@ -326,6 +343,7 @@ class EmbeddingMethod:
             "model": self.config.get("model", EMBEDDING_MODELS[self.name]),
             "revision": self.revision,
             "normalize": True,
+            "input_prefix": 'query: ' if self.config.get('model', EMBEDDING_MODELS[self.name]) == EMBEDDING_MODELS['e5_base'] else '',
             "device": "cpu",
             "sentence_transformers": version("sentence-transformers"),
             "torch": version("torch"),

@@ -10,7 +10,7 @@ from synonym_matching import MatchingEngine
 pytestmark = [pytest.mark.integration, pytest.mark.skipif(os.environ.get('RUN_MODEL_TESTS') != '1', reason='set RUN_MODEL_TESTS=1 to load real models')]
 
 
-@pytest.mark.parametrize('method', ['multilingual', 'translated_embedding'])
+@pytest.mark.parametrize('method', ['multilingual', 'translated_embedding', 'jina_de', 'e5_base'])
 def test_real_model_path(method):
     engine = MatchingEngine({'methods': [method]})
     refs = [{'id': 'r', 'label': 'Kunde', 'language': 'de'}]
