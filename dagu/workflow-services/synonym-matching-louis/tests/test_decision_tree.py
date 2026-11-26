@@ -62,3 +62,26 @@ def test_open_is_not_confirmation_and_top1_is_not_invented():
     assert 'top1' not in metrics
     changed = _summary([case], [record], ['tree'], changed=True)['tree']
     assert changed['verdict_counts'] == {'open': 1}
+
+
+def test_taxonomy_is_a_guard_not_an_independent_synonym_decision():
+    f = features(taxonomy_available=1, path_similarity=.2, wup_similarity=.9)
+    policy = {'path_similarity':.25, 'wup_similarity':.8}
+    assert decide(f,text('meaning'))[0] == 'confirmed'
+    assert decide(f,text('meaning'),taxonomy_policy=policy) == ('open','taxonomy_disagrees_with_embedding')
+    assert decide(f,text('meaning'),taxonomy_policy={'wup_similarity':.8})[0] == 'confirmed'
+    assert decide(f,text('canonical'),taxonomy_policy=policy)[0] == 'confirmed'
+    assert decide(features(taxonomy_available=1,path_similarity=1,wup_similarity=1),
+                  text(),taxonomy_policy=policy)[0] == 'open'
+
+
+@pytest.mark.parametrize('changes', [{'taxonomy_available':0}, {'reference_synset_count':2},
+                                    {'pair_known':0, 'student_synset_count':0}])
+def test_missing_or_ambiguous_taxonomy_does_not_become_negative_evidence(changes):
+    f=features(**{'taxonomy_available':1,'path_similarity':0,'wup_similarity':0,**changes})
+    assert decide(f,text('meaning'),taxonomy_policy={'path_similarity':.25,'wup_similarity':.8})[0] == 'confirmed'
+
+
+def test_explicit_counterrelation_precedes_high_taxonomy():
+    f=features(taxonomy_available=1,path_similarity=1,wup_similarity=1,reference_hypernym=1)
+    assert decide(f,text('meaning'),taxonomy_policy={'path_similarity':.25,'wup_similarity':.8})[0] == 'rejected'

@@ -26,6 +26,12 @@ def is_wordvec(method):
 def load_config(path=DEFAULT_CONFIG):
     """Lese und prüfe die Experimentkonfiguration."""
     config = json.loads(Path(path).read_text())
+    if 'language_path_comparison' in config:
+        policy = config['language_path_comparison'].get('taxonomy_guard')
+        if (not isinstance(policy, dict) or set(policy) != {'path_similarity', 'wup_similarity'}
+                or any(type(v) not in (int,float) or not math.isfinite(v) or not 0 <= v <= 1
+                       for v in policy.values())):
+            raise ValueError('invalid language path taxonomy_guard')
     if 'decision_tree' in config:
         tree = config['decision_tree']
         for key in ('modeling_abbreviations', 'candidate_abbreviations'):

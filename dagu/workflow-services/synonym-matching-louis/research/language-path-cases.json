@@ -1,0 +1,1172 @@
+{
+  "version": 1,
+  "provenance": "Assistant-drafted paired synthetic German/English cases inspired by existing research cases; not independently validated. English variants are manually formulated, not machine translation outputs. Equality judgments are assumptions within the modeled task roles.",
+  "cases": [
+    {
+      "id": "identity",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Kunde"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Kunde"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Customer"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Customer"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "case",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Kunde"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "kunde"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Customer"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "customer"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "typo",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Bestellung"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Bestelung"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Order"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Ordr"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "transposition",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Kunde"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Knude"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Customer"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Cutsomer"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "inflection",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Bestellung"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Bestellungen"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Order"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Orders"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "abbreviation",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Bestellnummer"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Best.-Nr."
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Order number"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Order No."
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "compound",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Kundendaten"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Daten des Kunden"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Customer data"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Data of the customer"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "synonym-customer",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Kunde"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Abnehmer"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Customer"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Buyer"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "synonym-surname",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Nachname"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Familienname"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Surname"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Family name"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "synonym-floor",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Etage"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Stockwerk"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Floor"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Storey"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "synonym-experiment",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Versuch"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Experiment"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Test"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Experiment"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "paraphrase",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Zahlung durchführen"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "bezahlen"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Make a payment"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Pay"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "synonym-start",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "beginnen"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "starten"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Begin"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Start"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "synonym-invoice",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Rechnung"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Faktura"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Invoice"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Bill"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct"
+        ]
+      ]
+    },
+    {
+      "id": "roles",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Kunde"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Lieferant"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Customer"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Supplier"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "antonym",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "aktiv"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "inaktiv"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Active"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Inactive"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "hierarchy",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Fahrzeug"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Auto"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Vehicle"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Car"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "spelling-negative",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Bestellung"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Bestätigung"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Order"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Confirmation"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "related",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Rechnung"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Zahlung"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Invoice"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Payment"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "name-negative",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Nachname"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Vorname"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Surname"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Given name"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "room-negative",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Geräte"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Geräteraum"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Equipment"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Equipment room"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "number-negative",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Gebäude"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Gebäudenummer"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Building"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Building number"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "compound-negative",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Gerätenummer"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Raumnummer"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Equipment number"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Room number"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "experiment-negative",
+      "group": "isolated",
+      "de": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Versuch"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Forschende"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r1",
+            "label": "Test"
+          }
+        ],
+        "student": [
+          {
+            "id": "s1",
+            "label": "Researchers"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "set-orders",
+      "group": "sets",
+      "de": {
+        "reference": [
+          {
+            "id": "r0",
+            "label": "Kunde"
+          },
+          {
+            "id": "r1",
+            "label": "Lieferant"
+          },
+          {
+            "id": "r2",
+            "label": "Bestellung"
+          }
+        ],
+        "student": [
+          {
+            "id": "s0",
+            "label": "Abnehmer"
+          },
+          {
+            "id": "s1",
+            "label": "Lieferant"
+          },
+          {
+            "id": "s2",
+            "label": "Bestelung"
+          },
+          {
+            "id": "s3",
+            "label": "Rechnung"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r0",
+            "label": "Customer"
+          },
+          {
+            "id": "r1",
+            "label": "Supplier"
+          },
+          {
+            "id": "r2",
+            "label": "Order"
+          }
+        ],
+        "student": [
+          {
+            "id": "s0",
+            "label": "Buyer"
+          },
+          {
+            "id": "s1",
+            "label": "Supplier"
+          },
+          {
+            "id": "s2",
+            "label": "Ordr"
+          },
+          {
+            "id": "s3",
+            "label": "Invoice"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "set-labels",
+      "group": "sets",
+      "de": {
+        "reference": [
+          {
+            "id": "r0",
+            "label": "Nachname"
+          },
+          {
+            "id": "r1",
+            "label": "Vorname"
+          },
+          {
+            "id": "r2",
+            "label": "Gebäudenummer"
+          },
+          {
+            "id": "r3",
+            "label": "Gerätenummer"
+          }
+        ],
+        "student": [
+          {
+            "id": "s0",
+            "label": "Familienname"
+          },
+          {
+            "id": "s1",
+            "label": "Vorname"
+          },
+          {
+            "id": "s2",
+            "label": "GebäudeNr."
+          },
+          {
+            "id": "s3",
+            "label": "GeräteNr."
+          },
+          {
+            "id": "s4",
+            "label": "Raumnummer"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r0",
+            "label": "Surname"
+          },
+          {
+            "id": "r1",
+            "label": "Given name"
+          },
+          {
+            "id": "r2",
+            "label": "Building number"
+          },
+          {
+            "id": "r3",
+            "label": "Equipment number"
+          }
+        ],
+        "student": [
+          {
+            "id": "s0",
+            "label": "Family name"
+          },
+          {
+            "id": "s1",
+            "label": "Given name"
+          },
+          {
+            "id": "s2",
+            "label": "Building No."
+          },
+          {
+            "id": "s3",
+            "label": "Equipment No."
+          },
+          {
+            "id": "s4",
+            "label": "Room number"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "correct",
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect",
+          "correct",
+          "incorrect"
+        ]
+      ]
+    },
+    {
+      "id": "set-laboratory",
+      "group": "sets",
+      "de": {
+        "reference": [
+          {
+            "id": "r0",
+            "label": "Versuch"
+          },
+          {
+            "id": "r1",
+            "label": "Rechnung"
+          }
+        ],
+        "student": [
+          {
+            "id": "s0",
+            "label": "Experiment"
+          },
+          {
+            "id": "s1",
+            "label": "Zahlung"
+          },
+          {
+            "id": "s2",
+            "label": "Forschende"
+          }
+        ]
+      },
+      "en": {
+        "reference": [
+          {
+            "id": "r0",
+            "label": "Test"
+          },
+          {
+            "id": "r1",
+            "label": "Invoice"
+          }
+        ],
+        "student": [
+          {
+            "id": "s0",
+            "label": "Experiment"
+          },
+          {
+            "id": "s1",
+            "label": "Payment"
+          },
+          {
+            "id": "s2",
+            "label": "Researchers"
+          }
+        ]
+      },
+      "annotations": [
+        [
+          "correct",
+          "incorrect",
+          "incorrect"
+        ],
+        [
+          "incorrect",
+          "incorrect",
+          "incorrect"
+        ]
+      ]
+    }
+  ]
+}

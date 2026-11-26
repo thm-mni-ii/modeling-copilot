@@ -95,7 +95,7 @@ def test_saved_feature_comparison_keeps_alignment_and_baseline(tmp_path, monkeyp
                         lambda self, element, linked=False: profile('same'))
     output = tmp_path / 'comparison.json'
     result = module.run_comparison(source, output, config)
-    assert len(result['records']) == 4
+    assert {r['source'] for r in result['records']} == set(config['component_lexicon_comparison']['sources'])
     assert result['changed_labels']['native']['tp'] == 1
     assert all(record['features']['embedding_similarity'] == [[1.]] for record in result['records'])
     assert result['component_diagnostics'][0]['component_evidence']['alignments'] == [[[[0, 0]]]]

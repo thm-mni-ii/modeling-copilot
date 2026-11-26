@@ -252,7 +252,6 @@
     "sources": [
       "translated_wordnet",
       "native",
-      "ili",
       "combined"
     ],
     "fusion_options": {
@@ -298,8 +297,7 @@
     "candidate_abbreviations": {"Str.": "Straße"},
     "lexicons": [
       "wordnet",
-      "native",
-      "ili"
+      "native"
     ],
     "embedding_actions": [
       "confirm",
@@ -327,5 +325,10 @@
         "output": "results/decision-tree-abbreviations-targeted-20261126.json.gz"
       }
     ]
+  },
+  "language_path_comparison": {
+    "taxonomy_guard": {"path_similarity": 0.25, "wup_similarity": 0.8},
+    "data": "research/language-path-cases.json",
+    "output": "results/language-path-taxonomy-20261126.json.gz"
   }
 }

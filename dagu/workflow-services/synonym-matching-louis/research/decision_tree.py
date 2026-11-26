@@ -50,7 +50,7 @@ def production_modules():
     return registry, adapter
 
 
-def decide(features, text, *, embedding_action='confirm', valid=True):
+def decide(features, text, *, embedding_action='confirm', valid=True, taxonomy_policy=None):
     """Erst eindeutige Relationen, dann kanonische/lexikalische/semantische Evidenz.
 
     Genau ein Synset ist nur eine konservative Näherung, keine echte Disambiguierung.
@@ -76,6 +76,14 @@ def decide(features, text, *, embedding_action='confirm', valid=True):
         tier = text['tier']
         if tier == 'meaning' and embedding_action == 'open':
             return 'open', 'semantic_similarity_only'
+        # Taxonomische Nähe ist keine eigenständige Synonymbestätigung. Nur bei
+        # eindeutig erfassten, verbundenen Bedeutungen zusätzliche Embedding-
+        # Bestätigung prüfen. Unbekannt/unverbunden ist keine negative Evidenz.
+        if (tier == 'meaning' and taxonomy_policy and single
+                and features.get('taxonomy_available') == 1):
+            if any(features[metric] < minimum for metric,minimum in taxonomy_policy.items()):
+                return 'open', 'taxonomy_disagrees_with_embedding'
+            return 'confirmed', 'meaning_with_taxonomy_support'
         return 'confirmed', tier
     return 'open', 'insufficient_evidence'
 

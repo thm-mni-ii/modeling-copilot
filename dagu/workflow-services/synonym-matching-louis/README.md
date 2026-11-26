@@ -1743,3 +1743,129 @@ noch keinen fachlichen Qualitätsnachweis. Bekannte Entwicklungsdaten; keine
 unabhängige Validierung und keine automatische Auswahl einer neuen Servicepipeline.
 Artefakte: `results/decision-tree-abbreviations-{laboratory,control,targeted}-20261126.json.gz`
 und `results/decision-tree-abbreviations-summary-20261126.json`.
+
+## Kontrollierter Sprachpfadvergleich
+
+```bash
+PYTHONPATH=src HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  .venv/bin/python -m research.compare_language_paths
+```
+
+`language_path_comparison` in `experiments.json` legt Korpus und neuen Ausgabepfad
+fest. Bestehende Ausgaben werden nicht überschrieben. Es gibt keine Änderung
+am Servicevertrag und kein neues `language`-Attribut. Die drei Testgruppen sind
+im Experiment bekannt; Spracherkennung wird nicht getestet oder vorausgesetzt.
+
+`language-path-cases.json` enthält 27 parallel formulierte synthetische Fälle:
+24 isolierte Paare und drei vollständige Kandidatenmengen, insgesamt 62
+Paarvorkommen (22 positiv, 40 negativ). Die DE-/EN-Fassungen haben identische
+IDs, Reihenfolgen und Annotationen. Die englischen Fassungen wurden unabhängig
+vom Übersetzungsmodell formuliert, aber nicht von unabhängigen Fachexperten
+validiert. Fachliche Gleichwertigkeit gilt innerhalb der angenommenen Aufgabenrollen.
+Keine Trainingsdaten, keine Gewichtungs- oder Schwellenoptimierung auf diesen Fällen.
+
+Verglichen werden A: Deutsch/OdeNet, B: Englisch/WordNet und C: dieselben
+deutschen Texte wie A, maschinell ins Englische übersetzt/WordNet.
+Die Lexikonsuche verwendet normalisierte Ganzlabels, ohne zusätzliche Zerlegung,
+Lemmatisierung oder neue Abkürzungsexpansion. Die unveränderten produktiven
+Textformen werden separat für die String-/Embedding-Zweige verwendet.
+A und C teilen exakt dieselben deutschen Textscores: Nur der Lexikoneingang
+ändert sich. B verwendet die unabhängig formulierten englischen Labels.
+
+Die Auswertung trennt Textstufen ohne Lexikon, nur sichere Lexikonregeln und
+den gesamten Regelbaum. Lexikonregeln verlangen weiterhin beidseits genau ein
+Synset; das ist keine Bedeutungsdisambiguierung und kann ein besser abgedecktes,
+aber mehrdeutigeres Lexikon stärker einschränken. Offene Paare sind keine Treffer.
+Es werden keine binären Urteile als Top-1-Rangliste oder Graphzuordnung ausgegeben.
+
+Ergebnisse 26.11.2026 auf dieser kleinen Parallelstichprobe:
+
+| Pfad | Lexikonabdeckung¹ | Nur Lexikon TP / FP / F1 | Gesamtbaum TP / FP / F1 |
+|---|---:|---:|---:|
+| A: Deutsch → OdeNet | 26/40 (65 %) | 5 / 0 / 0,3704 | 16 / 2 / 0,8000 |
+| B: Englisch → WordNet | 27/40 (67,5 %) | 4 / 0 / 0,3077 | 9 / 0 / 0,5806 |
+| C: Deutsch → Übersetzung → WordNet | 26/40 (65 %) | 4 / 0 / 0,3077 | 13 / 2 / 0,7027 |
+
+¹ Mindestens ein Eintrag pro eindeutigem Originaltext, keine Garantie passender
+Bedeutung. Mehrfach vorkommende Texte werden für die Abdeckung nur einmal gezählt.
+Gemeinsame Synsets ohne Eindeutigkeitsfilter: A 16, B 10, C 11 Paarvorkommen.
+Textstufen allein: A/C TP 12 / FP 3 / F1 0,6486; B TP 8 / FP 1 / F1 0,5161.
+Die Unterschiede der Gesamtbäume sind damit nicht ausschließlich Lexikonunterschiede.
+
+Beispiele: OdeNet bestätigt `Etage ↔ Stockwerk`; die Übersetzung erzeugt
+`Floor ↔ Floor`, dessen mehrere englische Lesarten die harte Synsetregel blockieren.
+`Bestelung` wird vom Übersetzungsmodell zu `Beverage`: Tippfehler können also
+falsche Übersetzungen erzeugen. Das rechtfertigt keine automatische Ablehnung.
+Die Übersetzung verbessert den deutschen Baum hier nicht gegenüber direktem OdeNet.
+Die Ergebnisse beweisen weder eine allgemeine Überlegenheit deutscher Labels
+noch die Verlässlichkeit einer zukünftigen Spracherkennung.
+
+40 deutsche Originaltexte wurden gebündelt einmal übersetzt; circa 0,22 s
+Übersetzungsberechnung plus circa 0,84 s Modellinitialisierung in diesem Lauf.
+Alle Modelle waren lokal vorhanden. Initialisierung und erste Berechnungen sind
+getrennt gespeichert. Gemeinsame Caches und Ausführungsreihenfolge verhindern
+eine Interpretation als isolierter Kaltstartvergleich; Zeiten sind keine Zusage
+für andere Hardware. Ein Modell und eindeutige Texte werden wiederverwendet.
+Vollständige Übersetzungen, Rohmerkmale, Entscheidungen, Versionen und Hashes
+stehen in `results/language-path-comparison-20261126.json.gz`.
+
+### Historischer vierter Pfad: wn.translate und aktive Taxonomiemerkmale
+
+Nach diesem Vergleich wurde der ILI-Pfad auf Wunsch aus den aktiven
+Sprachvergleichsläufen und Regelbaumkonfigurationen entfernt. Aktiv bleiben
+direktes OdeNet, direktes WordNet und maschinelle Übersetzung → WordNet.
+Die unten stehenden Vierpfad-Ergebnisse bleiben historisch erhalten; neue
+Dreipfad-Läufe schreiben `results/language-path-taxonomy-20261126.json.gz`.
+Die bereits vorhandenen ILI-Hilfsfunktionen bleiben für die Reproduzierbarkeit
+älterer Experimente erhalten, werden in diesen aktiven Läufen aber nicht aufgerufen.
+
+Der Sprachvergleich enthält zusätzlich D: dieselben deutschen Eingaben wie A/C,
+OdeNet-Synsets/Senses über `wn.translate()`/ILI auf englische Bedeutungen abbilden.
+Kein maschinell übersetzter Text wird für D verwendet. Die ursprüngliche
+Mehrdeutigkeit bleibt durch die bestehenden Quell-/Zielsynset-Zählwerte erhalten.
+Alle Pfade bleiben erhalten; keine neue Sprachangabe im Eingabevertrag.
+
+`language_path_comparison.taxonomy_guard` legt vorläufige Pilotgrenzen fest:
+`path_similarity: 0.25`, `wup_similarity: 0.8`. Neben dem unveränderten Baum
+werden nur Path, nur Wu-Palmer und beide Werte zusammen ausgewertet.
+Die Werte sind keine Wahrscheinlichkeiten und nicht auf einem unabhängigen
+Validierungssatz kalibriert. Es wird keine nachträgliche Schwellenoptimierung
+auf diesen Fällen vorgenommen.
+
+Die zusätzliche Regel greift ausschließlich bei einer sonst erfolgenden
+Embeddingbestätigung, beidseits genau einem Synset und vorhandener Taxonomieverbindung.
+Liegt ein verwendeter Wert unter der Pilotgrenze, bleibt das Paar `open` statt
+automatisch bestätigt zu werden. Hohe Werte bestätigen niemals allein;
+explizite Gegenrelationen behalten Vorrang. Fehlende/unverbundene Taxonomie
+und mehrere mögliche Bedeutungen werden nicht als negative Evidenz ausgelegt.
+Damit wird optimistische Maximierung über verschiedene Lesarten nicht zur
+harten Taxonomieentscheidung herangezogen.
+
+Ergebnis auf denselben 62 Paarvorkommen:
+
+| Pfad | Nutzbare Lexikonabdeckung | Baum TP / FP / F1 | Mit Path + Wu-Palmer |
+|---|---:|---:|---:|
+| A: DE → OdeNet | 26/40 | 16 / 2 / 0,8000 | unverändert |
+| B: EN → WordNet | 27/40 | 9 / 0 / 0,5806 | unverändert |
+| C: DE → MT → WordNet | 26/40 | 13 / 2 / 0,7027 | unverändert |
+| D: DE → OdeNet → ILI → WordNet | 24/40 | 13 / 2 / 0,7027 | unverändert |
+
+Die Einzelablationen ändern ebenfalls keine Entscheidung. Für A/B gibt es keine
+Embeddingbestätigung, die zugleich die Eindeutigkeits- und Verfügbarkeitsbedingungen
+der neuen Regel erfüllt. Für C/D gibt es je zwei Vorkommen des falschen Paars
+`Nachname ↔ Vorname`: Path 0,3333 und Wu-Palmer 0,8571 liegen beide über den
+Pilotgrenzen. Das zeigt unmittelbar, dass hohe Taxonomienähe keine fachliche
+Gleichwertigkeit beweist. Auf dieser Stichprobe ist kein Zusatznutzen belegt.
+
+Bei D sind 26 deutsche Texte bekannt, aber nur 24 über ILI verknüpft. Bei
+`Bestellnummer` und `Best.-Nr.` fehlt hier die Verbindung. D kann andererseits
+`Etage ↔ Stockwerk` gezielter als die maschinelle Übersetzung auf dieselbe
+englische Bedeutung abbilden. Der Gesamtnutzen ist nicht größer: C und D haben
+gleiche TP/FP, aber fünf unterschiedliche konkrete Urteile (einschließlich
+offen/abgelehnt). Die 243 bisherigen A/B/C-Entscheidungsdatensätze wurden exakt
+reproduziert. Weitere Dokumentation und Grenzen des Parallelkorpus gelten fort.
+
+Artefakte: `results/language-path-taxonomy-ili-20261126.json.gz` und
+`results/language-path-taxonomy-ili-summary-20261126.json`.
+Der gleiche Befehl `python -m research.compare_language_paths` nutzt den aktuellen
+Dreipfad-Ausgabepfad aus JSON; vorhandene Artefakte werden weiterhin nicht überschrieben.
