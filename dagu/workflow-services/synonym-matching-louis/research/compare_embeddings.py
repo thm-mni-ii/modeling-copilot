@@ -13,6 +13,7 @@ import numpy as np
 
 from synonym_matching.cache import Cache
 from synonym_matching.methods import EmbeddingMethod, EMBEDDING_MODELS, JINA_CODE_REVISION
+from synonym_matching.preprocessing import normalize
 from .compare import sha256
 from .decision_tree import _read, decide, production_modules
 from .evaluation import evaluate_case, summarize, nonempty_pairs
@@ -40,7 +41,7 @@ def evaluate(cases, records, threshold, *, changed=False):
 
 
 def tree_scores(case, feature, scores, threshold, settings, adapter, *,
-                taxonomy_policy=None, taxonomy_single_sense=True):
+                taxonomy_policy=None, taxonomy_single_sense=True, decision_options=None):
     """Ersetze ausschließlich die Embedding-Matrix; behalte den Textadapter bei."""
     raw = {'damerau_canonical': np.asarray(feature['scores']['damerau_canonical']),
            'multilingual_expanded': scores}
@@ -53,6 +54,7 @@ def tree_scores(case, feature, scores, threshold, settings, adapter, *,
                          'scoreStatus': 'scored', 'scores': {key: float(v[i, j]) for key, v in raw.items()}}
                         for j, b in enumerate(case['student'])]}
             for i, a in enumerate(case['reference'])]}
+    options = dict(decision_options or {})
     tiers = [{'name': 'canonical', 'minimumSimilarity': {'damerau_canonical': 1.}},
              {'name': 'spelling', 'minimumSimilarity': {'damerau_canonical': settings['thresholds']['spelling']}},
              {'name': 'meaning', 'minimumSimilarity': {'multilingual_expanded': threshold},
@@ -69,7 +71,9 @@ def tree_scores(case, feature, scores, threshold, settings, adapter, *,
                     evidence[a['id'], b['id']], valid=bool(a['label'].strip() and b['label'].strip()),
                     require_single_synset=settings.get('require_single_synset', False),
                     shared_synset_first=settings.get('shared_synset_first', True),
-                    taxonomy_policy=taxonomy_policy, taxonomy_single_sense=taxonomy_single_sense)
+                    taxonomy_policy=taxonomy_policy, taxonomy_single_sense=taxonomy_single_sense,
+                    exact_equal=normalize(a['label']).lower() == normalize(b['label']).lower(),
+                    **options)
                 predictions[i, j] = verdict == 'confirmed'
         output[source] = {'scores': predictions.tolist(), 'reasons': reasons.tolist()}
     return output

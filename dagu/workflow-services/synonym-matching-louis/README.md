@@ -2221,3 +2221,48 @@ Auf Kontroll- und gezielten Fällen bleiben die Trefferzahlen ebenfalls identisc
 zu OdeNet-only. Kein zusätzlicher Nutzen gegenüber OdeNet-only auf den aktuell
 ausgewerteten Paaren. Precision/Recall sind im Artefakt gespeichert; Einschränkung
 zur vorab sprachabhängigen Abkürzungsexpansion bleibt bestehen. Kein Standardwechsel.
+
+### Getrennte Regelablationen auf OdeNet-zuerst
+
+`research.compare_lingua` vergleicht zusätzlich folgende JSON-Varianten, jeweils
+einzeln auf der bisherigen OdeNet-zuerst-Pipeline (keine stillschweigende Kumulierung):
+
+| Variante | Änderung |
+|---|---|
+| `odenet_linked` | Nur unterschiedlich geroutete DE/EN-Paare über native `wn`-Synset-/Sense-Verknüpfungen auf englisches WordNet abbilden. Direkte Evidenz gleicher Quellen unverändert; fehlende Links unbekannt. |
+| `exact_first` | NFC/Leerraumnormalisierung und Lowercasing gleich: vor Gegenrelationen bestätigen. Keine Umlautangleichung, keine Entfernung von Zahlen/Zeichen. |
+
+Die Gleichheitsoption steht unter `lingua_comparison.decision_options`.
+Die normalen Regeln sind standardmäßig unverändert. Englische Verknüpfungen
+werden aus wn geladen, keine maschinelle Textübersetzung und keine neuen Modelle.
+Die ursprünglichen Varianten werden exakt inklusive Gründen reproduziert.
+
+Labor, Verbesserung durch `odenet_linked` gegenüber OdeNet-zuerst:
+
+| Jina-Threshold | Bisher TP / FP / F1 | Verknüpft TP / FP / F1 | Verknüpft Precision / Recall |
+|---|---:|---:|---:|
+| 0,80 | 161 / 1 / 0,9096 | 163 / 1 / 0,9157 | 0,9939 / 0,8490 |
+| 0,85 | 160 / 0 / 0,9091 | 162 / 0 / 0,9153 | 1,0000 / 0,8438 |
+| 0,90 | 151 / 0 / 0,8805 | 153 / 0 / 0,8870 | 1,0000 / 0,7969 |
+
+Zurückgewonnen: `Gebäude ↔ Building` und `Anzahl ↔ Quantity`. Auf Kontrollfällen
+TP 35→37 / 33→36 / 28→34, jeweils FP=2 unverändert. Gezielte Fälle unverändert
+5 TP / 0 FP. Keine neue falsche Bestätigung auf diesen ausgewerteten Paaren;
+bekannte Entwicklungsdaten, keine Garantie für beliebige Verknüpfungen/Lesarten.
+
+`exact_first` ändert auf den ausgewerteten Paaren keine Bestätigungen.
+Stringgrenze 0,90/0,95 verliert im Labor bei Jina 0,90 `Versuch ↔ Versuchh`;
+0,95 verliert zudem zwei richtige Kontrollfälle, ohne falsche Treffer zu entfernen.
+String mit Embeddingunterstützung verliert zwei richtige Kontrollfälle.
+Synset mit zusätzlicher Unterstützung verliert je zwei richtige Labor- und
+Kontrollpaarvorkommen. Keine dieser Verschärfungen entfernt hier falsche Treffer.
+Diese erfolglosen Verschärfungen wurden anschließend aus Code, Konfiguration
+und zugehörigen Tests entfernt. Das Ergebnisartefakt bleibt als Historie erhalten.
+
+Finales Artefakt: `results/jina-routing-rule-ablations-verified.json.gz`.
+Enthält Precision/Recall/F1 je Variante/Threshold, Einzelmerkmale, Entscheidungen,
+Gründe, Quellenhashes und konkrete Paaränderungen. Der normale Befehl verwendet
+als neue Standardausgabe `results/jina-routing-rule-ablations.json.gz`.
+
+Nach Entfernung der erfolglosen Verschärfungen verwendet der Befehl
+`results/jina-routing-retained-rules.json.gz` für die verbleibenden fünf Varianten.

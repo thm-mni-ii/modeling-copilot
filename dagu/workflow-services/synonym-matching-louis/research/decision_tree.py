@@ -51,7 +51,8 @@ def production_modules():
 
 
 def decide(features, text, *, embedding_action='confirm', valid=True, taxonomy_policy=None,
-           require_single_synset=False, shared_synset_first=True, taxonomy_single_sense=True):
+           require_single_synset=False, shared_synset_first=True, taxonomy_single_sense=True,
+           exact_first=False, exact_equal=False):
     """Gemeinsame Bedeutung, dann Gegenrelationen und sonstige Textevidenz.
 
     Synonymie benötigt standardmäßig nur eine gemeinsame Bedeutung. Die alte
@@ -67,6 +68,8 @@ def decide(features, text, *, embedding_action='confirm', valid=True, taxonomy_p
         raise ValueError('shared_synset_first must be boolean')
     if not valid:
         return 'not_evaluable', 'empty_or_ineligible'
+    if exact_first and exact_equal:
+        return 'confirmed', 'normalized_exact'
     known = features['pair_known'] == 1
     single = known and features['reference_synset_count'] == features['student_synset_count'] == 1
     shared = features['shared_synset'] == 1

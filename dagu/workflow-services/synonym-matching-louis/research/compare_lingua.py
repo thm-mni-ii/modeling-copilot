@@ -74,6 +74,24 @@ def route_features(candidates, left, right):
     return result, conflicts
 
 
+def linked_cross_language(lexicons, labels, routes, baseline):
+    """Nur DE↔EN-Paare via wn verknüpfen; gleiche/unklare Quellen unverändert."""
+    sides = [[{**e, 'language': r['allowed_lexicons'][0] if r['allowed_lexicons'] else 'de'}
+              for e, r in zip(labels[side], routes[side], strict=True)]
+             for side in ('reference', 'student')]
+    mask = np.array([[bool(a['allowed_lexicons'] and b['allowed_lexicons']
+                          and a['allowed_lexicons'] != b['allowed_lexicons'])
+                      for b in routes['student']] for a in routes['reference']], dtype=bool)
+    shape = (len(sides[0]), len(sides[1]))
+    mask = mask.reshape(shape)
+    result = {k: np.asarray(v).reshape(shape).copy() for k, v in baseline.items()}
+    if mask.any():
+        shared, values, _ = lexicons.matrices(*sides, linked=True)
+        for key, value in {**values, 'shared_synset': shared}.items():
+            result[key][mask] = value[mask]
+    return {k: v.tolist() for k, v in result.items()}, mask
+
+
 def run(config, output):
     settings = config['lingua_comparison']
     if output.exists():
@@ -93,7 +111,8 @@ def run(config, output):
         'policy': 'DE/EN assumed. Original label only for detection; supplied language used only for diagnostics. '
                   'Saved string/Jina scores and expanded comparison labels held fixed, including previous '
                   'language-informed abbreviation preprocessing: isolates lexicon routing, not end-to-end language-free. '
-                  'No translation or ILI. Different confident languages: unknown lexical evidence. '
+                  'Original variants have no translation or ILI; odenet_linked maps only cross-source pairs '
+                  'through wn synset/sense translation to English; missing links remain unknown. '
                   'Uncertain: both sources, counterrelation evidence leaves pair open. '
                   'odenet_first: per-label OdeNet lookup overrides detector, otherwise confident English selects '
                   'WordNet, other cases no lexical evidence. Known development data; '
@@ -137,9 +156,15 @@ def run(config, output):
                 routed_features[name] = {k: v.tolist() for k, v in routed.items()}
                 conflict_masks[name] = conflicts
             new_feature = {**feature, 'lexicons': routed_features}
+            linked, cross_mask = linked_cross_language(lexicons, feature['comparison_labels'], routes,
+                                                      routed_features['odenet_first'])
+            for name in settings['variants']:
+                if name not in routed_features and name != 'odenet':
+                    routed_features[name] = linked if name == 'odenet_linked' else routed_features['odenet_first']
+                    conflict_masks[name] = np.zeros_like(cross_mask)
             features.append({'case': case['id'], 'detections': detections,
                 'lexicons': {lang: {k: v.tolist() for k, v in fs.items()} for lang, fs in candidates.items()},
-                'routes': routes, 'routed': routed_features,
+                'routes': routes, 'routed': routed_features, 'cross_language': cross_mask.tolist(),
                 'conflicts': {name: mask.tolist() for name, mask in conflict_masks.items()}})
             shape = (len(case['reference']), len(case['student']))
             for threshold in settings['thresholds']:
@@ -149,11 +174,12 @@ def run(config, output):
                 if reproduced != base:
                     raise ValueError('baseline decisions/reasons not reproduced')
                 records[key]['odenet'].append(base)
-                predictions = tree_scores(case, new_feature, np.asarray(raw['scores']), threshold, lexical['config'], adapter)
                 for name in settings['variants']:
                     if name == 'odenet':
                         continue
-                    prediction = predictions[name]
+                    variant_feature = {**new_feature, 'lexicons': {name: routed_features[name]}}
+                    prediction = tree_scores(case, variant_feature, np.asarray(raw['scores']), threshold,
+                        lexical['config'], adapter, decision_options=settings.get('decision_options', {}).get(name, {}))[name]
                     for i, j in zip(*np.where(conflict_masks[name])):
                         if case['reference'][i]['label'].strip() and case['student'][j]['label'].strip():
                             prediction['scores'][i][j] = 0.
