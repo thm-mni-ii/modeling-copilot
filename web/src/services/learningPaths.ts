@@ -2,9 +2,10 @@ import type { SurveyVersion, SurveyResponse } from '@/services/surveys'
 import http from '@/services/api/httpClient'
 import type { TaskVersionReference, ApiPage } from '@/services/api/types/common'
 import type { ChallengeConfig, ChallengeAttempt } from '@/services/challenges'
-// Temporary until the laboratory task's automatic assessment is available.
-export const laboratoryCompletionBlockedStepId = '90633637-a890-597e-bfc6-682ed472b020'
-export const laboratoryCompletionUnavailableMessage = 'Tut uns leid, die automatische Bewertung ist vorübergehend nicht verfügbar. Du kannst dein Modell weiter bearbeiten, die Aufgabe aber noch nicht abschließen. Die Funktion wird in den nächsten Tagen ergänzt.'
+export type ScoreScope = 'overall' | 'eachCategory'
+/** Minimum for one recognition category, matched by its displayed label (e.g. "Attribute"). */
+export interface CategoryMinimum { label: string; minimumPercent: number }
+export interface CompletionGate { minimumScorePercent?: number | null; scoreScope?: ScoreScope; categoryMinimums?: CategoryMinimum[] }
 export interface Condition {
   type: 'completed' | 'score' | 'at' | 'after'
   stepId: string | null
@@ -13,7 +14,7 @@ export interface Condition {
   timezone: string
   seconds: number | null
 }
-export interface PathStep {
+export interface PathStep extends CompletionGate {
   id: string
   title: string
   type?: 'task' | 'survey'
@@ -24,7 +25,7 @@ export interface PathStep {
   required?: boolean
   unlock: { mode: 'sequence' | 'all' | 'any'; conditions: Condition[] }
   challenge?: ChallengeConfig | null
-  minimumScorePercent?: number | null
+  helpFeedback?: TaskHelpFeedbackConfig | null
 }
 export interface PulseSurveyConfig {
   enabled: boolean
@@ -44,6 +45,14 @@ export interface HelpChoice { id: string; text: string }
 export interface HelpQuestionEdit { title: string; choices: HelpChoice[] }
 export type HelpEditableQuestion = 'stuck_duration' | 'support_need' | 'next_action'
 export interface HelpBlueprint { topic: import('@/services/surveys').SurveyDefinition; questions: Record<HelpEditableQuestion, HelpQuestionEdit> }
+export interface TaskHelpFeedbackConfig {
+  checkLimit: number | null
+  clarifyLimit: number | null
+  nextStepLimit: number | null
+  exampleLimit: number | null
+  solutionLimit: number | null
+}
+export const defaultTaskHelpFeedbackConfig = (): TaskHelpFeedbackConfig => ({ checkLimit: null, clarifyLimit: null, nextStepLimit: null, exampleLimit: 2, solutionLimit: 1 })
 export interface HelpRequestConfig {
   enabled: boolean
   topicSurveyId: string | null
@@ -101,7 +110,7 @@ export interface PathRun {
   skipped?: number
   finished?: boolean
 }
-export interface PathModelContext {
+export interface PathModelContext extends CompletionGate {
   id: string
   runId: string
   stepId: string
@@ -117,9 +126,21 @@ export interface PathModelContext {
   beforeSurvey: { surveyId: string; completed: boolean } | null
   afterSurvey: { surveyId: string; completed: boolean } | null
   challenge: ChallengeAttempt | null
-  helpRequests: HelpRequestConfig
-  minimumScorePercent?: number | null
+  helpRequests: HelpRequestConfig & TaskHelpFeedbackConfig
+  helpUsage: HelpUsage
 }
+export type HelpFeedbackType = 'help.clarify' | 'help.next_step' | 'help.example' | 'help.check' | 'help.solution'
+export const helpFeedbackOptions: { type: HelpFeedbackType; limitKey: keyof TaskHelpFeedbackConfig; choice: string; title: string; short: string; icon: string; description: string }[] = [
+  { type: 'help.check', limitKey: 'checkLimit', choice: 'support_need_4', title: 'Prüfung', short: 'Prüfung', icon: 'mdi-check-decagram-outline', description: 'Prüft den bisherigen Modellstand als Ganzes.' },
+  { type: 'help.clarify', limitKey: 'clarifyLimit', choice: 'support_need_1', title: 'Erklärung', short: 'Erklär.', icon: 'mdi-lightbulb-on-outline', description: 'Erklärt den Stand an der markierten Problemstelle.' },
+  { type: 'help.next_step', limitKey: 'nextStepLimit', choice: 'support_need_2', title: 'Nächster Schritt', short: 'Nächster', icon: 'mdi-arrow-right-circle-outline', description: 'Gibt einen Hinweis auf den nächsten Bearbeitungsschritt.' },
+  { type: 'help.example', limitKey: 'exampleLimit', choice: 'support_need_3', title: 'Beispiel', short: 'Beispiel', icon: 'mdi-book-open-variant', description: 'Zeigt ein Strukturbeispiel zur markierten Problemstelle.' },
+  { type: 'help.solution', limitKey: 'solutionLimit', choice: 'support_need_5', title: 'Lösung', short: 'Lösung', icon: 'mdi-lightning-bolt-outline', description: 'Zeigt das passende Element der Musterlösung.' }
+]
+export type HelpUsage = Record<HelpFeedbackType, { used: number; pending: number; limit: number | null }>
+export interface HelpTourAnswer { question: 'support_need' | 'next_action'; selected: boolean }
+export type TourEventName = 'opened' | 'started' | 'step' | 'completed' | 'skipped'
+export interface TourProgress { completed: boolean; skipped: boolean }
 export interface PathProgressSummary {
   id: string
   templateId: string
@@ -166,6 +187,7 @@ export interface HelpRequest {
   modelId: string
   modelVersionId: string
   createdAt: string
+  flowVersion?: 1 | 2
   stage: 'topic' | 'marking' | 'reflection' | 'action' | 'completed' | 'cancelled'
   surveyIds: Record<HelpSurveyPhase, string>
   markings: HelpMarkings | null
@@ -173,6 +195,9 @@ export interface HelpRequest {
   nextActionId?: string | null
   surveySessionId?: string | null
   markingRequired: boolean
+  markingPurpose?: 'problem' | 'feedback'
+  supportKind?: string | null
+  evaluationId?: string | null
 }
 export type HelpSurveyPhase = 'topic' | 'reflection' | 'action'
 export interface HelpTextRange { start: number; end: number; text: string }
@@ -180,9 +205,12 @@ export interface HelpMarkings { cellIds: string[]; taskTextRanges: HelpTextRange
 export interface SurveySession { version: SurveyVersion; answers: Record<string, unknown>; revision: number; sessionId: string; releaseChanged: boolean; status: string }
 const helpUrl = (runId: string, stepId: string, requestId: string) => `/v1/learning-path-runs/${runId}/steps/${stepId}/help-requests/${requestId}`
 export default {
+  tourProgress: (tourId: string) => http.get<TourProgress>(`/v1/tours/${tourId}/progress`),
+  recordTourEvent: (tourId: string, event: TourEventName, stepId?: string) =>
+    http.post<TourProgress>(`/v1/tours/${tourId}/events`, { event, ...(stepId ? { stepId } : {}) }),
   exportProgressCsv: (runIds: string[]) => http.post<Blob>('/v1/learning-path-progress.csv', { runIds }, { responseType: 'blob' }),
   progressAccess: () => http.get<{ canView: boolean }>('/v1/learning-path-progress-access'),
-  progress: (skip = 0) => http.get<ApiPage<PathProgressSummary>>('/v1/learning-path-progress', { params: { skip, limit: 100 } }),
+  progress: (skip = 0, templateId?: string, includeStaff = true) => http.get<ApiPage<PathProgressSummary>>('/v1/learning-path-progress', { params: { skip, limit: 100, templateId, includeStaff } }),
   progressDetail: (id: string) => http.get<PathProgressDetail>(`/v1/learning-path-progress/${id}`),
   helpBlueprint: () => http.get<HelpBlueprint>('/v1/learning-path-help-blueprint'),
   helpDefaults: () => http.get<Record<HelpSurveyPhase, string>>('/v1/learning-path-help-defaults'),
@@ -190,6 +218,7 @@ export default {
   help: (runId: string, stepId: string, requestId: string) => http.get<HelpRequest>(helpUrl(runId, stepId, requestId)),
   cancelHelp: (runId: string, stepId: string, requestId: string) => http.post<HelpRequest>(`${helpUrl(runId, stepId, requestId)}/cancel`),
   saveHelpMarkings: (runId: string, stepId: string, requestId: string, markings: HelpMarkings) => http.put<HelpRequest>(`${helpUrl(runId, stepId, requestId)}/markings`, markings),
+  reopenHelpMarkings: (runId: string, stepId: string, requestId: string) => http.post<HelpRequest>(`${helpUrl(runId, stepId, requestId)}/markings/reopen`),
   openHelpSurvey: (runId: string, stepId: string, requestId: string, phase: HelpSurveyPhase) => http.post<SurveySession>(`${helpUrl(runId, stepId, requestId)}/surveys/${phase}/open`),
   saveHelpSurveyDraft: (runId: string, stepId: string, requestId: string, phase: HelpSurveyPhase, answers: Record<string, unknown>, revision: number, sessionId: string) => http.put<{ revision: number }>(`${helpUrl(runId, stepId, requestId)}/surveys/${phase}/draft`, { answers, revision, sessionId }),
   submitHelpSurvey: (runId: string, stepId: string, requestId: string, phase: HelpSurveyPhase, answers: Record<string, unknown>, revision: number, sessionId: string) => http.post<SurveyResponse>(`${helpUrl(runId, stepId, requestId)}/surveys/${phase}/submit`, { answers, revision, sessionId }),

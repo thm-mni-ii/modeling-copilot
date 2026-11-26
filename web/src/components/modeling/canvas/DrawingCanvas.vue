@@ -9,6 +9,8 @@
             :connections="languageConnections"
             :connection-groups="props.connectionGroups"
             :connection-preferences="props.connectionPreferences"
+            :type-switch-languages="typeSwitchLanguages"
+            :can-change-type="props.allowEdit && !props.helpSelectionMode"
             @select-all="selectAll"
             @clear-selection="clearSelection"
             @delete-selected="deleteSelected"
@@ -47,6 +49,8 @@
           :connections="languageConnections"
           :connection-groups="props.connectionGroups"
           :connection-preferences="props.connectionPreferences"
+          :type-switch-languages="typeSwitchLanguages"
+          :can-change-type="props.allowEdit && !props.helpSelectionMode"
           @select-all="selectAll"
           @clear-selection="clearSelection"
           @delete-selected="deleteSelected"
@@ -93,7 +97,7 @@
               <slot name="canvas-top-right" />
             </div>
 
-            <v-alert v-if="diagramWarnings.length" type="warning" variant="tonal" density="compact" class="canvas-diagram-warnings" @pointerdown.stop>
+            <v-alert v-if="autonomyMode === 'validating' && diagramWarnings.length" type="warning" variant="tonal" density="compact" class="canvas-diagram-warnings" @pointerdown.stop>
               <div v-for="(warning, index) in diagramWarnings" :key="index">
                 <v-btn v-if="warning.cell" variant="text" size="small" class="canvas-warning-button" @click="focusWarning(warning.cell)">{{ warning.message }}</v-btn>
                 <span v-else>{{ warning.message }}</span>
@@ -124,7 +128,7 @@
             {{ overlayTooltip.text }}
           </v-tooltip>
         </div>
-        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" ref="rightSidebar" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :selected-task-edit-ids="props.selectedTaskEditIds" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" :evaluation-perspective="props.evaluationPerspective" @evaluation-updated="emit('evaluation-updated', $event)" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
+        <SidebarRightContainer v-if="showRightSidebar" :id="rightSidebarId" ref="rightSidebar" :tools-disabled="props.helpSelectionMode" :help-flow-active="props.helpFlowActive" :collapsed="rightSidebarCollapsed" :has-journey="Boolean($slots['sidebar-top'])" :feedback-shapes="feedbackShapes" :task-active="props.taskActive" :task-edit="props.taskEdit" :task-edit-sync-state="props.taskEditSyncState" :selected-task-edit-ids="props.selectedTaskEditIds" :model-id="props.modelId" :open-evaluation-id="props.openEvaluationId" :evaluation-perspective="props.evaluationPerspective" :hint-request="props.hintRequest" @evaluation-updated="emit('evaluation-updated', $event)" @focus-task-edit="emit('focusTaskEdit', $event)" @remove-task-edit="emit('removeTaskEdit', $event)" @update-task-edit-document="emit('updateTaskEditDocument', $event)">
           <template v-if="$slots['sidebar-top']" #top><slot name="sidebar-top" /></template>
         </SidebarRightContainer>
         <CollabConnector v-if="props.modelManagement" />
@@ -140,7 +144,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } fr
 import { Graph, InternalEvent, RubberBandHandler, Cell, CellOverlay, CellEditorHandler, SelectionCellsHandler, SelectionHandler, CellState, EdgeStyle, GraphDataModel, PanningHandler, ImageBox, Client, KeyHandler, TooltipHandler, FitPlugin, Clipboard, ConnectionConstraint, Point } from '@maxgraph/core'
 import { CellHighlight, eventUtils, type EdgeStyleFunction, type MouseListenerSet, type GraphPluginConstructor } from '@maxgraph/core'
 import type { JsonObject } from '@/services/api/types/common'
-import type { EvaluationDetail } from '@/services/api/types/evaluation'
+import type { EvaluationOutcome } from '@/services/api/types/evaluation'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import type { TaskEditFocus, TaskEditSyncState } from '@/utils/taskEdits'
 import { provideGraphContext } from '@/composables/useGraphContext'
@@ -157,6 +161,7 @@ import { clearConnectionPreview, isPreviewEdge, renderScenarioConnectionPreview,
 import { AnchorConstraintHandler, CustomConnectionHandler } from '@/utils/CustomConnectionHandler'
 import { setupUndoManager, type UndoManagerApi, type UndoManagerState } from '@/utils/setupUndoManager'
 import { alignHorizontal, alignVertical } from '@/utils/alignCells'
+import { nudgeSelectedCells } from '@/utils/nudgeSelectedCells'
 import { clearValidationWarningOverlays, getGraphValidationMode, isValidationPassActive, setGraphValidationMode } from '@/utils/graphValidationRuntime'
 import { createCellFromElement } from '@/utils/elementFactory'
 import { registerElementShapes } from '@/utils/shapeRegistry'
@@ -198,7 +203,37 @@ import img_triangle from '@/assets/images/triangle.gif'
 import img_cloud from '@/assets/images/cloud.gif'
 import img_elementPlaceholder from '@/assets/images/rectangle.gif'
 
+const EDITOR_FORMAT_KEYS: Record<string, TextFormat> = { b: 'bold', i: 'italic', u: 'underline' }
+
 class MyCustomCellEditorHandler extends CellEditorHandler {
+  override installListeners(elt: HTMLElement) {
+    // Ctrl+Enter has no native line-break action in a contenteditable element.
+    InternalEvent.addListener(elt, 'keydown', (evt: KeyboardEvent) => {
+      if (evt.key === 'Enter' && evt.ctrlKey && !evt.isComposing) {
+        elt.ownerDocument.execCommand('insertLineBreak')
+        InternalEvent.consume(evt)
+      }
+      // Cmd/Ctrl+B, I, U format the whole label like the toolbar instead of inserting tags around the selection.
+      const format = EDITOR_FORMAT_KEYS[evt.key.toLowerCase()]
+      if (format && (Client.IS_MAC ? evt.metaKey : evt.ctrlKey) && !evt.altKey && !evt.shiftKey && !evt.isComposing) {
+        formatText(this.graph, format)
+        InternalEvent.consume(evt)
+      }
+    })
+    // Pasted rich text would bring new inline tags; formatting comes from the whole-label style only.
+    elt.addEventListener('paste', (evt) => {
+      const text = evt.clipboardData?.getData('text/plain')
+      if (text === undefined) return
+      evt.preventDefault()
+      elt.ownerDocument.execCommand('insertText', false, text)
+    })
+    super.installListeners(elt)
+  }
+
+  override isStopEditingEvent(evt: KeyboardEvent): boolean {
+    return !evt.isComposing && super.isStopEditingEvent(evt)
+  }
+
   // Custom CellEditorHandler - kann später erweitert werden
   // Beispiel: Anpassung der Editor-Darstellung, Validierung, etc.
 
@@ -217,7 +252,7 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
     super.stopEditing(cancel)
   }
 
-  // Rich Text: Formatierungen (Cmd/Strg+B, I, U) bleiben im Label erhalten
+  // Rich text: inline tags of existing labels survive editing
   override getInitialValue(state: CellState, trigger: MouseEvent | null): string {
     if (!this.graph.isHtmlLabel(state.cell)) return super.getInitialValue(state, trigger)
     return labelToEditorHtml(this.graph.getEditingValue(state.cell, trigger) ?? '')
@@ -226,6 +261,15 @@ class MyCustomCellEditorHandler extends CellEditorHandler {
   override getCurrentValue(state: CellState): string | null {
     if (!this.textarea || !this.graph.isHtmlLabel(state.cell)) return super.getCurrentValue(state)
     return editorHtmlToLabel(this.textarea)
+  }
+}
+
+// Über einem Overlay mit hoverTooltip = false kein Tooltip; maxGraph nähme sonst den der Zelle (TooltipHandler.js:289-308).
+class OverlayAwareTooltipHandler extends TooltipHandler {
+  override getTooltip(state: CellState, node: HTMLElement | SVGElement, x: number, y: number) {
+    const shape = [...(state.overlays?.values() ?? [])].find((item) => node === item.node || node.parentNode === item.node)
+    if ((shape?.overlay as { hoverTooltip?: boolean } | undefined)?.hoverTooltip === false) return null
+    return super.getTooltip(state, node, x, y)
   }
 }
 
@@ -310,8 +354,12 @@ class MyCustomGraph extends Graph {
    * MaxGraph would otherwise accept any cell with children, e.g. a SERM entity because of its attribute list.
    */
   override isValidDropTarget = (cell: Cell, cells?: Cell[]): boolean => {
-    return !!cell && !cell.isEdge() && (this.isSwimlane(cell) || isContainerSectionTarget(cell)) && canContain(containment, cell, cells ?? [])
+    return !!cell && !(cells ?? []).some((moving) => moving.isAncestor(cell)) && !cell.isEdge() && (this.isSwimlane(cell) || isContainerSectionTarget(cell)) && canContain(containment, cell, cells ?? [])
   }
+
+  override isCloneEvent = (): boolean => false
+
+  override isToggleEvent = (evt: MouseEvent): boolean => evt.shiftKey || super.isToggleEvent(evt)
 
   /**
    * Edges only accept connections if their connection allows "Connectable Line".
@@ -464,6 +512,7 @@ const props = withDefaults(
     helpSelectionMode?: boolean
     helpFlowActive?: boolean
     helpCellIds?: string[]
+    helpSingleSelection?: boolean
     showToolbar?: boolean
     showElements?: boolean
     showModelSidebar?: boolean
@@ -475,7 +524,7 @@ const props = withDefaults(
     connectionGroups?: DiagramConnectionGroup[]
     connectionPreferences?: JsonObject
     languageSyntax?: DiagramSyntax[]
-    languages?: (SidebarLanguage & Partial<ValidationLanguage>)[]
+    languages?: (SidebarLanguage & Partial<ValidationLanguage> & { evaluation?: import('@/model/DiagramLanguage').DiagramEvaluationConfig })[]
     autonomyMode?: AutonomyMode
     connectionPreviewAllowed?: boolean
     lockAutonomyMode?: boolean
@@ -486,6 +535,7 @@ const props = withDefaults(
     modelId?: string | null
     openEvaluationId?: string | null
     evaluationPerspective?: 'service' | 'student'
+    hintRequest?: { evaluationId: string; cellId?: string; seq: number; noticeViewed?: boolean } | null
     previewConnection?: DiagramConnection
     previewMode?: 'simple' | 'scenario' | 'routing'
     overlays?: FeedbackCanvasOverlayEntry[]
@@ -526,7 +576,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  'evaluation-updated': [evaluation: EvaluationDetail]
+  'evaluation-updated': [evaluation: EvaluationOutcome]
   'update:model': [GraphDataModel]
   'update:autonomyMode': [AutonomyMode]
   'update:connectionPreferences': [preferences: JsonObject]
@@ -542,6 +592,7 @@ const connectionPreview = useConnectionPreviewPreference()
 const connectionPreviewEnabled = computed(() => props.connectionPreviewAllowed && connectionPreview.value)
 const activeLayerView = ref<CanvasLayerView>('both')
 const rightSidebarCollapsed = ref(false)
+watch(() => props.hintRequest, request => { if (request && request.noticeViewed !== false) rightSidebarCollapsed.value = false })
 watch(() => props.openEvaluationId, (id) => {
   if (id) rightSidebarCollapsed.value = false
 })
@@ -552,6 +603,7 @@ const openModelLanguages = async () => {
   void rightSidebar.value?.openLanguages()
 }
 const rightSidebarId = `model-tools-${globalThis.crypto.randomUUID()}`
+const typeSwitchLanguages = computed(() => props.languages?.map((language) => ({ elements: language.elements, connections: language.connections ?? [], syntax: language.syntax ?? [], evaluation: language.evaluation })) ?? [{ elements: props.languageElements ?? [], connections: props.languageConnections ?? [], syntax: props.languageSyntax ?? [] }])
 const showRightSidebar = computed(() => props.showElements !== false && props.showModelSidebar !== false && props.showToolbar && props.modelManagement)
 
 // Reaktive Variablen für Konfiguration
@@ -602,7 +654,7 @@ const helpMouseListener: MouseListenerSet = {
     const cell = me.getCell()
     const id = cell?.getId()
     if (cell && id && (cell.isVertex() || cell.isEdge())) {
-      const ids = props.helpCellIds.includes(id) ? props.helpCellIds.filter((value) => value !== id) : [...props.helpCellIds, id]
+      const ids = props.helpCellIds.includes(id) ? props.helpCellIds.filter((value) => value !== id) : props.helpSingleSelection ? [id] : [...props.helpCellIds, id]
       emit('update:helpCellIds', ids)
     }
     me.consume()
@@ -616,7 +668,7 @@ watch([() => props.helpSelectionMode, () => props.allowEdit], () => {
 })
 watch(() => props.helpCellIds, refreshHelpHighlights, { deep: true })
 let pendingPersistedModel: Record<string, unknown> | null = null
-const plugins = ref<GraphPluginConstructor[]>([MyCustomCellEditorHandler, TooltipHandler, CustomConnectionHandler as unknown as GraphPluginConstructor, StablePanningHandler, SelectionCellsHandler, SelectionHandler, RubberBandHandler, FitPlugin])
+const plugins = ref<GraphPluginConstructor[]>([MyCustomCellEditorHandler, OverlayAwareTooltipHandler, CustomConnectionHandler as unknown as GraphPluginConstructor, StablePanningHandler, SelectionCellsHandler, SelectionHandler, RubberBandHandler, FitPlugin])
 const toolbarShapes = ref(
   createDefaultShapes({
     rectangle: img_rectangle,
@@ -1150,6 +1202,7 @@ const initGraph = () => {
   graph.value.setConnectable(true)
   graph.value.setConnectableEdges(true)
   graph.value.setCellsEditable(props.allowEdit)
+  graph.value.setEnterStopsCellEditing(true)
   graph.value.setCellsMovable(props.allowEdit)
   graph.value.setCellsResizable(props.allowEdit)
   graph.value.setCellsDeletable(props.allowEdit)
@@ -1186,6 +1239,8 @@ const initGraph = () => {
   const selectionHandler = graph.value.getPlugin<SelectionHandler>('SelectionHandler')
   if (selectionHandler) {
     ;(selectionHandler as any).scaleGrid = true
+    const isPropagateSelectionCell = selectionHandler.isPropagateSelectionCell.bind(selectionHandler)
+    selectionHandler.isPropagateSelectionCell = (cell, immediate, me) => !me.getEvent().shiftKey && isPropagateSelectionCell(cell, immediate, me)
   }
 
   // Enable tooltips
@@ -1254,24 +1309,42 @@ const initGraph = () => {
     keyHandler.value.bindControlKey(68, () => duplicateSelected())
     keyHandler.value.bindControlKey(90, () => undoGraph())
     keyHandler.value.bindControlKey(89, () => redoGraph())
+    keyHandler.value.bindControlKey(66, () => formatSelectedText('bold'))
+    keyHandler.value.bindControlKey(73, () => formatSelectedText('italic'))
+    keyHandler.value.bindControlKey(85, () => formatSelectedText('underline'))
     keyHandler.value.bindKey(46, () => deleteSelected())
     if (Client.IS_MAC) keyHandler.value.bindKey(8, () => deleteSelected())
     ;(keyHandler.value as any)?.bindControlShiftKey?.(90, () => redoGraph())
   }
 
-  // Escape zusätzlich direkt am Container behandeln, da KeyHandler Escape intern speziell verarbeitet.
+  // Handle Escape and arrow movement directly within the focused canvas.
   if (graphContainer.value) {
     graphContainerKeydownHandler = (evt: KeyboardEvent) => {
-      if (evt.key !== 'Escape' || graph.value?.isEditing()) {
+      const currentGraph = graph.value
+      if (!currentGraph || currentGraph.isEditing() || evt.isComposing || evt.defaultPrevented) {
         return
       }
 
       const target = evt.target as Element | null
-      if (target?.closest('input, textarea, select, [contenteditable="true"]')) {
+      if (target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) {
         return
       }
 
-      clearSelection()
+      if (evt.key === 'Escape') {
+        clearSelection()
+        return
+      }
+      if (evt.altKey || evt.ctrlKey || evt.metaKey || evt.shiftKey) return
+
+      let dx = 0
+      let dy = 0
+      if (evt.key === 'ArrowLeft') dx = -1
+      else if (evt.key === 'ArrowRight') dx = 1
+      else if (evt.key === 'ArrowUp') dy = -1
+      else if (evt.key === 'ArrowDown') dy = 1
+      else return
+
+      if (nudgeSelectedCells(currentGraph, dx, dy)) InternalEvent.consume(evt)
     }
     graphContainer.value.addEventListener('keydown', graphContainerKeydownHandler)
 

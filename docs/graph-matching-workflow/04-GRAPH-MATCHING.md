@@ -1,0 +1,251 @@
+# 04 · One-to-One Graph Matching
+
+> **Ist-Dokumentation** · Stand: `dagu(6).zip`, 16.11.2026; Teilerkennung (GM-40) und Ausgabe ergänzt am 23.11.2026; Fixpunktschleife, besitzerbezogene Konkurrenz und Hinweise (GM-41 bis GM-44) sowie Graphkontext, Nachbarstruktur, parallele Kanten und Notationsteile (GM-46 bis GM-49) am 24.11.2026 für Version `2.16.0`, Image `v24` · Service `one-to-one-graph-matching` · `reference-comparison/v2`  
+> **Aufgabe:** Für Abgabe und **eine** Musterlösung aus zulässigen Kandidaten und Graphstruktur eine **partielle 1:1-Korrespondenz** entwickeln, ihre Identitätsevidenz bewerten und **Eigenschaften/Relationen getrennt** prüfen. **Noch keine Note und keine endgültige Korrektheitsaussage über das Gesamtmodell.**
+
+## Gesamtbild: genau ein Graph-Matching-Aufruf
+
+```text
+Snapshot + zwei Graphen + zwei Inventare + semantic-candidates/v1
+  │
+  ├─ A. Herkunft & vollständige Kandidaten prüfen / Graphindizes bilden
+  ├─ B. Exakte und strukturelle Elementvorschläge erzeugen
+  ├─ C. Konfigurierte semantische Vorschläge ergänzen
+  ├─ D. Verbindungen vorläufig zuordnen
+  ├─ E. Konkrete Strukturbeziehungen bewerten
+  ├─ F. Identitätsevidenz ausgewählter Paare bewerten
+  ├─ G. Eigenschafts-, Struktur- und Anwesenheitsfakten erzeugen
+  └─ H. Kompaktes reference-comparison/v2 veröffentlichen
+```
+
+**Wichtig zum Ist-Zustand:** B, C und D besitzen **noch eigene Vorschlags-/Konkurrenzphasen**. E–G erläutern Ergebnisse und stellen zusätzliche Fakten fest; E/F sind **keine zweite vollständige Graphüberlagerung**. Eine vollständig zentrale Identitätsauswahl ist **noch nicht** umgesetzt.
+
+## Eingaben und grundlegende Verbote
+
+| Quelle | Verwendet für |
+|---|---|
+| `graphs/submission.json`, `graphs/<referenceKey>.json` | Knoten, konkrete Typen, Sprachversion, `contains`-Hierarchie, Verbindungsendpunkte, Richtung |
+| `labels/submission.json`, `labels/<referenceKey>.json` | Verlässliche Text-/Labelstatus für Eigenschaftsfakten |
+| `candidates/<referenceKey>.json` | **Vollständiger zulässiger Kandidatenraum** plus methodenspezifische Textscores |
+| `comparisonConfig.graphMatching.minimumSimilarity` | Optional aktivierte Methoden-Schwellen; Standard `{}` = keine semantischen Vorschläge und keine Textähnlichkeitsanker. Der Workflowparameter `levenshtein_threshold` setzt sie über `workflow-data` als `{levenshtein: x}` (zusammen mit `semantics.methods: [levenshtein]`) |
+
+**GM-01 · Integrität:** Vollständige `workflow-result/v1`-Hüllen, Snapshot-/Quellen-/Sprach-/Graph-/Inventar-/Kandidatenhashes werden geprüft. Die Kandidatenmatrix muss **alle und nur** die kompatiblen Fachobjektpaare abbilden; keine stillschweigend fehlenden Konkurrenzpaare. Fehler → kein Erfolgsergebnis.
+
+**GM-02 · Paarzulässigkeit:** Beide Graphobjekte benötigen gleiche Sprach-ID und **Sprachversion**. Wenn **beide** eine explizite Vergleichsgruppe besitzen, muss diese gleich sein; bei **beidseitig fehlender** Gruppe muss der konkrete Typ gleich sein. Gemischte Gruppierung ist unzulässig. `type_compatibility` ist **kein Identitätsbeweis**.
+
+**GM-03 · Modellobjekte:** Freie Fachkandidaten sind `modelElement` mit semantischer Vergleichsrolle. Strukturelle Container sind keine frei wählbaren semantischen Instanzen; Verbindungen werden gesondert zugeordnet.
+
+## Ebene B · Erstzuordnung von Fachobjekten
+
+| Reihenfolge | Evidenzverfahren | Aktuelle Entscheidungsregel |
+|---|---|---|
+| **GM-04 · Exakter Textanker** | Nichtleere, NFC-/Whitespace-normalisiert identische Texte aus **zulässigen Paaren** | `necessary_pairs()` bestimmt Paare, die in **jeder maximalen 1:1-Zuordnung des Exakttext-Kandidatengraphen** vorkommen. Nur diese werden als `unique_exact_label` vorgeschlagen. Mehrdeutige Kombinationen bleiben offen. **GM-04a:** Ein exakter Anker wird zum Prüffall (`label_structure`, als Konflikt reserviert, kein automatischer Tausch), wenn seine Substruktur-Kinder vollständig und geschlossen ein *anderes* Referenzobjekt abbilden **und** seine über Verbindungen zugeordneten Nachbarn diesem anderen Objekt mehr entsprechen. Beispiel: vertauschte Beschriftungen Etage/Laborraum (v15 S06). Gegenbeispiel: getauschte Attributlisten bei richtigen Namen (v14 M05) bleiben Anker, weil die Nachbarn die Namen stützen. |
+| **GM-05 · Zugehörigkeit zum erkannten Besitzer** | Exakte, zunächst mehrdeutige Kinder | Ein bereits unabhängig exakt verankerter Besitzer kann ein Kindpaar über konsistente `contains`-/Owner-Evidenz stützen. Nur beidseitig eindeutige Vorschläge (`consistent_owner_anchor`), mit Besitzerabhängigkeit. |
+| **GM-06 · Residualer Exaktanker** | Nach vorläufigen Reservierungen eindeutig gewordene Textpaare | `unique_exact_after_reservations` nur mit expliziter Abhängigkeit von den reservierten Paaren, die Alternativen ausgeschlossen haben; eine rein zufällig verbliebene Paarmöglichkeit genügt nicht. |
+| **GM-07 · Unabhängige Kinder → Parent** | Bereits vorgeschlagene, **nicht vom zu beweisenden Parent abhängige** Kinder | Bei eindeutig unterstützter Parentkombination `independent_child_evidence`. Konfliktkinder, Konkurrenten und fehlende unabhängige Stützung führen zu Zurückstellung. **GM-07a:** Blockierend ist ein Konfliktkind, dessen Identität aus seinem Label allein folgt (`unique_exact_label`), z. B. `Geräteraum/Größe` (v15 S04); ein nur durch Ausschluss zugeordnetes Kind (`unique_exact_after_reservations`) blockiert nicht, z. B. verschobene `ProjektNr.` bei `Forschungsvorhaben` (v14 M08). |
+| **GM-08 · Gemeinsame Kinderstruktur** | Mehrere einzeln mehrdeutige Kinder; verglichen werden u.a. Text, Vergleichsschlüssel und Strukturpfade/Rollen | Lokale maximale Paarbarkeit wird geprüft. Ein Parent-Anker `combined_child_structure` erfordert eine **geschlossene** vollständige Kinderkomposition, eindeutige Unterscheidbarkeit, bekannte Pfade/Rollen und ausreichende Interpretationsvollständigkeit. Teiltreffer bleiben positive Evidenz, aber kein automatischer Anker. |
+| **GM-09 · Kinder nach erschlossenem Parent** | Neuer strukturell gestützter Parent | Zuvor mehrdeutige exakte Kinder können anschließend als `consistent_owner_anchor` ergänzt werden – mit Abhängigkeit vom erschlossenen Parent. |
+
+### Abhängigkeiten und Kapazität
+
+- **GM-10 · 1:1-Regel:** Kein ausgewähltes Referenzobjekt darf zwei Abgabeobjekte belegen und umgekehrt. Konflikte und nicht verfügbare Abhängigkeitsanker blockieren den Vorschlag; sie erzeugen **keinen erzwungenen Sieger**.
+- **GM-11 · Kapazität:** Bipartite maximale Zuordnungsgröße ist eine **Machbarkeitsbedingung**, kein Identitätsbeweis. Vorschläge sollen die maximal mögliche Belegungszahl der zulässigen Kandidaten nicht reduzieren. Die aktuelle `capacity_preserving_proposals()` prüft einzeln und dann **gemeinsam pro Kandidatenkomponente**.
+- **GM-12 · Grenze der derzeitigen Logik:** Sind mehrere einzeln zulässige Vorschläge **innerhalb derselben Komponente zusammen** unzulässig, verwirft die aktuelle Funktion mitunter auch konfliktunabhängige Vorschläge. Das ist ein **bekannter, nicht als behoben dokumentierter Restfall**. Keine Statusaufwertung oder neue Prioritätsregel daraus ableiten.
+- **GM-13a · Substruktur statt Platzierung:** Identitätsprägend ist ein Besitzer nur, wenn der `contains`-Pfad zu ihm über eine deklarierte Substruktur führt (mindestens eine `component`-Kante, z. B. SERM-Attributliste). Ein Fachobjekt, das nur per `content` in einem anderen liegt (Aufgabe in Lane, Element in Paket, heute auch UML-Klassenmitglieder), hat keinen Identitätsbesitzer: Besitzeranker, unabhängige Kinder, Kinderkombination, Besitzerkonflikt in der semantischen Verfeinerung und das Kriterium `identified_owner` ignorieren diese Platzierung. Lagefakten (`owner.*`, `containment.*`) bewerten sie weiterhin (`GraphIndex.owner()` vs. `identity_owner()`).
+- **GM-13 · Kein Zirkelschluss:** Eine Kindzuordnung, deren Identität erst auf einer Parentannahme beruht, darf diese Parentidentität **nicht** als unabhängiger Beweis bestätigen. Abhängigkeiten werden beim Aufbau und später in der Identitätsbewertung berücksichtigt.
+
+## Ebene C · Semantische Verfeinerung (optional)
+
+```text
+Aktivierte minimumSimilarity-Schwellen?
+  nein → keine semantischen Identitätsvorschläge
+  ja  → Scores je zulässigem Paar aus Kandidatenmatrix lesen
+        → Methode(n) oberhalb ihrer jeweiligen Schwelle?
+        → Konkurrenz und bereits reservierte IDs prüfen
+        → Owner-Relation und Score-Dominanz prüfen
+        → 1:1-Kapazität prüfen
+        → ggf. provisional semantic proposal
+```
+
+| Regel | Ist-Verhalten |
+|---|---|
+| **GM-14 · Schwellen** | `comparisonConfig.graphMatching.minimumSimilarity` nennt **Methoden einzeln**. Werte müssen zum Scorebereich passen; `{}` bedeutet `not_configured`. Keine automatisch erfundene universelle Schwelle. Alternativ (exklusiv) `graphMatching.textEvidence.tiers`: geordnete Stufen mit eigener `minimumSimilarity`; ein Paar gehört zur ersten erfüllten Stufe, stärkere Stufen gewinnen die Konkurrenz und reservieren in der Identitätsbewertung zuerst (Konzept 07). |
+| **GM-15 · Evidenz pro Paar** | `supported`, wenn mindestens eine aktivierte Methode ihren Grenzwert erreicht; sonst je Datenlage `below_threshold` oder `unavailable`. Mehrere Methoden werden nicht als Wahrscheinlichkeiten addiert. |
+| **GM-16 · Konkurrenz** | Vorschlag nur, wenn seine Scores (über konfigurierte Methoden) und Owner-Rang **alle konkurrierenden zulässigen Kandidaten** dominieren; bei Gleichstand/unklaren Methoden zurückstellen. |
+| **GM-17 · Strukturbedingung** | Bekannter Ownerkonflikt verhindert den **semantischen Vorschlag**; bei enthaltenen Objekten mit ungeklärter Besitzerlage wird er ebenfalls zurückgestellt. Wurzelobjekte ohne Besitzer können ohne Owneranker vorgeschlagen werden. |
+| **GM-18 · Kapazität** | Semantische Vorschläge durchlaufen dieselbe kapazitätserhaltende Vorschlagsprüfung. |
+| **GM-18a · Kinder semantischer Besitzer** | Zweiter Durchlauf: Substruktur-Kinder eines semantisch vorgeschlagenen Besitzerpaars konkurrieren nur innerhalb dieses Paars (Kandidaten mit anderem Besitzer zählen nicht), mit denselben Stufen und Schwellen und `dependsOn` auf das Besitzerpaar. In der Identität trägt `identified_owner`, wenn der Text innerhalb des eindeutig erkannten Besitzers notwendig ist. Beispiel: `Labor-Raum/RaumNr` ↔ `Laborraum/RaumNr.`. Ein falsch erkannter Besitzer zieht seine Kinder mit (sie fallen mit ihm). |
+| **GM-18b · Graubereich mit Nachbarbestätigung** | Seit `2.12.0` **kein Mapping mehr**, sondern Hinweis nach GM-43 (Quelle `neighbor_profile`). Bis `2.11.1` wurde ein Graubereichspaar mit Grund `neighbor_confirmed_semantic_evidence` vorgeschlagen; es konnte nie `uniquely_supported` werden, belegte aber Elemente und trug Verbindungen und Fakten. |
+
+**Adapter:** `text_similarity.py` liest die Kandidatenmatrix und klassifiziert jedes zulässige Paar als `supported`, `below_threshold` oder `unavailable`. `semantic_refinement.py` (Vorschläge) und `identity_evidence.py` (Anker) nutzen denselben Adapter.
+
+**Identität:** Ein semantischer Vorschlag ist erst dann eindeutig erkannt, wenn das Kriterium `text_similarity` unter allen offenen Paaren über der Schwelle **notwendig** ist (GM-26). Ein Vorschlag, der nur seine Konkurrenten dominiert, aber nicht eindeutig über der Schwelle steht, bleibt `supported`/`unresolved` und zählt **nicht**. Eine einzelne Schwelle ist eine harte Kante: Konkurrenten knapp darunter werden nicht berücksichtigt.
+
+## Ebene D · Verbindungsvorschläge (nach Elementmapping)
+
+| Regel | Ist-Verhalten |
+|---|---|
+| **GM-19 · Exakter Verbindungstext** | Nichtleerer, exakt gleicher Text (`connection` selbst oder passender `self`-Text aus `connectionTextMatrix`) kann `unique_exact_connection_label` begründen, sofern sprachlich kompatibel. |
+| **GM-20 · Strenge Struktur** | `compatible_type_and_mapped_endpoints`: kompatibler Vergleichsschlüssel, auf Abgabeobjekte abgebildete Endpunkte, bekannte Richtung. Gerichtete Anschlüsse bewahren `source`/`target`; ungerichtete werden als Endpunktmenge betrachtet. |
+| **GM-21 · Breitere Endpunktstruktur** | `unique_mapped_endpoints`: bei passender Sprache und identischer **ungerichteter Endpunktgruppe** kann eine Verbindung auch trotz Typ-/Richtungsabweichung als Kandidat in Betracht kommen. Konkurrenz muss eindeutig auflösbar sein. |
+| **GM-22 · Parallele Linien** | Notwendige Paare der jeweiligen Kandidatengraphen werden vorgeschlagen; mehrere nicht unterscheidbare parallele Verbindungen bleiben individuell ungeklärt. |
+
+**Verbindungsidentität ≠ Eigenschaften:** Eine erkannte Linie mit abweichendem konkretem Typ, Endpunkt oder Richtung kann einzeln einen Fehlerfakt erhalten; gruppenweite Unterschiede begründen keine automatische individuelle Fehlidentität.
+
+## Ebene E/F · Struktur und Identität **getrennt** bewerten
+
+### E. Strukturrelationen
+
+- **GM-23 · Containment:** Jede Referenz-`contains`-Relation wird mit den bisher vorgeschlagenen Korrespondenzen, unmittelbaren Parents, Rollen und möglichen Zwischencontainern verglichen. Die unabhängige Beweisanforderung ist strenger als einfache Ownerkonsistenz. `satisfied`, `violated`, `unresolved` sind möglich; nicht unabhängige/zirkuläre Beweise bleiben offen.
+- **GM-24 · Strukturelle Container:** Dürfen nur aus eindeutig passenden, von bereits verankertem Parent abhängigen verschachtelten Definitionen abgeleitet werden; keine freie strukturelle 1:1-Kandidatenwahl.
+- **GM-25 · Verbindungsgruppen:** `provisionalConnectionStructure` vergleicht Endpunktgruppen unabhängig von der individuellen Identität paralleler Linien. Richtung, Typ, Konfiguration dürfen abweichen; ein Gruppenbefund ist kein einzelner Verbindungsfehler.
+
+### F. Identitätsbewertung
+
+| Methode / Evidenz | Als Identitätsanker verwendbar? |
+|---|---|
+| `type_compatibility` | **Nein** – nur Vergleichszulässigkeit |
+| `exact_label` | **Ja, wenn** innerhalb aller evidenzgestützten Alternativen notwendig/eindeutig |
+| `independent_children` | **Ja, wenn** Abhängigkeiten bereits unabhängig geklärt |
+| `combined_children` | **Nur** bei vollständiger geschlossener Kombination und eindeutiger Konkurrenz |
+| `identified_owner` | Bedingt; muss diskriminieren, unabhängig sein und zulässige Stützung besitzen |
+| `connection_structure` | Ja, wenn individuell eindeutig und die benötigten Endpunktidentitäten abgesichert sind |
+| `text_similarity` | **Ja, wenn** Score ≥ Schwelle und das Paar unter allen offenen Paaren über der Schwelle notwendig/eindeutig ist; wird für alle zulässigen Paare berechnet, damit Konkurrenz sichtbar bleibt. Ohne Schwelle nicht vorhanden. Ersetzt das frühere `semantic_proposal` (Identitätsevidenz `1.1`). |
+
+**GM-26a · Verbindungen und Konflikte:** Bei zwei unbeschrifteten Verbindungen ist `exact_label` `not_applicable` (nicht `violated`). `connection_structure` wird `unresolved`, solange die Endpunkte selbst nicht eindeutig erkannt sind (wie `identified_owner`/`independent_children`). Ein nach GM-04a zurückgehaltener Anker erhält das Kriterium `label_structure: violated`, das über den Analysebericht im Frontend als „Beschriftung widerspricht Struktur“ erscheint.
+
+**GM-26 · Status:** `uniquely_supported` = eindeutige, nicht zirkuläre Identitätsevidenz für das ausgewählte Paar; `supported` = positive, aber nicht hinreichende Evidenz; `unresolved` = kein hinreichend gestützter, eindeutiger Vorschlag. Ein `provisional`-Paar ist **nicht automatisch** `uniquely_supported`.
+
+**GM-27 · Evidenzzeitpunkt:** `evaluate_identity()` bewertet die **bereits vorgeschlagenen** Paare und erklärt auch konkurrierende zulässige Paare; es ist **kein vollständig zentraler Korrespondenz-Selektor**. Die Statusbegründung setzt eine nachweisbare 1:1-Zuordnung voraus.
+
+**GM-40 · Teilerkennung und Entscheidungsgrund (`pairDecisions`):** `pair_decisions()` hält für jedes textrelevante Paar fest, wie es ausging: `identified`, `partial` oder `open`, jeweils mit einem Grund. `partial` heißt, dass der Begriff zum Element passt, sein Besitzer aber nicht identifiziert ist. Mapping, Fakten und Erkennungsquote bleiben davon unberührt (GM-39).
+
+Ein Paar wird `partial`, wenn alle vier Bedingungen gelten:
+
+1. Der Text erreicht eine Stufe, kein Veto greift und `label_structure` widerspricht nicht.
+2. Keine der beiden Seiten ist bereits anderswo eindeutig zugeordnet.
+3. Beide Besitzer existieren und sind als Paar zulässig (GM-02). Weder ein identifizierter noch ein übergeordneter Besitzer spricht dagegen, sonst gilt `owner_conflict`.
+4. Kein anderes offenes Textpaar konkurriert um eines der beiden Elemente, sonst gilt `ambiguous_candidates`.
+
+Bei gleichnamigen Elementen in verschiedenen Strukturen lockert sich Bedingung 4 nur, wenn mindestens zwei saubere Kinder auf dasselbe Besitzerpaar zeigen und dieses Paar auf beiden Seiten mehr solche Kinder hat als jedes konkurrierende. Innerhalb des Besitzerpaars setzt sich ein Kind dann wie in GM-16 durch: mit der höheren Stufe oder, bei gleicher Stufe, mit mindestens gleichem Wert in jeder gemeinsamen Methode und einem höheren in einer davon. Widersprechen sich die Methoden, bleibt das Paar offen. Saubere Kinder eines unterlegenen Besitzerpaars erhalten `owner_conflict`.
+
+*Begründung:* Ein Element gehört in seine eigene Struktur, deshalb widerlegt ein gleicher Name in einer anderen Struktur die Zuordnung nicht. Textnähe allein beweist aber keine Identität (GM-02, GM-08). Die Teilerkennung bleibt daher eine eigene Aussage ohne Punkte. Die Mindestzahl von zwei Kindern ist nicht kalibriert: Ein einzelnes generisches Attribut wie `Name` belegt noch keine Elternbeziehung.
+
+*Gründe:* `identified_glossary`, `identified_owner`, `identified_structure`, `identified_text`, `identified_label`, `owner_unresolved`, `ambiguous_candidates`, `owner_conflict`, `assigned_elsewhere`, `label_structure_conflict`, `no_unique_match` sowie die Textvetos `glossary_rejected`, `digit_mismatch` und `start_mismatch`.
+
+*Messung vom 23.11.2026 (35 gespeicherte Abgaben, offline):* Mapping und Fakten blieben in allen Läufen gleich. Es gibt 128 Teiltreffer aus 21 verschiedenen Begriffspaaren. Der zuvor gefundene Fehltreffer `Arbeitseinsatz.EtagenNr. <- Einsatz.WissNr` tritt nicht mehr auf.
+
+**GM-41 · Fixpunktschleife (`resolution.py`):** Die Strukturphasen (`residual_exact`, `child_owner`, `combined_children`, `inferred_owner_children` in `correspondence_state.py`) und die semantische Verfeinerung laufen in Runden, bis eine Runde kein neues Paar annimmt. Paare kommen nur hinzu, keines wird zurückgenommen; die Schleife endet daher von selbst. Jedes Paar trägt `round`, das Ergebnis `decisionRounds` (ausgeführte Runden einschließlich der letzten ohne neues Paar). Ein angenommenes Paar reserviert beide Elemente; damit scheiden alle anderen Kandidaten dieser Elemente in der nächsten Runde aus. Semantisch vorgeschlagene Besitzer begrenzen ab der zweiten Runde die Konkurrenz ihrer Kinder wie exakte Besitzer. Neue Paare entstehen nur über `accept_proposals`. Eine Runde ohne neues Paar verändert nichts. *Beispiel:* `Nachname` ↔ `Name` neben dem exakten `Vorname` wird erst gefunden, nachdem der Personenbesitzer in Runde 1 semantisch erkannt wurde.
+
+**GM-42 · Besitzerbezogene Konkurrenz:** Ist der Besitzer eines Kindes eindeutig identifiziert, konkurrieren nur Kandidaten unter dem zugeordneten Besitzer. Innerhalb dieses Bereichs reservieren die Textstufen in ihrer Reihenfolge (wie GM-16): Eine Schreibvariante setzt sich gegen eine Bedeutungsähnlichkeit durch. `pair_decisions` wertet `ambiguous_candidates` bei identifizierten Besitzern ebenfalls nur innerhalb des Besitzerpaars. *Beispiel:* `Bezeichung` (Tippfehler, Stufe Schreibvariante) gegen `Beschreibung` (Stufe Bedeutung) unter demselben Besitzer; *Gegenbeispiel:* gleichnamige Kinder anderer Besitzer zählen weiterhin global, solange ihr Besitzer offen ist.
+
+**GM-43 · Hinweise (`hints.py`):** Ein Hinweis ist positive, nicht hinreichende Evidenz für ein offenes Elementpaar. Er zählt nie, steht nie in `dependsOn`, reserviert nichts und ändert weder Mapping, Fakten noch Erkennung. Er entsteht erst nach `evaluate_identity` aus nur lesenden Eingaben. Jede Identitätszeile erhält `zone` (`certain`, `hint`, `open`). Quellen:
+
+- `text_band`: Score höchstens `textBand` unter einer Stufenschwelle, kein Veto, gleiche Vergleichsgruppe, kein Besitzerkonflikt, einziger Kandidat beider Elemente im Band oder darüber, und mindestens einer dieser Belege: identifizierter Besitzer, bestätigender Nachbar, Wortteilbeziehung (GM-44).
+- `neighbor_profile`: Hauptelemente ohne Substruktur-Besitzer. Sicher erkannte Nachbarpaare verbinden beide Elemente. Mit Graubereichstext reicht ein Nachbar, ohne Text braucht es `minimumNeighbors`. Kein Konkurrent hat gleich viele oder mehr solcher Nachbarn (bei Graubereichstext blockiert ein gleich gestützter Konkurrent nur, wenn er selbst Text im Graubereich oder darüber hat).
+- `child_overlap`: keine geschlossene Komposition, mindestens `minimumChildren` gleiche Kinder, und die Überlappung (gleiche Kinder geteilt durch die Vereinigung beider Kindermengen) ist für beide Elemente strikt die beste.
+
+Widersprechen sich zwei Hinweise in einem Element, entfallen beide (`withdrawnCount`). Alle Parameter stehen eingefroren in `comparisonConfig.graphMatching.hints`; ohne diese Angabe (Eingaben vor Workflow-Data `1.4.0`) gilt `configurationStatus: not_configured` ohne Hinweise.
+
+**Hinweise im Diagramm-Editor:** Studierende und Administration verwenden dieselbe Ansicht „Was meinst du damit?“ mit der kurzen Frage „„Begriff“: Meinst du damit „Vorschlag“?“. Technische Gründe bleiben ausgeblendet. Studierende öffnen den zunächst eingeklappten Hinweisbereich; beide Analyseansichten haben dafür einen eigenen Tab „Hinweise“. Das Infosymbol am Element öffnet diesen Tab direkt beim zugehörigen Hinweis. Dieser Sprung allein schaltet noch keine Entscheidung frei: Erst „Zeigen“ scrollt das betroffene Element in den sichtbaren Bereich und umrahmt es mit einem schlichten hellblauen Rechteck ohne Füllung oder Auswahlgriffe, ohne das Modell zu verändern. Anschließend werden „Ersetzen“ und „Ablehnen“ nur für diesen Hinweis freigeschaltet. Beim Zeigen eines anderen Hinweises, Schließen des Bereichs oder Verlassen des Tabs ist erneut „Zeigen“ nötig. Historische Modellstände bleiben schreibgeschützt. Der Wechsel eines Administrationskontos in die Studierendenansicht sperrt die Aktionen für die eigene aktuelle Auswertung nicht; die Freigabe erfolgt auch dort erst nach „Zeigen“. Fremde Auswertungen bleiben durch die serverseitige Eigentümerprüfung geschützt. „Ersetzen“ übernimmt die vorgeschlagene Beschriftung über die rückgängig machbare Editoränderung; „Ablehnen“ belässt die Beschriftung. Die Hinweise bleiben an ihre ursprüngliche Element-ID gebunden, auch nach fachlichen Modelländerungen. Ein dezenter Hinweis fordert dann zur erneuten Prüfung auf; nur ein entferntes Element verhindert „Zeigen“ und „Ersetzen“. Die Anzeige „Ersetzt“ folgt der aktuellen Beschriftung nach einer Annahme. Undo oder manuelles Zurückändern macht den Vorschlag wieder bedienbar (erneut erst nach „Zeigen“), Redo stellt die Anzeige „Ersetzt“ wieder her. Andere Hinweise bleiben währenddessen verfügbar.
+
+**Einstieg aus Hilfe und Abschlussprüfung:** Alle Hilfearten erhalten dieselben erzeugten Rückfragen. Nach angeforderter automatischer Hilfe erscheint bei vorhandenen Hinweisen zunächst nur der blaue Einstieg. Erst der Klick auf „Hinweise ansehen“ öffnet den Hinweisbereich, bevorzugt beim zuvor markierten Element; erst dann scrollt und pulsiert das Panel. Anschließend verschwindet der blaue Einstieg für diese Auswertung. In der regulären Ergebnisansicht, der Analyseübersicht und im Abschlussdialog erscheint ein hervorgehobener Einstieg mit der Anzahl der bei dieser Auswertung offenen Zuordnungen. „Hinweise ansehen“ öffnet die zugehörige Auswertung und den Hinweisbereich, scrollt zur Rückfrage und setzt den Tastaturfokus. Eine kurze Hervorhebung berücksichtigt reduzierte Bewegungen. Ergebnis und Abgabemöglichkeit bleiben zugänglich; die Navigation ersetzt nicht den bewussten Schritt „Zeigen“ vor einer Entscheidung.
+
+**Messung und erneute Abfragen:** Die vorhandene Ereigniserfassung speichert unter `evaluations.studentFeedback.hintEvents` die Aktionen `shown` (Hinweisbereich beziehungsweise Hinweis-Tab geöffnet), `accepted` (Beschriftung ersetzt) und `dismissed` (abgelehnt) mit Hinweis-ID und Zeitstempel, höchstens einmal je Auswertung, Hinweis und Aktion. Damit lassen sich angezeigte, angenommene und abgelehnte Hinweise zählen; mehrfaches Öffnen erhöht die Zahl nicht. Die Meldung erfolgt im Hintergrund; Übertragungsfehler blockieren die Modellbearbeitung nicht und können zu fehlenden Ereignissen führen. Zusätzlich werden nach einer Annahme Zustandswechsel als `retained` (Vorschlag noch als Beschriftung vorhanden), `reverted` (andere Beschriftung) und `removed` (Element entfernt) erfasst. Undo/Redo können diese Ereignisse mehrfach auslösen; unveränderte Beobachtungen werden atomar dedupliziert. Die Browsermeldungen werden in Reihenfolge übertragen. Die Annahmehistorie bleibt erhalten, während der jeweils letzte Zustand über `hints[].retention` abrufbar ist. Zurückgeänderte oder entfernte Ersetzungen liefern keine aktive Annahmeevidenz für Glossarkandidaten. Diese Messung beschreibt den zuletzt beobachteten Editorstand, nicht verbindlich den final gespeicherten Modellstand; Änderungen außerhalb einer geöffneten Hinweisansicht und fehlgeschlagene Übertragungen können unberücksichtigt bleiben. Entscheidungen gelten nur für die jeweilige Auswertung. Jede neue Auswertung bietet alle aktuell ermittelten Hinweise erneut an, auch zuvor abgelehnte Begriffspaare; bei Studierenden startet der Bereich wieder eingeklappt und für Entscheidungen ist erneut „Zeigen“ erforderlich.
+
+**GM-46 · Austauschbare parallele Kanten (`initial_recognition.py`):** Kanten mit gleichem Typ, gleicher Richtung, gleichen zugeordneten Endpunkten und gleichem (oder ohne) Text sind nicht unterscheidbar. Bleiben sie nach den übrigen Regeln offen, werden sie in fester ID-Reihenfolge zugeordnet (`interchangeable_parallel_connections`, höchstens `min(n, m)`). Jede Zuordnung innerhalb der Gruppe ist gleich richtig. *Beispiel:* die zwei Kanten der rekursiven Beziehung „Fortsetzung“; *Gegenbeispiel:* gleiche Endpunkte, aber andere Richtung oder anderer Text.
+
+**GM-47 · Kontext entscheidet zwischen Textkandidaten (`context_evidence.py`):** Der Kontext eines Elements sind alle Kanten (Typ, Richtung) und das Enthaltensein im nächsten Fachelement über Strukturcontainer hinweg, in beiden Richtungen. Er wird ohne Sprachwissen gelesen; Container und Verbindung sind zwei Strukturen derselben Suche. Erreicht der Text für mehrere Kandidaten eine Stufe, wird der Kandidat vorgeschlagen, dessen Kontext mit schon angenommenen Paaren übereinstimmt. Er braucht mindestens eine Übereinstimmung, und jeder Konkurrent beider Elemente muss strikt weniger haben (`context_disambiguated_text`, Kriterium `context_structure`). Der Kontext hebt keinen eindeutigen Texttreffer auf. *Beispiel:* `GebäudeNr.` fünfmal in ERM, jeweils über die Attributkante an der erkannten Entität; *Grenze:* ein falscher, aber eindeutiger Texttreffer über Kontextgrenzen bleibt.
+
+**GM-48 · Identität über Nachbarstruktur (`context_evidence.py`):** Ein offenes Elementpaar mit passendem Typ ist belegt, wenn mindestens zwei Kontextbeziehungen mit sicher angenommenen Paaren übereinstimmen und kein Konkurrent beider Elemente gleich viele oder mehr hat (`neighbor_structure`). Text ist nicht nötig; eine Abweichung bleibt ein eigener `label.*`-Fakt (strukturell und inhaltlich sind zwei Aussagen). Beförderung nur mit eindeutigen Nachbarpaaren; in der Fixpunktschleife kaskadiert das über Kanten zu weiteren Knoten. *Beispiel:* unbeschriftete Gateways, EPK-Konnektoren, Start- und Endknoten, Generalisierungsknoten; *Gegenbeispiel:* zwei gleichartige Knoten mit gleichem Profil bleiben offen.
+
+**GM-51 · Doppelte Elemente (`context_evidence.py`):** Greifen GM-47 und GM-48 in einer Runde nicht mehr, gelten zwei schwächere Regeln, nur zwischen Textkandidaten. Erstens zählt eine Kante zum richtigen, schon zugeordneten Nachbarn auch dann, wenn Typ oder Richtung abweichen (`loose_context_text`). Die Abweichung bleibt ein eigener `connection.*`-Fakt. Zweitens werden Kandidaten, die sich in nichts unterscheiden (gleiche Beschriftung, gleicher Typ, gleicher Kontext), wie in GM-46 nach ID gepaart (`interchangeable_duplicate`). Haben die Kopien unterschiedliche Teile des Kontexts, gleich viele, bleiben sie offen. Das Hilfe-Feedback (`help.check` als `notes`, Rückfrage, nächster Schritt) und die Lab-Ansicht zeigen am offenen Element eine Info. Nach jeder Auswertung steht sie außerdem unter „Was meinst du damit?“, als Lernhinweis mit `note` statt Vorschlag (`observation:<Zelle>`, nur „Zeigen“, kein Ersetzen oder Ablehnen). Überzählig heißt: Laut `pairDecisions` passt der Text zu einem Musterlösungselement, das ein anderes Element desselben Typs erhalten hat (`assigned_elsewhere`), und dieses Element hat keinen Nachbarn, den das andere nicht auch hat. Zwei „Zuordnung“ zwischen verschiedenen Entitäten bleiben so ohne Info. Gleichnamige Kopien, von denen keine zugeordnet ist, erhalten eine Info, wenn die Musterlösung weniger davon hat. Vergleichbar heißt wie im Matcher: gleiche Vergleichsgruppe, sonst gleicher Typ; der Text nennt einen abweichenden Typ. Trifft keine dieser Regeln zu, trägt das offene Element aber denselben Namen wie ein zugeordnetes (beliebiger Typ und Kontext) und kommt dieser Name in der Abgabe öfter vor als in der Musterlösung, meldet eine schwächere Info nur diese Beobachtung („Den Namen … gibt es noch einmal“); in der Erklärung ergänzt sie den Satz zur fehlenden Zuordnung. Der Vergleich mit der Musterlösung ersetzt jedes Sprachwissen: Ein Name, den die Musterlösung selbst wiederholt (Attribut „Bezeichnung“ an mehreren Entitäten, enthalten oder über eine Kante), bleibt still. Dasselbe gilt für Verbindungen: Eine offene Verbindung mit gleichem Typ und gleichen zugeordneten Endpunkten (bei gerichteten in gleicher Richtung) wie eine zugeordnete erhält „Diese Verbindung zwischen … gibt es noch einmal“, wenn es davon mehr als in der Musterlösung gibt (`connection.duplicate`). Der Einstieg „Hinweise ansehen“ zählt Rückfragen und Beobachtungen getrennt und bittet nur bei Rückfragen um Klärung. *Beispiel:* „Videospiel“ zweimal, nur die Kopie mit den Beziehungen ist verbunden, Kardinalität falsch; *Gegenbeispiel:* jede Kopie trägt eine der beiden Beziehungen.
+
+**GM-52 · Synonyme zählen wie die exakte Beschriftung (`resolution.py`, `matching.py`, `identity_evidence.py`):** Hat ein Musterlösungselement neben einem exakt gleich beschrifteten Kandidaten einen weiteren Kandidaten gleicher Art, dessen Text eine Stufe erreicht (und der nicht selbst exakt zu einem anderen Element passt), wird das exakte Paar nicht sofort verankert. Das gilt nur, wenn die exakte Beschriftung auf beiden Seiten eindeutig ist; wiederholte Namen (etwa „Bezeichnung“ in mehreren Entitäten) entscheidet ohnehin die Besitzerstruktur. Der Kontext entscheidet wie bei GM-47 und GM-51, auch über Kinder (`independent_child_evidence`). Erst wenn nichts entscheidet, gewinnt die exakte Beschriftung (`exact_label_after_context`). Hat der Kontext den Rivalen gewählt, ist die exakte Beschriftung in der Identitätsbewertung kein Gegenargument mehr; wurde das exakte Paar gewählt, bleibt sie Anker (verallgemeinert in GM-53). *Beispiel:* leeres „Videospiel“ neben „Videospielen“ mit Titel und Beziehungen.
+
+**GM-53 · Textstufen ordnen nur Textkandidaten (`identity_evidence.py`, `STRUCTURAL_CHOICES`):** Hat eine Strukturphase (Kinder, kombinierte Kinder, Kontext, lockerer Kontext, Nachbarn) zwischen Textkandidaten eines Musterlösungselements gewählt und gibt es einen textlich stärkeren Rivalen (exakt gegen ähnlich oder höhere gegen niedrigere Stufe), entscheidet der Text in der Identitätsbewertung für dieses Element nicht; die Strukturbelege tragen die Identität. Sind die Rivalen textlich gleich stark oder hat der Text selbst gewählt, bleibt er Anker. *Beispiel:* leeres „Videospiele“ (Stufe Schreibweise) neben „Videospielen“ (Stufe Bedeutung) mit Titel und Beziehungen; *Gegenbeispiel:* „GebäudeNr.“ fünfmal exakt in ERM, der Kontext wählt und der Text macht die übrigen Kopien nacheinander eindeutig.
+
+**GM-49 · Notationsteile als Vergleichstexte (`synonym-matching`, `text_similarity.py`):** Eine Beschriftung wird an Satzzeichen geteilt, die keine Wortteile verbinden (`:` `(` `)` `[` `]` `/` `=` `<` `>` `{` `}` `«` `»`, führendes Einzelzeichen vor einem Leerzeichen). Jede Kombination aus Beschriftung und Teil wird wie eine Matching-Quelle bewertet, außer Beschriftung gegen Beschriftung. Es gilt die stärkste Quelle; Werte werden nicht gemischt, Vetos und Schwellen gelten je Variante. Der Matcher prüft die Teile durch Nachrechnen. *Beispiel:* `+ customerNumber: int` ↔ `customerNumber`; *Gegenbeispiel:* `E-Mail`, `GebäudeNr.` ergeben keine Teile.
+
+**GM-44 · Wortteilbeziehung (`synonym_matching/word_parts.py`):** Beschriftungen werden an Nicht-Alphanumerik, Groß-/Kleinwechseln und Ziffern geteilt. Zusammengesetzte Wörter werden nur an Teilen getrennt, die in den beiden verglichenen Modellen selbst vorkommen; es gibt keine Wortliste. Ergebnis ist eine beschreibende Beziehung (`notation`, `reordered`, `head_form`, `part_of_term`, `abbreviation`, `same_stem`), nie ein Score oder eine Zuordnung. *Beispiele:* `Arbeitseinsatz`/`Einsatz` → `head_form`, `GebäudeNr.`/`GNr` → `abbreviation`, `customerId`/`CustomerID` → `notation`; *Gegenbeispiel:* `Ende`/`Dauer` → keine Beziehung.
+
+*Messung vom 24.11.2026 (73 gespeicherte Vergleichspaare, offline gegen `2.11.1`):* Die Fixpunktschleife und die besitzerbezogene Konkurrenz ergeben 13 zusätzliche eindeutige Paare (`EtagenNr.`/`EtagenNr` 6, `Nachname`/`Name` 4, `Bezeichnung`/`Bezeichung` 3), kein verlorenes. Ohne GM-18b als Mapping entfallen 61 Zuordnungen (Elemente und daran hängende Verbindungen); kein Paar verliert `uniquely_supported`. Es entstehen 42 Hinweise auf 3 Begriffspaare (`Arbeitseinsatz`/`Einsatz`, `Forschungsprojekt`/`Projekt`, `Laborausstattung`/`Inventar`), alle nach Einzelprüfung zutreffend; keiner wurde zurückgezogen. Mit und ohne Hinweisberechnung sind Mapping, Fakten und Identitätsstatus identisch. Nur eine Aufgabe und eine Sprache; die Negativfälle aus `08-TESTMODELLE-V15.md` lagen nicht vor.
+
+## Ebene G · Faktauswertung (keine neue Identitätswahl)
+
+| Prüffamilie | Was wird verglichen? | Regel für Aussage |
+|---|---|---|
+| **GM-28 · `label.*`** | Text der zugeordneten Elemente/Verbindungen | `equal`/`different` nur bei verfügbarem Text; bei fehlendem/nicht unterstütztem Label `label.unavailable: not_evaluated` – nicht „nicht anwendbar“. |
+| **GM-29 · `type.*`** | Konkreter Typ der zugeordneten Instanzen | `satisfied` bei gleichem Typ, `violated` bei bekanntem Unterschied innerhalb zulässiger Vergleichsklasse; nicht automatisch falsche Identität. |
+| **GM-50 · `formatting.*`** | Sichtbare Textauszeichnung (fett, kursiv, unterstrichen) der zugeordneten Instanzen: `fontStyle` der Zelle oder Default der Sprachdefinition plus Inline-Tags, die den ganzen Text umschließen (Teilauszeichnung zählt nicht) | Mengenvergleich, Reihenfolge egal. `not_applicable` ohne Auszeichnung auf beiden Seiten (`no_formatting`) oder wenn beide Seiten nur die Standardauszeichnung ihres abweichenden Typs zeigen (`difference_explained_by_type`, der `type.*`-Fakt meldet es). Nie Teil von Text, Identität oder Erkennung; Tags werden beim Textvergleich entfernt. Seit `2.18.0`. |
+| **GM-30 · `owner.*` / `containment.*`** | Fachlicher Besitzer, Parent-ID und direkte Relation/Rolle | Korrekte, verschobene oder ungeklärte Position **unter den nötigen Identitätsannahmen**. Bekannte Konflikte dürfen identifizierte Kinder nicht einfach „unsichtbar“ machen. |
+| **GM-31 · `children.complete`** | Semantische Kinder über Strukturcontainer hinweg bis zum nächsten Fachobjekt | Erwartet/beobachtet/zugeordnet, verschobene/offene/fremde/zusätzliche Kinder, Rollen und Pfade. Lokale Vollständigkeit nur bei hinreichend vollständigen und eindeutigen Daten. |
+| **GM-32 · `direct_children.complete`** | **Unmittelbare** Parent→Child-Beziehungen | Zusätzlich Containerpfad/Rollen berücksichtigen; nicht mit semantischen Gesamtkindern gleichsetzen. |
+| **GM-33 · `connection.*`** | Individuell zugeordnete Linie: Typ, Endpunkte, `source`, `target`, Richtung | `satisfied`, `violated` oder `unresolved` je nach Daten-/Mappinglage; Endpunktgruppen separat halten. |
+| **GM-34 · `connection_group.*`** | Gruppen von Linien zwischen gemappten Endpunkten | Aussage ausschließlich **auf Gruppenebene**, nicht jedem Einzelobjekt als individueller Fehler zurechnen. |
+| **GM-35 · `incoming/outgoing/undirected/connections.complete`** | Lokale Anzahl und zugeordnete Verbindungen pro erkanntem Fachobjekt | Gesamt- und Richtungszahlen getrennt, offene Endpunkte/partielle Graphen als Einschränkung. |
+| **GM-36 · `counterpart.*`** | Vorhandenes/unzugeordnetes Gegenstück; Anwesenheit | `unmatched` zunächst `unresolved`; `missing` nur bei aus vollständiger Graphbeobachtung/ausreichender 1:1-Beweislage belegter Abwesenheit. |
+| **GM-37 · `identity.*`** | Identitätsstatus und tragende Kriterien | Als separater Fakt für Feedback und Erkennungsstatistik, **nicht** durch Eigentums-/Labelabweichung überschreiben. |
+
+**Faktstatus:** `satisfied` · `violated` · `unresolved` · `not_evaluated` · `not_applicable`. Jeder Fakt enthält Beweisbasis (`direct_observation`, `independent_evidence`, `conditional_mapping`), betroffene Original-IDs und gegebenenfalls ein gemeinsames `findingId` für denselben Positionsfehler.
+
+## Ebene H · Standardausgabe vs. Diagnostik
+
+```text
+reference-comparison/v2 (im Normalbetrieb)
+  mapping.provisionalElements[] / provisionalConnections[]
+  unresolvedReferenceIds[] / unresolvedStudentIds[]
+  unresolvedReferenceConnectionIds[] / unresolvedStudentConnectionIds[]
+  propertyFacts {version, items[]}
+  pairDecisions[] {referenceId, studentId, decision, reason}
+  decisionRounds
+  hints {configurationStatus, items[] {id, referenceId, studentId, kind, sources, evidence, wordRelation}, withdrawnCount}
+  semanticConfiguration {configurationStatus, minimumSimilarity, textEvidence}
+  Provenienz, completeness, comparisonHash
+
+nur bei GRAPH_MATCHING_DIAGNOSTICS=1 zusätzlich:
+  diagnostics {candidatePairs, decisionEvents, identityEvidence,
+               semanticRefinement, childOwnerEvidence,
+               Containment-/Connection-Detailanalysen, Metriken, ...}
+```
+
+**GM-38 · Datensparsamkeit:** Die umfangreichen Zwischenauswertungen werden heute **weiterhin intern berechnet** und im Normalbetrieb vor der Serialisierung entfernt. Weniger JSON bedeutet deshalb **nicht automatisch weniger CPU-/RAM-Aufwand**.
+
+**GM-39 · Kein Score:** Der Graphvergleich setzt `assessmentAvailable: false` und `status: partial`/provisorische Vollständigkeit. Die spätere Erkennungsquote zählt ausschließlich eindeutige Identitäten, nicht „korrekte Struktur“ und nicht alle `provisional`-Paare.
+
+## Änderungslandkarte – genau hier ändert sich welche Regel
+
+| Regeln | Verantwortlicher Code |
+|---|---|
+| GM-01–03: Artefakte, Kompatibilität, Graphindizes | `artifacts.py`, `graph_index.py` |
+| GM-04–09: Text-/Strukturvorschläge | `matching.py`, `correspondence_state.py`, `structural_evidence.py` |
+| GM-10–12: globale Paarbarkeit, Kapazität, Konkurrenz | `assignment_capacity.py`, `correspondence_state.py` |
+| GM-14–18: semantische Vorschläge | `semantic_refinement.py` |
+| GM-41: Fixpunktschleife | `resolution.py`, Phasen in `correspondence_state.py` |
+| GM-42: besitzerbezogene Konkurrenz | `identity_evidence.py` (`owner_scoped`, `pair_decisions`) |
+| GM-46: parallele Kanten | `initial_recognition.py` |
+| GM-53: Textstufe gegen Strukturwahl | `identity_evidence.py` (`STRUCTURAL_CHOICES`, `text_open`) |
+| GM-52: Synonym gegen exakte Beschriftung | `resolution.py` (`contested_exact_pairs`, `exact_after_context`), `matching.py`, `identity_evidence.py` |
+| GM-51: doppelte Elemente | `context_evidence.py`, Phasen in `resolution.py`; Hinweis in `feedback-generation/src/help_feedback.py` |
+| GM-47–48: Graphkontext und Nachbarstruktur | `context_evidence.py`, Phasen in `resolution.py`, Kriterien in `identity_evidence.py` |
+| GM-49: Notationsteile | `synonym-matching/src/synonym_matching/word_parts.py` (`segments`), `service.py`, `text_similarity.py` |
+| GM-43–44: Hinweise und Wortteile | `hints.py`, `synonym-matching/src/synonym_matching/word_parts.py`; Parameter in `workflow-data` |
+| GM-19–22, GM-25: Verbindungen | `initial_recognition.py` |
+| GM-23–24: Containment-/Owner-Evidenz | `initial_structure.py`, `structural_evidence.py` |
+| GM-26–27: Identitätsbewertung | `identity_evidence.py` |
+| GM-28–37: Eigenschafts-, Struktur-, Präsenzfakten | `facts.py` |
+| GM-38–39: Orchestrierung, Projektion, Herkunft | `main.py`, `initial_evaluation.py` |
+| GM-40: Teilerkennung und Entscheidungsgrund | `identity_evidence.py` (`pair_decisions`), Anzeige über `api/.../synonym_outcomes.py` und `GlossaryTermSimilarity.vue` |
+| Workflow-Aufruf | `dagu/workflows/model-evaluation-graph-matching.yaml` · `one-to-one-graph-matching-pair` |
+| Tests | `one-to-one-graph-matching/tests/` |
+
+## Noch offene fachliche/architektonische Grenzen (nicht als implementiert ausgeben)
+
+1. **Konkurrenzentscheidung:** Ein gemeinsam konflikthafter Vorschlagssatz kann in derselben Komponente noch konfliktunabhängige zulässige Vorschläge verlieren (GM-12).
+2. **Semantische Identität:** Die Textstufen sind angebunden und in `07-KONZEPT-TEXTEVIDENZ-STUFEN.md` beschrieben. Ihre Schwellen wurden auf demselben Goldkorpus gewählt, auf dem sie gemessen wurden; die unabhängige Probe ist klein.
+3. **Zentrale Entscheidung:** Text-/Owner-/Kinder-/Semantik-/Verbindungsphasen sind noch nicht durch eine vollständig gemeinsame, evidenzgetriebene Auswahl ersetzt (GM-27).
+4. **Selektive Semantik:** Der vorgelagerte Synonymdienst liefert weiterhin die **vollständige** zulässige Kandidatenmatrix; keine produktive aggressive Textanker-Trimmung.
+5. **Ressourcen:** Diagnosedaten werden vielfach noch berechnet, auch wenn sie nicht ausgegeben werden.
+6. **Teilerkennung:** Ein `partial`-Paar kann fachlich falsch sein, weil sein Besitzer unbelegt bleibt. Ob Teilerkennung später Punkte geben darf, ist nicht entschieden.
+
+**Änderungsregel:** Zuerst das gewünschte `GM-xx`-Verhalten **mit positivem und adversarialem Gegenbeispiel** spezifizieren, dann den benannten Codepfad ändern. Eine verbesserte Erkennungsquote darf nicht durch falsche 1:1-Identitäten erkauft werden.

@@ -1,4 +1,4 @@
-"""Validate the existing V2 inventory contract without re-extracting any elements."""
+"""Validate the existing V1 inventory contract without re-extracting any elements."""
 
 import json
 
@@ -19,7 +19,7 @@ def validate_inventory(envelope, side):
     if source["role"] != expected_role or (source["key"] == "submission") != (side == "student"):
         raise ValueError(f"{side} inventory has the wrong source role/key")
     if data["inventoryHash"] != content_hash({key: value for key, value in data.items() if key != "inventoryHash"}):
-        raise ValueError(f"{side} inventory hash does not match its V2 content")
+        raise ValueError(f"{side} inventory hash does not match its V1 content")
     seen = set()
     for element in data["elements"]:
         identity = element["id"]

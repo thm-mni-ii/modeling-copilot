@@ -10,7 +10,8 @@ from urllib.parse import quote
 import httpx
 
 from modeling_api.core.config import settings
-from modeling_api.core.errors import ApiError, not_found
+from modeling_api.core.errors import not_found
+from modeling_api.services.collab_kit.errors import ck_refused, ck_request_failed, ck_unavailable
 from modeling_api.services.collab_kit.token import service_token
 
 # For tests only: another transport instead of the network.
@@ -26,19 +27,22 @@ async def _request(method: str, path: str, body: dict[str, Any] | None = None) -
                 method, path, json=body, headers={"Authorization": f"Bearer {service_token()}"}
             )
     except httpx.HTTPError as error:
-        raise ApiError(503, "CK_UNAVAILABLE", "Collab-Kit is currently unavailable.") from error
+        raise ck_unavailable() from error
     # An unknown object (room, group) is just as unknown to the caller.
     if response.status_code == 404:
         raise not_found()
     if not response.is_success:
-        # On errors CK answers with {"error": "..."}.
+        # On errors CK answers with {"error": "..."}, for some refusals also with a code.
         try:
-            reason = response.json().get("error", "")
+            answer = response.json()
         except ValueError:
-            reason = ""
-        raise ApiError(
-            502, "CK_REQUEST_FAILED", f"Collab-Kit refused the request ({response.status_code}): {reason}"
-        )
+            answer = {}
+        if not isinstance(answer, dict):
+            answer = {}
+        refused = ck_refused(answer.get("code", ""))
+        if refused:
+            raise refused
+        raise ck_request_failed(response.status_code, answer.get("error", ""))
     return response.json()
 
 
@@ -48,6 +52,11 @@ async def create_room(name: str, settings: dict[str, Any] | None = None) -> dict
 
 async def get_room(room_id: str) -> dict:
     return await _request("GET", f"/rooms/{room_id}")
+
+
+async def list_rooms() -> list[dict]:
+    """All rooms the service sees; with its rights everywhere, that is all of them."""
+    return await _request("GET", "/me/rooms")
 
 
 async def room_presence(room_id: str) -> list[dict]:
@@ -76,6 +85,11 @@ async def get_group(group_id: str) -> dict:
     return await _request("GET", f"/groups/{group_id}")
 
 
+async def update_group_settings(group_id: str, settings: dict[str, Any]) -> dict:
+    """CK replaces the settings as a whole; the caller must send foreign keys along."""
+    return await _request("PATCH", f"/groups/{group_id}", {"settings": settings})
+
+
 async def add_member(group_id: str, actor_id: str) -> dict:
     return await _request("POST", f"/groups/{group_id}/members", {"actorId": actor_id})
 
@@ -100,6 +114,11 @@ async def list_grants(room_id: str) -> list[dict]:
     return await _request("GET", f"/grants?scopeKind=room&scopeId={room_id}")
 
 
+async def list_workpieces() -> list[dict]:
+    """All workpieces the service sees, with their contract."""
+    return await _request("GET", "/workpieces")
+
+
 async def create_workpiece(workpiece: dict[str, Any]) -> dict:
     """Creates a workpiece; `roomId` in the body puts it into the room right away."""
     return await _request("POST", "/workpieces", workpiece)
@@ -116,3 +135,28 @@ async def add_workpiece_to_room(room_id: str, workpiece_id: str) -> dict:
 
 async def remove_workpiece_from_room(room_id: str, workpiece_id: str) -> dict:
     return await _request("DELETE", f"/rooms/{room_id}/workpieces/{workpiece_id}")
+
+
+async def workpiece_activity(workpiece_id: str) -> list[dict]:
+    """The latest trace per person on the workpiece (`actorId`, `at`, `kind`), newest first; empty without traces."""
+    return await _request("GET", f"/workpieces/{workpiece_id}/activity")
+
+
+async def archive_workpiece(workpiece_id: str, reason: str) -> dict:
+    """Moves the workpiece with its branches into the CK archive; open connections end with 4403."""
+    return await _request("POST", f"/workpieces/{workpiece_id}/archive", {"reason": reason})
+
+
+async def archive_room(room_id: str, reason: str) -> dict:
+    """Moves the room into the CK archive; its workpieces stay live."""
+    return await _request("POST", f"/rooms/{room_id}/archive", {"reason": reason})
+
+
+async def archive_group(group_id: str, reason: str) -> dict:
+    """Moves the group with its members into the CK archive; its grants have no effect meanwhile."""
+    return await _request("POST", f"/groups/{group_id}/archive", {"reason": reason})
+
+
+async def get_settings(key: str) -> dict[str, Any]:
+    """The values of one area of the collab settings; CK returns an area never set as {}."""
+    return await _request("GET", f"/settings/{key}")

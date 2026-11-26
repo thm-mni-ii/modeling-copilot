@@ -1,9 +1,15 @@
 # synonym-matching
 
 Erzeugt für genau ein Abgabe-/Referenzpaar vollständige semantische Kandidatenevidenz.
-Der Service verarbeitet ausschließlich die V2-Inventare aus Paket 03. Er liest kein
+Der Service verarbeitet ausschließlich die V1-Inventare aus Paket 03. Er liest kein
 Modell-XML und vergibt keine IDs. Die Implementierung und Capability heißen
-`synonym-matching`, Serviceversion `0.1.0`.
+`synonym-matching`, Serviceversion `1.7.0`, Image `v11`. Seit `1.7.0` bewertet der Dienst zusätzlich die Notationsteile einer Beschriftung
+(`segmentSources`, GM-49; Teilung an `:` `(` `)` `[` `]` `/` `=` `<` `>` `{` `}` `«` `»` und einem führenden Einzelzeichen). Seit `v10` liegt hier zusätzlich `word_parts.py` (GM-44), das der Graphmatcher einbindet; der Dienst selbst nutzt es nicht.
+
+Der Kandidatenvertrag unterstützt zusätzlich `scoreStatus: not_scored` mit
+`scores: null` und `notScoredReason`; `notScoredPairCount` ist optional (sonst 0).
+Dies ist weder `unavailable` noch Score 0. Der Standard berechnet weiterhin alle
+auswertbaren zulässigen Paare; selektives Trimming ist nicht aktiviert.
 
 **Stand:** An die lokale Auswertungspipeline bis Phase 4 angebunden. Ein eigener
 Paarlauf verarbeitet jede Musterlösung gegen das einmal erzeugte Abgabeinventar;
@@ -30,7 +36,7 @@ das gemeinsame `workflow_io.py` aus `dagu/workflow-services`.
 | `preprocessing.py` | Aus der Referenz übernommenes NFC und Zusammenfassen von Whitespace |
 | `config.py` | Validierung der aktivierten Methoden und Vorverarbeitung |
 | `service.py` | Genau ein Paar, Einzelmatrizen, Kandidaten, unveränderte Instanzdaten |
-| `inventories.py` | V2-Schema, Identitäten, Inventarhashes und Snapshot-Bindung prüfen |
+| `inventories.py` | V1-Schema, Identitäten, Inventarhashes und Snapshot-Bindung prüfen |
 | `provenance.py` | Kanonische Hashes, eigene Codekennung und verwendete Paketversionen |
 | `workflow.py` | Workspace-Eingabe, Diagnosen und V1-Ergebnishülle |
 
@@ -48,6 +54,24 @@ Referenzstands nachvollziehbar; der laufende Service liest diese Dateien nicht:
 | `preprocessing.py` | `f3f9f00d3dd78c4d71477c7210827faf93fb96f3` |
 | `config.py` | `51b0d734bec8dfe159b2ac611aa2ddc4c650afee` |
 
+## Kalibrierung der Textähnlichkeit
+
+`calibration/label-variants.json` ist ein Goldkorpus aus Label-Paaren (Referenz,
+Variante, erwartetes Urteil), gegliedert nach der Varianten-Typologie A1–F2
+(Orthografie, Morphologie, Lexik, Phrase, Struktur, Sprache) mit 8–10 Fällen je
+Kategorie, inklusive harter Negative. `scripts/calibrate_threshold.py` bewertet
+damit die Levenshtein-Schwelle mit der Entscheidungsregel des Graph-Matchers
+(exakter Anker oder Score ≥ Schwelle), je Vorverarbeitung `normalize` und
+`normalize+casefold`, als Sweep und je Kategorie. `partial`/`context` werden nur
+berichtet. Ausführung im Service-Image, da `rapidfuzz` benötigt wird:
+
+```sh
+docker run --rm --entrypoint python -v "<repo>/dagu/workflow-services/synonym-matching:/svc" -w /svc   -e PYTHONPATH=/svc/src:/app/src modeling-copilot/synonym-matching:v2   scripts/calibrate_threshold.py --thresholds 0.7,0.8 --detail 0.75
+```
+
+Die Korpusprüfung liegt in `tests/test_calibration.py`
+(`python -m unittest tests.test_calibration` mit derselben Umgebung).
+
 ## Workspace-Eingabe
 
 Alle Artefaktpfade sind relativ zu
@@ -59,7 +83,7 @@ Alle Artefaktpfade sind relativ zu
 | `WORKFLOW_EVALUATION_ID` | Gültige Auswertungs-ID; aktiviert den Workspace-Modus |
 | `REFERENCE_KEY` | Genau eine Referenz mit Rolle `reference` aus dem eingefrorenen Snapshot |
 | `inputs/evaluation-input.json` | Bestehender Snapshot `evaluation-input/v1`; Zugriff und `inputHash` werden durch `Workspace.snapshot()` geprüft |
-| `labels/submission.json` | Vollständige erfolgreiche `workflow-result/v1`-Hülle mit `result.schema: element-inventory/v2` |
+| `labels/submission.json` | Vollständige erfolgreiche `workflow-result/v1`-Hülle mit `result.schema: element-inventory/v1` |
 | `labels/<REFERENCE_KEY>.json` | Dieselbe Inventarhülle für die gewählte Referenz |
 | `comparisonConfig` | Aus dem Snapshot; `{}` genügt |
 | `WORKFLOW_OUTPUT_PATH` | Erforderlich, regulär `candidates/<REFERENCE_KEY>.json`; Dateiname muss zur Referenz passen, Verzeichnispräfix ist innerhalb des Workspace frei |
@@ -141,7 +165,7 @@ verglichen; zusätzliche Labels benötigen zusätzlich dieselbe nicht leere
 Die Ausgabe ist eine `workflow-result/v1`-Hülle mit `schemaVersion: 1`, `status: ok`,
 `capability: synonym-matching`, `mode: match` und `result.schema: semantic-candidates/v1`.
 `schemas/output.schema.json` beschreibt die Ausgabe; `input.schema.json` definiert
-`element-inventory/v2` mit Typ-, Vergleichsgruppen- und Sprachfeldern sowie
+`element-inventory/v1` mit Typ-, Vergleichsgruppen- und Sprachfeldern sowie
 gesonderten Verbindungstexten. Für die fachlichen Elemente nutzt das Matching
 `id`, `type`, `comparisonGroup`, `language`, `matchText` und `labelStatus`.
 Eigenständige Aufrufer bewahren die Inventare unter

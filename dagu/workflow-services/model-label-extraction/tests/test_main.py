@@ -30,7 +30,7 @@ def node(identity, kind, role, label, **fields):
 
 def payload(nodes=None, edges=None):
     graph = {
-        "schemaVersion": 3,
+        "schemaVersion": 1,
         "languages": [],
         "nodes": nodes if nodes is not None else [
             node("entity", "modelElement", "semantic", "<b>Stockwerk</b>", type="serm-entity",
@@ -51,12 +51,12 @@ def payload(nodes=None, edges=None):
         ],
     }
     data = {
-        "schema": "graph-result/v3",
+        "schema": "graph-result/v1",
         "evaluationId": "evaluation-1",
         "source": copy.deepcopy(SOURCE),
         "inputHash": "1" * 64,
         "languageResources": [],
-        "producer": {"service": "graph-parser", "version": "0.1.0", "resourceHash": "2" * 64},
+        "producer": {"service": "graph-parser", "version": "1.0.0", "resourceHash": "2" * 64},
         "graphHash": "",
         "graph": graph,
         "completeness": {"interpretation": "complete"},
@@ -76,7 +76,7 @@ class ModelLabelExtractionTests(unittest.TestCase):
     def test_extracts_semantic_elements_and_separate_connection_texts(self):
         result = run(payload())["result"]
 
-        self.assertEqual(result["schema"], "element-inventory/v2")
+        self.assertEqual(result["schema"], "element-inventory/v1")
         self.assertEqual([item["id"] for item in result["elements"]], ["entity", "entity-copy"])
         self.assertEqual(result["elements"][0], {
             "id": "entity",
@@ -86,21 +86,23 @@ class ModelLabelExtractionTests(unittest.TestCase):
             "matchText": "Stockwerk",
             "labelStatus": "present",
             "textLanguage": None,
+            "formatting": ["bold"],
+            "languageFormatting": [],
         })
         self.assertNotIn("properties", result["elements"][0])
         self.assertEqual(result["connectionTexts"], [
             {"id": "orphan-label", "ownerConnectionId": None, "kind": "additionalLabel",
              "connectionLabelId": "role", "matchText": "", "labelStatus": "unsupported",
-             "textLanguage": None},
+             "textLanguage": None, "formatting": [], "languageFormatting": []},
             {"id": "cardinality", "ownerConnectionId": "link", "kind": "additionalLabel",
              "connectionLabelId": "cardinality", "matchText": "1..n", "labelStatus": "present",
-             "textLanguage": None},
+             "textLanguage": None, "formatting": [], "languageFormatting": []},
             {"id": "role-label", "ownerConnectionId": "link", "kind": "additionalLabel",
              "connectionLabelId": "role", "matchText": "", "labelStatus": "missing",
-             "textLanguage": None},
+             "textLanguage": None, "formatting": [], "languageFormatting": []},
             {"id": "link", "ownerConnectionId": "link", "kind": "self",
              "connectionLabelId": None, "matchText": "", "labelStatus": "missing",
-             "textLanguage": None},
+             "textLanguage": None, "formatting": [], "languageFormatting": []},
         ])
         self.assertIn("PARSER_DIAGNOSTIC", {item["code"] for item in result["diagnostics"]})
         self.assertIn("UNRESOLVED_CONNECTION_LABEL_OWNER", {item["code"] for item in result["diagnostics"]})

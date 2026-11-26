@@ -11,6 +11,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator, field_valida
 from modeling_api.schemas.common import ApiSchema, JsonObject, Name
 
 
+class SurveyExampleImage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    src: str = Field(pattern=r"^/images/surveys/[a-zA-Z0-9_/-]+\.png$", max_length=300)
+    alt: Name
+    caption: Name
+
+
 class Question(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -18,6 +26,7 @@ class Question(BaseModel):
     name: str = Field(pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
     title: Name
     description: str | None = Field(default=None, max_length=2000)
+    exampleImages: list[SurveyExampleImage] | None = Field(default=None, min_length=1, max_length=5)
     page: str | None = Field(default=None, pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{0,79}$")
     isRequired: bool = False
     visibleIf: str | None = Field(default=None, max_length=400)

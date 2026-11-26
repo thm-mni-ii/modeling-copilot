@@ -18,17 +18,21 @@ export interface CollabKitApi {
     readonly groups: GroupRoutes;
     readonly grants: GrantRoutes;
     readonly workpieces: WorkpieceRoutes;
+    readonly archive: ArchiveRoutes;
     readonly comments: CommentRoutes;
     readonly tasks: TaskRoutes;
     readonly events: EventRoutes;
     readonly actors: ActorRoutes;
     readonly me: MeRoutes;
+    readonly settings: SettingsRoutes;
 }
 /** A refusal of CK, or of the library in its place: a status and what CK said. */
 export declare class CollabKitError extends Error {
     /** The HTTP status of a call, or the close code that ended a session. */
     readonly status: number;
-    constructor(status: number, message: string);
+    /** What CK names as the reason for machines, e.g. archive_disabled, delete_disabled or forbidden. */
+    readonly code: string | undefined;
+    constructor(status: number, message: string, code?: string);
 }
 /** How a session reads the workpiece. */
 export interface OpenOptions {
@@ -72,6 +76,8 @@ export interface SessionEvents<Value = unknown> {
     readonly rightsChanged: boolean;
     /** Writes anonymously now or not, when CK answers otherwise; clientId and awareness are new. */
     readonly anonymityChanged: boolean;
+    /** An area of settings changed or went; the name only, the values are read anew. */
+    readonly settingsChanged: string;
     /** CK ended the session; it stays closed until connect is called. */
     readonly closed: Closed;
     /** A change lost at this workpiece, to whoever was involved and whoever was not. */
@@ -301,6 +307,23 @@ export interface UnitsAt<Value = unknown> {
     readonly units: ReadonlyMap<string, Value>;
     readonly upToUpdateId?: string;
 }
+/** What can go into the archive. */
+export type ArchiveKind = 'workpiece' | 'room' | 'group';
+/** A thing in the archive; restored, it is back under the same key. */
+export interface ArchiveEntry {
+    readonly _id: string;
+    readonly kind: ArchiveKind;
+    readonly name: string;
+    readonly archivedAt: string;
+    readonly reason?: string;
+    /** Only at a workpiece: the rooms it and its forks stood in. */
+    readonly rooms?: readonly {
+        readonly workpiece: string;
+        readonly room: string;
+    }[];
+    /** Only at a workpiece: its forks at any depth, archived with it. */
+    readonly forks?: readonly string[];
+}
 /** The newest trace of one person. */
 export interface Activity {
     readonly actorId: string;
@@ -385,9 +408,8 @@ export interface RoomRoutes {
     create(room: NewRoom): Promise<Named<Room>>;
     get(id: string): Promise<Named<Room>>;
     update(id: string, change: PlaceChange): Promise<Named<Room>>;
-    remove(id: string, options?: Reasoned): Promise<{
-        readonly deleted: boolean;
-    }>;
+    /** Into the archive with all that hangs on it; its workpieces stay. Takes manage at it. */
+    archive(id: string, options?: Reasoned): Promise<ArchiveEntry>;
     addWorkpiece(id: string, workpieceId: string): Promise<Named<Room>>;
     removeWorkpiece(id: string, workpieceId: string): Promise<Named<Room>>;
     events(id: string, query?: RoomEventQuery): Promise<Named<CollabEvent>[]>;
@@ -407,9 +429,8 @@ export interface GroupRoutes {
     list(): Promise<Named<Group>[]>;
     get(id: string): Promise<Named<Group>>;
     update(id: string, change: PlaceChange): Promise<Named<Group>>;
-    remove(id: string, options?: Reasoned): Promise<{
-        readonly deleted: boolean;
-    }>;
+    /** Into the archive with its members; its grants open nothing meanwhile. Takes manage at it. */
+    archive(id: string, options?: Reasoned): Promise<ArchiveEntry>;
     addMember(id: string, actorId: string): Promise<Named<Group>>;
     removeMember(id: string, actorId: string): Promise<Named<Group>>;
 }
@@ -484,6 +505,36 @@ export interface WorkpieceRoutes {
     checkpoint(id: string, checkpoint?: NewCheckpoint): Promise<Named<CollabEvent>>;
     fork(id: string, fork: NewFork): Promise<Named<Workpiece>>;
     merge(id: string, merge: NewMerge): Promise<Named<CollabEvent>>;
+    /** Into the archive with its forks and all that hangs on them; open sessions end with 4403. */
+    archive(id: string, options?: Reasoned): Promise<ArchiveEntry>;
+}
+/** Entries of one kind, or of all. */
+export interface ArchiveQuery {
+    readonly kind?: ArchiveKind;
+}
+/** What the archive can do on this instance, and what the token may do of it. */
+export interface ArchiveCapabilities {
+    /** Whether the archive exists on this instance. */
+    readonly enabled: boolean;
+    /** Whether the server allows deleting for good, whoever asks. */
+    readonly deleteEnabled: boolean;
+    /** Whether this token may delete for good: allowed by the server and manage everywhere. */
+    readonly deleteAllowed: boolean;
+}
+/** The routes under /archive: what was archived, bringing it back, deleting it for good. */
+export interface ArchiveRoutes {
+    /** What the archive can do here; answers with the archive off too, and takes any token. */
+    capabilities(): Promise<ArchiveCapabilities>;
+    /** The entries the token saw while they were live, newest first. */
+    list(query?: ArchiveQuery): Promise<ArchiveEntry[]>;
+    /** Brings it back unchanged under its keys; takes manage at it, as archiving did. */
+    restore(id: string): Promise<{
+        readonly restored: true;
+    }>;
+    /** Deletes it with all it holds, and every grant at it; takes manage everywhere. */
+    remove(id: string, options?: Reasoned): Promise<{
+        readonly deleted: true;
+    }>;
 }
 /** A comment on a thing, or an answer to another comment on the same thing. */
 export interface NewComment {
@@ -581,6 +632,17 @@ export interface ActorRoutes {
     /** The stored names of these people, as far as the token may put a name to them. */
     names(actorIds: readonly string[]): Promise<ActorName[]>;
 }
+/** Settings of the tool by area, valid for the whole instance; CK never reads the values. */
+export interface SettingsRoutes {
+    /** The names of every stored area. */
+    list(): Promise<string[]>;
+    /** The values of an area; one never set reads as {}. */
+    get(key: string): Promise<Record<string, unknown>>;
+    /** Replaces the values of an area as a whole; needs manage without a place. */
+    set(key: string, values: Record<string, unknown>): Promise<Record<string, unknown>>;
+    /** Removes an area, so the tool falls back on its defaults; needs manage without a place. */
+    remove(key: string): Promise<void>;
+}
 /** Tasks given to the own person or one of its groups. */
 export interface MyTaskQuery {
     readonly state?: string;
@@ -615,6 +677,26 @@ export interface ManagementOptions {
     newWorkpiece: ((room: Room, name: string) => NewWorkpiece | Promise<NewWorkpiece>) | undefined;
     /** People the tool knows for what was typed in; left out, a member is added by its key. */
     findPeople: ((text: string) => Promise<readonly ActorName[]>) | undefined;
+    /** The own tabs to show, in their fixed order; left out, all; workpieces and archive still take manage everywhere. */
+    tabs: readonly ManagementOwnTab[] | undefined;
+    /** Whether the archive is shown, tab and buttons; left out, it is not. CK refuses it unless ARCHIVE_ENABLED is true. */
+    archive: boolean | undefined;
+    /** Whether the archive offers deleting for good; left out, it does not. CK refuses it unless ARCHIVE_DELETE is true. */
+    archiveDelete: boolean | undefined;
+    /** Tabs of the tool after the own ones, each showing the slot of its id; left out, none. */
+    extraTabs: readonly ManagementTab[] | undefined;
+}
+/** An own tab of <ck-management>. */
+export type ManagementOwnTab = 'rooms' | 'groups' | 'workpieces' | 'archive';
+/** A tab of the tool: its button reads label, and it shows <slot name=id> over the full width. */
+export interface ManagementTab {
+    readonly id: string;
+    readonly label: string;
+}
+/** <ck-management> as a tool holds it: the options, and loading anew what CK holds. */
+export interface ManagementElement extends ManagementOptions {
+    /** Asks for rooms, groups and workpieces anew, e.g. after the tool created some elsewhere. */
+    reload(): Promise<void>;
 }
 /** The detail of ck-open: the workpiece to open, and the room it was opened from. */
 export interface ManagementOpen {

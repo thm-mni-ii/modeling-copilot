@@ -25,7 +25,7 @@ import TaskEditEditor from '@/components/tasks/TaskEditEditor.vue'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { TaskEditDocument, TaskEditVersionInfo } from '@/services/api/types/model'
 import { buildTaskEditTimeline } from '@/utils/taskEditTimeline'
-import { useTaskHistory } from '@/collab/historyBuilder/useTaskHistory'
+import { useTaskHistory } from '@/collab/worksheet/useTaskHistory'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()

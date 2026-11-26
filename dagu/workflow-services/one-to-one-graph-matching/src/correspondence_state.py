@@ -2,9 +2,12 @@
 
 from collections import defaultdict, deque
 from copy import deepcopy
+import unicodedata
 
+from assignment_capacity import capacity_preserving_proposals, necessary_pairs
+from decision_diagnostics import record
 from matching import propose_containment_anchors, propose_exact_anchors
-from structural_evidence import analyze_containment
+from structural_evidence import analyze_child_owner_evidence, analyze_combined_children, analyze_containment
 
 
 def _candidate_graph(indices, candidates):
@@ -61,12 +64,89 @@ def _candidate_graph(indices, candidates):
     }
 
 
-def build_provisional_state(indices, candidates):
-    """Combine the existing one-pass proposals and all candidate graph edges."""
-    anchors, unresolved = propose_exact_anchors(indices, candidates)
+def _neighbors(index):
+    """Undirected element neighbourhood through modeled connections."""
+    result = defaultdict(set)
+    for endpoints in index.endpoints.values():
+        if "source" in endpoints and "target" in endpoints:
+            result[endpoints["source"]].add(endpoints["target"])
+            result[endpoints["target"]].add(endpoints["source"])
+    return result
+
+
+def _label_structure_conflicts(indices, candidates, anchors, complete):
+    """Exact label anchors contradicted by both a closed child composition and the neighbourhood.
+
+    Children alone are not enough: an attribute list swapped between two correctly named objects
+    also yields closed compositions, but there the connections keep supporting the labels.
+    """
+    compositions = [item for item in analyze_combined_children(indices, candidates, [], complete=complete) if item["complete"]]
+    alternatives = {"reference": defaultdict(set), "student": defaultdict(set)}
+    for item in compositions:
+        alternatives["reference"][item["studentId"]].add(item["referenceId"])
+        alternatives["student"][item["referenceId"]].add(item["studentId"])
+    disputed = {(item["referenceId"], item["studentId"]) for item in anchors
+                if (alternatives["reference"][item["studentId"]] and item["referenceId"] not in alternatives["reference"][item["studentId"]])
+                or (alternatives["student"][item["referenceId"]] and item["studentId"] not in alternatives["student"][item["referenceId"]])}
+    if not disputed:
+        return set()
+    neighbors = {side: _neighbors(index) for side, index in indices.items()}
+    to_reference = {item["studentId"]: item["referenceId"] for item in anchors
+                    if (item["referenceId"], item["studentId"]) not in disputed}
+    to_student = {reference: student for student, reference in to_reference.items()}
+
+    def overlap(side, mapped, identity):
+        return len(mapped & neighbors[side][identity])
+
+    contradicted = set()
+    for ref, sub in disputed:
+        mapped_sub = {to_reference[n] for n in neighbors["student"][sub] if n in to_reference}
+        mapped_ref = {to_student[n] for n in neighbors["reference"][ref] if n in to_student}
+        if (any(overlap("reference", mapped_sub, other) > overlap("reference", mapped_sub, ref)
+                for other in alternatives["reference"][sub] - {ref})
+                or any(overlap("student", mapped_ref, other) > overlap("student", mapped_ref, sub)
+                       for other in alternatives["student"][ref] - {sub})):
+            contradicted.add((ref, sub))
+    return contradicted
+
+
+def accept_proposals(state, extra, events):
+    """The single place where new pairs enter the state: capacity check, event, `dependsOn` kept."""
+    if not extra:
+        return []
+    feasible, accepted_proposals = capacity_preserving_proposals(state, extra)
+    for item in extra:
+        accepted = item in accepted_proposals
+        record(events, "capacity", item["reason"], item["referenceId"], item["studentId"],
+               "proposed" if accepted else "blocked",
+               ["capacity_preserved" if accepted else "capacity_conflict"],
+               depends_on=item["dependsOn"], individuallyFeasible=item in feasible,
+               jointlyFeasible=accepted)
+    state["proposals"].extend(accepted_proposals)
+    return accepted_proposals
+
+
+def reserved_ids(state):
+    reserved = state["proposals"] + state["conflictingProposals"] + state["blockedProposals"]
+    return ({item["referenceId"] for item in reserved}, {item["studentId"] for item in reserved})
+
+
+def initial_state(indices, candidates, *, graphs=None, contested=frozenset()):
+    """Exact anchors, owner anchors and blocked conflicts; returns the state and the phase context."""
+    events = []
+    anchors, unresolved = propose_exact_anchors(indices, candidates, events, skip=contested)
+    complete_graphs = graphs is None or all(graph["completeness"]["interpretation"] == "complete" for graph in graphs.values())
+    # No automatic swap: a contradicted label anchor and its alternatives stay open for review.
+    contradicted = _label_structure_conflicts(indices, candidates, anchors, complete_graphs)
+    label_conflicts = [{**item, "dependsOn": [], "conflictReason": "label_structure_conflict"}
+                       for item in anchors if (item["referenceId"], item["studentId"]) in contradicted]
+    anchors = [item for item in anchors if (item["referenceId"], item["studentId"]) not in contradicted]
+    for item in label_conflicts:
+        record(events, "label_structure", item["reason"], item["referenceId"], item["studentId"],
+               "blocked", ["label_contradicted_by_children_and_neighbors"])
     # GraphIndex.owner can populate missing defaultdict entries during a read.
     evidence = analyze_containment(deepcopy(indices), candidates, anchors)
-    containment_anchors = propose_containment_anchors(unresolved, anchors, evidence)
+    containment_anchors = propose_containment_anchors(unresolved, anchors, evidence, events)
     evidence_by_pair = {(item["referenceId"], item["studentId"]): item for item in evidence}
     original_pairs = {(item["referenceId"], item["studentId"]) for item in anchors}
     proposals = [{**anchor, "dependsOn": []} for anchor in anchors]
@@ -94,7 +174,7 @@ def build_provisional_state(indices, candidates):
     conflicts = [
         proposal for proposal in proposals
         if len(by_reference[proposal["referenceId"]]) > 1 or len(by_student[proposal["studentId"]]) > 1
-    ]
+    ] + label_conflicts
     conflict_pairs = {(item["referenceId"], item["studentId"]) for item in conflicts}
     available_original = original_pairs - conflict_pairs
     blocked = [
@@ -104,11 +184,181 @@ def build_provisional_state(indices, candidates):
                 for dependency in proposal["dependsOn"])
     ]
     blocked_pairs = {(item["referenceId"], item["studentId"]) for item in blocked}
+    for field, items, reason in (("conflict", conflicts, "one_to_one_conflict"),
+                                 ("dependency", blocked, "dependency_unavailable")):
+        for item in items:
+            record(events, field, item["reason"], item["referenceId"], item["studentId"],
+                   "blocked", [reason], depends_on=item["dependsOn"])
     excluded_pairs = conflict_pairs | blocked_pairs
-    return {
+    state = {
         "proposals": [proposal for proposal in proposals
                       if (proposal["referenceId"], proposal["studentId"]) not in excluded_pairs],
         "conflictingProposals": conflicts,
         "blockedProposals": blocked,
         **_candidate_graph(indices, candidates),
     }
+    for side, field in (("reference", "noCandidateReferenceIds"), ("student", "noCandidateStudentIds")):
+        for identity in state[field]:
+            record(events, "candidate_eligibility", "eligible_candidate_graph",
+                   identity if side == "reference" else None, identity if side == "student" else None,
+                   "deferred", ["no_eligible_candidate"])
+    context = {"indices": deepcopy(indices), "unresolved": unresolved, "complete": complete_graphs, "events": events}
+    return state, context
+
+
+def residual_exact_phase(candidates, state, context):
+    """Reuse the exact matcher after active one-to-one reservations.
+
+    Preserve every reservation that removed an exact-label alternative as evidence.
+    """
+    indices, unresolved, events = context["indices"], context["unresolved"], context["events"]
+    used_ref, used_sub = reserved_ids(state)
+    active_ref = {item["referenceId"]: item for item in state["proposals"]}
+    active_sub = {item["studentId"]: item for item in state["proposals"]}
+    rows = [{"referenceElementId": row["referenceElementId"], "referenceLabel": row["referenceLabel"],
+             "matches": [match for match in row["matches"] if match["submissionElementId"] not in active_sub]}
+            for row in candidates["synonymMatrix"] if row["referenceElementId"] not in active_ref]
+    remaining = propose_exact_anchors(indices, {"synonymMatrix": rows})[0] if unresolved else []
+    labels = {row["referenceElementId"]: " ".join(unicodedata.normalize("NFC", row["referenceLabel"]).split())
+              for row in candidates["synonymMatrix"]}
+    residual = []
+    for item in remaining:
+        ref, sub = item["referenceId"], item["studentId"]
+        if ref in used_ref or sub in used_sub:
+            record(events, "residual_exact", "unique_exact_after_reservations", ref, sub, "deferred", ["one_to_one_reservation"])
+            continue
+        blockers = {}
+        for pair in unresolved:
+            if labels[pair["referenceId"]] != labels[ref]:
+                continue
+            for reserved in (active_ref.get(pair["referenceId"]), active_sub.get(pair["studentId"])):
+                if reserved:
+                    blockers[(reserved["referenceId"], reserved["studentId"])] = reserved
+        if not blockers:
+            record(events, "residual_exact", "unique_exact_after_reservations", ref, sub,
+                   "deferred", ["no_reservation_support"])
+            continue
+        residual.append({"referenceId": ref, "studentId": sub, "reason": "unique_exact_after_reservations",
+                         "dependsOn": [{"referenceId": r, "studentId": s} for r, s in sorted(blockers)]})
+    return accept_proposals(state, residual, events)
+
+
+def child_owner_phase(candidates, state, context):
+    """Owners whose independently identified children sit under them on both sides."""
+    indices, events = context["indices"], context["events"]
+    child_evidence = analyze_child_owner_evidence(indices, candidates, state["proposals"])
+    used_ref, used_sub = reserved_ids(state)
+    # GM-07: a child whose label alone identifies it, placed under another owner, contradicts the pair;
+    # a child identified only by elimination after reservations is too weak to block.
+    contradicted = {(item["referenceId"], item["studentId"]) for item in child_evidence
+                    if any(child["reason"] == "unique_exact_label" for child in item["conflictingChildren"])}
+    supported = [item for item in child_evidence
+                 if item["supportingChildren"] and (item["referenceId"], item["studentId"]) not in contradicted
+                 and item["referenceId"] not in used_ref and item["studentId"] not in used_sub]
+    refs, subs = defaultdict(set), defaultdict(set)
+    for item in supported:
+        refs[item["referenceId"]].add(item["studentId"])
+        subs[item["studentId"]].add(item["referenceId"])
+    owner_proposals = [
+        {"referenceId": item["referenceId"], "studentId": item["studentId"],
+         "reason": "independent_child_evidence",
+         "dependsOn": [{"referenceId": child["referenceId"], "studentId": child["studentId"]}
+                       for child in item["supportingChildren"]]}
+        for item in supported if len(refs[item["referenceId"]]) == 1 and len(subs[item["studentId"]]) == 1
+    ]
+    accepted = accept_proposals(state, owner_proposals, events)
+    proposed_pairs = {(item["referenceId"], item["studentId"]) for item in state["proposals"]
+                      if item["reason"] == "independent_child_evidence"}
+    reasons = {"proposed": "independent_child_evidence", "reserved": "one_to_one_reservation",
+               "conflicting": "conflicting_child_evidence", "no_independent_support": "no_independent_support",
+               "competing": "ambiguous_candidates", "capacity_not_preserved": "capacity_conflict"}
+    for item in child_evidence:
+        ref, sub = item["referenceId"], item["studentId"]
+        if (ref, sub) in proposed_pairs:
+            item["proposalStatus"] = "proposed"
+        elif ref in used_ref or sub in used_sub:
+            item["proposalStatus"] = "reserved"
+        elif (ref, sub) in contradicted:
+            item["proposalStatus"] = "conflicting"
+        elif not item["supportingChildren"]:
+            item["proposalStatus"] = "no_independent_support"
+        elif len(refs[ref]) != 1 or len(subs[sub]) != 1:
+            item["proposalStatus"] = "competing"
+        else:
+            item["proposalStatus"] = "capacity_not_preserved"
+        record(events, "child_owner", "independent_child_evidence", ref, sub,
+               "proposed" if item["proposalStatus"] == "proposed" else "deferred",
+               [reasons[item["proposalStatus"]]],
+               depends_on=[{"referenceId": child["referenceId"], "studentId": child["studentId"]}
+                           for child in item["supportingChildren"]], proposalStatus=item["proposalStatus"])
+    state["childOwnerEvidence"] = child_evidence
+    return accepted
+
+
+def combined_children_phase(candidates, state, context):
+    """Owners forced by a closed, independent child composition."""
+    indices, complete_graphs, events = context["indices"], context["complete"], context["events"]
+    combined = analyze_combined_children(indices, candidates, state["proposals"], complete=complete_graphs)
+    used_ref, used_sub = reserved_ids(state)
+    uncertain_ref = {item["referenceId"] for item in state["conflictingProposals"] + state["blockedProposals"]}
+    uncertain_sub = {item["studentId"] for item in state["conflictingProposals"] + state["blockedProposals"]}
+    complete_pairs = {(item["referenceId"], item["studentId"]) for item in combined if item["complete"]
+                      and item["referenceId"] not in used_ref and item["studentId"] not in used_sub
+                      and not set(item["referenceChildIds"]) & uncertain_ref
+                      and not set(item["studentChildIds"]) & uncertain_sub}
+    forced = necessary_pairs(complete_pairs)
+    accepted = accept_proposals(state, [{"referenceId": item["referenceId"], "studentId": item["studentId"],
+                                         "reason": "combined_child_structure", "dependsOn": item["dependsOn"]}
+                                        for item in combined if (item["referenceId"], item["studentId"]) in forced], events)
+    # Reservations must not erase independent alternatives to an exact proposal.
+    independent = analyze_combined_children(indices, candidates, [], complete=complete_graphs)
+    combined_by_pair = {(item["referenceId"], item["studentId"]): item for item in combined}
+    combined_by_pair.update({(item["referenceId"], item["studentId"]): item
+                             for item in independent if item["complete"]})
+    state["combinedChildEvidence"] = [combined_by_pair[pair] for pair in sorted(combined_by_pair)]
+    return accepted
+
+
+def inferred_owner_children_phase(candidates, state, context):
+    """Exact-label children placed under owners that were inferred from their children."""
+    indices, unresolved, events = context["indices"], context["unresolved"], context["events"]
+    new_owners = [item for item in state["proposals"] if item["reason"] in ("independent_child_evidence", "combined_child_structure")]
+    if not new_owners:
+        return []
+    owner_anchors = [item for item in state["proposals"] if item["reason"] == "unique_exact_label"] + new_owners
+    owner_evidence = analyze_containment(indices, candidates, owner_anchors)
+    owner_evidence_by_pair = {(item["referenceId"], item["studentId"]): item for item in owner_evidence}
+    used_ref, used_sub = reserved_ids(state)
+    remaining_unresolved = [item for item in unresolved
+                            if item["referenceId"] not in used_ref and item["studentId"] not in used_sub]
+    children = propose_containment_anchors(remaining_unresolved, owner_anchors, owner_evidence, events,
+                                          phase="child_of_inferred_owner")
+    new_owner_pairs = {(item["referenceId"], item["studentId"]) for item in new_owners}
+    extra = []
+    for child in children:
+        item = owner_evidence_by_pair[child["referenceId"], child["studentId"]]
+        dependency = (item["referenceOwnerId"], item["studentOwnerId"])
+        if dependency in new_owner_pairs:
+            extra.append({**child, "dependsOn": [{"referenceId": dependency[0], "studentId": dependency[1]}]})
+    return accept_proposals(state, extra, events)
+
+
+# Structural phases in their fixed order; each accepts new pairs only through `accept_proposals`.
+STRUCTURAL_PHASES = (residual_exact_phase, child_owner_phase, combined_children_phase, inferred_owner_children_phase)
+
+
+def run_structural_phases(candidates, state, context):
+    return [item for phase in STRUCTURAL_PHASES for item in phase(candidates, state, context)]
+
+
+def finish_state(state, context):
+    state["proposals"].sort(key=lambda item: (item["referenceId"], item["studentId"], item["reason"]))
+    state["decisionEvents"] = sorted({item["id"]: item for item in context["events"]}.values(), key=lambda item: item["id"])
+    return state
+
+
+def build_provisional_state(indices, candidates, *, graphs=None):
+    """Exact anchors, then one pass of the structural phases."""
+    state, context = initial_state(indices, candidates, graphs=graphs)
+    run_structural_phases(candidates, state, context)
+    return finish_state(state, context)

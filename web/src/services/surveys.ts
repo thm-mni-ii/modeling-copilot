@@ -7,6 +7,7 @@ export interface SurveyQuestion {
   name: string
   title: string
   description?: string
+  exampleImages?: { src: string; alt: string; caption: string }[]
   page?: string
   isRequired: boolean
   visibleIf?: string

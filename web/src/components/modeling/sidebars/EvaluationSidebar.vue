@@ -1,18 +1,21 @@
 <template>
   <div class="evaluation-sidebar">
     <div class="evaluation-sidebar__toolbar">
-      <v-btn v-if="view === 'detail'" icon size="x-small" variant="text" title="Zurück zur Liste" @click="view = 'list'">
-        <v-icon size="18">mdi-arrow-left</v-icon>
-      </v-btn>
-      <span v-if="view === 'detail' && detail" class="evaluation-sidebar__toolbar-title">{{ detail.workflow.name }}</span>
-      <span v-else class="text-caption text-medium-emphasis">{{ evaluations.length ? `${evaluations.length} Auswertung(en)` : '\u00A0' }}</span>
+      <v-btn v-if="view === 'detail' && !historical" icon size="x-small" variant="text" title="Zurück zur Liste" @click="view = 'list'"><v-icon size="18">mdi-arrow-left</v-icon></v-btn>
+      <span v-if="view === 'detail'" class="evaluation-sidebar__toolbar-title">{{ showServiceView ? current?.name ?? 'Auswertungsanalyse' : feedbackTitle }}</span>
+      <span v-else class="text-caption text-medium-emphasis">{{ evaluations.length ? `${evaluations.length} ${evaluations.length === 1 ? 'Auswertung' : 'Auswertungen'}` : '\u00A0' }}</span>
       <v-spacer />
-      <v-btn icon size="x-small" variant="text" title="Aktualisieren" :loading="view === 'list' ? loading : detailLoading" @click="view === 'list' ? loadList() : reload()">
-        <v-icon size="16">mdi-refresh</v-icon>
-      </v-btn>
+      <v-btn icon size="x-small" variant="text" title="Aktualisieren" :loading="view === 'list' ? loading : resultView?.loading" @click="view === 'list' ? loadList() : resultView?.reload()"><v-icon size="16">mdi-refresh</v-icon></v-btn>
     </div>
-
-    <div v-if="view === 'list'" class="evaluation-sidebar__body">
+    <div v-if="userStore.loaded && canViewService" class="px-2 py-2 border-b flex-shrink-0">
+      <v-btn-toggle v-model="perspective" mandatory divided rounded="lg" color="primary" variant="outlined" class="evaluation-perspectives" aria-label="Auswertungsansicht">
+        <v-btn value="service" size="small" prepend-icon="mdi-magnify-scan">Analyse</v-btn>
+        <v-btn value="student" size="small" prepend-icon="mdi-school-outline">Studenten</v-btn>
+      </v-btn-toggle>
+      <p class="text-caption text-medium-emphasis mt-2 mb-0">{{ showServiceView ? 'Geschützte Analyse für Administration und Moderation.' : 'Vorschau des regulären Studierendenfeedbacks.' }}</p>
+    </div>
+    <v-skeleton-loader v-if="!userStore.loaded" type="list-item-three-line" />
+    <div v-else-if="view === 'list'" class="evaluation-sidebar__body">
       <template v-if="loading && !evaluations.length">
         <v-skeleton-loader v-for="n in 3" :key="n" type="list-item-two-line" class="evaluation-skeleton" />
       </template>
@@ -26,18 +29,19 @@
         <p class="text-caption text-medium-emphasis mb-0">{{ userStore.globalRole === 'ADMIN' ? 'Starte eine Auswertung über den Task-Header.' : 'Hier erscheint dein automatisch erzeugtes Feedback.' }}</p>
       </div>
       <v-list v-else density="compact" nav class="pa-0">
-        <template v-for="(evaluation, index) in evaluations" :key="evaluation.id">
+        <template v-for="({ evaluation, summary }, index) in navigationEntries" :key="evaluation.id">
           <v-list-item :active="selectedId === evaluation.id" class="evaluation-item" @click="openDetail(evaluation.id)">
             <template #prepend
-              ><v-icon size="20" :color="stateColor(evaluation.state)">{{ stateIcon(evaluation.state) }}</v-icon></template
+              ><v-icon size="20" :color="evaluation.state === 'succeeded' && !showServiceView ? 'primary' : stateColor(evaluation.state)" aria-hidden="true">{{ evaluation.state === 'succeeded' && !showServiceView ? 'mdi-comment-text-outline' : stateIcon(evaluation.state) }}</v-icon></template
             >
             <template #title>
               <div class="d-flex align-center ga-2">
-                <span class="evaluation-item__name">{{ evaluation.workflow.name }}</span>
-                <span v-if="isPolling && selectedId === evaluation.id" class="live-dot" title="Wird live aktualisiert" />
+                <span class="evaluation-item__name" :title="showServiceView ? evaluation.workflow.name : feedbackTitle">{{ showServiceView ? evaluation.workflow.name : feedbackTitle }}</span>
               </div>
             </template>
             <template #subtitle>
+              <span v-if="showServiceView || evaluation.state !== 'succeeded'" class="evaluation-item__status" :class="{ 'text-error': evaluation.state === 'failed', 'text-warning': evaluation.state === 'cancelled' }">{{ showServiceView ? stateLabel(evaluation.state) : studentStateLabel(evaluation.state) }}</span>
+              <span v-if="evaluation.state === 'succeeded'" class="evaluation-item__summary">{{ summary }}</span>
               <span class="evaluation-item__meta" :title="absoluteTime(evaluation.startedAt)">{{ relativeTime(evaluation.startedAt) }}</span>
             </template>
           </v-list-item>
@@ -47,114 +51,88 @@
     </div>
 
     <div v-else class="evaluation-sidebar__body pa-2">
-      <template v-if="detailLoading && !detail">
-        <v-skeleton-loader type="list-item-three-line" />
-        <v-skeleton-loader type="list-item-three-line" class="mt-2" />
+      <template v-if="current && !historical && selectedId">
+        <p class="text-caption mb-1">Feedback zum gespeicherten Modellstand · Auswertung vom {{ absoluteTime(current.startedAt) }}</p>
+        <v-btn size="small" variant="tonal" prepend-icon="mdi-timeline-clock-outline" class="mb-3" @click="historyDialog = true">Modellstand ansehen</v-btn>
       </template>
-      <v-alert v-else-if="detailError" type="error" density="compact" variant="tonal" class="evaluation-load-error">
-        {{ detailError }}
-        <template #append><v-btn size="x-small" variant="text" @click="reload">Erneut versuchen</v-btn></template>
-      </v-alert>
-      <template v-else-if="detail">
-        <v-btn-toggle v-if="canViewService" v-model="selectedPerspective" mandatory divided density="compact" variant="outlined" color="primary" class="evaluation-perspective mb-3" aria-label="Auswertungsansicht">
-          <v-btn value="service" size="small">Service</v-btn>
-          <v-btn value="student" size="small">Studierende</v-btn>
-        </v-btn-toggle>
-
-        <div class="d-flex align-center ga-2">
-          <v-chip :color="stateColor(detail.state)" size="small" variant="tonal" label aria-label="Status des Auswertungsdurchlaufs"
-            ><v-icon start size="14">{{ stateIcon(detail.state) }}</v-icon
-            >{{ stateLabel(detail.state) }}</v-chip
-          >
-          <span v-if="isPolling" class="live-dot" title="Wird live aktualisiert" />
-          <v-spacer />
-          <span class="text-caption text-medium-emphasis" :title="absoluteTime(detail.startedAt)">{{ relativeTime(detail.startedAt) }}</span>
-        </div>
-
-        <v-divider class="my-2" />
-
-        <v-alert v-if="showServiceView && detail.workflow.labels.phase === '4'" type="info" density="compact" variant="tonal" class="mb-2">
-          Zwischenergebnisse bis Phase 4: Graphen, Elementinventare und semantische Kandidaten je Musterlösung.
-        </v-alert>
-        <v-alert v-else-if="showServiceView && detail.workflow.labels.phase === '5'" type="info" density="compact" variant="tonal" class="mb-2">
-          Vorläufiger Vergleich je Musterlösung. Eine vollständige strukturelle Bewertung liegt noch nicht vor.
-        </v-alert>
-
-        <div class="evaluation-progress">
-          <div class="d-flex align-center justify-space-between text-caption text-medium-emphasis mb-1">
-            <span>Durchlauffortschritt</span>
-            <span v-if="showServiceView">{{ doneStepCount }} / {{ detail.steps.length }} Schritte</span>
-            <span v-else>{{ Math.round(progressPercent) }} %</span>
-          </div>
-          <v-progress-linear :model-value="progressPercent" height="6" rounded color="info" aria-label="Fortschritt des Auswertungsdurchlaufs" />
-        </div>
-
-        <v-divider class="my-2" />
-
-        <section v-if="!showServiceView" aria-label="Ergebnis der Auswertung" aria-live="polite">
-          <h3 class="text-body-2 font-weight-medium mb-2">Dein Ergebnis</h3>
-          <p class="text-caption text-medium-emphasis mb-0">{{ studentResultMessage }}</p>
-        </section>
-
-        <v-timeline v-else density="compact" side="end" truncate-line="both" class="evaluation-timeline">
-          <v-timeline-item v-for="entry in timelineEntries" :key="entry.id" :dot-color="entry.color" size="x-small">
-            <template #icon
-              ><v-icon size="12" color="white">{{ entry.icon }}</v-icon></template
-            >
-            <div class="text-body-2 font-weight-medium">{{ entry.title }}</div>
-            <div v-if="entry.resultSummary" class="result-summary mt-1">{{ entry.resultSummary }}</div>
-            <div v-else-if="entry.description" class="text-caption text-medium-emphasis mt-1">{{ entry.description }}</div>
-            <div v-if="entry.comparison" class="text-caption mt-1">
-              <div>Vorläufige Anker: {{ entry.comparison.anchors }} / {{ entry.comparison.references }} ({{ entry.comparison.coverage }})</div>
-              <div>Maximal zuordenbar: {{ entry.comparison.capacity }} / {{ entry.comparison.references }} ({{ entry.comparison.capacityBound }})</div>
-              <div v-if="entry.comparison.owners">Zugehörigkeitskonsistenz: {{ entry.comparison.owners }}</div>
-              <div class="text-medium-emphasis">Keine bestätigte Modellübereinstimmung.</div>
-            </div>
-            <JsonResultViewer :data="entry.result ?? { title: entry.title, description: entry.description ?? null, resultSummary: entry.resultSummary ?? null }" class="mt-1">
-              <template #actions>
-                <SemanticComparisonViewer v-if="semanticComparisonResult(entry.result)" :result="semanticComparisonResult(entry.result)!" />
-              </template>
-            </JsonResultViewer>
-          </v-timeline-item>
-        </v-timeline>
-      </template>
+      <EvaluationAnalysis v-if="showServiceView && selectedId" :key="displayKey" ref="resultView" :evaluation-id="selectedId" @evaluation-updated="updateResult" />
+      <EvaluationStudentFeedback v-else-if="selectedId" :key="displayKey" ref="resultView" :evaluation-id="selectedId" :historical="historical" :hint-request="hintRequest" @evaluation-updated="updateResult" />
     </div>
   </div>
+  <ModelTimelineDialog v-if="userStore.loaded && !historical && historyDialog && current && selectedId" v-model="historyDialog" :target-version-id="current.submission.versionId" :target-evaluation-id="selectedId" :evaluation-perspective="selectedPerspective" />
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ApiId, JsonObject } from '@/services/api/types/common'
-import type { Evaluation, EvaluationDetail } from '@/services/api/types/evaluation'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { ApiId } from '@/services/api/types/common'
+import type { Evaluation, EvaluationDetail, EvaluationFeedback, EvaluationOutcome } from '@/services/api/types/evaluation'
 import evaluationService from '@/services/evaluation/evaluation.service'
-import { notifySuccess } from '@/composables/useNotifications'
 import { useUserStore } from '@/stores/userStore'
-import JsonResultViewer from './JsonResultViewer.vue'
-import SemanticComparisonViewer from './SemanticComparisonViewer.vue'
-import { semanticComparisonResult } from '@/utils/semanticComparison'
+import { useModelFileContext } from '@/composables/useModelFileContext'
+import { completionGate, type GateResult } from '@/utils/completionGate'
+import EvaluationStudentFeedback from './EvaluationStudentFeedback.vue'
 
-const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null; evaluationPerspective?: 'service' | 'student' }>()
-const emit = defineEmits<{ 'evaluation-updated': [evaluation: EvaluationDetail] }>()
+const EvaluationAnalysis = defineAsyncComponent(() => import('./EvaluationAnalysis.vue'))
+const ModelTimelineDialog = defineAsyncComponent(() => import('../versions/ModelTimelineDialog.vue'))
+const props = defineProps<{ modelId: ApiId | null; openEvaluationId?: ApiId | null; evaluationPerspective?: 'service' | 'student'; historical?: boolean; hintRequest?: { evaluationId: string; cellId?: string; seq: number; noticeViewed?: boolean } | null }>()
+const emit = defineEmits<{ 'evaluation-updated': [evaluation: EvaluationOutcome]; 'service-detail-opened': [] }>()
 const userStore = useUserStore()
-const selectedPerspective = ref<'service' | 'student'>('service')
 const canViewService = computed(() => userStore.globalRole === 'ADMIN' || userStore.globalRole === 'MODERATOR')
-const showServiceView = computed(() => canViewService.value && selectedPerspective.value === 'service')
+const perspective = ref<'service' | 'student'>(props.evaluationPerspective ?? 'service')
+const selectedPerspective = computed(() => canViewService.value ? perspective.value : 'student')
+const showServiceView = computed(() => selectedPerspective.value === 'service')
 const view = ref<'list' | 'detail'>('list')
-const evaluations = ref<Evaluation[]>([])
-const detail = ref<EvaluationDetail | null>(null)
 const selectedId = ref<ApiId | null>(null)
+const evaluations = ref<Evaluation[]>([])
+// Navigation retains only common metadata; each dedicated display owns its result and requests.
+const current = ref<(EvaluationOutcome & { startedAt: string; name: string }) | null>(null)
+const resultView = ref<{ loading: boolean; reload: () => Promise<void> } | null>(null)
+const displayKey = computed(() => `${props.modelId}:${userStore.userId}:${userStore.globalRole}:${selectedId.value}:${selectedPerspective.value}`)
+const historyDialog = ref(false)
 const loading = ref(false)
-const detailLoading = ref(false)
 const listError = ref<string | null>(null)
-const detailError = ref<string | null>(null)
-const isPolling = ref(false)
-let pollTimer: ReturnType<typeof setTimeout> | null = null
-let pollingGeneration = 0
-
-const terminal = (state: string) => ['succeeded', 'failed', 'cancelled'].includes(state)
-const stateLabel = (state: string) => ({ queued: 'Wartet', running: 'Läuft', succeeded: 'Abgeschlossen', failed: 'Fehlgeschlagen', cancelled: 'Abgebrochen', unknown: 'Status wird ermittelt' })[state] ?? state
+const files = useModelFileContext()
+const feedbackTitle = computed(() => files?.completionGate.value?.minimumScorePercent != null ? 'Abgabeprüfung' : 'Modellfeedback')
+const gateFor = (value: EvaluationFeedback | null | undefined) => {
+  try { return value ? completionGate(files?.completionGate.value ?? null, value) : null }
+  catch { return null }
+}
+// A summary describes the published feedback, independently of technical run success.
+const feedbackSummary = (value: EvaluationFeedback, gate: GateResult | null) => {
+  if (gate) {
+    const recognition = `${Math.floor(gate.overall.percent)} % erkannt`
+    return gate.gated ? `${gate.passed ? 'Abgabebereit' : 'Noch nicht abgabebereit'} · ${recognition}` : recognition
+  }
+  if (value.scorePercent != null) return `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(value.scorePercent)} %${value.recognitions.length ? ' erkannt' : ' erreicht'}`
+  return 'Für diese Auswertung liegt kein Feedback vor.'
+}
+const navigationEntries = computed(() => evaluations.value.map(evaluation => ({
+  evaluation,
+  summary: evaluation.feedback ? feedbackSummary(evaluation.feedback, gateFor(evaluation.feedback)) : 'Feedback öffnen'
+})))
+const updateResult = (value: EvaluationDetail | EvaluationFeedback) => {
+  if (!userStore.loaded || value.id !== selectedId.value) return
+  current.value = { id: value.id, state: value.state, submission: value.submission, scorePercent: value.scorePercent,
+    startedAt: value.startedAt, name: 'workflow' in value ? value.workflow.name : feedbackTitle.value }
+  const index = evaluations.value.findIndex(item => item.id === value.id)
+  if (index >= 0) evaluations.value[index] = { ...evaluations.value[index], state: value.state,
+    ...('recognitions' in value ? { feedback: value } : {}) }
+  emit('evaluation-updated', value)
+}
+const openDetail = (id: ApiId) => {
+  if (selectedId.value !== id) current.value = null
+  selectedId.value = id
+  view.value = 'detail'
+}
+watch(() => props.hintRequest, request => {
+  if (!request || request.noticeViewed === false) return
+  perspective.value = 'student'
+  openDetail(request.evaluationId)
+}, { immediate: true, flush: 'post' })
+const stateLabel = (state: string) => ({ queued: 'Workflow wartet auf Start', running: 'Workflow läuft', succeeded: 'Workflow erfolgreich durchgelaufen', failed: 'Workflow fehlgeschlagen', cancelled: 'Workflow abgebrochen', unknown: 'Workflowstatus unklar' })[state] ?? state
+const studentStateLabel = (state: string) => ({ queued: 'Auswertung wartet auf Start', running: 'Modell wird ausgewertet', failed: 'Auswertung fehlgeschlagen', cancelled: 'Auswertung abgebrochen', unknown: 'Status der Auswertung unklar' })[state] ?? state
 const stateIcon = (state: string) => (state === 'succeeded' ? 'mdi-check-circle' : state === 'running' ? 'mdi-progress-clock' : state === 'failed' ? 'mdi-close-circle' : state === 'cancelled' ? 'mdi-cancel' : state === 'queued' ? 'mdi-clock-outline' : 'mdi-help-circle-outline')
-const stateColor = (state: string) => (state === 'succeeded' || state === 'running' ? 'info' : state === 'failed' ? 'error' : state === 'cancelled' ? 'warning' : undefined)
+const stateColor = (state: string) => (state === 'succeeded' ? 'success' : state === 'running' ? 'info' : state === 'failed' ? 'error' : state === 'cancelled' ? 'warning' : undefined)
 
 const rtf = new Intl.RelativeTimeFormat('de', { numeric: 'auto' })
 const relativeTime = (iso: string) => {
@@ -166,198 +144,45 @@ const relativeTime = (iso: string) => {
 }
 const absoluteTime = (iso: string) => new Date(iso).toLocaleString()
 
-const doneStepCount = computed(() => (detail.value ? detail.value.steps.filter((step) => step.status === 'succeeded' || step.status === 'failed').length : 0))
-const progressPercent = computed(() => {
-  if (!showServiceView.value && detail.value?.state === 'succeeded') return 100
-  return detail.value && detail.value.steps.length ? (doneStepCount.value / detail.value.steps.length) * 100 : 0
-})
-const studentResultMessage = computed(() => {
-  switch (detail.value?.state) {
-    case 'succeeded':
-      if (detail.value.scorePercent != null) return `Dein Modell erreicht ${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(detail.value.scorePercent)} %.`
-      return 'Die Auswertung ist abgeschlossen. Eine Ergebnisanzeige für Studierende ist für diese Auswertung noch nicht eingerichtet.'
-    case 'failed':
-      return 'Die Auswertung ist fehlgeschlagen. Fordere erneut automatisch erzeugtes Feedback an oder versuche den Aufgabenabschluss erneut.'
-    case 'cancelled':
-      return 'Die Auswertung wurde abgebrochen. Fordere erneut automatisch erzeugtes Feedback an oder versuche den Aufgabenabschluss erneut.'
-    case 'queued':
-      return 'Deine Auswertung wartet auf den Start.'
-    case 'running':
-      return 'Dein Modell wird ausgewertet.'
-    default:
-      return 'Der Status deiner Auswertung wird ermittelt.'
-  }
-})
-
-interface TimelineEntry {
-  id: string
-  icon: string
-  color?: string
-  title: string
-  description?: string | null
-  resultSummary?: string | null
-  result?: JsonObject | null
-  comparison?: { anchors: number; references: number; coverage: string; capacity: number; capacityBound: string; owners?: string }
-}
-const jsonObject = (value: unknown): JsonObject | undefined =>
-  value && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : undefined
-const percent = (value: unknown) =>
-  typeof value === 'number' && Number.isFinite(value)
-    ? new Intl.NumberFormat('de-DE', { style: 'percent', maximumFractionDigits: 1 }).format(value)
-    : 'nicht bestimmbar'
-const comparisonSummary = (result: JsonObject | null | undefined): TimelineEntry['comparison'] => {
-  if (result?.schema !== 'reference-comparison/v1') return undefined
-  const metrics = jsonObject(result.metrics)
-  const overall = jsonObject(metrics?.overall)
-  if (!overall || typeof overall.referenceCount !== 'number' || typeof overall.provisionalAnchorCount !== 'number' ||
-      typeof overall.maximumAssignableCount !== 'number') return undefined
-  const owner = jsonObject(metrics?.provisionalOwnerConsistency)
-  const agreement = jsonObject(owner?.agreement)
-  return {
-    anchors: overall.provisionalAnchorCount,
-    references: overall.referenceCount,
-    coverage: percent(overall.anchorCoverage),
-    capacity: overall.maximumAssignableCount,
-    capacityBound: percent(overall.capacityUpperBound),
-    owners: owner && agreement && typeof owner.satisfied === 'number' && typeof owner.expected === 'number'
-      ? `${percent(agreement.lower)} – ${percent(agreement.upper)} (${owner.satisfied} / ${owner.expected})`
-      : undefined
-  }
-}
-const timelineEntries = computed<TimelineEntry[]>(() => {
-  if (!detail.value) return []
-  const entries: TimelineEntry[] = detail.value.steps.map((step) => ({
-    id: step.id,
-    icon: stateIcon(step.status),
-    color: stateColor(step.status),
-    title: step.label,
-    description: step.description,
-    resultSummary: step.resultSummary,
-    result: step.result,
-    comparison: comparisonSummary(step.result)
-  }))
-  if (detail.value.finalResult) {
-    entries.push({ id: '__final__', icon: 'mdi-flag-checkered', color: 'info', title: detail.value.workflow.labels.phase === '4' ? 'Ergebnisübersicht bis Phase 4' : detail.value.workflow.labels.phase === '5' ? 'Vorläufige Ergebnisübersicht' : 'Endergebnis', result: detail.value.finalResult, comparison: comparisonSummary(detail.value.finalResult) })
-  } else if (detail.value.state === 'failed' || detail.value.state === 'cancelled') {
-    entries.push({ id: '__outcome__', icon: 'mdi-alert', color: 'error', title: detail.value.state === 'failed' ? 'Fehlgeschlagen' : 'Abgebrochen', description: 'Workflow wurde nicht erfolgreich abgeschlossen.' })
-  }
-  return entries
-})
-
-// Non-structural outcome: surface once via toast instead of a permanent panel.
-const notifiedNoResultIds = new Set<ApiId>()
-watch(detail, (value) => {
-  if (showServiceView.value && value && value.state === 'succeeded' && !value.finalResult && !notifiedNoResultIds.has(value.id)) {
-    notifiedNoResultIds.add(value.id)
-    notifySuccess('Workflow abgeschlossen; es wurde kein strukturiertes Endergebnis geliefert.')
-  }
-})
-
-const stopPolling = () => {
-  pollingGeneration += 1
-  if (pollTimer) clearTimeout(pollTimer)
-  pollTimer = null
-  isPolling.value = false
-}
-
+let listRequestToken = 0
 const loadList = async () => {
-  if (!props.modelId) return
+  const token = ++listRequestToken
+  const modelId = props.modelId, viewer = userStore.userId, role = userStore.globalRole
+  if (!modelId || props.historical || !userStore.loaded) return
   loading.value = true
   listError.value = null
   try {
-    evaluations.value = (await evaluationService.list(props.modelId)).data.items
+    const result = await evaluationService.listAll(modelId)
+    if (token === listRequestToken && props.modelId === modelId && userStore.userId === viewer && userStore.globalRole === role) evaluations.value = result
   } catch {
-    listError.value = 'Auswertungen konnten nicht geladen werden.'
+    if (token === listRequestToken) listError.value = 'Auswertungen konnten nicht geladen werden.'
   } finally {
-    loading.value = false
+    if (token === listRequestToken) loading.value = false
   }
 }
-
-const refreshDetail = async () => {
-  const id = selectedId.value
-  if (!id) return
-  const result = (await evaluationService.get(id)).data
-  if (selectedId.value !== id) return
-  detail.value = result
-  const index = evaluations.value.findIndex((item) => item.id === id)
-  if (index >= 0) evaluations.value[index] = { ...evaluations.value[index], state: detail.value.state }
-  emit('evaluation-updated', detail.value)
-}
-
-const poll = async (generation: number) => {
-  if (generation !== pollingGeneration) return
-  try {
-    await refreshDetail()
-    detailError.value = null
-  } catch {
-    detailError.value = 'Auswertung konnte nicht aktualisiert werden.'
-    stopPolling()
-    return
-  }
-  if (generation === pollingGeneration) {
-    if (detail.value && !terminal(detail.value.state)) pollTimer = setTimeout(() => void poll(generation), 2_000)
-    else stopPolling()
-  }
-}
-
-const open = async (id: ApiId) => {
-  stopPolling()
-  if (selectedId.value !== id) detail.value = null
-  selectedId.value = id
-  detailLoading.value = true
-  detailError.value = null
-  try {
-    await refreshDetail()
-    if (detail.value && !terminal(detail.value.state)) {
-      isPolling.value = true
-      pollingGeneration += 1
-      pollTimer = setTimeout(() => void poll(pollingGeneration), 2_000)
+watch([() => props.modelId, () => props.openEvaluationId, canViewService, () => userStore.userId, () => userStore.loaded, () => props.evaluationPerspective],
+  ([modelId, requestedId, service, viewer, ready, preferred], previous) => {
+    listRequestToken++
+    const movedModel = previous && modelId !== previous[0]
+    const changedViewer = previous && viewer !== previous[3]
+    const changedContext = !previous || movedModel || changedViewer || service !== previous[2] || ready !== previous[4]
+    const wanted = (movedModel || changedViewer) && requestedId === previous?.[1]
+      ? null : requestedId !== previous?.[1] ? requestedId : selectedId.value ?? requestedId
+    if (changedContext) {
+      evaluations.value = []
+      selectedId.value = null
+      current.value = null
+      historyDialog.value = false
+      view.value = 'list'
     }
-  } catch {
-    detailError.value = 'Auswertung konnte nicht geladen werden.'
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-const openDetail = async (id: ApiId) => {
-  view.value = 'detail'
-  await open(id)
-}
-
-const reload = async () => {
-  if (selectedId.value) await open(selectedId.value)
-}
-
-watch(
-  () => props.modelId,
-  async () => {
-    stopPolling()
-    detail.value = null
-    selectedId.value = null
-    view.value = 'list'
-    await loadList()
-  },
-  { immediate: true }
-)
-watch(
-  () => [props.openEvaluationId, props.evaluationPerspective] as const,
-  async ([id, perspective]) => {
-    if (id) {
-      selectedPerspective.value = perspective ?? 'service'
-      await openDetail(id)
-    }
-  },
-  { immediate: true }
-)
-onMounted(() => {
-  void userStore.ensureGlobalRole()
-  window.addEventListener('beforeunload', stopPolling)
-})
-onBeforeUnmount(() => {
-  window.removeEventListener('beforeunload', stopPolling)
-  stopPolling()
-})
+    if (changedContext || requestedId !== previous?.[1] || preferred !== previous?.[5]) perspective.value = preferred ?? 'service'
+    if (wanted) openDetail(wanted)
+    void loadList()
+  }, { immediate: true, flush: 'sync' })
+watch([selectedPerspective, () => userStore.loaded], () => { current.value = null; historyDialog.value = false }, { flush: 'sync' })
+watch(() => view.value === 'detail' && showServiceView.value && selectedId.value, opened => { if (opened) emit('service-detail-opened') }, { immediate: true })
+onMounted(() => { void userStore.ensureGlobalRole() })
+onBeforeUnmount(() => { listRequestToken++ })
 </script>
 
 <style scoped>
@@ -366,6 +191,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* The sidebar frame disables selection; findings must stay copyable. */
+  user-select: text;
 }
 .evaluation-sidebar__toolbar {
   display: flex;
@@ -386,14 +213,6 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   overflow: auto;
-}
-.evaluation-perspective {
-  display: flex;
-  width: 100%;
-}
-.evaluation-perspective > .v-btn {
-  flex: 1;
-  min-width: 0;
 }
 .evaluation-load-error :deep(.v-alert__append) {
   grid-column: 2 / -1;
@@ -416,6 +235,21 @@ onBeforeUnmount(() => {
   padding-top: 4px;
   padding-bottom: 4px;
 }
+.evaluation-item :deep(.v-list-item-subtitle) {
+  -webkit-line-clamp: unset;
+  opacity: 1;
+}
+.evaluation-item__status,
+.evaluation-item__summary {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.evaluation-item__summary {
+  color: rgb(var(--v-theme-on-surface));
+}
 .evaluation-item__name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -429,36 +263,7 @@ onBeforeUnmount(() => {
   font-size: 0.7rem;
   color: rgba(var(--v-theme-on-surface), 0.6);
 }
-.evaluation-timeline.v-timeline {
-  grid-template-columns: 0 min-content minmax(0, 1fr);
-}
-.evaluation-timeline :deep(.v-timeline-item__body) {
-  width: 100%;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  padding-block-end: 8px;
-}
-.result-summary {
-  white-space: pre-wrap;
-  font-size: 0.75rem;
-}
-.live-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgb(var(--v-theme-info));
-  flex-shrink: 0;
-  animation: evaluation-live-pulse 1.4s ease-in-out infinite;
-}
-@keyframes evaluation-live-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(var(--v-theme-info), 0.5);
-  }
-  50% {
-    opacity: 0.6;
-    box-shadow: 0 0 0 4px rgba(var(--v-theme-info), 0);
-  }
-}
+.evaluation-perspectives { display: flex; width: 100%; }
+.evaluation-perspectives.v-btn-group { height: 28px; }
+.evaluation-perspectives :deep(.v-btn) { flex: 1; min-width: 0; }
 </style>

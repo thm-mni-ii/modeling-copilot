@@ -1,5 +1,5 @@
 <template>
-  <v-footer v-if="$router.currentRoute.value.name != 'ViewLogin'" app absolute elevation="3">
+  <v-footer v-if="$router.currentRoute.value.name != 'ViewLogin'" :app="!inFlow" :absolute="!inFlow" elevation="3">
     <v-row justify="center" no-gutters class="mt-2">
       <v-btn v-for="link in links" :key="link.name" :to="link.url" color="gray" variant="text" class="mx-2" rounded="xl">
         {{ link.name }}
@@ -12,6 +12,8 @@
 </template>
 
 <script setup lang="ts">
+defineProps<{ inFlow?: boolean }>()
+
 const links = [
   { name: 'Legal Notice', url: '/' },
   { name: 'Privacy', url: '/' }

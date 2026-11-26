@@ -66,13 +66,14 @@ function changeChoices(value: string) {
   patch({ choices, ...(props.modelValue.exclusiveChoices ? { exclusiveChoices: props.modelValue.exclusiveChoices.filter(choice => choices.includes(choice)) } : {}) })
 }
 function changeType(type: SurveyQuestion['type']) {
-  const { name, title, isRequired, page, description, visibleIf, visibleWhen } = props.modelValue
+  const { name, title, isRequired, page, description, exampleImages, visibleIf, visibleWhen } = props.modelValue
   emit('update:modelValue', {
     name,
     title,
     isRequired,
     page,
     description,
+    exampleImages,
     visibleIf,
     visibleWhen,
     type,

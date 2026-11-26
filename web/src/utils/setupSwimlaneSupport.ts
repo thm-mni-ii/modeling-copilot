@@ -1,4 +1,4 @@
-import { Cell, EventObject, Graph, InternalEvent, styleUtils } from '@maxgraph/core'
+import { Cell, EventObject, Graph, InternalEvent, styleUtils, type SelectionHandler } from '@maxgraph/core'
 import { isTruthyFlag } from '@/utils/flagUtils'
 
 /**
@@ -84,6 +84,36 @@ function readFreeLayoutConfig(style: Record<string, any>): FreeLayoutConfig {
   }
 }
 
+/** Resolve the insertion slot before maxGraph constrains moved children to their parent. */
+function listReorderAt(graph: Graph, cells: Cell[], evt: MouseEvent, target: Cell | null) {
+  const parent = cells[0]?.getParent()
+  if (!parent || cells.some(cell => cell.isEdge() || cell.getParent() !== parent) ||
+    (target && target !== parent) || !graph.isSwimlane(parent)) return null
+  const style = graph.getCellStyle(parent) as Record<string, any>
+  if (getContainerLayout(style) !== 'list') return null
+  const state = graph.view.getState(parent)
+  if (!state) return null
+  const point = styleUtils.convertPoint(graph.container, evt.clientX, evt.clientY)
+  point.x -= graph.panDx
+  point.y -= graph.panDy
+  if (point.x < state.x || point.x > state.x + state.width || point.y < state.y || point.y > state.y + state.height) return null
+
+  const config = readListLayoutConfig(style)
+  const vertical = config.direction === 'vertical'
+  const start = (cell: Cell) => (vertical ? cell.getGeometry()?.y : cell.getGeometry()?.x) ?? 0
+  const size = (cell: Cell) => (vertical ? cell.getGeometry()?.height : cell.getGeometry()?.width) ?? 0
+  const children = parent.getChildren().filter(cell => !cell.isEdge()).sort((a, b) => start(a) - start(b))
+  const moving = children.filter(cell => cells.includes(cell))
+  const remaining = children.filter(cell => !cells.includes(cell))
+  const position = (vertical ? point.y - state.y : point.x - state.x) / graph.view.scale
+  const next = remaining.findIndex(cell => position < start(cell) + size(cell) / 2)
+  const index = next < 0 ? remaining.length : next
+  const order = [...remaining.slice(0, index), ...moving, ...remaining.slice(index)]
+  const last = remaining[remaining.length - 1]
+  const offset = index < remaining.length ? start(remaining[index]) : last ? start(last) + size(last) : config.startOffset + config.itemSpacing
+  return { parent, order, changed: order.some((cell, i) => cell !== children[i]), vertical, state, offset }
+}
+
 // ============================================================================
 // Main Setup Function
 // ============================================================================
@@ -123,16 +153,64 @@ export function setupSwimlaneSupport(graph: Graph, onRejectedContainer?: (contai
   // solange sich deren Größe dadurch tatsächlich ändert (Layout-Modus wird intern geprüft).
   const relayout = (cell: Cell) => relayoutSwimlaneChain(g, cell)
 
+  // Preview only: do not generate model, undo or collaboration changes during dragging.
+  const selection = g.getPlugin<SelectionHandler>('SelectionHandler')
+  if (selection) {
+    let insertionLine: HTMLDivElement | null = null
+    const updateHint = selection.updateHint.bind(selection)
+    const removeHint = selection.removeHint.bind(selection)
+    selection.removeHint = () => {
+      insertionLine?.remove()
+      insertionLine = null
+      removeHint()
+    }
+    selection.updateHint = (me) => {
+      updateHint(me)
+      const slot = me && selection.cells && !selection.cloning && (selection.shape || selection.livePreviewActive)
+        ? listReorderAt(g, selection.cells, me.getEvent(), selection.target) : null
+      if (!slot?.changed) {
+        insertionLine?.remove()
+        insertionLine = null
+        return
+      }
+      if (!insertionLine) {
+        insertionLine = document.createElement('div')
+        insertionLine.setAttribute('aria-hidden', 'true')
+        Object.assign(insertionLine.style, { position: 'absolute', pointerEvents: 'none', zIndex: '10',
+          background: 'rgb(var(--v-theme-primary))', boxShadow: '0 0 0 1px white', borderRadius: '2px' })
+        g.container.appendChild(insertionLine)
+      }
+      const { state, vertical, offset } = slot
+      const position = offset * g.view.scale
+      Object.assign(insertionLine.style, {
+        left: `${state.x + g.panDx + (vertical ? 0 : position - 1)}px`,
+        top: `${state.y + g.panDy + (vertical ? position - 1 : 0)}px`,
+        width: `${vertical ? state.width : 3}px`, height: `${vertical ? 3 : state.height}px`
+      })
+    }
+  }
+
   // Override moveCells um Auto-Stack bei Verschiebungen zu triggern
   const originalMoveCells = g.moveCells.bind(g)
   g.moveCells = function (cells, dx, dy, clone, target, evt) {
-    if (onRejectedContainer && evt && cells?.length && (!target || target === this.getDefaultParent())) {
+    // A drop onto oneself or one's descendants only moves the selection.
+    // Keep the existing parents and skip containment validation for this gesture.
+    const selfDrop = !!target && !!cells?.some((cell) => cell.isAncestor(target ?? null))
+    if (selfDrop) target = null
+
+    if (!selfDrop && onRejectedContainer && evt && cells?.length && (!target || target === this.getDefaultParent())) {
       const point = styleUtils.convertPoint(this.container, evt.clientX, evt.clientY)
       let candidate = this.getCellAt(point.x - this.panDx, point.y - this.panDy)
       while (candidate && !cells.includes(candidate)) {
-        if ((this.isSwimlane(candidate) || isContainerSectionTarget(candidate)) && !this.isValidDropTarget(candidate, cells)) {
-          onRejectedContainer(candidate, cells.filter((cell) => cell.getParent() !== candidate))
-          break
+        if (this.isSwimlane(candidate) || isContainerSectionTarget(candidate)) {
+          if (cells.some((cell) => cell.isAncestor(candidate))) {
+            target = null
+            break
+          }
+          if (!this.isValidDropTarget(candidate, cells)) {
+            onRejectedContainer(candidate, cells.filter((cell) => cell.getParent() !== candidate))
+            break
+          }
         }
         candidate = candidate.getParent()
       }
@@ -146,43 +224,33 @@ export function setupSwimlaneSupport(graph: Graph, onRejectedContainer?: (contai
       }
     }
 
-    // Verhindere zirkuläre Referenzen: Prüfe ob eine Cell in sich selbst verschoben wird
-    if (target && cells && cells.length > 0) {
-      for (const cell of cells) {
-        // Einfache ID-Prüfung: Verhindere wenn target-ID === cell-ID
-        if (target.getId() === cell.getId()) {
-          console.warn('[moveCells] Prevented: Cannot move cell into itself (ID match)', {
-            cellId: cell.getId(),
-            cellLabel: cell.getValue()
-          })
-          return cells // Verhindere die Bewegung, gib original cells zurück
-        }
-
-        // Prüfe auch ob target ein Nachfahre (descendant) der zu bewegenden Cell ist
-        let currentParent: Cell | null = target
-        while (currentParent) {
-          if (currentParent.getId() === cell.getId()) {
-            console.warn('[moveCells] Prevented: Cannot move cell into its own descendant', {
-              cellId: cell.getId(),
-              targetId: target.getId()
-            })
-            return cells // Verhindere die Bewegung
-          }
-          currentParent = currentParent.getParent?.() ?? null
-        }
+    // Remember source containers before reparenting; a multi-selection can leave
+    // several containers. Cloning leaves the originals in place.
+    const affectedSwimlanes = new Set<Cell>()
+    if (!clone) {
+      for (const cell of cells ?? []) {
+        const parent = cell.getParent()
+        if (!cell.isEdge() && parent && this.isSwimlane(parent)) affectedSwimlanes.add(parent)
       }
     }
 
-    const result = originalMoveCells(cells, dx, dy, clone, target, evt)
+    const reorder = !clone && evt ? listReorderAt(this, cells, evt, target ?? null) : null
+    let result: Cell[] = []
+    this.batchUpdate(() => {
+      result = originalMoveCells(cells, dx, dy, clone, target, evt)
 
-    // Layout wenn Ziel-Parent eine Swimlane ist
-    if (result && result.length > 0) {
-      const movedCell = result[0]
-      const parentCell = movedCell?.getParent?.() ?? null
-      if (parentCell && this.isSwimlane(parentCell)) {
-        relayout(parentCell)
+      if (reorder) stackContainerChildren(this, reorder.parent, reorder.order)
+
+      for (const cell of result) {
+        const parent = cell.getParent()
+        if (!cell.isEdge() && parent && this.isSwimlane(parent)) affectedSwimlanes.add(parent)
       }
-    }
+
+      // Resize and restack sources and destinations in the same undo operation.
+      affectedSwimlanes.forEach((parent) => {
+        if (parent.getParent()) relayout(parent)
+      })
+    })
 
     return result
   }
@@ -270,8 +338,9 @@ export function setupSwimlaneSupport(graph: Graph, onRejectedContainer?: (contai
  *
  * @param graph - Die Graph-Instanz
  * @param container - Der Container, dessen Children angeordnet werden sollen
+ * @param order - Explicit insertion order resolved from the pointer before moving.
  */
-export function stackContainerChildren(graph: Graph, container: Cell): void {
+export function stackContainerChildren(graph: Graph, container: Cell, order?: Cell[]): void {
   const style = graph.getCellStyle(container) as Record<string, any>
   if (getContainerLayout(style) !== 'list') return
 
@@ -289,7 +358,7 @@ export function stackContainerChildren(graph: Graph, container: Cell): void {
     if (child && !child.isEdge()) children.push(child)
   }
 
-  const orderedChildren = [...children].sort((a, b) => {
+  const orderedChildren = order ?? [...children].sort((a, b) => {
     const aGeo = a.getGeometry()
     const bGeo = b.getGeometry()
     const aPos = isVertical ? aGeo?.y ?? 0 : aGeo?.x ?? 0
@@ -306,7 +375,7 @@ export function stackContainerChildren(graph: Graph, container: Cell): void {
         graph.getDataModel().add(container, child, index)
       }
 
-      const childGeo = child.getGeometry()
+      const childGeo = child.getGeometry()?.clone()
       if (!childGeo) return
 
       // Kreuz-Achse: Kinder auf volle Containerbreite/-höhe strecken oder nur vom Rand abrücken
@@ -333,7 +402,7 @@ export function stackContainerChildren(graph: Graph, container: Cell): void {
       }
 
       childGeo.relative = false
-      graph.getDataModel().setGeometry(child, childGeo)
+      if (!childGeo.equals(child.getGeometry())) graph.getDataModel().setGeometry(child, childGeo)
     })
   })
 }
@@ -352,7 +421,7 @@ export function stackContainerChildren(graph: Graph, container: Cell): void {
  * @param swimlane - Die Swimlane, die angepasst werden soll
  */
 export function autoResizeSwimlane(graph: Graph, swimlane: Cell): void {
-  const geometry = swimlane.getGeometry()
+  const geometry = swimlane.getGeometry()?.clone()
   if (!geometry) return
 
   const style = graph.getCellStyle(swimlane) as Record<string, any>
@@ -380,7 +449,7 @@ export function autoResizeSwimlane(graph: Graph, swimlane: Cell): void {
       // Nur vergrößern, nie automatisch schrumpfen - Modellierfläche bleibt stabil
       geometry.width = Math.max(geometry.width, requiredWidth)
       geometry.height = Math.max(geometry.height, requiredHeight)
-      graph.getDataModel().setGeometry(swimlane, geometry)
+      if (!geometry.equals(swimlane.getGeometry())) graph.getDataModel().setGeometry(swimlane, geometry)
       return
     }
 
@@ -405,7 +474,7 @@ export function autoResizeSwimlane(graph: Graph, swimlane: Cell): void {
       }
     }
 
-    graph.getDataModel().setGeometry(swimlane, geometry)
+    if (!geometry.equals(swimlane.getGeometry())) graph.getDataModel().setGeometry(swimlane, geometry)
   })
 }
 

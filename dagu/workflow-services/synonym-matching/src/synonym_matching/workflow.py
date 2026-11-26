@@ -33,7 +33,9 @@ def read_request(path=None, store=None):
 def run(payload, bundle=None, reference_key=None):
     inventories = read_pair(payload, bundle, reference_key)
     config = resolve_config(payload.get("comparisonConfig", {}))
-    evidence = compare_pair(inventories, config)
+    key = reference_key or inventories["reference"]["source"]["key"]
+    glossary = payload.get("comparisonConfig", {}).get("graphMatching", {}).get("glossaries", {}).get(key, {})
+    evidence = compare_pair(inventories, config, glossary.get("entries", []))
     producer = producer_metadata()
     semantic_config = evidence.pop("semanticConfig")
     diagnostics = []

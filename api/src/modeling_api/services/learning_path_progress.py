@@ -55,9 +55,13 @@ async def progress_view(run, template, names, *, detail=False):
     return result
 
 
-async def list_progress(user, skip=0, limit=100, *, token=None, detail=False, run_ids=None):
+async def list_progress(user, skip=0, limit=100, *, token=None, detail=False, run_ids=None, template_id=None, include_staff=True):
     require_access(user)
     filters = {"_id": {"$in": [str(identifier) for identifier in run_ids]}} if run_ids is not None else {}
+    if template_id is not None:
+        filters["templateId"] = str(template_id)
+    if not include_staff:
+        filters["learnerId"] = {"$nin": await db.submission_users.distinct("_id", {"isStaff": True})}
     page = await list_page(db.learning_path_runs, filters, skip, limit)
     if not page["items"]:
         return page

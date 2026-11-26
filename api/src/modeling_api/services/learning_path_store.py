@@ -35,6 +35,9 @@ def step_document(step, template_id):
             "taskId": str(step.task_version.task_id),
             "releaseId": str(step.task_version.version_id),
             "minimumScorePercent": step.minimum_score_percent,
+            "scoreScope": step.score_scope,
+            "categoryMinimums": [row.model_dump(by_alias=True) for row in step.category_minimums],
+            "helpFeedback": step.help_feedback.model_dump(by_alias=True) if step.help_feedback else None,
             "beforeSurveyId": (
                 str(step.before_survey_id) if step.before_survey_id else None
             ),
@@ -54,9 +57,13 @@ def step_document(step, template_id):
             "required": step.required,
         }
         model = SurveyStepDefinition
-    return model.model_validate(common).model_dump(
+    document = model.model_validate(common).model_dump(
         mode="json", by_alias=True, exclude_none=True
     )
+    if step.type == "task" and step.help_feedback is not None:
+        # Null means unlimited; retain it even where other optional fields are omitted.
+        document["task"]["helpFeedback"] = step.help_feedback.model_dump(by_alias=True)
+    return document
 
 
 def template_meta(body, step_ids):
@@ -85,6 +92,9 @@ def step_view(step):
         ),
         "challenge": task.get("challenge") if task else None,
         "minimumScorePercent": task.get("minimumScorePercent") if task else None,
+        "scoreScope": task.get("scoreScope", "overall") if task else "overall",
+        "categoryMinimums": task.get("categoryMinimums", []) if task else [],
+        "helpFeedback": task.get("helpFeedback") if task else None,
         "surveyId": survey["surveyId"] if survey else None,
         "required": survey["required"] if survey else True,
         "beforeSurveyId": task.get("beforeSurveyId") if task else None,

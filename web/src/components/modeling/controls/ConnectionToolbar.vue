@@ -1,12 +1,13 @@
 <template>
-  <div v-if="scopedConnections.length > 0" class="connection-toolbar" :class="{ 'connection-toolbar--compact': props.compact }">
+  <div v-if="scopedConnections.length > 0" class="connection-toolbar">
     <v-menu v-model="paletteOpen" :close-on-content-click="false" location="bottom start" max-width="min(920px, calc(100vw - 32px))" min-width="400">
       <template #activator="{ props: activatorProps }">
-        <button v-bind="activatorProps" type="button" class="active-connection" :aria-expanded="paletteOpen" aria-label="Choose connection">
-          <ConnectionPreviewItem v-if="selectedConnection" :connection="selectedConnection.connection" :width="props.compact ? 62 : 104" :height="props.compact ? 28 : 38" />
-          <span v-if="!props.compact" class="active-connection__label">{{ selectedConnection?.connection.label }}</span>
-          <v-icon size="18" class="active-connection__arrow">mdi-chevron-down</v-icon>
-        </button>
+        <v-btn-group size="small" density="compact" variant="outlined" class="connection-trigger" :class="{ 'connection-trigger--active': enabled }" :title="triggerLabel">
+          <v-btn v-bind="activatorProps" width="64" min-width="64" :disabled="!enabled" :aria-expanded="paletteOpen" :aria-label="triggerLabel">
+            <span class="connection-trigger__icon"><v-icon size="20">mdi-vector-line</v-icon><v-icon size="10" class="connection-trigger__plus">mdi-plus</v-icon></span>
+            <v-icon size="14">mdi-chevron-down</v-icon>
+          </v-btn>
+        </v-btn-group>
       </template>
 
       <v-card class="connection-palette" elevation="8">
@@ -40,7 +41,7 @@
 
             <v-window-item value="all">
               <div class="connection-grid connection-grid--palette">
-                <ConnectionOption v-for="option in scopedConnections" :key="option.key" :item="option" :selected="option.key === selectedKey" :highlighted="matchesSearch(option)" :pinned="isPinned(option)" @select="selectConnection(option)" @toggle-pin="togglePinned(option)" />
+                <ConnectionOption v-for="option in allConnections" :key="option.key" :item="option" :selected="option.key === selectedKey" :highlighted="matchesSearch(option)" :pinned="isPinned(option)" @select="selectConnection(option)" @toggle-pin="togglePinned(option)" />
               </div>
             </v-window-item>
 
@@ -66,7 +67,7 @@ interface Props {
   connections: DiagramConnection[]
   connectionGroups?: DiagramConnectionGroup[]
   preferences?: JsonObject
-  compact?: boolean
+  enabled: boolean
 }
 
 interface ScopedConnection {
@@ -95,6 +96,7 @@ const ConnectionOption = defineComponent({
         'div',
         {
           role: 'button',
+          'aria-pressed': optionProps.selected,
           tabindex: 0,
           class: ['connection-option', { 'connection-option--selected': optionProps.selected, 'connection-option--highlighted': optionProps.highlighted }],
           onClick: () => emit('select'),
@@ -108,6 +110,7 @@ const ConnectionOption = defineComponent({
         [
           h(ConnectionPreviewItem, { connection: optionProps.item.connection, width: 86, height: 30 }),
           h('span', { class: 'connection-option__label' }, optionProps.item.connection.label),
+          optionProps.selected ? h('i', { class: 'v-icon notranslate mdi mdi-check connection-option__check', 'aria-hidden': 'true' }) : null,
           h('button', { type: 'button', class: ['connection-option__pin', { 'connection-option__pin--active': optionProps.pinned }], title: optionProps.pinned ? 'Unpin connection' : 'Pin connection', 'aria-label': optionProps.pinned ? 'Unpin connection' : 'Pin connection', onClick: (event: MouseEvent) => { event.stopPropagation(); emit('toggle-pin') } }, [h('i', { class: 'v-icon notranslate mdi mdi-pin', 'aria-hidden': 'true' })])
         ]
       )
@@ -116,8 +119,7 @@ const ConnectionOption = defineComponent({
 
 const props = withDefaults(defineProps<Props>(), {
   connectionGroups: () => [],
-  preferences: () => ({}),
-  compact: false
+  preferences: () => ({})
 })
 
 const emit = defineEmits<{
@@ -153,6 +155,8 @@ const toolbarPreferences = computed<ConnectionToolbarPreferences>(() => {
 })
 
 const selectedConnection = computed(() => scopedConnections.value.find((item) => item.key === selectedKey.value))
+const triggerLabel = computed(() => `Choose next connection (${selectedConnection.value?.connection.label || selectedConnection.value?.connection.type || 'none'})`)
+const allConnections = computed(() => selectedConnection.value ? [selectedConnection.value, ...scopedConnections.value.filter((item) => item.key !== selectedKey.value)] : scopedConnections.value)
 const scopedConnectionsByGroup = (groupId: string) => scopedConnections.value.filter((item) => item.key.startsWith(`${groupId}:`))
 const connectionsForKeys = (keys: string[]) => keys.map((key) => scopedConnections.value.find((item) => item.key === key)).filter((item): item is ScopedConnection => Boolean(item))
 const favoriteConnections = computed(() => connectionsForKeys(toolbarPreferences.value.favorites))
@@ -178,6 +182,7 @@ const updateToolbarPreferences = (patch: Partial<ConnectionToolbarPreferences>) 
 }
 
 const selectConnection = (item: ScopedConnection) => {
+  if (!props.enabled) return
   selectedKey.value = item.key
   emit('select', item.connection)
   updateToolbarPreferences({ recent: [item.key, ...toolbarPreferences.value.recent.filter((key) => key !== item.key)].slice(0, 12) })
@@ -195,6 +200,13 @@ watch(normalizedSearch, (query) => {
   if (query) paletteTab.value = 'all'
 })
 
+watch(paletteOpen, (open) => {
+  if (open) {
+    searchQuery.value = ''
+    paletteTab.value = 'all'
+  }
+})
+
 watch(
   [scopedConnections, () => toolbarPreferences.value.recent],
   () => {
@@ -209,6 +221,7 @@ defineExpose({
     paletteOpen.value = false
   },
   selectConnectionByReference: (languageId: string, connectionType: string): boolean => {
+    if (!props.enabled) return false
     const connection = scopedConnections.value.find(
       (item) => item.key.startsWith(`${languageId}:${connectionType}:`)
     )
@@ -221,12 +234,10 @@ defineExpose({
 
 <style scoped>
 .connection-toolbar { display: flex; align-items: center; min-width: 0; }
-.active-connection { display: flex; align-items: center; gap: 6px; min-height: 42px; max-width: min(320px, 100%); padding: 2px 7px 2px 4px; border: 1px solid rgba(var(--v-theme-outline), 0.28); border-radius: 7px; background: rgb(var(--v-theme-surface)); color: rgb(var(--v-theme-on-surface)); cursor: pointer; }
-.active-connection:hover, .active-connection[aria-expanded='true'] { border-color: rgb(var(--v-theme-primary)); background: rgba(var(--v-theme-primary), 0.06); }
-.active-connection__label { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
-.active-connection__arrow { color: rgba(var(--v-theme-on-surface), 0.65); }
-.connection-toolbar--compact .active-connection { min-height: 30px; padding: 1px 4px; border-radius: 4px; }
-.connection-toolbar--compact .active-connection__arrow { margin-left: -2px; }
+.connection-trigger--active { background: rgba(var(--v-theme-primary), 0.1); border-color: rgb(var(--v-theme-dark-gray)); color: rgb(var(--v-theme-primary)); }
+.connection-trigger :deep(.v-btn) { padding-inline: 4px; }
+.connection-trigger__icon { position: relative; display: inline-flex; }
+.connection-trigger__plus { position: absolute; top: -3px; right: -3px; background: rgb(var(--v-theme-surface)); border-radius: 50%; }
 .connection-palette { width: min(920px, calc(100vw - 32px)); overflow: hidden; }
 .connection-palette__search { padding: 12px 12px 8px; }
 .connection-palette__body { display: flex; min-height: 250px; max-height: min(560px, calc(100vh - 160px)); border-top: 1px solid rgba(var(--v-theme-outline), 0.13); }
@@ -239,12 +250,13 @@ defineExpose({
 .connection-grid { display: grid; gap: 6px; }
 .connection-grid--palette { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); padding: 12px; }
 .connection-palette__empty { margin: 0; padding: 16px; color: rgba(var(--v-theme-on-surface), 0.6); font-size: 12px; }
-:deep(.connection-option) { position: relative; display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 8px; width: 100%; min-height: 42px; padding: 5px 28px 5px 5px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: rgb(var(--v-theme-on-surface)); text-align: left; cursor: pointer; }
+:deep(.connection-option) { position: relative; display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 8px; width: 100%; min-height: 42px; padding: 5px 52px 5px 5px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: rgb(var(--v-theme-on-surface)); text-align: left; cursor: pointer; }
 :deep(.connection-option:hover) { background: rgba(var(--v-theme-primary), 0.06); }
 :deep(.connection-option--selected) { border-color: rgb(var(--v-theme-primary)); background: rgba(var(--v-theme-primary), 0.1); }
 :deep(.connection-option--highlighted) { background: rgba(var(--v-theme-warning), 0.16); box-shadow: inset 3px 0 rgb(var(--v-theme-warning)); }
 :deep(.connection-option__label) { align-self: center; overflow-wrap: anywhere; font-size: 12px; font-weight: 600; line-height: 1.25; }
+:deep(.connection-option__check) { position: absolute; top: 50%; right: 30px; transform: translateY(-50%); font-size: 18px; color: rgb(var(--v-theme-primary)); }
 :deep(.connection-option__pin) { position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: rgba(var(--v-theme-on-surface), 0.38); cursor: pointer; }
 :deep(.connection-option__pin:hover), :deep(.connection-option__pin--active) { color: #1976d2; background: rgba(25, 118, 210, 0.12); }
-@media (max-width: 600px) { .connection-palette__tabs { flex-basis: 48px; } .connection-palette__tabs :deep(.v-tab__prepend) { margin: 0; } .connection-palette__tabs :deep(.v-tab__text), .connection-palette__language-tab { display: none; } .active-connection__label { max-width: 100px; } .connection-grid--palette { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .connection-palette__tabs { flex-basis: 48px; } .connection-palette__tabs :deep(.v-tab__prepend) { margin: 0; } .connection-palette__tabs :deep(.v-tab__text), .connection-palette__language-tab { display: none; } .connection-grid--palette { grid-template-columns: 1fr; } }
 </style>

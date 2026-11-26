@@ -48,6 +48,19 @@ def maximum_assignment_for_references(candidate_pairs, reference_ids):
     })
 
 
+def necessary_pairs(pairs):
+    """Edges present in every maximum assignment of this evidence graph."""
+    pairs = set(pairs)
+    adjacent = defaultdict(list)
+    for reference, student in sorted(pairs):
+        adjacent[reference].append(student)
+    baseline = _maximum_matching(sorted(adjacent), adjacent)
+    return {pair for pair in pairs if _maximum_matching(sorted(adjacent), {
+        reference: [student for student in students if (reference, student) != pair]
+        for reference, students in adjacent.items()
+    }) < baseline}
+
+
 def analyze_assignment_capacity(state):
     """Return matching cardinalities, not a particular matching."""
     reference_components, student_components = {}, {}
@@ -172,3 +185,38 @@ def analyze_proposal_feasibility(state):
         "conflictingProposals": pair_ids(conflicting),
         "blockedProposals": pair_ids(blocked),
     }
+
+
+def capacity_preserving_proposals(state, proposals):
+    """Accept feasible proposals that conflict with no other feasible proposal, without choosing a tie winner."""
+    individually_feasible, accepted = [], []
+    candidate_pairs = {(row["referenceId"], row["studentId"]) for row in state["candidatePairs"]}
+    if any((row["referenceId"], row["studentId"]) not in candidate_pairs for row in proposals):
+        raise ValueError("proposal is not a candidate pair")
+    for component in state["candidateComponents"]:
+        references = set(component["referenceIds"])
+        extra = [row for row in proposals if row["referenceId"] in references]
+        if not extra:
+            continue
+        local = {key: [row for row in state[key] if row["referenceId"] in references]
+                 for key in ("candidatePairs", "proposals", "conflictingProposals", "blockedProposals")}
+
+        def preserves(rows):
+            return analyze_proposal_feasibility({**local, "proposals": local["proposals"] + rows})["joint"]["status"] == "preserved"
+
+        feasible = [row for row in extra if preserves([row])]
+        individually_feasible.extend(feasible)
+
+        def conflict(left, right):
+            return (left["referenceId"] == right["referenceId"] or left["studentId"] == right["studentId"]
+                    or not preserves([left, right]))
+
+        # Only genuinely competing proposals stay open; no tie winner is chosen.
+        uncontested = [row for index, row in enumerate(feasible)
+                       if not any(conflict(row, other) for other_index, other in enumerate(feasible)
+                                  if other_index != index)]
+        # Capacity is not pairwise-determined; a higher-order conflict keeps the component open.
+        if preserves(uncontested):
+            accepted.extend(uncontested)
+    order = lambda row: (row["referenceId"], row["studentId"])
+    return sorted(individually_feasible, key=order), sorted(accepted, key=order)

@@ -54,6 +54,24 @@ class UnlockRule(ApiSchema):
         return self
 
 
+ScoreScope = Literal["overall", "eachCategory"]
+
+
+class CategoryMinimum(ApiSchema):
+    """Minimum for one recognition category, matched by its displayed label (e.g. "Attribute")."""
+
+    label: str = Field(min_length=1, max_length=200)
+    minimum_percent: float = Field(ge=0, le=100, allow_inf_nan=False)
+
+
+class TaskHelpFeedbackConfig(ApiSchema):
+    check_limit: int | None = Field(default=None, ge=0, le=100)
+    clarify_limit: int | None = Field(default=None, ge=0, le=100)
+    next_step_limit: int | None = Field(default=None, ge=0, le=100)
+    example_limit: int | None = Field(default=2, ge=0, le=100)
+    solution_limit: int | None = Field(default=1, ge=0, le=100)
+
+
 class LearningPathStep(ApiSchema):
     id: UUID
     title: Name
@@ -66,12 +84,19 @@ class LearningPathStep(ApiSchema):
     unlock: UnlockRule = Field(default_factory=UnlockRule)
     challenge: ChallengeConfig | None = None
     minimum_score_percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    score_scope: ScoreScope = "overall"
+    category_minimums: list[CategoryMinimum] = Field(default_factory=list, max_length=50)
+    help_feedback: TaskHelpFeedbackConfig | None = None
 
     @model_validator(mode="after")
     def valid_activity(self):
         if self.type == "task":
             if not self.task_version or self.survey_id or not self.required:
                 raise ValueError("Tasks require a task release and must be required.")
+            if self.minimum_score_percent is None and (self.score_scope != "overall" or self.category_minimums):
+                raise ValueError("Category minimums require a minimum evaluation score.")
+            if len({row.label for row in self.category_minimums}) != len(self.category_minimums):
+                raise ValueError("Each category may only have one minimum.")
         elif (
             not self.survey_id
             or self.task_version
@@ -79,6 +104,8 @@ class LearningPathStep(ApiSchema):
             or self.before_survey_id
             or self.after_survey_id
             or self.minimum_score_percent is not None
+            or self.category_minimums
+            or self.help_feedback is not None
         ):
             raise ValueError(
                 "Questionnaires require a survey and cannot have task settings."
@@ -152,6 +179,17 @@ class HelpRequestConfig(ApiSchema):
     marking_required: bool = False
     question_edits: dict[Literal["stuck_duration", "support_need", "next_action"], HelpQuestionEdit] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def keep_feedback_choices(self):
+        edit = self.question_edits.get("support_need")
+        if edit and not {f"support_need_{index}" for index in range(1, 7)} <= {choice.id for choice in edit.choices}:
+            raise ValueError("The six base answers of 'support_need' select the automatic feedback; rename them instead of removing them.")
+        return self
+
+
+class HelpRequestRuntimeConfig(HelpRequestConfig, TaskHelpFeedbackConfig):
+    """Path questionnaire settings combined with the current task's feedback limits."""
+
 
 class CreateHelpRequest(ApiSchema):
     request_id: UUID
@@ -172,7 +210,7 @@ class HelpTextRange(ApiSchema):
 
 class HelpMarkings(ApiSchema):
     cell_ids: list[str] = Field(default_factory=list, max_length=200)
-    task_text_ranges: list[HelpTextRange] = Field(default_factory=list, max_length=100)
+    task_text_ranges: list[HelpTextRange] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def valid_markings(self):
@@ -188,6 +226,7 @@ class HelpRequest(ApiSchema):
     model_id: UUID
     model_version_id: UUID
     created_at: datetime
+    flow_version: Literal[1, 2] = 1
     stage: Literal["topic", "marking", "reflection", "action", "completed", "cancelled"] = "completed"
     survey_ids: dict[str, UUID] = Field(default_factory=dict)
     markings: HelpMarkings | None = None
@@ -195,6 +234,9 @@ class HelpRequest(ApiSchema):
     next_action_id: str | None = None
     survey_session_id: UUID | None = None
     marking_required: bool = True
+    marking_purpose: Literal["problem", "feedback"] = "problem"
+    support_kind: str | None = None
+    evaluation_id: UUID | None = None
 
 
 class SaveTemplate(ApiSchema):
@@ -378,5 +420,8 @@ class PathModelContext(ApiSchema):
     completion_requested: bool = False
     before_survey: TaskSurveyProgress | None = None
     after_survey: TaskSurveyProgress | None = None
-    help_requests: HelpRequestConfig = Field(default_factory=HelpRequestConfig)
+    help_requests: HelpRequestRuntimeConfig = Field(default_factory=HelpRequestRuntimeConfig)
+    help_usage: dict[str, dict[str, int | None]] = Field(default_factory=dict)
     minimum_score_percent: float | None = Field(default=None, ge=0, le=100)
+    score_scope: ScoreScope = "overall"
+    category_minimums: list[CategoryMinimum] = Field(default_factory=list)

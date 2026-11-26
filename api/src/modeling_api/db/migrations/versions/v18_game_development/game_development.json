@@ -1,0 +1,1460 @@
+{
+  "learningPathId": "b7affb3a-fcbb-509a-8ec1-b4c8a7381d0d",
+  "afterStepId": "f72db10d-56af-53df-a897-b21ed4e0f04c",
+  "task": {
+    "id": "cbbe39ec-2f22-5933-9abe-85d5cc82e70d",
+    "name": "Entwicklerstudio – SERM",
+    "parent": null,
+    "ownerId": "",
+    "latestVersionId": "4038eea6-a82a-5c07-b8a8-563689e9985f",
+    "latestReleaseId": "4038eea6-a82a-5c07-b8a8-563689e9985f",
+    "visibility": "private",
+    "archivedAt": null,
+    "version": {
+      "id": "4038eea6-a82a-5c07-b8a8-563689e9985f",
+      "taskId": "cbbe39ec-2f22-5933-9abe-85d5cc82e70d",
+      "versionNumber": "1.0",
+      "createdBy": "",
+      "kind": "release",
+      "releaseName": "Release 1.0",
+      "description": null,
+      "workspaceLanguages": [
+        {
+          "languageId": "a09ff8fb-5a26-4621-91e7-003cee10c555",
+          "versionId": "4b748971-57b5-575f-a744-8617241d081f",
+          "source": "required"
+        }
+      ],
+      "data": {
+        "contentHtml": "<h2>Entwicklerstudio als SERM</h2><p>Modelliere die Datenverwaltung eines Spieleentwicklungsstudios als SERM. Leite die benötigten Objekttypen, Beziehungen und Kardinalitäten selbstständig aus der Fallstudie ab. Kennzeichne die Primärschlüssel <u>unterstrichen</u> und die Fremdschlüssel <i>kursiv</i>.</p><h3>Fallstudie</h3><p>Ein Entwicklungsstudio entwickelt verschiedene Videospiele. Für jedes Spiel werden der Titel und der Entwicklungsbeginn dokumentiert.</p><p>Einige Spiele werden einer Spielereihe zugeordnet, andere werden als eigenständige Titel entwickelt. Neue Spielereihen können bereits geplant werden, bevor das erste zugehörige Spiel entsteht. Auch bereits entwickelte Spiele können nachträglich einer Spielereihe zugeordnet werden.</p><p>Spiele können Fortsetzungen erhalten. Ein Spiel kann mehrere direkte Nachfolger haben, während jede Fortsetzung höchstens einen direkten Vorgänger besitzt. Ein Spiel kann nicht seine eigene Fortsetzung sein.</p><p>Zur Kategorisierung verwaltet das Studio verschiedene Genres. Ein Spiel kann mehreren Genres zugeordnet werden.</p><p>Das Studio entwickelt Spiele für unterschiedliche Plattformen. Für jede Plattform werden der Name und der Hersteller erfasst.</p><p>Für ein Spiel können auf unterschiedlichen Plattformen eigenständige Versionen entstehen. Jede Version gehört zu einem Spiel und einer Plattform. Sie erhält eine Versionsnummer, die innerhalb dieser Kombination eindeutig ist. Für jede Version wird das Erstellungsdatum dokumentiert.</p><p>Nicht jede Version wird veröffentlicht. Bei einer Veröffentlichung wird das Datum erfasst. Jede Version kann höchstens einmal veröffentlicht werden. Nach der ersten Veröffentlichung eines Spiels können weitere Versionen zur Behebung von Fehlern veröffentlicht werden.</p><p>Im Studio arbeiten festangestellte Mitarbeiter und Freelancer. Für alle Mitarbeiter werden die PersonalNr., der Name und die E-Mail erfasst.</p><p>Festangestellte erhalten ein Monatsgehalt und haben eine festgelegte wöchentliche Arbeitszeit. Freelancer werden nach einem vereinbarten Stundensatz vergütet. Jeder Mitarbeiter gehört genau einer dieser beiden Beschäftigungsarten an.</p><p>Mitarbeiter können an unterschiedlichen Spielversionen mitwirken. Dabei kann ein Mitarbeiter auch an Versionen verschiedener Spiele und Plattformen arbeiten.</p><p>Für jeden Arbeitseinsatz wird die Arbeitszeit sekundengenau erfasst, um die geleisteten Arbeitsstunden zu ermitteln.</p>",
+        "autonomyMode": "informative",
+        "connectionPreviewAllowed": false,
+        "sampleSolutions": [
+          {
+            "modelId": "ebc892b1-3b21-590c-b031-f4ddadc0f91d",
+            "versionId": "7a53fac5-74d7-5779-ae02-b480c6a5a1e8"
+          }
+        ],
+        "evaluationWorkflows": [
+          "model-evaluation-graph-matching"
+        ]
+      }
+    }
+  },
+  "steps": [
+    {
+      "id": "0399dc79-ffbb-5366-871a-bf882f94a19e",
+      "title": "Entwicklerstudio – SERM",
+      "type": "task",
+      "taskVersion": {
+        "taskId": "cbbe39ec-2f22-5933-9abe-85d5cc82e70d",
+        "versionId": "4038eea6-a82a-5c07-b8a8-563689e9985f"
+      },
+      "minimumScorePercent": 60,
+      "scoreScope": "eachCategory",
+      "categoryMinimums": [],
+      "required": true,
+      "unlock": {
+        "mode": "sequence",
+        "conditions": []
+      }
+    },
+    {
+      "id": "0425e798-d0ba-54f0-bfd4-5ddecb634d10",
+      "title": "Wochenabschluss 4",
+      "type": "survey",
+      "surveyId": "4ab211d7-3245-57f2-bfa9-0c646bf9f836",
+      "required": true,
+      "unlock": {
+        "mode": "sequence",
+        "conditions": []
+      }
+    }
+  ],
+  "weeklySurvey": {
+    "id": "4ab211d7-3245-57f2-bfa9-0c646bf9f836",
+    "versionId": "4dfd1c13-e4c7-5054-b0ca-b94b5617befa",
+    "version": 1,
+    "title": "Wochenabschluss 4",
+    "definition": {
+      "introduction": "Dieser Wochenabschluss verbindet den Rückblick auf die Aufgabe 'Entwicklerstudio' mit der Bewertung der Studienteilnahme. Bitte denke bei den Fragen zur Aufgabe an deine Bearbeitung des Entwicklerstudios.",
+      "showQuestionNumbers": "off",
+      "pages": [
+        {
+          "name": "difficulty",
+          "title": "Wahrgenommene Schwierigkeit"
+        },
+        {
+          "name": "support",
+          "title": "Genutzte und fehlende Unterstützung"
+        },
+        {
+          "name": "feedback_usage",
+          "title": "Automatisches Feedback: Nutzung"
+        },
+        {
+          "name": "feedback_check",
+          "title": "Rückmeldung: Prüfung / Bestätigung",
+          "description": "Du hast dein gesamtes Modell prüfen lassen; als richtig erkannte Elemente wurden im Diagramm hervorgehoben. Wenn du mehrere Prüfungen gemacht hast, denke an die letzte."
+        },
+        {
+          "name": "feedback_explanation",
+          "title": "Rückmeldung: Erklärung",
+          "description": "Du hast für markierte Elemente eine Beschreibung bekommen, ob sie eindeutig, vorläufig oder gar nicht zugeordnet wurden und ob Typ, Attribute und Verbindungen vollständig sind. Wenn du mehrere Erklärungen bekommen hast, denke an die letzte."
+        },
+        {
+          "name": "feedback_next_step",
+          "title": "Rückmeldung: Hinweis zum nächsten Schritt",
+          "description": "Du hast einen einzelnen Hinweis bekommen, was du als Nächstes an deinem Modell tun kannst. Wenn du mehrere Hinweise bekommen hast, denke an den letzten."
+        },
+        {
+          "name": "feedback_example",
+          "title": "Rückmeldung: Beispiel",
+          "description": "Du hast ein Beispiel bekommen, wie die Umgebung eines markierten Elements aufgebaut sein kann, teilweise mit Platzhaltern statt Beschriftungen. Wenn du mehrere Beispiele bekommen hast, denke an das letzte."
+        },
+        {
+          "name": "feedback_solution",
+          "title": "Rückmeldung: Konkrete Lösung",
+          "description": "Du hast für markierte Elemente einen konkreten Korrekturvorschlag bekommen. Wenn du mehrere bekommen hast, denke an den letzten."
+        },
+        {
+          "name": "path_feedback",
+          "title": "Automatisches Feedback im Lernpfad",
+          "description": "Jetzt geht es nicht mehr um einzelne Rückmeldungen, sondern um deinen Gesamteindruck vom automatischen Feedback."
+        },
+        {
+          "name": "feedback_overall",
+          "title": "Automatisches Feedback insgesamt und offener Bedarf"
+        },
+        {
+          "name": "completion",
+          "title": "Freiwilliger Aufgabenabschluss"
+        },
+        {
+          "name": "confidence",
+          "title": "Selbsteinschätzung"
+        },
+        {
+          "name": "feature_pulse",
+          "title": "Spontane Zwischenfragen des Piraten",
+          "description": "Während der Modellierungsaufgaben konntest du über den Button 'Ich brauche Hilfe' Schwierigkeiten melden. Außerdem wurden während der Bearbeitung gelegentlich kurze Zwischenfragen durch den Piraten eingeblendet. Für beantwortete Zwischenfragen konntest du Coins erhalten. Für die Teilnahme an der Studie wurden Klausurbonuspunkte angeboten. Wir möchten erfahren, wie du diese Funktionen und den damit verbundenen zusätzlichen Aufwand empfunden hast. Standardskala: 1 Stimme überhaupt nicht zu … 5 Stimme vollständig zu."
+        },
+        {
+          "name": "feature_incentives",
+          "title": "Anreize durch Coins und Klausurbonuspunkte"
+        },
+        {
+          "name": "feature_overall",
+          "title": "Gesamtbewertung"
+        }
+      ],
+      "elements": [
+        {
+          "type": "rating",
+          "name": "T1",
+          "page": "difficulty",
+          "isRequired": true,
+          "title": "Wie schwierig war die Aufgabe 'Entwicklerstudio' für dich?",
+          "rateMin": 1,
+          "rateMax": 5,
+          "minRateDescription": "überhaupt nicht schwierig",
+          "maxRateDescription": "sehr schwierig",
+          "description": "1 = Überhaupt nicht schwierig; 5 = Sehr schwierig"
+        },
+        {
+          "type": "checkbox",
+          "name": "T2",
+          "page": "difficulty",
+          "isRequired": true,
+          "title": "Wobei hast du Unterstützung benötigt?",
+          "description": "Mehrfachauswahl",
+          "choices": [
+            "Keine Unterstützung benötigt",
+            "Aufgabenstellung verstehen",
+            "Die Modellierungssprache korrekt anwenden (Syntax)",
+            "Entscheiden, wie ich beim Modellieren weiter vorgehe",
+            "Fehler erkennen",
+            "Lernplattform bedienen",
+            "Sonstiges"
+          ],
+          "exclusiveChoices": [
+            "Keine Unterstützung benötigt"
+          ]
+        },
+        {
+          "type": "comment",
+          "name": "T2_other",
+          "page": "difficulty",
+          "isRequired": true,
+          "title": "Sonstiges: Wobei hast du Unterstützung benötigt?",
+          "visibleIf": "{T2} contains 'Sonstiges'"
+        },
+        {
+          "type": "checkbox",
+          "name": "T5",
+          "page": "support",
+          "isRequired": true,
+          "title": "Welche Unterstützung hast du während der Aufgabe genutzt?",
+          "description": "Mehrfachauswahl",
+          "choices": [
+            "Keine, ich habe es allein versucht (z. B. durch Ausprobieren)",
+            "Automatische Modellprüfung (Fehlermeldungen am blinkenden Warnsymbol)",
+            "Automatisches Feedback über 'Ich brauche Hilfe'",
+            "Fortschrittsanzeige bei der Abgabe",
+            "Bereitgestellte Lehrmaterialien oder Vorlesungsinhalte",
+            "Kommilitoninnen oder Kommilitonen",
+            "Lehrende oder Tutorinnen und Tutoren",
+            "Internetrecherche, Tutorials oder Foren",
+            "Generative KI, z. B. ChatGPT",
+            "Sonstiges"
+          ],
+          "exclusiveChoices": [
+            "Keine, ich habe es allein versucht (z. B. durch Ausprobieren)"
+          ]
+        },
+        {
+          "type": "comment",
+          "name": "T5_other",
+          "page": "support",
+          "isRequired": true,
+          "title": "Sonstiges: Welche Unterstützungsquelle hast du genutzt?",
+          "visibleIf": "{T5} contains 'Sonstiges'"
+        },
+        {
+          "type": "radiogroup",
+          "name": "T10_mode",
+          "page": "support",
+          "isRequired": true,
+          "title": "Könntest du auf eine der genutzten Unterstützungsquellen verzichten?",
+          "description": "Wenn du auf mindestens eine Quelle verzichten könntest, kannst du die genutzten Quellen anschließend sortieren. Bei nur einer Quelle ist keine Sortierung nötig.",
+          "choices": [
+            "rank",
+            "none",
+            "unknown"
+          ],
+          "choiceLabels": {
+            "rank": "Ja, auf mindestens eine",
+            "none": "Nein, auf keine",
+            "unknown": "Kann ich nicht einschätzen"
+          },
+          "visibleIf": "{T5} notcontains 'Keine, ich habe es allein versucht (z. B. durch Ausprobieren)'"
+        },
+        {
+          "type": "ranking",
+          "name": "T10",
+          "page": "support",
+          "isRequired": true,
+          "title": "Ordne die genutzten Unterstützungsquellen.",
+          "description": "Rang 1 = Darauf könnte ich am ehesten verzichten; letzter Rang = Darauf könnte ich am wenigsten verzichten. Ziehe die Einträge in die passende Reihenfolge.",
+          "choicesFromQuestion": "T5",
+          "choicesFromQuestionMode": "selected",
+          "visibleIf": "{T10_mode} = 'rank'"
+        },
+        {
+          "type": "radiogroup",
+          "name": "T6",
+          "page": "support",
+          "isRequired": true,
+          "title": "Gab es während der Aufgabe Situationen, in denen du Unterstützung gebraucht hättest, aber keine passende erhalten hast?",
+          "choices": [
+            "Nein",
+            "Selten",
+            "Manchmal",
+            "Häufig",
+            "Kann ich nicht beurteilen"
+          ]
+        },
+        {
+          "type": "radiogroup",
+          "name": "F3",
+          "page": "support",
+          "isRequired": true,
+          "title": "Wie hoch empfandest du den zusätzlichen Aufwand durch die Nutzung des Buttons 'Ich brauche Hilfe'?",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "description": "1 = Sehr gering; 5 = Sehr hoch",
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "visibleWhen": "help_requested",
+          "minRateDescription": "Sehr gering",
+          "maxRateDescription": "Sehr hoch",
+          "exampleImages": [
+            {
+              "src": "/images/surveys/game-development/help-button.png",
+              "alt": "Button 'Ich brauche Hilfe' als Holzschild.",
+              "caption": "Der Button 'Ich brauche Hilfe'."
+            }
+          ]
+        },
+        {
+          "name": "N3",
+          "page": "feedback_usage",
+          "title": "Welche Arten von automatischem Feedback hast du bei der Aufgabe über 'Ich brauche Hilfe' genutzt?",
+          "isRequired": true,
+          "type": "checkbox",
+          "choices": [
+            "Prüfung / Bestätigung",
+            "Erklärung",
+            "Hinweis zum nächsten Schritt",
+            "Beispiel",
+            "Konkrete Lösung",
+            "Keines (ich habe kein automatisches Feedback genutzt)"
+          ],
+          "description": "Mehrfachauswahl",
+          "exclusiveChoices": [
+            "Keines (ich habe kein automatisches Feedback genutzt)"
+          ],
+          "exampleImages": [
+            {
+              "src": "/images/surveys/game-development/feedback-overview.png",
+              "alt": "Übersicht der fünf Feedbackarten: Prüfung, Erklärung, nächster Schritt, Beispiel und Lösung.",
+              "caption": "Die fünf Arten des automatischen Feedbacks."
+            }
+          ]
+        },
+        {
+          "name": "N4",
+          "page": "feedback_usage",
+          "title": "Warum hast du kein automatisches Feedback genutzt?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Keines (ich habe kein automatisches Feedback genutzt)'",
+          "type": "radiogroup",
+          "choices": [
+            "Ich brauchte keine Hilfe.",
+            "Ich wollte es selbst schaffen.",
+            "Ich habe die Funktion nicht bemerkt.",
+            "Ich wusste nicht, wie sie funktioniert.",
+            "Das Markieren und Auswählen war mir zu umständlich.",
+            "Andere Hilfe war mir lieber.",
+            "Ich traute dem Feedback nicht zu, mir zu helfen.",
+            "Sonstiges"
+          ]
+        },
+        {
+          "name": "N4_other",
+          "page": "feedback_usage",
+          "title": "Sonstiges: Warum hast du kein automatisches Feedback genutzt?",
+          "isRequired": true,
+          "visibleIf": "{N4} = 'Sonstiges'",
+          "type": "comment"
+        },
+        {
+          "name": "PR1",
+          "page": "feedback_check",
+          "title": "Wie sehr hat dir die Prüfung bei deinem Problem geholfen?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Prüfung / Bestätigung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = gar nicht; 5 = vollständig",
+          "minRateDescription": "gar nicht",
+          "maxRateDescription": "vollständig",
+          "exampleImages": [
+            {
+              "src": "/images/surveys/game-development/check.png",
+              "alt": "Ergebnis einer Modellprüfung mit Erkennungswerten je Kategorie und insgesamt.",
+              "caption": "Beispiel einer Prüfung aus der Laborverwaltung. Die abgebildete Mindestgrenze gehört zum Beispiel."
+            },
+            {
+              "src": "/images/surveys/game-development/check-highlights.png",
+              "alt": "Als richtig erkannte Elemente des ER-Typs 'Versuch' sind mit grünen Häkchen markiert.",
+              "caption": "Zur Prüfung gehört die Hervorhebung richtig erkannter Elemente im Diagramm."
+            }
+          ]
+        },
+        {
+          "name": "PR2",
+          "page": "feedback_check",
+          "title": "Hättest du nach der Prüfung noch weitere Hilfe bei diesem Problem gebraucht?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Prüfung / Bestätigung'",
+          "type": "radiogroup",
+          "choices": [
+            "Nein",
+            "Teils, teils",
+            "Ja"
+          ]
+        },
+        {
+          "name": "PR3",
+          "page": "feedback_check",
+          "title": "Die Prüfung war genau das, was ich mir von der Hilfe gewünscht hatte.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Prüfung / Bestätigung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "PR4",
+          "page": "feedback_check",
+          "title": "Die Prüfung hat mein Modell fachlich richtig beurteilt.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Prüfung / Bestätigung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "cannot_judge"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "cannot_judge": "Kann ich nicht beurteilen"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "PR5",
+          "page": "feedback_check",
+          "title": "Die Prüfung hat mir geholfen, Fehler in meinem Modell zu erkennen.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Prüfung / Bestätigung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "PR6",
+          "page": "feedback_check",
+          "title": "Was hast du nach der Prüfung als Erstes gemacht?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Prüfung / Bestätigung'",
+          "type": "radiogroup",
+          "choices": [
+            "Ich habe mein Modell geändert.",
+            "Ich habe selbst weitergearbeitet, ohne etwas zu ändern.",
+            "Ich habe weitere Hilfe in der Plattform geholt.",
+            "Ich habe mir Hilfe außerhalb der Plattform gesucht.",
+            "Ich habe eine Pause gemacht oder die Aufgabe abgebrochen.",
+            "Nichts davon."
+          ]
+        },
+        {
+          "name": "KL1",
+          "page": "feedback_explanation",
+          "title": "Wie sehr hat dir die Erklärung bei deinem Problem geholfen?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Erklärung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = gar nicht; 5 = vollständig",
+          "minRateDescription": "gar nicht",
+          "maxRateDescription": "vollständig",
+          "exampleImages": [
+            {
+              "src": "/images/surveys/game-development/explanation.png",
+              "alt": "Erklärung für 'Versuch' mit Angaben zu Beschriftung, Elementtyp, Attributen und Verbindungen.",
+              "caption": "Beispiel einer Erklärung aus der Laborverwaltung."
+            }
+          ]
+        },
+        {
+          "name": "KL2",
+          "page": "feedback_explanation",
+          "title": "Hättest du nach der Erklärung noch weitere Hilfe bei diesem Problem gebraucht?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Erklärung'",
+          "type": "radiogroup",
+          "choices": [
+            "Nein",
+            "Teils, teils",
+            "Ja"
+          ]
+        },
+        {
+          "name": "KL3",
+          "page": "feedback_explanation",
+          "title": "Die Erklärung war genau das, was ich mir von der Hilfe gewünscht hatte.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Erklärung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "KL4",
+          "page": "feedback_explanation",
+          "title": "Die Erklärung war leicht zu verstehen.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Erklärung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "cannot_judge"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "cannot_judge": "Kann ich nicht beurteilen"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "KL5",
+          "page": "feedback_explanation",
+          "title": "Die Erklärung hat mein Verständnis der Aufgabe wirklich verbessert.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Erklärung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "KL6",
+          "page": "feedback_explanation",
+          "title": "Was hast du nach der Erklärung als Erstes gemacht?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Erklärung'",
+          "type": "radiogroup",
+          "choices": [
+            "Ich habe mein Modell geändert.",
+            "Ich habe selbst weitergearbeitet, ohne etwas zu ändern.",
+            "Ich habe weitere Hilfe in der Plattform geholt.",
+            "Ich habe mir Hilfe außerhalb der Plattform gesucht.",
+            "Ich habe eine Pause gemacht oder die Aufgabe abgebrochen.",
+            "Nichts davon."
+          ]
+        },
+        {
+          "name": "NS1",
+          "page": "feedback_next_step",
+          "title": "Wie sehr hat dir der Hinweis bei deinem Problem geholfen?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Hinweis zum nächsten Schritt'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = gar nicht; 5 = vollständig",
+          "minRateDescription": "gar nicht",
+          "maxRateDescription": "vollständig",
+          "exampleImages": [
+            {
+              "src": "/images/surveys/game-development/next-step.png",
+              "alt": "Hinweis: Bei 'Versuch' fehlt das Attribut 'Bezeichnung'.",
+              "caption": "Beispiel eines Hinweises zum nächsten Schritt aus der Laborverwaltung."
+            }
+          ]
+        },
+        {
+          "name": "NS2",
+          "page": "feedback_next_step",
+          "title": "Hättest du nach dem Hinweis noch weitere Hilfe bei diesem Problem gebraucht?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Hinweis zum nächsten Schritt'",
+          "type": "radiogroup",
+          "choices": [
+            "Nein",
+            "Teils, teils",
+            "Ja"
+          ]
+        },
+        {
+          "name": "NS3",
+          "page": "feedback_next_step",
+          "title": "Der Hinweis war genau das, was ich mir von der Hilfe gewünscht hatte.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Hinweis zum nächsten Schritt'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "NS4",
+          "page": "feedback_next_step",
+          "title": "Der Hinweis war leicht zu verstehen.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Hinweis zum nächsten Schritt'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "cannot_judge"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "cannot_judge": "Kann ich nicht beurteilen"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "NS5",
+          "page": "feedback_next_step",
+          "title": "Nach dem Hinweis wusste ich, was ich als Nächstes tun kann.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Hinweis zum nächsten Schritt'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "NS6",
+          "page": "feedback_next_step",
+          "title": "Was hast du nach dem Hinweis als Erstes gemacht?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Hinweis zum nächsten Schritt'",
+          "type": "radiogroup",
+          "choices": [
+            "Ich habe mein Modell geändert.",
+            "Ich habe selbst weitergearbeitet, ohne etwas zu ändern.",
+            "Ich habe weitere Hilfe in der Plattform geholt.",
+            "Ich habe mir Hilfe außerhalb der Plattform gesucht.",
+            "Ich habe eine Pause gemacht oder die Aufgabe abgebrochen.",
+            "Nichts davon."
+          ]
+        },
+        {
+          "name": "BE1",
+          "page": "feedback_example",
+          "title": "Wie sehr hat dir das Beispiel bei deinem Problem geholfen?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Beispiel'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = gar nicht; 5 = vollständig",
+          "minRateDescription": "gar nicht",
+          "maxRateDescription": "vollständig",
+          "exampleImages": [
+            {
+              "src": "/images/surveys/game-development/example.png",
+              "alt": "Strukturmuster mit Forschungsprojekt, Versuch und einem weiteren ER-Typ mit Platzhaltern.",
+              "caption": "Beispiel eines Strukturmusters aus der Laborverwaltung."
+            }
+          ]
+        },
+        {
+          "name": "BE2",
+          "page": "feedback_example",
+          "title": "Hättest du nach dem Beispiel noch weitere Hilfe bei diesem Problem gebraucht?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Beispiel'",
+          "type": "radiogroup",
+          "choices": [
+            "Nein",
+            "Teils, teils",
+            "Ja"
+          ]
+        },
+        {
+          "name": "BE3",
+          "page": "feedback_example",
+          "title": "Das Beispiel war genau das, was ich mir von der Hilfe gewünscht hatte.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Beispiel'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "BE4",
+          "page": "feedback_example",
+          "title": "Das Beispiel war leicht zu verstehen.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Beispiel'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "cannot_judge"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "cannot_judge": "Kann ich nicht beurteilen"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "BE5",
+          "page": "feedback_example",
+          "title": "Das Beispiel ließ sich gut auf mein eigenes Modell übertragen.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Beispiel'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "BE6",
+          "page": "feedback_example",
+          "title": "Was hast du nach dem Beispiel als Erstes gemacht?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Beispiel'",
+          "type": "radiogroup",
+          "choices": [
+            "Ich habe mein Modell geändert.",
+            "Ich habe selbst weitergearbeitet, ohne etwas zu ändern.",
+            "Ich habe weitere Hilfe in der Plattform geholt.",
+            "Ich habe mir Hilfe außerhalb der Plattform gesucht.",
+            "Ich habe eine Pause gemacht oder die Aufgabe abgebrochen.",
+            "Nichts davon."
+          ]
+        },
+        {
+          "name": "LO1",
+          "page": "feedback_solution",
+          "title": "Wie sehr hat dir der Korrekturvorschlag bei deinem Problem geholfen?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Konkrete Lösung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = gar nicht; 5 = vollständig",
+          "minRateDescription": "gar nicht",
+          "maxRateDescription": "vollständig",
+          "exampleImages": [
+            {
+              "src": "/images/surveys/game-development/solution.png",
+              "alt": "Konkreter Korrekturvorschlag für 'Versuch' mit Diagrammausschnitt und Erläuterungen zu Abweichungen.",
+              "caption": "Beispiel eines konkreten Korrekturvorschlags aus der Laborverwaltung."
+            }
+          ]
+        },
+        {
+          "name": "LO2",
+          "page": "feedback_solution",
+          "title": "Hättest du nach dem Korrekturvorschlag noch weitere Hilfe bei diesem Problem gebraucht?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Konkrete Lösung'",
+          "type": "radiogroup",
+          "choices": [
+            "Nein",
+            "Teils, teils",
+            "Ja"
+          ]
+        },
+        {
+          "name": "LO3",
+          "page": "feedback_solution",
+          "title": "Der Korrekturvorschlag war genau das, was ich mir von der Hilfe gewünscht hatte.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Konkrete Lösung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "LO4",
+          "page": "feedback_solution",
+          "title": "Der Korrekturvorschlag war fachlich richtig.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Konkrete Lösung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "cannot_judge"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "cannot_judge": "Kann ich nicht beurteilen"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "LO5",
+          "page": "feedback_solution",
+          "title": "Ich habe den Korrekturvorschlag übernommen, ohne ihn ganz zu verstehen.",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Konkrete Lösung'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "LO6",
+          "page": "feedback_solution",
+          "title": "Was hast du nach dem Korrekturvorschlag als Erstes gemacht?",
+          "isRequired": true,
+          "visibleIf": "{N3} contains 'Konkrete Lösung'",
+          "type": "radiogroup",
+          "choices": [
+            "Ich habe mein Modell geändert.",
+            "Ich habe selbst weitergearbeitet, ohne etwas zu ändern.",
+            "Ich habe weitere Hilfe in der Plattform geholt.",
+            "Ich habe mir Hilfe außerhalb der Plattform gesucht.",
+            "Ich habe eine Pause gemacht oder die Aufgabe abgebrochen.",
+            "Nichts davon."
+          ]
+        },
+        {
+          "name": "G15",
+          "page": "path_feedback",
+          "title": "Welche Art von Rückmeldung hat dir insgesamt am meisten geholfen?",
+          "isRequired": true,
+          "visibleIf": "{N3} notcontains 'Keines (ich habe kein automatisches Feedback genutzt)'",
+          "type": "radiogroup",
+          "choices": [
+            "Prüfung / Bestätigung",
+            "Erklärung",
+            "Hinweis zum nächsten Schritt",
+            "Beispiel",
+            "Konkrete Lösung",
+            "Keine davon hat mir geholfen"
+          ]
+        },
+        {
+          "name": "G4",
+          "page": "path_feedback",
+          "title": "Das automatische Feedback war im Vergleich zu anderen Lernmöglichkeiten (z. B. Vorlesungsfolien, Tutorials, generative KI) besonders hilfreich.",
+          "isRequired": true,
+          "visibleIf": "{N3} notcontains 'Keines (ich habe kein automatisches Feedback genutzt)'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "G17",
+          "page": "path_feedback",
+          "title": "Hast du dir außerhalb der Plattform Hilfe gesucht, weil dir das automatische Feedback nicht gereicht hat?",
+          "isRequired": true,
+          "visibleIf": "{N3} notcontains 'Keines (ich habe kein automatisches Feedback genutzt)'",
+          "type": "radiogroup",
+          "choices": [
+            "Nein",
+            "Ja, manchmal",
+            "Ja, häufig"
+          ]
+        },
+        {
+          "name": "G7",
+          "page": "path_feedback",
+          "title": "Ich kann dem automatischen Feedback vertrauen.",
+          "isRequired": true,
+          "visibleIf": "{N3} notcontains 'Keines (ich habe kein automatisches Feedback genutzt)'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "FB_fair",
+          "page": "feedback_overall",
+          "title": "Das automatische Feedback hat mein Modell auch dann fair bewertet, wenn ich etwas anders gelöst oder benannt hatte als vorgesehen.",
+          "isRequired": true,
+          "visibleIf": "{N3} notcontains 'Keines (ich habe kein automatisches Feedback genutzt)'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "cannot_judge"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "cannot_judge": "Kann ich nicht beurteilen"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "FB_misled",
+          "page": "feedback_overall",
+          "title": "Das automatische Feedback hat mich manchmal in eine falsche Richtung geführt.",
+          "isRequired": true,
+          "visibleIf": "{N3} notcontains 'Keines (ich habe kein automatisches Feedback genutzt)'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "FB_wait",
+          "page": "feedback_overall",
+          "title": "Die Wartezeit auf das automatische Feedback war angemessen.",
+          "isRequired": true,
+          "visibleIf": "{N3} notcontains 'Keines (ich habe kein automatisches Feedback genutzt)'",
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "C1",
+          "page": "feedback_overall",
+          "title": "Wenn du an die ganze Aufgabe zurückdenkst: Hast du von der Plattform die Hilfe bekommen, die du gebraucht hast?",
+          "isRequired": true,
+          "type": "radiogroup",
+          "choices": [
+            "Ja, vollständig",
+            "Teilweise",
+            "Nein",
+            "Ich habe keine Hilfe der Plattform genutzt",
+            "Kann ich nicht beurteilen"
+          ]
+        },
+        {
+          "name": "C2",
+          "page": "feedback_overall",
+          "title": "Hättest du am Ende der Aufgabe noch weitere Hilfe gebraucht?",
+          "isRequired": true,
+          "visibleIf": "{C1} != 'Ja, vollständig'",
+          "type": "radiogroup",
+          "choices": [
+            "Nein",
+            "Teils, teils",
+            "Ja",
+            "Kann ich nicht beurteilen"
+          ]
+        },
+        {
+          "name": "C3",
+          "page": "feedback_overall",
+          "title": "Was hat dir am automatischen Feedback gefehlt, oder was sollte besser werden?",
+          "isRequired": false,
+          "visibleIf": "{N3} notcontains 'Keines (ich habe kein automatisches Feedback genutzt)'",
+          "type": "comment"
+        },
+        {
+          "type": "radiogroup",
+          "name": "T7",
+          "page": "completion",
+          "isRequired": true,
+          "title": "Was war der wichtigste Grund dafür, dass du die Aufgabe beendet hast?",
+          "choices": [
+            "Ich bin mit meinem Modell zufrieden.",
+            "Ich habe das Gefühl, das Lernziel ausreichend erreicht zu haben.",
+            "Ich wusste nicht mehr, wie ich mein Modell verbessern könnte.",
+            "Ich wollte nicht noch mehr Zeit investieren.",
+            "Ich wollte mit der nächsten Aufgabe weitermachen.",
+            "Ich hatte keine Zeit mehr.",
+            "Das automatische Feedback hat mir bestätigt, dass mein Modell ausreichend ist.",
+            "Technische oder andere Gründe"
+          ]
+        },
+        {
+          "type": "comment",
+          "name": "T7_other",
+          "page": "completion",
+          "isRequired": true,
+          "title": "Technische oder andere Gründe:",
+          "visibleIf": "{T7} = 'Technische oder andere Gründe'"
+        },
+        {
+          "type": "rating",
+          "name": "T9",
+          "page": "confidence",
+          "isRequired": true,
+          "title": "Hättest du die Aufgabe 'Entwicklerstudio' auch ohne die von dir genutzte Unterstützung lösen können?",
+          "rateMin": 1,
+          "rateMax": 5,
+          "minRateDescription": "Ja, auf jeden Fall.",
+          "maxRateDescription": "Nein, auf keinen Fall.",
+          "description": "1 = Ja, auf jeden Fall.; 5 = Nein, auf keinen Fall."
+        },
+        {
+          "type": "radiogroup",
+          "name": "F5",
+          "page": "feature_pulse",
+          "isRequired": true,
+          "title": "Wie hast du die Häufigkeit der spontanen Zwischenfragen des Piraten empfunden?",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "Ich habe keine Zwischenfragen wahrgenommen"
+          ],
+          "description": "1 = Viel zu selten; 5 = Viel zu häufig",
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "Ich habe keine Zwischenfragen wahrgenommen": "Ich habe keine Zwischenfragen wahrgenommen"
+          },
+          "minRateDescription": "Viel zu selten",
+          "maxRateDescription": "Viel zu häufig"
+        },
+        {
+          "type": "radiogroup",
+          "name": "F6",
+          "page": "feature_pulse",
+          "isRequired": true,
+          "title": "Die spontanen Zwischenfragen des Piraten haben meine eigentliche Modellierungsarbeit spürbar unterbrochen.",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "cannot_judge"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "cannot_judge": "Kann ich nicht beurteilen"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "type": "radiogroup",
+          "name": "F7",
+          "page": "feature_pulse",
+          "isRequired": true,
+          "title": "Wie hoch empfandest du den zusätzlichen Aufwand durch die Beantwortung der spontanen Zwischenfragen des Piraten?",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "description": "1 = Sehr gering; 5 = Sehr hoch",
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "visibleWhen": "pulse_answered",
+          "minRateDescription": "Sehr gering",
+          "maxRateDescription": "Sehr hoch"
+        },
+        {
+          "type": "radiogroup",
+          "name": "F8",
+          "page": "feature_pulse",
+          "isRequired": true,
+          "title": "Die spontanen Zwischenfragen des Piraten haben mich gelegentlich dazu angeregt, meinen aktuellen Hilfebedarf bewusster wahrzunehmen.",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "cannot_judge"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "cannot_judge": "Kann ich nicht beurteilen"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "type": "radiogroup",
+          "name": "F9",
+          "page": "feature_incentives",
+          "isRequired": true,
+          "title": "Die Möglichkeit, für beantwortete Zwischenfragen des Piraten Coins zu erhalten, hat mich motiviert, diese Fragen zu beantworten.",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "type": "radiogroup",
+          "name": "F12",
+          "page": "feature_overall",
+          "isRequired": true,
+          "title": "Insgesamt empfand ich den zusätzlichen Aufwand durch die Studienteilnahme, einschließlich des 'Ich brauche Hilfe'-Buttons und der spontanen Zwischenfragen des Piraten, angesichts der angebotenen Klausurbonuspunkte und Coins als angemessen.",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "G11",
+          "page": "feature_overall",
+          "title": "Ich traue mir zu, ähnliche Aufgaben in Zukunft ohne automatisches Feedback erfolgreich zu bearbeiten.",
+          "isRequired": true,
+          "type": "radiogroup",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ],
+          "choiceLabels": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5"
+          },
+          "description": "1 = Stimme überhaupt nicht zu; 5 = Stimme vollständig zu",
+          "minRateDescription": "Stimme überhaupt nicht zu",
+          "maxRateDescription": "Stimme vollständig zu"
+        },
+        {
+          "name": "G19",
+          "page": "feature_overall",
+          "title": "Welche Unterstützung hätte dir beim Lernen im gesamten Lernpfad am meisten geholfen?",
+          "isRequired": false,
+          "type": "comment"
+        }
+      ]
+    }
+  }
+}

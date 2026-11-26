@@ -2,9 +2,10 @@ name: modeling-copilot
 
 services:
   mongo:
-    image: mongo:8.0
+    # Match the application database version used in k3s-portainer.yaml.
+    image: mongo:4.4.29
     ports:
-      # Host access: mongodb://admin:admin@localhost:27017/?authSource=admin
+      # Host access: mongodb://admin:admin@localhost:27222/?authSource=admin
       - "127.0.0.1:27222:27017"
     restart: unless-stopped
     environment:
@@ -21,10 +22,10 @@ services:
     environment:
       MONGODB_URI: mongodb://admin:admin@mongo:27017/?authSource=admin
       # Tokens of the local Feedbacksystem 2.0: RS256 against the key set its
-      # identity service publishes on host port 8080. The issuer is the web
-      # shell on port 8083, through which the tokens are requested.
+      # identity service publishes through the web shell on host port 8083
+      # (the identity service itself is no longer published). The issuer is that shell.
       JWT_ALGORITHM: RS256
-      JWT_JWKS_URI: http://host.docker.internal:8080/oauth2/jwks
+      JWT_JWKS_URI: http://host.docker.internal:8083/oauth2/jwks
       JWT_ISSUER: http://localhost:8083
       # Sign-in without the Feedbacksystem: the API exchanges and renews the
       # tokens through the same shell as the browser's authorization request.
@@ -60,7 +61,7 @@ services:
     networks: [default, database]
 
   dagu:
-    image: ghcr.io/dagucloud/dagu:2.16.6
+    image: ghcr.io/dagucloud/dagu:2.27.0
     entrypoint:
       - /bin/sh
       - -ec
@@ -79,13 +80,30 @@ services:
       DAGU_BASE_CONFIG: /var/lib/dagu/base.yaml
       DAGU_AUTH_MODE: none
       KUBECONFIG: /etc/kube/config
+      # Warm workflow services: NodePorts of the Docker Desktop (kind) node.
+      WORKFLOW_SERVICES_HOST: desktop-control-plane
     volumes:
       - dagu-data:/var/lib/dagu
       - ./dagu/workflows:/var/lib/dagu/dags
       - ./dagu/infra/base.yaml:/var/lib/dagu/base.yaml
       - ~/.kube/config:/etc/kube/source-config:ro
       - ./dagu/infra/dev/10-use-host-kube-api.sh:/etc/kube/init.sh:ro
+    networks: [default, kind]
     restart: unless-stopped
+    depends_on:
+      workflow-sync:
+        condition: service_completed_successfully
+
+  # Local Docker Desktop/kind only: update the warm Kubernetes services before Dagu.
+  workflow-sync:
+    image: docker:29-cli
+    entrypoint: ["/bin/sh", "/workspace/dagu/infra/dev/sync-workflow-services.sh"]
+    working_dir: /workspace
+    volumes:
+      - .:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - workflow-sync-state:/state
+    restart: "no"
 
   ck-mongo:
     image: mongo:8.0
@@ -106,7 +124,7 @@ services:
     restart: unless-stopped
 
   collab-kit:
-    image: ghcr.io/thm-mni-ii/collab-kit:v0.6.3
+    image: ghcr.io/thm-mni-ii/collab-kit:v0.7.5
     ports:
       - "127.0.0.1:24202:24202"
     environment:
@@ -114,11 +132,17 @@ services:
       MONGODB_DB: collab_kit
       # Same Feedbacksystem 2.0 tokens as the api.
       JWT_ALGORITHM: RS256
-      JWT_JWKS_URI: http://host.docker.internal:8080/oauth2/jwks
+      JWT_JWKS_URI: http://host.docker.internal:8083/oauth2/jwks
       JWT_ISSUER: http://localhost:8083
       ACTOR_CLAIM: id
       TOP_CLAIM: globalRole
       TOP_VALUES: ADMIN,MODERATOR
+      # Admins keep every right but see no true keys behind pseudonyms.
+      TOP_SEES_PSEUDONYMS: "false"
+      # The archive exists on this instance; whether the Copilot uses it is set in the collab settings.
+      ARCHIVE_ENABLED: "true"
+      # Lets the archive delete entries for good; the collab settings still decide whether the Copilot offers it.
+      ARCHIVE_DELETE: "true"
       ALLOWED_ORIGINS: http://localhost:8085
       # The api signs its own tokens; only the public key of its local test key lies here,
       # Portainer takes its own. With all four collab-kit creates the group "services"
@@ -139,55 +163,49 @@ services:
     restart: unless-stopped
 
   workflow-synonym-matching:
-    image: modeling-copilot/synonym-matching:latest
+    image: modeling-copilot/synonym-matching:v12
     build:
       context: ./dagu/workflow-services
       dockerfile: synonym-matching/Dockerfile
     profiles: [workflow-services]
 
-  workflow-synonym-matching-louis:
-    image: modeling-copilot/synonym-matching-louis:latest
-    build:
-      context: ./dagu/workflow-services/synonym-matching-louis
-    profiles: [workflow-services]
-
   workflow-graph-parser:
-    image: modeling-copilot/graph-parser:latest
+    image: modeling-copilot/graph-parser:v3
     build:
       context: ./dagu/workflow-services
       dockerfile: graph-parser/Dockerfile
     profiles: [workflow-services]
 
   workflow-model-label-extraction:
-    image: modeling-copilot/model-label-extraction:latest
+    image: modeling-copilot/model-label-extraction:v3
     build:
       context: ./dagu/workflow-services
       dockerfile: model-label-extraction/Dockerfile
     profiles: [workflow-services]
 
   workflow-one-to-one-matching:
-    image: modeling-copilot/one-to-one-graph-matching:latest
+    image: modeling-copilot/one-to-one-graph-matching:v31
     build:
       context: ./dagu/workflow-services
       dockerfile: one-to-one-graph-matching/Dockerfile
     profiles: [workflow-services]
 
-  workflow-minimal-matching-unit:
-    image: modeling-copilot/minimal-matching-unit:latest
-    build:
-      context: ./dagu/workflow-services
-      dockerfile: minimal-matching-unit/Dockerfile
-    profiles: [workflow-services]
-
   workflow-feedback-generation:
-    image: modeling-copilot/feedback-generation:latest
+    image: modeling-copilot/feedback-generation:v54
     build:
       context: ./dagu/workflow-services
       dockerfile: feedback-generation/Dockerfile
     profiles: [workflow-services]
 
+  workflow-analytical-feedback:
+    image: modeling-copilot/analytical-feedback:v14
+    build:
+      context: ./dagu/workflow-services
+      dockerfile: analytical-feedback/Dockerfile
+    profiles: [workflow-services]
+
   workflow-data:
-    image: modeling-copilot/workflow-data:latest
+    image: modeling-copilot/workflow-data:v11
     build:
       context: ./dagu/workflow-services
       dockerfile: workflow-data/Dockerfile
@@ -197,7 +215,11 @@ volumes:
   mongo-data:
   dagu-data:
   ck-mongo-data:
+  workflow-sync-state:
 
 networks:
   database:
     internal: true
+  # Created by Docker Desktop Kubernetes (kind provisioner).
+  kind:
+    external: true

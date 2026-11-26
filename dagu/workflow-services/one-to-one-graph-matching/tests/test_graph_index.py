@@ -13,7 +13,7 @@ def node(identity, kind="modelElement", definition=None):
 
 
 def graph(nodes, edges):
-    return {"schemaVersion": 3, "languages": [], "nodes": nodes, "edges": edges}
+    return {"schemaVersion": 1, "languages": [], "nodes": nodes, "edges": edges}
 
 
 class GraphIndexTests(unittest.TestCase):

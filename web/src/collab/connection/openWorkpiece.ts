@@ -4,24 +4,24 @@ import modelService from '@/services/model/model.service'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import type { Room, Workpiece } from '@/collab/kit/collabKitV1'
 import { languagesOf, linkOf, type HostLink } from '@/collab/storage/workpiece'
-
-const PAGE = 100
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** The own model that shares this workpiece, searched through all own models. */
 const findLinkedModel = async (workpieceId: string): Promise<Model | null> => {
-  for (let skip = 0; ; skip += PAGE) {
-    const page = (await modelService.list(skip, PAGE)).data
+  for (let skip = 0; ; skip += collabSettings.sharing.apiPage) {
+    // Only the shells; "My Models" does not show them, they open only through their room.
+    const page = (await modelService.list(skip, collabSettings.sharing.apiPage, { linked: true })).data
     const found = page.items.find((model) => linkOf(model.preferences)?.workpieceId === workpieceId)
     if (found) return found
-    if (skip + PAGE >= page.total) return null
+    if (skip + collabSettings.sharing.apiPage >= page.total) return null
   }
 }
 
 /**
  * Opens the own model of the workpiece, creating and linking it on first use. The editor only
  * loads a model when it mounts, and it writes its canvas into the workspace store meanwhile, so it
- * is left first; the new model is set up in between. Gibt die ID des geöffneten Modells zurück: Der Store
- * kennt sie erst, wenn der Editor geladen hat.
+ * is left first; the new model is set up in between. Gives back the ID of the opened model: the store
+ * knows it only once the editor has loaded.
  */
 export const openWorkpiece = async (router: Router, room: Room, workpiece: Workpiece, host?: HostLink): Promise<string | null> => {
   const workspace = useModelWorkspaceStore()

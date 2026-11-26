@@ -9,11 +9,133 @@ from modeling_api.core.errors import conflict, not_found
 from modeling_api.db.client import db
 from modeling_api.db.store import utcnow
 from modeling_api.db.help_questionnaires import HELP_SURVEY_IDS
-from modeling_api.schemas.learning_paths import CreateHelpRequest, HelpRequest, HelpRequestConfig
-from modeling_api.services.help_configuration import validate_phase
+from modeling_api.schemas.learning_paths import CreateHelpRequest, HelpRequest, HelpRequestRuntimeConfig
+from modeling_api.services.help_configuration import validate_phase, runtime_config
+from modeling_api.services.learning_path_store import run_step_id
 from modeling_api.services import learning_paths as paths, models, survey_sessions, surveys, help_questionnaire
 
 OPEN_STAGES = ("topic", "marking", "reflection", "action")
+HELP_USAGE_KEYS = {
+    "help.clarify": "clarify",
+    "help.next_step": "nextStep",
+    "help.example": "example",
+    "help.check": "check",
+    "help.solution": "solution",
+}
+
+
+def _empty_usage(config):
+    limits = {
+        "help.clarify": config.clarify_limit,
+        "help.next_step": config.next_step_limit,
+        "help.example": config.example_limit,
+        "help.check": config.check_limit,
+        "help.solution": config.solution_limit,
+    }
+    return {
+        kind: {"used": 0, "pending": 0, "limit": limit}
+        for kind, limit in limits.items()
+    }
+
+
+async def usage(run_id, step_id, config):
+    """Return successful uses and in-flight reservations for one task in a run."""
+    state = await db.learning_path_run_steps.find_one(
+        {"runId": str(run_id), "stepId": str(step_id)}
+    )
+    if not state:
+        return _empty_usage(config)
+    if not state.get("helpUsageInitialized"):
+        counts = {key: 0 for key in HELP_USAGE_KEYS.values()}
+        cursor = await db.learning_path_help_requests.aggregate([
+            {"$match": {
+                "runId": str(run_id), "stepId": str(step_id),
+                "supportKind": {"$in": list(HELP_USAGE_KEYS)},
+                "feedbackCounted": {"$ne": False},
+                "$or": [
+                    {"feedbackSucceeded": True},
+                    {"feedbackSucceeded": {"$exists": False}, "feedbackDelivered": {"$ne": None}},
+                ],
+            }},
+            {"$group": {"_id": "$supportKind", "count": {"$sum": 1}}},
+        ])
+        async for row in cursor:
+            counts[HELP_USAGE_KEYS[row["_id"]]] = row["count"]
+        await db.learning_path_run_steps.update_one(
+            {"_id": state["_id"], "helpUsageInitialized": {"$ne": True}},
+            {"$set": {
+                "helpUsageInitialized": True,
+                "helpUsage": {key: {"used": count, "pending": 0} for key, count in counts.items()},
+            }},
+        )
+        state = await db.learning_path_run_steps.find_one({"_id": state["_id"]}) or state
+    usage_values = state.get("helpUsage", {})
+    defaults = _empty_usage(config)
+    return {
+        kind: {
+            "used": usage_values.get(HELP_USAGE_KEYS[kind], {}).get("used", 0),
+            "pending": usage_values.get(HELP_USAGE_KEYS[kind], {}).get("pending", 0),
+            "limit": defaults[kind]["limit"],
+        }
+        for kind in HELP_USAGE_KEYS
+    }
+
+
+async def reserve_feedback(request):
+    kind = request.get("supportKind")
+    key = HELP_USAGE_KEYS.get(kind)
+    if key is None:
+        return
+    config = HelpRequestRuntimeConfig.model_validate(request.get("helpConfig", {}))
+    limit = _empty_usage(config)[kind]["limit"]
+    await usage(request["runId"], request["stepId"], config)
+    reserved = await db.learning_path_help_requests.update_one(
+        {"_id": request["_id"], "feedbackQuotaReservation": {"$exists": False}},
+        {"$set": {"feedbackQuotaReservation": {"key": key, "status": "pending"}}},
+    )
+    if not reserved.matched_count:
+        current = await db.learning_path_help_requests.find_one({"_id": request["_id"]})
+        if current and current.get("feedbackQuotaReservation", {}).get("status") == "pending":
+            raise conflict("Diese automatische Auswertung wird bereits gestartet.")
+        await db.learning_path_help_requests.update_one(
+            {"_id": request["_id"]},
+            {"$set": {"feedbackQuotaReservation": {"key": key, "status": "pending"}}},
+        )
+    state_id = run_step_id(request["runId"], request["stepId"])
+    state_filter = {"_id": state_id}
+    if limit is not None:
+        state_filter["$expr"] = {
+            "$lt": [
+                {"$add": [
+                    {"$ifNull": [f"$helpUsage.{key}.used", 0]},
+                    {"$ifNull": [f"$helpUsage.{key}.pending", 0]},
+                ]},
+                limit,
+            ]
+        }
+    result = await db.learning_path_run_steps.update_one(
+        state_filter,
+        {"$inc": {f"helpUsage.{key}.pending": 1}},
+    )
+    if not result.matched_count:
+        await db.learning_path_help_requests.update_one(
+            {"_id": request["_id"], "feedbackQuotaReservation.status": "pending"},
+            {"$unset": {"feedbackQuotaReservation": ""}},
+        )
+        raise conflict(f"Das Kontingent für {kind} ist für diese Aufgabe aufgebraucht.")
+
+
+async def release_feedback_reservation(request_id):
+    request = await db.learning_path_help_requests.find_one_and_update(
+        {"_id": str(request_id), "feedbackQuotaReservation.status": "pending"},
+        {"$set": {"feedbackQuotaReservation.status": "failed"}},
+    )
+    if request:
+        key = request["feedbackQuotaReservation"]["key"]
+        await db.learning_path_run_steps.update_one(
+            {"_id": run_step_id(request["runId"], request["stepId"])},
+            {"$inc": {f"helpUsage.{key}.pending": -1}},
+        )
 
 
 async def create(run_id, step_id, body: CreateHelpRequest, user):
@@ -43,7 +165,7 @@ async def create(run_id, step_id, body: CreateHelpRequest, user):
     )
     if not version:
         raise not_found()
-    config = HelpRequestConfig.model_validate(template.get("helpRequests", {}))
+    config = runtime_config(template, step)
     task = await db.task_version.find_one({
         "_id": model["taskVersion"]["versionId"], "taskId": model["taskVersion"]["taskId"], "kind": "release",
     })
@@ -61,6 +183,7 @@ async def create(run_id, step_id, body: CreateHelpRequest, user):
         "modelVersionId": str(body.model_version_id),
         "createdAt": utcnow(),
         "stage": "topic",
+        "flowVersion": 2,
         "evaluationAvailable": bool(task and task.get("data", {}).get("sampleSolutions")),
         "surveyIds": {phase: questionnaire["surveyId"] for phase in HELP_SURVEY_IDS},
         "surveyReleaseId": questionnaire["_id"],
@@ -89,10 +212,13 @@ def view(document):
                 "runId", "stepId", "modelId", "modelVersionId", "createdAt"
             )
         }, "stage": document.get("stage", "completed"),
+         "flowVersion": document.get("flowVersion", 1),
          "surveyIds": document.get("surveyIds", HELP_SURVEY_IDS),
          "markings": document.get("markings"), "nextAction": document.get("nextAction"),
          "nextActionId": document.get("nextActionId"), "surveySessionId": document.get("surveySessionId"),
-         "markingRequired": document.get("helpConfig", {}).get("markingRequired", True)}
+         "markingRequired": document.get("markingPurpose") == "feedback" or document.get("helpConfig", {}).get("markingRequired", True),
+         "markingPurpose": document.get("markingPurpose", "problem"), "supportKind": document.get("supportKind"),
+         "evaluationId": document.get("evaluationId")}
     )
 
 
@@ -134,7 +260,7 @@ async def open_survey(run_id, step_id, request_id, phase, user):
         request_id, step_id, request.get("surveyIds", HELP_SURVEY_IDS)[phase], phase, True, user
     )
     version = await survey_sessions.release(session["releaseId"])
-    validate_phase(phase, version, HelpRequestConfig.model_validate(request.get("helpConfig", {})))
+    validate_phase(phase, version, HelpRequestRuntimeConfig.model_validate(request.get("helpConfig", {})))
     await db.learning_path_help_requests.update_one(
         {"_id": request["_id"]}, {"$set": {f"surveySessions.{phase}": session["_id"]}}
     )
@@ -171,13 +297,20 @@ async def save_survey(run_id, step_id, request_id, phase, body, user, action):
 
 
 async def advance(request, phase, session):
-    config = HelpRequestConfig.model_validate(request.get("helpConfig", {}))
+    config = HelpRequestRuntimeConfig.model_validate(request.get("helpConfig", {}))
+    new_flow = request.get("flowVersion", 1) >= 2
     if phase == "topic":
-        marking = config.marking_enabled and session["answers"].get(config.topic_question) == config.marking_answer
+        marking = not new_flow and config.marking_enabled and session["answers"].get(config.topic_question) == config.marking_answer
         next_stage = "marking" if marking else "reflection"
     else:
         next_stage = "action" if phase == "reflection" else "completed"
     fields = {"stage": next_stage}
+    if phase == "reflection":
+        fields["supportKind"] = help_questionnaire.SUPPORT_KINDS.get(session["answers"].get("support_need"), "recognition")
+        if (new_flow and config.marking_enabled
+                and session["answers"].get(config.topic_question) == config.marking_answer
+                and fields["supportKind"] not in help_questionnaire.WHOLE_MODEL_KINDS):
+            fields["stage"] = "marking"
     if next_stage == "completed":
         fields.update(completedAt=session["completedAt"], nextAction=session["answers"][config.action_question])
         if request.get("surveySessionId"):
@@ -185,18 +318,60 @@ async def advance(request, phase, session):
             question = next(q for q in version["definition"]["elements"] if q["name"] == "next_action")
             value = session["answers"]["next_action"]
             fields.update(nextActionId=value, nextAction=question["choiceLabels"][value])
+        # Object-related automatic feedback needs marked model objects; ask for them now if missing.
+        if (not new_flow and fields.get("nextActionId") == help_questionnaire.AUTOMATIC_FEEDBACK
+                and request.get("supportKind", "recognition") not in help_questionnaire.WHOLE_MODEL_KINDS
+                and not (request.get("markings") or {}).get("cellIds")):
+            fields.update(stage="marking", markingPurpose="feedback")
     await db.learning_path_help_requests.update_one(
         {"_id": request["_id"], "stage": phase}, {"$set": fields}
     )
 
 
+async def reopen_markings(run_id, step_id, request_id, user):
+    request = await owned_request(run_id, step_id, request_id, user)
+    if (request.get("flowVersion", 1) < 2 or request.get("markings") is None
+            or request.get("supportKind", "recognition") in help_questionnaire.WHOLE_MODEL_KINDS):
+        raise conflict("Für diese Hilfeanfrage ist kein Markierungsschritt verfügbar.")
+    if request["stage"] == "marking":
+        return view(request)
+    if request["stage"] != "action":
+        raise conflict("Die Markierung kann nur vor der Auswahl der Hilfequelle geändert werden.")
+    # Invalidate in-flight action saves before returning to the marking step.
+    # If submission won the race, keep the completed answers and refuse to reopen.
+    result = await db.survey_sessions.update_one(
+        {"_id": request["surveySessionId"], "userId": user.id, "status": "draft",
+         "helpCompletedPhases.action": {"$exists": False}, "cancelledAt": {"$exists": False}},
+        {"$inc": {"revision": 1}},
+    )
+    if not result.matched_count:
+        raise conflict("Die Hilfequelle wurde bereits bestätigt. Lade die Hilfeanfrage erneut.")
+    result = await db.learning_path_help_requests.update_one(
+        {"_id": request["_id"], "stage": "action"}, {"$set": {"stage": "marking"}},
+    )
+    current = await owned_request(run_id, step_id, request_id, user)
+    if not result.matched_count and current["stage"] != "marking":
+        raise conflict()
+    return view(current)
+
+
 async def save_markings(run_id, step_id, request_id, body, user):
     request = await owned_request(run_id, step_id, request_id, user)
+    new_flow = request.get("flowVersion", 1) >= 2
+    feedback_marking = request.get("markingPurpose") == "feedback"
+    if feedback_marking:
+        body = body.model_copy(update={"task_text_ranges": []})  # task text is not mapped to findings
     markings = body.model_dump(mode="json", by_alias=True)
     if request.get("stage") != "marking":
         if request.get("markings") == markings and request.get("stage") in ("reflection", "action", "completed"):
             return view(request)
         raise conflict("Markings can only be submitted after choosing task/model help.")
+    if new_flow and len(body.cell_ids) > 1:
+        raise conflict("Markiere höchstens ein Modellelement, auf das sich dein Problem bezieht.")
+    if not new_flow and len(body.task_text_ranges) > 100:
+        raise conflict("Markiere höchstens 100 Textstellen.")
+    if feedback_marking and not body.cell_ids:
+        raise conflict("Markiere mindestens ein Modellelement, zu dem du Feedback möchtest.")
     if request.get("helpConfig", {}).get("markingRequired", True) and not body.cell_ids and not body.task_text_ranges:
         raise conflict("Markiere mindestens ein Modellelement oder eine Textstelle.")
     version = await models.get_version(UUID(request["modelId"]), UUID(request["modelVersionId"]), user)
@@ -213,13 +388,82 @@ async def save_markings(run_id, step_id, request_id, body, user):
         raise conflict("A selected element is not part of the saved model checkpoint.")
     result = await db.learning_path_help_requests.update_one(
         {"_id": request["_id"], "stage": "marking"},
-        {"$set": {"markings": markings, "markingsSubmittedAt": utcnow(), "stage": "reflection"}},
+        {"$set": {"markings": markings, "markingsSubmittedAt": utcnow(),
+                  "stage": "action" if new_flow else "completed" if feedback_marking else "reflection"}},
     )
     if not result.matched_count:
         current = await owned_request(run_id, step_id, request_id, user)
         if current.get("markings") != markings:
             raise conflict()
     return await get(run_id, step_id, request_id, user)
+
+
+async def feedback_request(request_id, model_id, version_id, user):
+    """The frozen feedback order of an automatic check requested through this help request."""
+    request = await db.learning_path_help_requests.find_one({"_id": str(request_id), "ownerId": user.id})
+    if not request:
+        raise not_found()
+    if request.get("stage") != "completed" or request.get("nextActionId") != help_questionnaire.AUTOMATIC_FEEDBACK:
+        raise conflict("This help request did not ask for an automatic model check.")
+    if request["modelId"] != str(model_id) or request["modelVersionId"] != str(version_id):
+        raise conflict("Dein Modell hat sich seit der Hilfeanfrage geändert. Fordere die Hilfe erneut an.")
+    kind = request.get("supportKind", "recognition")
+    if kind in help_questionnaire.WHOLE_MODEL_KINDS:
+        return request, {"types": [kind], "context": {}}
+    cell_ids = (request.get("markings") or {}).get("cellIds")
+    if not cell_ids:
+        raise conflict("Markiere zuerst die Modellelemente, zu denen du Feedback möchtest.")
+    keys = sorted({document["feedbackDelivered"]["focus"]["issueKey"] async for document in db.learning_path_help_requests.find(
+        {"runId": request["runId"], "stepId": request["stepId"], "ownerId": user.id, "_id": {"$ne": request["_id"]},
+         "feedbackDelivered.focus.issueKey": {"$type": "string"}}, {"feedbackDelivered.focus.issueKey": 1})})
+    return request, {"types": [kind], "context": {
+        "markedIds": cell_ids, "previousIssueKeys": keys[-500:]}}
+
+
+async def link_evaluation(request_id, evaluation_id):
+    await db.learning_path_help_requests.update_one({"_id": str(request_id)}, {"$set": {"evaluationId": str(evaluation_id)}})
+
+
+async def record_feedback(request_id, evaluation_id, entries):
+    """Record a completed help evaluation and settle any reserved quota once.
+
+    Help that could not relate the marking to the sample solution is delivered but not counted.
+    """
+    evaluation = await db.evaluations.find_one({"_id": str(evaluation_id)}, {"state": 1})
+    succeeded = bool(evaluation and evaluation.get("state") == "succeeded")
+    if not succeeded:
+        await release_feedback_reservation(request_id)
+        return
+    # Older feedback reports carry no flag and keep counting.
+    counted = bool(entries) and entries[0].get("referenced", True) is not False
+    result = await db.learning_path_help_requests.update_one(
+        {"_id": str(request_id), "evaluationId": str(evaluation_id), "feedbackDelivered": {"$exists": False}},
+        {"$set": {
+            "feedbackDelivered": entries[0] if entries else None,
+            "feedbackDeliveredAt": utcnow(),
+            "feedbackSucceeded": True,
+            "feedbackCounted": counted,
+        }})
+    if not result.matched_count:
+        return
+    request = await db.learning_path_help_requests.find_one({"_id": str(request_id)})
+    kind = request.get("supportKind")
+    key = HELP_USAGE_KEYS.get(kind)
+    if not key:
+        return
+    reservation = request.get("feedbackQuotaReservation", {})
+    increments = {f"helpUsage.{key}.used": 1} if counted else {}
+    if reservation.get("status") == "pending":
+        increments[f"helpUsage.{key}.pending"] = -1
+        await db.learning_path_help_requests.update_one(
+            {"_id": str(request_id), "feedbackQuotaReservation.status": "pending"},
+            {"$set": {"feedbackQuotaReservation.status": "consumed" if counted else "not_counted"}},
+        )
+    if increments:
+        await db.learning_path_run_steps.update_one(
+            {"_id": run_step_id(request["runId"], request["stepId"])},
+            {"$inc": increments},
+        )
 
 
 async def cancel(run_id, step_id, request_id, user):
@@ -263,6 +507,15 @@ async def recover_cancellation(request):
     return request
 
 
+def automatic_feedback_available(request):
+    # New flows finish with the help-source question, without a later marking step.
+    return request.get("evaluationAvailable", False) and (
+        request.get("flowVersion", 1) < 2
+        or request.get("supportKind", "recognition") in help_questionnaire.WHOLE_MODEL_KINDS
+        or bool((request.get("markings") or {}).get("cellIds"))
+    )
+
+
 async def open_combined(request, phase):
     if phase not in HELP_SURVEY_IDS or request["stage"] == "cancelled":
         raise conflict("This help questionnaire is not available.")
@@ -278,7 +531,7 @@ async def open_combined(request, phase):
         "answers": {k: v for k, v in session["answers"].items() if k in help_questionnaire.PHASE_QUESTIONS[phase]},
         "status": "submitted" if done else "draft", "releaseChanged": False,
         "version": {"id": version["_id"], **{k: v for k, v in version.items() if k != "_id"},
-                    "definition": help_questionnaire.phase_definition(version, phase, evaluation_available=request.get("evaluationAvailable", False))},
+                    "definition": help_questionnaire.phase_definition(version, phase, evaluation_available=automatic_feedback_available(request))},
     }
 
 
@@ -293,7 +546,7 @@ async def save_combined(request, phase, body, action):
         return survey_sessions.response_view({**session, "completedAt": done[phase]}, version)
     if request["stage"] != phase or session["status"] != "draft" or phase in done:
         raise conflict("Complete the current help step first.")
-    content = help_questionnaire.phase_definition(version, phase, evaluation_available=request.get("evaluationAvailable", False))
+    content = help_questionnaire.phase_definition(version, phase, evaluation_available=automatic_feedback_available(request))
     surveys.validate_answers(content if action == "submit" else {
         "elements": [{**q, "isRequired": False} for q in content["elements"]]
     }, body.answers)

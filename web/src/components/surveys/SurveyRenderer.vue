@@ -33,11 +33,11 @@ import { Model, QuestionRankingModel, QuestionRatingModel, QuestionRadiogroupMod
 import { SurveyComponent } from 'survey-vue3-ui'
 import 'survey-core/survey-core.css'
 import 'survey-core/i18n/german'
-import paths, { type SurveyPhase, type HelpSurveyPhase } from '@/services/learningPaths'
+import paths, { type SurveyPhase, type HelpSurveyPhase, type HelpTourAnswer } from '@/services/learningPaths'
 import surveys, { surveyError, type SurveyDefinition, type SurveyMode, type SurveyResponse } from '@/services/surveys'
 
-const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; compact?: boolean; localDefinition?: SurveyDefinition; questionPerPage?: boolean; completeText?: string; newChoice?: { question: string; value: string; label: string; hint: string }; activity?: { runId: string; stepId: string; phase?: SurveyPhase; helpRequestId?: string; helpPhase?: HelpSurveyPhase } }>(), { mode: 'use', compact: false })
-const emit = defineEmits<{ completed: [response?: SurveyResponse] }>()
+const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; compact?: boolean; localDefinition?: SurveyDefinition; questionPerPage?: boolean; completeText?: string; newChoice?: { question: string; value: string; label: string; hint: string }; hiddenChoices?: Record<string, string[]>; activity?: { runId: string; stepId: string; phase?: SurveyPhase; helpRequestId?: string; helpPhase?: HelpSurveyPhase } }>(), { mode: 'use', compact: false })
+const emit = defineEmits<{ completed: [response?: SurveyResponse]; 'question-change': [name: string | null]; 'tour-answer-change': [answer: HelpTourAnswer] }>()
 const model = shallowRef<Model | null>(null)
 const newChoiceTarget = shallowRef<HTMLElement | null>(null)
 const loading = ref(false),
@@ -174,13 +174,15 @@ async function load() {
       delete question.page
       delete question.exclusiveChoices
       delete question.visibleWhen
+      delete question.exampleImages
       const notEqual = question.visibleIf?.match(/^\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} (?:!=|notcontains) /)
       if (notEqual) question.visibleIf = `(${question.visibleIf}) and {${notEqual[1]}} notempty`
       if (q.type === 'ranking' && q.choicesFromQuestion) {
         const multipleChoices = `{${q.choicesFromQuestion}.length} >= 2`
         question.visibleIf = question.visibleIf ? `(${question.visibleIf}) and (${multipleChoices})` : multipleChoices
       }
-      return { ...question, ...(q.type === 'rating' ? { displayMode: 'buttons', rateDescriptionLocation: 'bottom' } : {}), ...(q.choices ? { choices: q.choices.map(value => ({ value, text: props.newChoice?.question === q.name && props.newChoice.value === value ? props.newChoice.label : q.choiceLabels?.[value] ?? value, isExclusive: q.exclusiveChoices?.includes(value) ?? false })) } : {}) }
+      const hidden = new Set(props.hiddenChoices?.[q.name] ?? [])
+      return { ...question, ...(q.type === 'rating' ? { displayMode: 'buttons', rateDescriptionLocation: 'bottom' } : {}), ...(q.choices ? { choices: q.choices.filter(value => !hidden.has(String(value))).map(value => ({ value, text: props.newChoice?.question === q.name && props.newChoice.value === value ? props.newChoice.label : q.choiceLabels?.[value] ?? value, isExclusive: q.exclusiveChoices?.includes(value) ?? false })) } : {}) }
     }
     const { elements, pages, ...settings } = survey.definition
     delete settings.introduction
@@ -189,11 +191,45 @@ async function load() {
       : { ...settings, elements: elements.map(displayQuestion) }
     const instance = new Model({ ...displayedDefinition, widthMode: 'responsive', title: pulse || activity?.helpRequestId ? '' : survey.title, ...(pulse || activity?.helpRequestId ? { completeText: activity?.helpPhase === 'action' ? 'Hilfe auswählen' : 'Weiter' } : {}), ...(props.completeText ? { completeText: props.completeText } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
     instance.onAfterRenderQuestion.add((_sender, { question, htmlElement }) => {
+      const definition = survey.definition.elements.find(item => item.name === question.name)
+      if (definition?.exampleImages?.length && !htmlElement.querySelector('.survey-example-images')) {
+        const images = document.createElement('div')
+        images.className = 'survey-example-images'
+        for (const { src, alt, caption } of definition.exampleImages) {
+          const figure = document.createElement('figure')
+          figure.className = 'survey-example-image'
+          const link = document.createElement('a')
+          link.href = src
+          link.target = '_blank'
+          link.rel = 'noopener noreferrer'
+          link.title = 'Beispielbild in Originalgröße öffnen'
+          const image = document.createElement('img')
+          image.src = src
+          image.alt = alt
+          const label = document.createElement('figcaption')
+          label.textContent = `${caption} Zum Vergrößern öffnen.`
+          link.append(image)
+          figure.append(link, label)
+          images.append(figure)
+        }
+        const content = htmlElement.querySelector('.sd-question__content') ?? htmlElement
+        content.prepend(images)
+      }
+      if (question instanceof QuestionRadiogroupModel && definition?.minRateDescription && definition.maxRateDescription) {
+        htmlElement.style.setProperty('--survey-scale-min-label', JSON.stringify(definition.minRateDescription))
+        htmlElement.style.setProperty('--survey-scale-max-label', JSON.stringify(definition.maxRateDescription))
+      }
+      if (activity?.helpRequestId) htmlElement.dataset.helpTourQuestion = question.name
+      if (activity?.helpRequestId && question.name === 'support_need') {
+        const choice = htmlElement.querySelector<HTMLInputElement>('input[value="support_need_4"]')?.closest<HTMLElement>('.sd-item')
+        if (choice) choice.dataset.helpTourChoice = 'support_need'
+      }
       if (!props.newChoice || question.name !== props.newChoice.question) return
       const input = htmlElement.querySelector<HTMLInputElement>(`input[value="${CSS.escape(props.newChoice.value)}"]`)
       const item = input?.closest<HTMLElement>('.sd-item')
       if (item) {
         item.classList.add('survey-choice-with-hint')
+        if (activity?.helpRequestId && question.name === 'next_action') item.dataset.helpTourChoice = 'next_action'
         newChoiceTarget.value = item
       }
     })
@@ -215,6 +251,11 @@ async function load() {
     if (props.questionPerPage || activity?.helpRequestId && activity.helpPhase === 'reflection') {
       instance.questionsOnPageMode = 'questionPerPage'
       instance.pageNextText = 'Weiter'
+    }
+    if (activity?.helpRequestId && activity.helpPhase === 'reflection') {
+      instance.onCurrentPageChanged.add((survey, event) => {
+        emit('question-change', event.newCurrentQuestion?.name ?? survey.currentSingleQuestion?.name ?? null)
+      })
     }
     if (props.compact) {
       instance.widthMode = 'responsive'
@@ -254,6 +295,14 @@ async function load() {
       instance.onValueChanged.add((sender) => queueDraft(JSON.parse(JSON.stringify(sender.data))))
       if (JSON.stringify(instance.data) !== JSON.stringify(session.answers)) queueDraft(lastAnswers)
     }
+    if (activity?.helpRequestId && (activity.helpPhase === 'reflection' || activity.helpPhase === 'action')) {
+      const question = activity.helpPhase === 'reflection' ? 'support_need' : 'next_action'
+      const expected = question === 'support_need' ? 'support_need_4' : 'automatic_feedback'
+      instance.onValueChanged.add((_survey, event) => {
+        if (event.name === question) emit('tour-answer-change', { question, selected: event.value === expected })
+      })
+      emit('tour-answer-change', { question, selected: instance.getValue(question) === expected })
+    }
     instance.onComplete.add((sender) => {
       if (props.localDefinition && props.mode === 'preview') {
         const response: SurveyResponse = { id: 'preview', surveyId: props.surveyId, version: 0, versionId: 'local-preview', userId: '', answers: JSON.parse(JSON.stringify(sender.data)), isTest: true, createdAt: new Date().toISOString() }
@@ -265,6 +314,9 @@ async function load() {
       void submit()
     })
     model.value = instance
+    if (activity?.helpRequestId && activity.helpPhase === 'reflection') {
+      emit('question-change', instance.currentSingleQuestion?.name ?? null)
+    }
   } catch (e) {
     if (current === generation) error.value = surveyError(e)
   } finally {
@@ -288,6 +340,13 @@ onBeforeUnmount(() => {
 .survey-choice-hint { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; cursor: help; }
 .survey-choice-hint:focus-visible { outline: 2px solid rgb(var(--v-theme-info)); outline-offset: 2px; }
 :deep(.sd-rating fieldset) { flex-wrap: wrap; }
+:deep(.survey-example-images) { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+:deep(.survey-example-image) { flex: 0 1 auto; min-width: 0; margin: 0; }
+:deep(.survey-example-image img) { display: block; max-width: 100%; height: auto; }
+:deep(.survey-example-image figcaption) { margin-top: 8px; font-size: 0.875rem; color: var(--sjs-general-forecolor-light, #909090); }
+@media (max-width: 600px) {
+  :deep(.survey-example-images) { flex-direction: column; }
+}
 :deep(.survey-rating-five .sd-rating.sd-rating--labels-bottom fieldset) {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -360,6 +419,22 @@ onBeforeUnmount(() => {
   outline-offset: 3px;
 }
 :deep(.survey-radio-scale .sd-item:nth-of-type(n+6)) { grid-column: 1 / -1; }
+:deep(.survey-radio-scale .sd-selectbase::before),
+:deep(.survey-radio-scale .sd-selectbase::after) {
+  grid-row: 2;
+  color: var(--sjs-general-forecolor-light, #909090);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+:deep(.survey-radio-scale .sd-selectbase::before) {
+  content: var(--survey-scale-min-label, none);
+  grid-column: 1 / 3;
+}
+:deep(.survey-radio-scale .sd-selectbase::after) {
+  content: var(--survey-scale-max-label, none);
+  grid-column: 4 / -1;
+  text-align: right;
+}
 .survey-introduction {
   line-height: 1.6;
   white-space: pre-line;

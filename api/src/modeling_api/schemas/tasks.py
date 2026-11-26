@@ -137,6 +137,10 @@ class TaskVersion(TaskVersionInfo):
     """Complete immutable task version."""
 
     data: TaskData = Field(description="Versioned task content and modeling constraints.")
+    evaluation_available: bool = Field(
+        default=False,
+        description="Whether a sample solution is configured. Non-administrators receive no sample-solution references.",
+    )
 
 
 class CreateTaskVersion(ApiSchema):

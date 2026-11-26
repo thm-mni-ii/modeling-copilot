@@ -10,7 +10,7 @@ import numpy as np
 from synonym_matching import service, workflow
 from synonym_matching.config import resolve_config
 from synonym_matching.methods.multilingual import MultilingualMethod
-from synonym_matching.methods.registry import METHOD_REGISTRY, MethodDefinition
+from synonym_matching.methods.registry import DEFAULT_METHODS, METHOD_REGISTRY, MethodDefinition
 from synonym_matching.provenance import content_hash
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -59,6 +59,23 @@ def score_method_registry(compute=score_ones):
         )
         for name, original in METHOD_REGISTRY.items()
     }
+
+
+class RealLexicalTests(unittest.TestCase):
+    def test_real_methods_keep_exact_competing_and_missing_text_evidence_separate(self):
+        result = service.compare_pair(inventories([element("r", "item", None, "Alpha")],
+            [element("same", "item", None, "Alpha"), element("other", "item", None, "Omega"),
+             element("empty", "item", None)]),
+            resolve_config({"semantics": {"methods": ["levenshtein", "jaro_winkler", "char_trigram"]}}))
+        matches = {row["submissionElementId"]: row for row in result["synonymMatrix"][0]["matches"]}
+        self.assertEqual(set(matches), {"same", "other", "empty"})
+        self.assertTrue(all(score == 1 for score in matches["same"]["scores"].values()))
+        self.assertTrue(all(score < 1 for score in matches["other"]["scores"].values()))
+        self.assertEqual(matches["empty"]["scoreStatus"], "unavailable")
+        self.assertIsNone(matches["empty"]["scores"])
+        self.assertEqual(result["candidatePairCount"], 3)
+        self.assertEqual(result["scoredPairCount"], 2)
+        self.assertNotIn("mapping", result)
 
 
 class ComparePairTests(unittest.TestCase):
@@ -212,7 +229,7 @@ class ComparePairTests(unittest.TestCase):
              for pair in result["connectionTextMatrix"]],
             [("r-card", "s-card"), ("r-role", "s-role"), ("r-self", "s-self")],
         )
-        self.assertTrue(all(pair["scores"] == {name: 1.0 for name in METHOD_REGISTRY}
+        self.assertTrue(all(pair["scores"] == {name: 1.0 for name in DEFAULT_METHODS}
                             for pair in result["connectionTextMatrix"]))
         reference_by_id = {item["id"]: item for item in ref}
         student_by_id = {item["id"]: item for item in sub}
@@ -360,7 +377,7 @@ class ComparePairTests(unittest.TestCase):
             },
         }
         producer = {
-            "service": "synonym-matching", "version": "0.1.0", "resourceHash": "f" * 64,
+            "service": "synonym-matching", "version": "1.0.0", "resourceHash": "f" * 64,
             "runtime": {"python": "3.12", "unicode": "15.0"},
             "packages": {"numpy": "2", "rapidfuzz": "3"},
         }

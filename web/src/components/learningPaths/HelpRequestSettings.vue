@@ -4,21 +4,23 @@
     <p class="text-body-2 text-medium-emphasis mt-2 mb-4">Zeigt „Ich brauche Hilfe“ bei den Modellierungsaufgaben dieses Lernpfads. Der aktuelle Modellstand wird beim Hilfe-Klick gespeichert.</p>
     <template v-if="config.enabled">
       <div class="help-settings-summary">
-        <p class="text-body-2">Problem benennen → Problemstellen markieren → Hilfebedarf klären → Hilfequelle wählen</p>
+        <p class="text-body-2">Problem benennen → Dauer und Hilfebedarf klären → ggf. Problemstelle markieren → Hilfequelle wählen</p>
         <v-btn variant="outlined" size="small" prepend-icon="mdi-play-outline" :disabled="!blueprint || Boolean(issue)" @click="preview = true">Ablauf ausprobieren</v-btn>
       </div>
       <p class="text-caption text-medium-emphasis my-4">Änderungen gelten nur für diesen Lernpfad. Beim Speichern des Lernpfads werden sie direkt für neue Hilfe-Anfragen veröffentlicht. Begonnene Anfragen behalten ihre Version.</p>
       <p class="text-caption text-medium-emphasis mb-4">Bei Aufgaben mit Musterlösung ergänzt die Hilfe-Auswahl „Automatische Überprüfung des Modells“ und öffnet damit die Auswertung.</p>
+      <p class="text-caption text-medium-emphasis mb-4">Die Nutzung der fünf Feedbackarten wird pro Aufgabe unter „Feedback settings“ eingestellt. Dieser Bereich steuert die Fragen und den Hilfe-Ablauf für den gesamten Lernpfad.</p>
       <v-progress-linear v-if="pending" indeterminate aria-label="Hilfe-Fragen laden" />
       <v-alert v-if="loadError" type="error" variant="tonal" density="compact">{{ loadError }}<v-btn variant="text" size="small" @click="load">Erneut laden</v-btn></v-alert>
       <template v-if="blueprint">
         <section class="help-fixed-step" aria-label="Fester Problembezug">
           <div class="d-flex align-center ga-2 mb-2"><v-icon size="17">mdi-lock-outline</v-icon><h3 class="text-subtitle-2">Problem benennen</h3><v-chip size="x-small" variant="tonal">Fester Ablauf</v-chip></div>
           <p class="text-body-2">Worauf bezieht sich dein Problem?</p>
-          <p class="text-caption text-medium-emphasis mt-1">Aufgabenstellung/Modell · Bedienung des Tools · Anderes mit Freitext</p>
-          <p class="text-caption text-medium-emphasis mt-2">Diese Auswahl steuert den Markierungsschritt und bleibt deshalb unverändert.</p>
+          <p class="text-caption text-medium-emphasis mt-1">Aufgabenstellung/Modell · Bedienung des Tools mit Freitext · Anderes mit Freitext</p>
+          <p class="text-caption text-medium-emphasis mt-2">Bei Aufgabenstellung/Modell folgt die Markierung nach dem Hilfebedarf. Prüfung/Bestätigung und unklarer Hilfebedarf benötigen keine Elementauswahl.</p>
         </section>
-        <v-select :model-value="markingMode" :items="markingOptions" label="Problemstellen bei Aufgabenstellung/Modell markieren" variant="outlined" density="compact" persistent-hint :hint="markingMode === 'required' ? 'Mindestens ein Modellelement oder eine Textstelle muss markiert werden.' : markingMode === 'optional' ? 'Lernende können ohne Markierung fortfahren, etwa bei einem noch leeren Modell.' : 'Nach dem Problembezug folgen direkt die Fragen zum Hilfebedarf.'" class="my-4" @update:model-value="setMarkingMode" />
+        <v-select :model-value="markingMode" :items="markingOptions" label="Problemstelle bei Aufgabenstellung/Modell markieren" variant="outlined" density="compact" persistent-hint :hint="markingMode === 'required' ? 'Bei objektbezogenem Hilfebedarf muss mindestens eine Textstelle oder ein Modellelement markiert werden.' : markingMode === 'optional' ? 'Lernende können ohne Markierung fortfahren, etwa bei einem noch leeren Modell.' : 'Nach dem Hilfebedarf folgt direkt die Hilfequelle.'" class="my-4" @update:model-value="setMarkingMode" />
+        <p class="text-caption text-medium-emphasis mb-4">Höchstens ein Modellelement und beliebig viele Textstellen. Automatisches Feedback zu einer Problemstelle setzt ein markiertes Modellelement voraus.</p>
         <p class="text-subtitle-2 mb-1">Fragen und Antworten anpassen</p>
         <p class="text-caption text-medium-emphasis mb-3">Formulierungen und Antwortoptionen sind bearbeitbar. Anzahl, Reihenfolge und Funktion der Fragen bleiben gleich.</p>
         <v-expansion-panels v-model="editing" variant="accordion">
@@ -34,7 +36,7 @@
                   <div class="help-option-actions">
                     <v-btn icon="mdi-arrow-up" size="x-small" variant="text" :disabled="choiceIndex === 0" :aria-label="`Antwortoption ${choiceIndex + 1} nach oben`" @click="moveChoice(item.name, choiceIndex, -1)" />
                     <v-btn icon="mdi-arrow-down" size="x-small" variant="text" :disabled="choiceIndex === question(item.name).choices.length - 1" :aria-label="`Antwortoption ${choiceIndex + 1} nach unten`" @click="moveChoice(item.name, choiceIndex, 1)" />
-                    <v-btn icon="mdi-close" size="x-small" variant="text" :disabled="question(item.name).choices.length <= 2" :aria-label="`Antwortoption ${choiceIndex + 1} entfernen`" @click="removeChoice(item.name, choice.id)" />
+                    <v-btn icon="mdi-close" size="x-small" variant="text" :disabled="question(item.name).choices.length <= 2 || baseFeedbackChoice(item.name, choice.id)" :aria-label="`Antwortoption ${choiceIndex + 1} entfernen`" :title="baseFeedbackChoice(item.name, choice.id) ? 'Steuert die Art des automatischen Feedbacks; nur umbenennen.' : undefined" @click="removeChoice(item.name, choice.id)" />
                   </div>
                 </li>
               </ol>
@@ -70,6 +72,8 @@ const config = computed(() => ({ ...defaultHelpRequestConfig(), ...props.modelVa
 const blueprint = ref<HelpBlueprint | null>(null)
 const pending = ref(false), loadError = ref(''), preview = ref(false), editing = ref<HelpEditableQuestion>()
 let disposed = false
+// Must match keep_feedback_choices in api/src/modeling_api/schemas/learning_paths.py.
+const baseFeedbackChoice = (name: string, id: string) => name === 'support_need' && /^support_need_[1-6]$/.test(id)
 const update = <K extends keyof HelpRequestConfig>(key: K, value: HelpRequestConfig[K]) => emit('update:modelValue', { ...config.value, [key]: value })
 const load = async () => {
   if (pending.value) return

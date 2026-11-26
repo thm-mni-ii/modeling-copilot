@@ -6,10 +6,9 @@ from fastapi.security import HTTPAuthorizationCredentials
 from modeling_api.core.auth import bearer, get_claims, get_user, is_token_valid, User
 from modeling_api.db.client import db
 from modeling_api.db.store import utcnow
-from modeling_api.routes.deps import CurrentBearer
-from modeling_api.services.fbs_users import display_name, resolve_names
 from modeling_api.schemas.auth import CodeExchange, TokenRefresh, Tokens
 from modeling_api.services import fbs_oidc
+from modeling_api.services.learning_path_progress import can_view_progress
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -40,19 +39,18 @@ def validate_token(
     response_description="The authenticated token claims.",
 )
 async def get_me(
-    token: CurrentBearer,
     claims: dict = Depends(get_claims),
     user: User = Depends(get_user),
 ) -> dict:
-    # Keep only a minimal directory for explicit submission permissions, never tokens.
-    resolved = await resolve_names([user.id], user, token)
-    name = (
-        resolved[user.id]
-        if resolved[user.id] != user.id
-        else display_name(claims, user.id)
-    )
+    # Keep pseudonymous IDs and application activity, never identity profiles.
+    now = utcnow()
     await db.submission_users.update_one(
-        {"_id": user.id}, {"$set": {"name": name, "lastSeenAt": utcnow()}}, upsert=True
+        {"_id": user.id},
+        {
+            "$set": {"lastSeenAt": now, "isStaff": can_view_progress(user)},
+            "$setOnInsert": {"firstSeenAt": now},
+        },
+        upsert=True,
     )
     return {**claims, "id": user.id}
 

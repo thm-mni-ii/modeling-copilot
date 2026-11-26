@@ -2,15 +2,13 @@
 
 import asyncio
 from collections.abc import Iterable
-from datetime import timedelta
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
 from modeling_api.core.auth import User
 from modeling_api.core.config import settings
-from modeling_api.db.client import db
-from modeling_api.db.store import utcnow
+from modeling_api.core.errors import ApiError
 
 
 def display_name(profile: dict, fallback: str) -> str:
@@ -36,48 +34,47 @@ def users_uri() -> str:
     return urlunsplit((origin.scheme, origin.netloc, "/api/v1/users", "", ""))
 
 
+def _headers(token: str | None) -> dict[str, str]:
+    """Bearer token of the caller; behind Docker also the public host."""
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    if not settings.fbs_users_uri and settings.oidc_token_host:
+        headers["Host"] = settings.oidc_token_host
+    return headers
+
+
+async def ids_by_username(token: str | None) -> dict[str, str]:
+    """Username → ID of all FBS accounts, with the caller's token; the FBS lists them only for admins, moderators and lecturers."""
+    try:
+        async with httpx.AsyncClient(timeout=10, headers=_headers(token), follow_redirects=False) as http:
+            response = await http.get(users_uri())
+    except httpx.HTTPError as error:
+        raise ApiError(502, "FBS_UNAVAILABLE", "The Feedbacksystem could not be reached.") from error
+    if response.status_code in (401, 403):
+        raise ApiError(403, "FBS_FORBIDDEN", "The Feedbacksystem does not list its users for you.")
+    if response.status_code != 200:
+        raise ApiError(502, "FBS_UNAVAILABLE", "The Feedbacksystem did not list its users.")
+    return {
+        str(user["username"]): str(user["id"])
+        for user in response.json()
+        if isinstance(user, dict) and user.get("username") and user.get("id") is not None
+    }
+
+
 async def resolve_names(
     identifiers: Iterable[str], user: User, token: str | None = None
 ) -> dict[str, str]:
     ids = set(identifiers)
-    cached = {
-        item["_id"]: item
-        for item in await db.submission_users.find({"_id": {"$in": list(ids)}}).to_list(
-            None
-        )
-    }
-    names = {
-        identifier: cached.get(identifier, {}).get("fbsName")
-        or cached.get(identifier, {}).get("name")
-        or identifier
-        for identifier in ids
-    }
-    if not token:
+    # Profiles exist only for this response, never in a database or shared cache.
+    names = {identifier: identifier for identifier in ids}
+    if not token or not user.is_admin:
         return names
-    privileged = (
-        user.is_admin or user.global_role == "MODERATOR" or "MODERATOR" in user.roles
-    )
-    cutoff = utcnow() - timedelta(minutes=15)
-    pending = sorted(
-        identifier
-        for identifier in ids
-        if identifier.isdecimal()
-        and (privileged or identifier == user.id)
-        and (
-            "email" not in cached.get(identifier, {})
-            or not cached.get(identifier, {}).get("nameResolvedAt")
-            or cached[identifier]["nameResolvedAt"] < cutoff
-        )
-    )
+    pending = sorted(identifier for identifier in ids if identifier.isdecimal())
     if not pending:
         return names
-    headers = {"Authorization": f"Bearer {token}"}
-    if not settings.fbs_users_uri and settings.oidc_token_host:
-        headers["Host"] = settings.oidc_token_host
     semaphore = asyncio.Semaphore(6)
     unavailable = False
     async with httpx.AsyncClient(
-        timeout=4, headers=headers, follow_redirects=False
+        timeout=4, headers=_headers(token), follow_redirects=False
     ) as client:
 
         async def resolve(identifier: str) -> bool:
@@ -99,26 +96,10 @@ async def resolve_names(
                     ):
                         return False
                     name = display_name(profile, identifier)
-                    email = profile.get("email")
-                    email = email.strip()[:320] if isinstance(email, str) else None
                 except (httpx.HTTPError, ValueError, TypeError):
                     unavailable = True
                     return False
-                if name == identifier and not email:
-                    return False
                 names[identifier] = name
-                await db.submission_users.update_one(
-                    {"_id": identifier},
-                    {
-                        "$set": {
-                            "name": name,
-                            "fbsName": name,
-                            "email": email,
-                            "nameResolvedAt": utcnow(),
-                        }
-                    },
-                    upsert=True,
-                )
                 return True
 
         # An unavailable or forbidden FBS should cost one request, not one timeout per user.

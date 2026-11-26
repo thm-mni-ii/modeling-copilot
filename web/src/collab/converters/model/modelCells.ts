@@ -44,6 +44,19 @@ export const splitModel = (xml: string, known: ReadonlyMap<string, SharedCell>) 
 }
 
 /**
+ * The cells that change from one state to the next, as a change of the units: new ones and those with
+ * other XML or another place whole, removed ones deleted. `leaveOut` stays out of what is set.
+ */
+export const cellChange = (before: ReadonlyMap<string, SharedCell>, after: ReadonlyMap<string, SharedCell>, leaveOut: ReadonlySet<string> = new Set()) => {
+  const set: Record<string, SharedCell> = {}
+  for (const [id, cell] of after) {
+    const known = before.get(id)
+    if (!leaveOut.has(id) && (!known || known.xml !== cell.xml || known.index !== cell.index)) set[id] = cell
+  }
+  return { set, delete: Array.from(before.keys()).filter((id) => !after.has(id)) }
+}
+
+/**
  * Builds the model from shared cells: parents before children, siblings by index, then by ID.
  * Leaves out what concurrent deletes strand, cells without parent and edges without an end,
  * as maxGraph would read a cell without parent as the root. Null without a root cell.

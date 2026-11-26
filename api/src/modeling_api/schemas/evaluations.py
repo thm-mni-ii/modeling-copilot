@@ -1,10 +1,10 @@
 """Schemas for workflow-backed model evaluations."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from modeling_api.schemas.common import ApiSchema, JsonObject, ModelVersionReference, TaskVersionReference
 
@@ -27,6 +27,44 @@ class EvaluationWorkflow(ApiSchema):
     steps: list[WorkflowStep] = Field(default_factory=list)
 
 
+class ReferenceRecognition(ApiSchema):
+    reference_key: str
+    recognition: JsonObject
+
+
+class LabelHint(ApiSchema):
+    """A positive but insufficient correspondence; the suggestion is the sample-solution text while the probe allows it."""
+
+    id: str
+    submission_id: str
+    submission_label: str = ""
+    suggestion: str | None = None
+    sources: list[str] = Field(default_factory=list)
+    relation: str | None = None
+    note: str | None = Field(default=None, description="Observation about the element (e.g. a surplus copy) instead of a label question.")
+    state: Literal["new", "shown", "accepted", "dismissed"] = "new"
+    retention: Literal["retained", "reverted", "removed"] | None = Field(
+        default=None, description="Last observed editor state after acceptance; not proof of a saved model version.")
+
+
+class HintEvent(ApiSchema):
+    action: Literal["shown", "accepted", "dismissed", "retained", "reverted", "removed"]
+
+
+class EvaluationFeedback(ApiSchema):
+    """Learner-facing result; never carries artifacts, logs or reference-model content."""
+
+    id: UUID
+    started_at: datetime
+    workflow_name: str
+    submission: ModelVersionReference
+    state: EvaluationState
+    score_percent: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    recognitions: list[ReferenceRecognition] = Field(default_factory=list)
+    feedback: list[JsonObject] = Field(default_factory=list, description="Requested feedback entries other than the recognition overview, by type.")
+    hints: list[LabelHint] = Field(default_factory=list, description="Hints of the best recognized sample solution; never counted.")
+
+
 class Evaluation(ApiSchema):
     id: UUID
     owner_id: str
@@ -37,6 +75,9 @@ class Evaluation(ApiSchema):
     started_at: datetime
     state: EvaluationState = "queued"
     workflow: EvaluationWorkflow
+    parameters: JsonObject = Field(default_factory=dict)
+    feedback_types: list[str] = Field(default_factory=list)
+    feedback: EvaluationFeedback | None = Field(default=None, description="Published learner feedback, when already available.")
 
 
 class EvaluationDetail(Evaluation):
@@ -47,5 +88,28 @@ class EvaluationDetail(Evaluation):
                                       description="Final model score. Null until the scoring integration supplies it.")
 
 
+Threshold = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
+
+
+class TextEvidenceThresholds(ApiSchema):
+    """Admin overrides of the text-evidence tier thresholds; workflow-data owns the defaults."""
+
+    spelling: Threshold
+    meaning: Threshold
+    meaning_floor: Threshold
+
+    @model_validator(mode="after")
+    def floor_below_meaning(self):
+        if self.meaning_floor > self.meaning:
+            raise ValueError("meaningFloor must not exceed meaning")
+        return self
+
+
 class StartEvaluation(ApiSchema):
-    """Intentionally empty: the task's admin-selected workflow is authoritative."""
+    """The task's admin-selected workflow is authoritative; administrators may tune its parameters."""
+
+    text_evidence: TextEvidenceThresholds | None = Field(
+        default=None, description="Tier thresholds for this run; null keeps the workflow defaults.")
+    help_request_id: UUID | None = Field(
+        default=None, description="Completed help request whose requested feedback type this run produces.")
+    all_feedback_types: bool = False

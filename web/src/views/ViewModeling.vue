@@ -12,7 +12,7 @@
         <p class="mb-4">{{ surveyPhase === 'before' ? 'Submit this questionnaire to begin working on the task.' : 'Submit this questionnaire to complete the task.' }}</p>
         <SurveyRenderer :key="`${surveyPhase}:${activeSurvey.surveyId}`" ref="taskSurvey" :survey-id="activeSurvey.surveyId" :activity="{ runId: stepRun.runId, stepId: stepRun.stepId, phase: surveyPhase }" @completed="taskSurveyCompleted" />
       </section>
-      <aside class="task-survey-journey"><LearningJourneyDock :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy" :evaluation-required="stepRun.minimumScorePercent != null || laboratoryCompletionBlocked" @leave="returnToPath(false)" @complete="returnToPath(true)" /></aside>
+      <aside class="task-survey-journey"><LearningJourneyDock :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy" :evaluation-required="stepRun.minimumScorePercent != null" @leave="returnToPath(false)" @complete="returnToPath(true)" /></aside>
     </div>
     <DrawingCanvas
       v-show="!loading && !activeSurvey && !pathLoadFailed"
@@ -23,11 +23,13 @@
       :class="{ 'help-snapshot-loading': helpMarking && (!helpSnapshot || helpSnapshotLoading) }"
       :allow-edit="!helpMarking"
       :help-selection-mode="helpMarking"
+      :help-single-selection="currentHelp?.flowVersion === 2"
       :help-flow-active="Boolean(currentHelp)"
       model-management
       :model-id="workspace.model?.id ?? null"
       :open-evaluation-id="startedEvaluationId"
       :evaluation-perspective="evaluationPerspective"
+      :hint-request="hintNavigation"
       :languages="workspace.editorLanguages"
       :language-connections="connections"
       :connection-groups="connectionGroups"
@@ -50,7 +52,7 @@
       @focus-task-edit="focusTaskEdit"
     >
       <template v-if="stepRun" #sidebar-top>
-        <LearningJourneyDock v-show="!currentHelp" v-model:completion-dialog="completionDialog" :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy || helpBusy" :evaluation-required="stepRun.minimumScorePercent != null || laboratoryCompletionBlocked" @leave="returnToPath(false)" @complete="returnToPath(true)">
+        <LearningJourneyDock v-show="!currentHelp" v-model:completion-dialog="completionDialog" :coins="stepRun.coins ?? 0" :completed="Boolean(stepRun.completedAt)" :complete-disabled="loading || Boolean(activeSurvey) || stepRun.removed" :busy="pathBusy || helpBusy" :evaluation-required="stepRun.minimumScorePercent != null" :feature-tour-enabled="helpEnabled" :feedback-available="Boolean(workspace.taskVersion?.evaluationAvailable)" :help-request="currentHelp" :help-question="currentHelpQuestion" :help-answer="currentHelpAnswer" :help-usage="stepRun.helpUsage" @leave="returnToPath(false)" @complete="returnToPath(true)">
           <template #pulse
             ><PulseSurveyPirate
               v-if="stepRun && pulseEnabled"
@@ -70,10 +72,10 @@
               @expired="pulse.expire"
           /></template>
         </LearningJourneyDock>
-        <HelpRequestFlow v-if="currentHelp" v-model:request="currentHelp" :cell-ids="helpCellIds" :text-ranges="helpTextRanges" :snapshot-loading="helpSnapshotLoading" :snapshot-error="helpSnapshotError" :feedback-busy="evaluationStarting" @remove-text="helpTextRanges.splice($event, 1)" @retry-snapshot="loadHelpSnapshot" @close="closeHelp" @automatic-feedback="requestAutomaticFeedback" />
+        <HelpRequestFlow v-if="currentHelp" v-model:request="currentHelp" :cell-ids="helpCellIds" :text-ranges="helpTextRanges" :snapshot-loading="helpSnapshotLoading" :snapshot-error="helpSnapshotError" :feedback-busy="evaluationStarting" :help-usage="stepRun?.helpUsage" @remove-text="helpTextRanges.splice($event, 1)" @retry-snapshot="loadHelpSnapshot" @close="closeHelp" @automatic-feedback="requestAutomaticFeedback" @question-change="setHelpQuestion" @tour-answer-change="setHelpAnswer" />
       </template>
       <template v-if="helpEnabled" #canvas-top-right>
-        <LearningPathHelp :busy="helpBusy" :disabled="helpActive || pathBusy || workspace.syncState === 'saving' || recoveryDialog" @request="requestHelp" />
+        <LearningPathHelp :busy="helpBusy" :highlight="helpHighlight" :disabled="helpActive || pathBusy || workspace.syncState === 'saving' || recoveryDialog" @request="requestHelp" />
       </template>
       <template #canvas-top>
         <div v-if="workspace.diagramTask" class="task-area">
@@ -85,26 +87,29 @@
             :task-edit="workspace.taskEdit"
             :element-options="taskElementOptions"
             :connection-options="taskConnectionOptions"
-            :evaluation-available="Boolean(workspace.taskVersion?.data.sampleSolutions.length)"
+            :evaluation-available="!evaluationLab && Boolean(workspace.taskVersion?.evaluationAvailable)"
             :help-selection-mode="helpMarking"
             :help-task-document="helpSnapshot?.taskEditSnapshot?.document ?? null"
             :help-text-ranges="helpTextRanges"
             @mark-help-text="markHelpText"
             @pop-out="taskWindowOpen = true"
-            @start-evaluation="startEvaluation"
+            @start-evaluation="startEvaluation('service')"
             @select-connection="selectTaskConnection"
             @select-task-edits="selectTaskEdits"
             @update:task-edit-document="workspace.updateTaskEditDocument"
           />
         </div>
         <!-- Modell eines Raums: die mitgeteilte Aufgabe, sofern der Host eine geteilt hat. -->
-        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="task-area" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" @start-evaluation="startEvaluation" />
+        <SharedTask v-else-if="linkedWorkpieceId" :key="linkedWorkpieceId" :workpiece-id="linkedWorkpieceId" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" :window-open="taskWindowOpen" class="task-area" @pop-out="taskWindowOpen = true" @select-connection="selectTaskConnection" @select-task-edits="selectTaskEdits" @start-evaluation="startEvaluation('service')" />
       </template>
       <template #window-content="{ definition }">
-        <TaskEditEditor v-if="definition.role === 'task'" :key="workspace.taskReference?.versionId" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :base-document="workspace.taskVersion?.data.contentDocument" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" @update:model-value="workspace.updateTaskEditDocument" />
+        <TaskEditEditor v-if="definition.role === 'task' && workspace.diagramTask" :key="workspace.taskReference?.versionId" :base-html="workspace.taskVersion?.data.contentHtml ?? ''" :base-document="workspace.taskVersion?.data.contentDocument" :model-value="workspace.taskEdit?.document ?? null" mode="edit" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" @update:model-value="workspace.updateTaskEditDocument" />
+        <!-- Modell eines Raums: die Task des Raums mit den Notizen der Gruppe. -->
+        <SharedTaskWindow v-else-if="definition.role === 'task' && sharedTaskContent" :element-options="taskElementOptions" :connection-options="taskConnectionOptions" class="canvas-task-window-content" @select-connection="selectTaskConnection" @select-edits="selectTaskEdits" />
       </template>
     </DrawingCanvas>
 
+    <CompletionCheckDialog v-model="completionCheckOpen" :result="completionCheck" :error="completionCheckError" :busy="pathBusy" :help-available="helpEnabled" :label-hints="completionHints" @submit="submitCheckedCompletion" @help="helpFromCompletionCheck" @hints="checkedEvaluationId && openEvaluationHints(checkedEvaluationId)" />
     <v-dialog v-model="recoveryDialog" max-width="1000" persistent
       ><v-card
         ><v-card-title>Unsaved changes found</v-card-title
@@ -135,11 +140,13 @@ import type { CanvasWindowDefinition } from '@/model/CanvasWindow'
 import { collectTaskEdits, flashTaskEdits, removeTaskEdit, type TaskEditFocus } from '@/utils/taskEdits'
 import type { TaskEditDocument } from '@/services/api/types/model'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
-import paths, { laboratoryCompletionBlockedStepId, laboratoryCompletionUnavailableMessage, type PathModelContext, type HelpRequest, type HelpTextRange } from '@/services/learningPaths'
+import paths, { type PathModelContext, type HelpRequest, type HelpTextRange, type HelpTourAnswer } from '@/services/learningPaths'
+import CompletionCheckDialog from '@/components/learningPaths/CompletionCheckDialog.vue'
+import { completionGate, type GateResult } from '@/utils/completionGate'
 import modelService from '@/services/model/model.service'
 import type { ModelVersion } from '@/services/api/types/model'
 import evaluationService from '@/services/evaluation/evaluation.service'
-import type { EvaluationDetail } from '@/services/api/types/evaluation'
+import type { EvaluationOutcome, EvaluationParameters, LabelHint } from '@/services/api/types/evaluation'
 import SurveyRenderer from '@/components/surveys/SurveyRenderer.vue'
 import ChallengeOverlay from '@/components/learningPaths/ChallengeOverlay.vue'
 import LearningJourneyDock from '@/components/learningPaths/LearningJourneyDock.vue'
@@ -150,12 +157,14 @@ import { usePulseSurvey } from '@/composables/usePulseSurvey'
 import { useModelActivity } from '@/composables/useModelActivity'
 import { provideModelFileContext } from '@/composables/useModelFileContext'
 import SharedTask from '@/collab/worksheet/SharedTask.vue'
-import { sharedTaskEdit, sharedTaskSettings, writeSharedTask } from '@/collab/worksheet/sharedTask'
+import SharedTaskWindow from '@/collab/worksheet/SharedTaskWindow.vue'
+import { sharedTaskContent, sharedTaskEdit, sharedTaskSettings, writeSharedTask } from '@/collab/worksheet/sharedTask'
 import { saveRoomCheckpoint } from '@/collab/sharing/shareModel'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
 
 interface Props {
   modelId?: string
+  evaluationLab?: boolean
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{ 'learning-path-model': [modelId: string | null] }>()
@@ -188,17 +197,33 @@ const loading = ref(false)
 const pathBusy = ref(false)
 const helpBusy = ref(false)
 const currentHelp = ref<HelpRequest | null>(null)
+const currentHelpQuestion = ref<string | null>(null)
+const currentHelpAnswer = ref<HelpTourAnswer | null>(null)
+watch(() => [currentHelp.value?.id, currentHelp.value?.stage], () => {
+  currentHelpQuestion.value = null
+  currentHelpAnswer.value = null
+}, { flush: 'sync' })
+const setHelpQuestion = (name: string | null) => {
+  if (currentHelp.value?.stage === 'reflection') currentHelpQuestion.value = name
+}
+const setHelpAnswer = (answer: HelpTourAnswer) => {
+  if ((currentHelp.value?.stage === 'reflection' && answer.question === 'support_need') ||
+      (currentHelp.value?.stage === 'action' && answer.question === 'next_action')) currentHelpAnswer.value = answer
+}
 const helpActive = computed(() => Boolean(currentHelp.value && !['completed', 'cancelled'].includes(currentHelp.value.stage)))
 const helpMarking = computed(() => currentHelp.value?.stage === 'marking')
 const fileImportDisabledReason = computed(() => loading.value || hydrating.value || workspace.saving ? 'Wait until the model has finished loading or saving.' : helpMarking.value ? 'This model is currently read-only.' : '')
 provideModelFileContext({
   disabledReason: fileImportDisabledReason,
+  learningPath: computed(() => Boolean(stepRun.value)),
+  completionGate: computed(() => (stepRun.value?.minimumScorePercent != null ? stepRun.value : null)),
   workspaceLanguages: computed(() => workspace.languages.map(({ languageId, versionId }) => ({ languageId, versionId }))),
   languages: computed(() => workspace.editorLanguages.map(({ language, version }) => ({
     languageId: language.id, versionId: version.id, name: language.name,
     data: version.data, includedLanguageVersions: version.includedLanguageVersions
   }))),
   importModel: async (model, references) => {
+    if (stepRun.value) throw new Error('Models cannot be imported in a learning path.')
     if (fileImportDisabledReason.value) throw new Error(fileImportDisabledReason.value)
     hydrating.value = true
     try {
@@ -222,7 +247,6 @@ let helpSnapshotGeneration = 0
 // Keep the same saved version and request ID when retrying a failed event write.
 const pendingHelp = ref<{ requestId: string; modelVersionId: string } | null>(null)
 const stepRun = ref<PathModelContext | null>(null)
-const laboratoryCompletionBlocked = computed(() => stepRun.value?.stepId === laboratoryCompletionBlockedStepId && !stepRun.value.completedAt && !stepRun.value.removed)
 watch(stepRun, (path) => emit('learning-path-model', path && !path.removed ? props.modelId ?? null : null), { immediate: true })
 onBeforeUnmount(() => emit('learning-path-model', null))
 const pathLoadFailed = ref(false)
@@ -230,8 +254,17 @@ const completing = ref(false)
 const completionDialog = ref(false)
 const pendingCompletion = ref(route.query.complete === '1')
 const completionEvaluationId = ref<string | null>(null)
-const completionResult = ref<EvaluationDetail | null>(null)
+const helpEvaluationId = ref<string | null>(null)
+const helpEvaluationCellIds = ref<string[]>([])
+const completionResult = ref<EvaluationOutcome | null>(null)
 const completionNotice = ref('')
+// Completion check: the dialog shows the gate result of the evaluation started by "Abschließen".
+const completionCheckOpen = ref(false)
+const completionCheck = ref<GateResult | null>(null)
+const completionHints = ref<LabelHint[]>([])
+const completionCheckError = ref('')
+const checkedEvaluationId = ref<string | null>(null)
+watch(completionCheckOpen, (open) => { if (!open) completionEvaluationId.value = null })
 const taskSurvey = ref<InstanceType<typeof SurveyRenderer> | null>(null)
 const surveyPhase = computed<'before' | 'after'>(() => (stepRun.value?.beforeSurvey && !stepRun.value.beforeSurvey.completed ? 'before' : 'after'))
 const activeSurvey = computed(() => {
@@ -251,6 +284,10 @@ watch(pulse.coinBalance, (coins) => {
   if (stepRun.value && coins !== null) stepRun.value.coins = coins
 })
 onBeforeRouteLeave(async () => {
+  if (props.evaluationLab) {
+    try { await saveForLab() }
+    catch (cause) { notifyError((cause as Error).message ?? 'The live test could not be saved.'); return false }
+  }
   if (helpBusy.value || helpActive.value) return false
   if (taskSurvey.value?.saving) return false
   return (await taskSurvey.value?.saveDraft()) !== false
@@ -279,10 +316,6 @@ const stopChallenge = async () => {
 const returnToPath = async (complete: boolean, evaluationId?: string) => {
   const path = stepRun.value
   if (!path || helpActive.value || pathBusy.value) return
-  if (complete && laboratoryCompletionBlocked.value) {
-    notifyWarning(laboratoryCompletionUnavailableMessage, { timeout: 10000 })
-    return
-  }
   if (complete && completionEvaluationId.value && !evaluationId) return
   if (!complete) completionEvaluationId.value = null
   pathBusy.value = true
@@ -294,9 +327,13 @@ const returnToPath = async (complete: boolean, evaluationId?: string) => {
       if (path.beforeSurvey && !path.beforeSurvey.completed) return
       if (path.minimumScorePercent != null && !evaluationId && !path.completedAt) {
         completionNotice.value = ''
+        completionCheck.value = null
+        completionHints.value = []
+        completionCheckError.value = ''
+        completionCheckOpen.value = true
         const evaluation = await startEvaluation('student')
         if (evaluation) completionEvaluationId.value = evaluation.id
-        else completionNotice.value = 'Die Auswertung konnte nicht gestartet werden. Versuche den Abschluss erneut.'
+        else completionCheckError.value = 'Die Prüfung konnte nicht gestartet werden. Versuche es gleich noch einmal.'
         return
       }
       await paths.complete(path.runId, path.stepId, evaluationId)
@@ -312,8 +349,7 @@ const returnToPath = async (complete: boolean, evaluationId?: string) => {
       EVALUATION_REQUIRED: 'Für den Abschluss ist eine Auswertung erforderlich. Versuche den Abschluss erneut.',
       EVALUATION_OUTDATED: 'Dein Modell wurde geändert. Starte den Abschluss erneut, um den aktuellen Stand auszuwerten.',
       EVALUATION_INCOMPLETE: 'Die Auswertung ist noch nicht abgeschlossen.',
-      EVALUATION_UNAVAILABLE: laboratoryCompletionUnavailableMessage,
-      EVALUATION_SCORE_PENDING: 'Der Durchlauf ist abgeschlossen. Ein Bewertungswert ist noch nicht verfügbar. Der Aufgabenabschluss wartet auf die Anbindung der Modellbewertung.',
+      EVALUATION_SCORE_PENDING: 'Für diese Prüfung liegt kein Ergebnis vor. Versuche den Abschluss erneut.',
       EVALUATION_MINIMUM_NOT_MET: 'Die erforderliche Mindestbewertung wurde noch nicht erreicht. Überarbeite dein Modell und versuche den Abschluss erneut.'
     } as Record<string, string>)[code ?? ''] ?? ''
     if (!completionNotice.value) notifyError('The task could not be completed or the learning path opened. Review the current path settings and try again.')
@@ -323,9 +359,27 @@ const returnToPath = async (complete: boolean, evaluationId?: string) => {
 }
 const startedEvaluationId = ref<string | null>(null)
 const evaluationPerspective = ref<'service' | 'student'>('service')
+const hintNavigation = ref<{ evaluationId: string; cellId?: string; seq: number; noticeViewed?: boolean } | null>(null)
+watch(() => props.modelId, () => {
+  hintNavigation.value = null
+  helpEvaluationId.value = null
+  helpEvaluationCellIds.value = []
+  completionHints.value = []
+})
+const openEvaluationHints = (evaluationId: string, cellId?: string, noticeViewed = true) => {
+  completionCheckOpen.value = false
+  evaluationPerspective.value = 'student'
+  startedEvaluationId.value = evaluationId
+  hintNavigation.value = { evaluationId, cellId, seq: (hintNavigation.value?.seq ?? 0) + 1, noticeViewed }
+}
 const evaluationStarting = ref(false)
 const taskWindowOpen = ref(false)
-const taskWindows = computed<CanvasWindowDefinition[]>(() => (taskWindowOpen.value && workspace.diagramTask ? [{ id: 'task-description', title: workspace.diagramTask.title, x: 260, y: 120, width: 520, height: 360, role: 'task' }] : []))
+const taskWindowTitle = computed(() => workspace.diagramTask?.title ?? sharedTaskContent.value?.title)
+const taskWindows = computed<CanvasWindowDefinition[]>(() => (taskWindowOpen.value && taskWindowTitle.value ? [{ id: 'task-description', title: taskWindowTitle.value, x: 260, y: 120, width: 520, height: 360, role: 'task' }] : []))
+// Ohne Task, etwa nach dem Verlassen des Raums, geht das Fenster zu.
+watch(taskWindowTitle, (title) => {
+  if (!title) taskWindowOpen.value = false
+})
 const connections = computed(() => workspace.editorLanguages.flatMap((language) => language.connections))
 const taskElementOptions = computed(() => buildTaskElementOptions(workspace.editorLanguages))
 const taskConnectionOptions = computed(() => buildTaskConnectionOptions(workspace.editorLanguages))
@@ -342,6 +396,21 @@ const syntax = computed(() => workspace.editorLanguages.flatMap((language) => la
 const captureCanvas = () => {
   if (!helpMarking.value && !helpSnapshot.value && !hydrating.value && !loading.value && !activeSurvey.value && canvas.value) workspace.setData({ ...canvas.value.serializeModel(), name: workspace.model?.name ?? workspace.data.name })
 }
+const saveForLab = async () => {
+  if (pathLoadFailed.value) return
+  if (loading.value || hydrating.value || recoveryDialog.value || evaluationStarting.value) throw new Error('Wait until the model is ready before leaving the live test.')
+  captureCanvas()
+  if (workspace.dirty || workspace.taskEditDirty) await workspace.save('checkpoint')
+}
+defineExpose({
+  saveChanges: saveForLab,
+  ready: computed(() => !pathLoadFailed.value && !loading.value && !hydrating.value && !recoveryDialog.value && workspace.model?.id === props.modelId),
+  evaluate: async (parameters: Partial<EvaluationParameters> = {}) => {
+    if (pathLoadFailed.value) throw new Error('The test model could not be loaded.')
+    await saveForLab()
+    return startEvaluation('service', parameters)
+  }
+})
 const requestHelp = async () => {
   const path = stepRun.value
   if (!path || currentHelp.value || !helpEnabled.value || helpBusy.value || pathBusy.value || recoveryDialog.value || workspace.syncState === 'saving') return
@@ -412,6 +481,10 @@ watch(
   async (stage) => {
     if (stage === 'marking') {
       taskWindowOpen.value = false
+      if (currentHelp.value?.flowVersion === 2) {
+        helpCellIds.value = [...(currentHelp.value.markings?.cellIds ?? [])]
+        helpTextRanges.value = [...(currentHelp.value.markings?.taskTextRanges ?? [])]
+      } else if (currentHelp.value?.markingPurpose === 'feedback' && !helpCellIds.value.length) helpCellIds.value = [...(currentHelp.value.markings?.cellIds ?? [])]
       await loadHelpSnapshot()
     } else {
       helpSnapshotGeneration++
@@ -469,11 +542,11 @@ const focusTaskEdit = (target: TaskEditFocus) => {
   selectTaskEdits([target.id])
 }
 
-const startEvaluation = async (perspective: 'service' | 'student' = 'service') => {
+const startEvaluation = async (perspective: 'service' | 'student' = 'service', parameters: Partial<EvaluationParameters> = {}) => {
   // In a room only the host evaluates, on the private model that has the task; the state of the room goes in as its newest version.
   const room = !workspace.taskVersion && sharedTaskSettings.value
   if (evaluationStarting.value || !room && (!workspace.model || !workspace.taskVersion)) return null
-  if (!(room ? sharedTaskSettings.value!.evaluationAvailable : workspace.taskVersion!.data.sampleSolutions.length)) {
+  if (!(room ? sharedTaskSettings.value!.evaluationAvailable : workspace.taskVersion!.evaluationAvailable)) {
     notifyWarning('Für diese Aufgabe ist noch keine Musterlösung zur Auswertung hinterlegt.')
     return null
   }
@@ -488,7 +561,7 @@ const startEvaluation = async (perspective: 'service' | 'student' = 'service') =
       if (workspace.dirty || workspace.taskEditDirty) await workspace.save('checkpoint')
       modelId = workspace.model!.id
     }
-    const evaluation = (await evaluationService.start(modelId)).data
+    const evaluation = (await evaluationService.start(modelId, { ...parameters, allFeedbackTypes: perspective === 'service' })).data
     evaluationPerspective.value = perspective
     startedEvaluationId.value = evaluation.id
     if (evaluation.state === 'failed') notifyError('The evaluation start was rejected. See the evaluation details.')
@@ -502,31 +575,70 @@ const startEvaluation = async (perspective: 'service' | 'student' = 'service') =
   }
 }
 const requestAutomaticFeedback = async () => {
-  const evaluation = await startEvaluation('student')
-  if (evaluation) closeHelp()
+  const help = currentHelp.value
+  const requestedCellIds = [...helpCellIds.value]
+  // Help types go into the evaluation with the request; the result shows in the evaluation sidebar.
+  const evaluation = await startEvaluation('student', help?.supportKind?.startsWith('help.') ? { helpRequestId: help.id } : {})
+  if (evaluation) {
+    helpEvaluationId.value = evaluation.id
+    helpEvaluationCellIds.value = requestedCellIds
+    closeHelp()
+  }
 }
-watch([completionResult, pathBusy], ([evaluation, busy]) => {
+watch(completionResult, async (evaluation) => {
+  if (!evaluation || evaluation.id !== helpEvaluationId.value || !['succeeded', 'failed', 'cancelled'].includes(evaluation.state)) return
+  helpEvaluationId.value = null
+  try {
+    const feedback = (await evaluationService.getFeedback(evaluation.id)).data
+    if (feedback.hints?.length && feedback.submission.modelId === workspace.model?.id) {
+      const targeted = feedback.hints.find(hint => helpEvaluationCellIds.value.includes(hint.submissionId))
+      // Remember the destination; the notice button performs the actual navigation.
+      hintNavigation.value = { evaluationId: evaluation.id, cellId: targeted?.submissionId,
+        seq: (hintNavigation.value?.seq ?? 0) + 1, noticeViewed: false }
+    }
+  }
+  catch { notifyError('Der Status der automatischen Hilfe konnte nicht gespeichert werden. Die Nutzungsanzeige wird beim nächsten Laden aktualisiert.') }
+  await refreshPathContext()
+})
+watch([completionResult, pathBusy], async ([evaluation, busy]) => {
   if (busy || !evaluation || evaluation.id !== completionEvaluationId.value) return
   if (evaluation.state === 'failed' || evaluation.state === 'cancelled') {
     completionEvaluationId.value = null
-    completionNotice.value = 'Die Auswertung wurde nicht abgeschlossen. Versuche den Aufgabenabschluss erneut.'
+    completionCheckError.value = 'Die Prüfung wurde nicht abgeschlossen. Versuche es gleich noch einmal.'
     return
   }
-  if (evaluation.state !== 'succeeded') return
+  if (evaluation.state !== 'succeeded' || !stepRun.value) return
   completionEvaluationId.value = null
-  const minimum = stepRun.value?.minimumScorePercent
-  if (minimum == null) return
-  if (workspace.dirty || workspace.taskEditDirty || evaluation.submission.versionId !== workspace.model?.latestVersionId) {
-    completionNotice.value = 'Dein Modell wurde geändert. Starte den Abschluss erneut, um den aktuellen Stand auszuwerten.'
-  } else if (evaluation.scorePercent == null) {
-    completionNotice.value = 'Der Durchlauf ist abgeschlossen. Ein Bewertungswert ist noch nicht verfügbar. Der Aufgabenabschluss wartet auf die Anbindung der Modellbewertung.'
-  } else if (evaluation.scorePercent < minimum) {
-    completionNotice.value = `Dein Modell erreicht ${evaluation.scorePercent} %. Für den Abschluss sind mindestens ${minimum} % erforderlich. Überarbeite dein Modell und versuche es erneut.`
-  } else {
-    completionNotice.value = ''
-    void returnToPath(true, evaluation.id)
+  if (workspace.dirty || workspace.taskEditDirty || evaluation.submission.versionId !== workspace.baseVersionId) {
+    completionCheckError.value = 'Dein Modell wurde während der Prüfung geändert. Schließe erneut ab, um den aktuellen Stand zu prüfen.'
+    return
+  }
+  try {
+    const feedback = (await evaluationService.getFeedback(evaluation.id)).data
+    const result = completionGate(stepRun.value, feedback)
+    if (!result) throw new Error('No recognition')
+    checkedEvaluationId.value = evaluation.id
+    completionCheck.value = result
+    completionHints.value = feedback.hints ?? []
+  } catch {
+    completionCheckError.value = 'Für diese Prüfung liegt kein Ergebnis vor. Versuche es gleich noch einmal.'
   }
 })
+const submitCheckedCompletion = async () => {
+  if (!checkedEvaluationId.value) return
+  await returnToPath(true, checkedEvaluationId.value)
+  completionCheckOpen.value = false
+}
+const helpHighlight = ref(false)
+// Close the check, let the help sign pulse so learners find it again, then open the help flow from there.
+const helpFromCompletionCheck = () => {
+  completionCheckOpen.value = false
+  helpHighlight.value = true
+  setTimeout(() => {
+    helpHighlight.value = false
+    void requestHelp()
+  }, 1600)
+}
 const refreshPathContext = async () => {
   if (!props.modelId || loading.value || taskSurvey.value?.saving) return
   try {
@@ -540,7 +652,7 @@ watch(
   () => {
     if (!pendingCompletion.value || loading.value || !stepRun.value || stepRun.value.removed || stepRun.value.completedAt || activeSurvey.value || helpActive.value || helpBusy.value || pathBusy.value || recoveryDialog.value || pathLoadFailed.value) return
     pendingCompletion.value = false
-    if (stepRun.value.minimumScorePercent != null || laboratoryCompletionBlocked.value) void returnToPath(true)
+    if (stepRun.value.minimumScorePercent != null) void returnToPath(true)
     else completionDialog.value = true
     const query = { ...route.query }
     delete query.complete
@@ -553,7 +665,7 @@ onMounted(async () => {
   try {
     if (props.modelId) {
       await workspace.load(props.modelId)
-      stepRun.value = (await paths.modelContext(props.modelId)).data
+      stepRun.value = props.evaluationLab ? null : (await paths.modelContext(props.modelId)).data
       if (stepRun.value && !stepRun.value.removed) stepRun.value = (await paths.resumeStep(stepRun.value.runId, stepRun.value.stepId)).data
       await syncCanvas()
       const recoverySnapshot = await workspace.getRecoverySnapshot()
@@ -572,7 +684,7 @@ onMounted(async () => {
     notifyError('The model could not be loaded.')
   } finally {
     loading.value = false
-    activityReady.value = !pathLoadFailed.value
+    activityReady.value = !props.evaluationLab && !pathLoadFailed.value
   }
 })
 </script>

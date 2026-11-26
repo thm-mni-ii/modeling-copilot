@@ -120,11 +120,10 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
-import { laboratoryCompletionBlockedStepId, laboratoryCompletionUnavailableMessage, type PathRun, type StepRun } from '@/services/learningPaths'
+import type { PathRun, StepRun } from '@/services/learningPaths'
 import TreasureMapArt from './TreasureMapArt.vue'
 import { challengeGoal } from '@/services/challenges'
 import { journeyDestination } from '@/utils/learningPathJourney'
-import { notifyWarning } from '@/composables/useNotifications'
 
 const props = defineProps<{ run: PathRun; busy: string; expandedId?: string | null }>()
 const emit = defineEmits<{ open: [step: StepRun]; complete: [step: StepRun] }>()
@@ -315,10 +314,6 @@ const openSelected = () => {
 const finishSelected = () => {
   const step = selectedStep.value
   if (!step || step.type === 'survey' || step.status !== 'in_progress' || props.busy) return
-  if (step.id === laboratoryCompletionBlockedStepId) {
-    notifyWarning(laboratoryCompletionUnavailableMessage, { timeout: 10000 })
-    return
-  }
   selectedId.value = null
   emit('complete', step)
 }

@@ -48,8 +48,10 @@
         "producer": {"type": "object", "required": ["service", "version", "resourceHash", "runtime", "packages"]},
         "methods": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/method"}},
         "candidatePairCount": {"type": "integer", "minimum": 0},
+        "matchingSourcePairCount": {"type": "integer", "minimum": 0},
         "scoredPairCount": {"type": "integer", "minimum": 0},
         "unavailablePairCount": {"type": "integer", "minimum": 0},
+        "notScoredPairCount": {"type": "integer", "minimum": 0},
         "processedTexts": {
           "type": "object", "required": ["student", "reference"], "additionalProperties": false,
           "properties": {
@@ -96,6 +98,10 @@
       }
     },
     "scoreMap": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "number"}},
+    "matchingSources": {"type": "array", "items": {
+      "type": "object", "required": ["term", "termKey", "scores"], "additionalProperties": false,
+      "properties": {"term": {"type": "string", "minLength": 1, "maxLength": 256}, "termKey": {"type": "string", "minLength": 1, "maxLength": 256}, "scores": {"$ref": "#/definitions/scoreMap"}}
+    }},
     "method": {
       "type": "object", "required": ["name", "scoreRange", "preprocessing", "parameters"],
       "properties": {
@@ -112,16 +118,22 @@
       "additionalProperties": false,
       "properties": {
         "submissionElementId": {"type": "string", "minLength": 1},
+        "matchingSources": {"$ref": "#/definitions/matchingSources"},
         "submissionLabel": {"type": "string"},
         "comparisonBasis": {"enum": ["group", "type"]},
-        "scoreStatus": {"enum": ["scored", "unavailable"]},
+        "scoreStatus": {"enum": ["scored", "not_scored", "unavailable"]},
+        "notScoredReason": {"type": "string", "minLength": 1},
         "unavailableReason": {"enum": ["missing_text", "unsupported_text"]},
         "scores": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/scoreMap"}]}
       },
       "allOf": [
         {"if": {"properties": {"scoreStatus": {"const": "scored"}}},
          "then": {"required": ["scores"], "properties": {"scores": {"$ref": "#/definitions/scoreMap"}}},
-         "else": {"required": ["unavailableReason"], "properties": {"scores": {"type": "null"}}}}
+         "else": {"properties": {"scores": {"type": "null"}}}},
+        {"if": {"properties": {"scoreStatus": {"const": "unavailable"}}},
+         "then": {"required": ["unavailableReason"]}},
+        {"if": {"properties": {"scoreStatus": {"const": "not_scored"}}},
+         "then": {"required": ["notScoredReason"]}}
       ]
     },
     "connectionTextPair": {
@@ -130,6 +142,7 @@
       "additionalProperties": false,
       "properties": {
         "referenceConnectionTextId": {"type": "string", "minLength": 1},
+        "matchingSources": {"$ref": "#/definitions/matchingSources"},
         "submissionConnectionTextId": {"type": "string", "minLength": 1},
         "referenceOwnerConnectionId": {"type": ["string", "null"]},
         "submissionOwnerConnectionId": {"type": ["string", "null"]},

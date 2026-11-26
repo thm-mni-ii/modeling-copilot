@@ -23,7 +23,7 @@
   <div class="d-flex flex-wrap align-center ga-3 mb-3">
     <h2 class="text-h6">All submissions</h2>
     <v-spacer />
-    <v-btn variant="tonal" prepend-icon="mdi-download" :loading="exporting" :disabled="busy || exporting" title="Export student IDs, names and available email addresses for all submissions in this run, including replaced submissions, regardless of filters." @click="exportCsv">Download all as CSV</v-btn>
+    <v-btn variant="tonal" prepend-icon="mdi-download" :loading="exporting" :disabled="busy || exporting" title="Export student IDs and scores for all submissions in this run, including replaced submissions, regardless of filters. Names are loaded live for platform admins when available." @click="exportCsv">Download all as CSV</v-btn>
   </div>
   <v-alert v-if="exportError" type="error" variant="tonal" class="mb-3">{{ exportError }}</v-alert>
   <v-table

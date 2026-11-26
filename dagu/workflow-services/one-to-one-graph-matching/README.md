@@ -1,5 +1,131 @@
 # one-to-one-graph-matching
 
+Serviceversion `2.16.0`, Image `v24`, Ausgabeschema `reference-comparison/v2`.
+Seit `2.16.0` (Plan „Verallgemeinerung“, Schritte S1 bis S5): Kinderüberlappung berücksichtigt blockierte geschlossene
+Kompositionen, ununterscheidbare parallele Kanten werden als Gruppe zugeordnet (GM-46), der Graphkontext
+entscheidet zwischen Textkandidaten (GM-47) und identifiziert Elemente über ihre Nachbarstruktur (GM-48,
+`context_evidence.py`), Notationsteile einer Beschriftung sind zusätzliche Vergleichstexte (GM-49).
+Seit `2.12.0` laufen die Vorschlagsphasen als Fixpunktschleife (`resolution.py`, GM-41), Kinder identifizierter
+Besitzer konkurrieren nur innerhalb des Besitzerpaars (GM-42), und `hints` nennt offene, nicht gezählte
+Paare aus Textband, Nachbarschaftsprofil und Kinderüberlappung (GM-43, Wortteile GM-44). Graubereichspaare
+mit Nachbarbestätigung (GM-18b) sind kein Mapping mehr. Das Image enthält dafür `word_parts.py` aus dem Synonymdienst.
+Mit konfigurierter `minimumSimilarity` bewertet `text_similarity.py` jedes zulässige
+Paar gegen die Schwelle. `identity_evidence.py` (Version `1.1`) führt daraus das
+Kriterium `text_similarity`; es ist nur dann Identitätsanker, wenn das Paar unter allen
+offenen Paaren über der Schwelle notwendig (eindeutig) ist.
+Identitätskriterien konkurrieren gemeinsam; vollständige unabhängige
+Kinderkombinationen und Endpunktalternativen werden neben Textankern geprüft.
+Kapazitätskonflikte bleiben auf ihre Kandidatenkomponente begrenzt.
+Fehlende/nicht unterstützte Beschriftungen und fehlende Typ-/Relationssemantik
+werden als `not_evaluated` ausgewiesen. `not_scored` bleibt von fehlender
+Ausführbarkeit und niedrigen Scores getrennt; Score-Trimming ist nicht aktiviert.
+Ohne Schwelle (`{}`) entstehen weder semantische Vorschläge noch Textähnlichkeitsanker.
+Identitätsprägende Besitzer entstehen nur über deklarierte Substrukturen (`component`); bloße
+Platzierung (`content` in einem anderen Fachobjekt, etwa einer Lane) bleibt ein Lagebefund (GM-13a).
+Die historischen Methodennachweise unten beziehen sich auf ihre jeweiligen Versionen.
+Regulaer werden ausgewaehlte Zuordnungen, `propertyFacts`, offene Original-IDs,
+Konfiguration und Herkunft gespeichert. Identitaetsfakten nennen zusaetzlich ihre
+Auswertbarkeit. Die vollstaendige kompakte JSON-Ausgabe bleibt auf stdout erhalten.
+`pairDecisions` nennt je textrelevantem Paar `decision` (`identified`, `partial`, `open`)
+und `reason` für die Glossar-Evidenz. `partial` zählt nie als Identität und ändert weder
+Mapping noch Fakten (GM-40 in `docs/graph-matching-workflow/04-GRAPH-MATCHING.md`).
+
+Mit `GRAPH_MATCHING_DIAGNOSTICS=1` werden Kandidatenlisten, `identityEvidence`,
+`decisionEvents`, `semanticRefinement`, Besitzer-/Containment-/Verbindungsdiagnosen
+und vorlaeufige Metriken unter `diagnostics` mit `purpose: development_only`
+gespeichert. Sie sind keine zweite Erkennungsquelle. Nur diagnostisch benoetigte
+Aggregationen werden regulaer nicht mehr berechnet. Alle Evidenzen bleiben fuer
+die Matchingentscheidungen erhalten. Mapping und Fakten sind mit und ohne
+Diagnostik identisch. Die verbindliche Erkennungsuebersicht berechnet
+[Analytical Feedback](../analytical-feedback/README.md).
+
+Die folgende Methodendokumentation beschreibt Berechnung und optionale Diagnosen;
+fruehere Top-Level-Diagnosepfade liegen in v2 unter `diagnostics`.
+Gespeicherte v1-Vergleiche bleiben unveraendert lesbar.
+
+Die Levenshtein-Schwelle wird mit dem Goldkorpus
+`synonym-matching/calibration/label-variants.json` (Typologie A1–F2) und
+`synonym-matching/scripts/calibrate_threshold.py` kalibriert; siehe README des
+Synonym-Dienstes.
+
+ Nach Abschluss der Korrespondenz- und
+Strukturprüfungen ergänzt `propertyFacts` (Version `1.1`) konkrete Einzelbefunde.
+Synonymverfahren und Parameter bleiben gleich. Die Identitätsregeln ergänzen
+globale Konkurrenzprüfung, gemeinsame Kinderstruktur und robuste Verbindungsanker.
+Jeder Befund enthält `code`, `referenceIds`, `submissionIds`, einen der Status
+`satisfied`, `violated`, `unresolved`, `not_evaluated`, `not_applicable` und
+`evidence` mit `basis`, `reason` sowie den nötigen Beobachtungen/Abhängigkeiten.
+`direct_observation` belegt sichtbare Eigenschaften oder globale Abwesenheit;
+`conditional_mapping` gilt unter den vorhandenen vorläufigen Zuordnungen;
+`independent_evidence` kennzeichnet unabhängig verankerte Besitzerbeziehungen.
+
+`identityEvidence` (Version `1.0`) enthält pro zulässigem Paar kompakte Kriterien
+mit Methode, Ergebnis, Original-IDs und Abhängigkeiten. Ihre Rolle ist
+`compatibility`, `support` oder `identity_anchor`. `uniquely_supported` erfordert
+eine nicht zirkuläre Begründung und globale 1:1-Eindeutigkeit innerhalb der
+hinreichend belegten Alternativen. Dazu werden notwendige Kanten maximaler
+Zuordnungen mit dem vorhandenen Kapazitätsalgorithmus geprüft; bloße
+Typkompatibilität ist kein Identitätsbeweis. `supported` bewahrt positive,
+noch nicht hinreichende Evidenz; konkurrierende hinreichende Alternativen bleiben
+`unresolved`. Unabhängige exakte Anker haben Vorrang vor Positionsbefunden.
+
+Ein zuvor mehrdeutiger exakter Text kann nach belegten Reservierungen eindeutig
+werden, auch unter einem falschen Besitzer. Gemeinsam passende Kinder verwenden
+kompatible Typen, Namen, Relationsrollen, Strukturpfade und die globale Konkurrenz.
+2/3 ist positive Evidenz; nur eine vollständige lokale Kombination ohne relevante
+Zusatzkinder und ohne ungeklärte Pfade kann selbst einen Parent verankern.
+Dabei werden keine einzelnen Child-Identitäten aus einer beliebigen lokalen
+Zuordnung erfunden. Der Parent darf anschließend Kinder stützen, ohne von diesen
+abhängigen Identitäten rückwirkend bestätigt zu werden.
+
+Die Fakten trennen `correct_placement`, `wrong_placement`, `placement_unresolved`,
+`unmatched_submission`, `unmatched_reference` und `proven_absent`.
+`matched/expected`, erkannte, verschobene, nicht zuordenbare und nachweisbar
+abwesende Kinder stehen getrennt in der Kindstruktur. Ein verschobenes Child
+zählt nicht als korrekt enthalten. `id` identifiziert den Fakt; strukturierte
+`targets` adressieren Child, tatsächlichen und erwarteten Parent. Gemeinsame
+`findingId` verhindert doppelte Positionshinweise. Auch eine eindeutige Identität
+beweist eine Relation nicht unabhängig, wenn diese Relation die Identität selbst
+gestützt hat: Der Relationsfakt bleibt dann `conditional_mapping`.
+
+Verbindungen können über eine eindeutige eigene Beschriftung oder Endpunkte
+erkannt werden. Richtung und konkreter Typ werden separat geprüft. Gleichartige
+Parallelverbindungen bleiben mehrdeutig. Bei sprachlich inkompatiblen konkreten
+Typen bleibt die bisherige kompatibilitätsbezogene Typübersicht offen, während
+der konkrete `type.different`-Fakt die beobachtete Abweichung ausdrücklich ausgibt.
+
+Beschriftung, konkreter Typ, fachlicher Besitzer, unmittelbarer Container,
+fachliche und direkte Kinder sowie lokale Verbindungen werden getrennt berichtet.
+Verbindungen behalten getrennte Endpunkt-, Source-, Target- und Richtungsbefunde;
+Typabweichungen bleiben konkrete Eigenschaften innerhalb der Vergleichsgruppe.
+Ohne Verbindungskorrespondenz werden keine individuellen Endpunktfehler erfunden:
+Richtungs-/Typbefunde an Endpunktgruppen bleiben ausdrücklich Gruppenbefunde.
+
+`counterpart.missing` erfordert eine vollständige Abgabe ohne Verbindungen oder
+eine eindeutige verbleibende Kinderklasse ohne freies kompatibles Gegenstück
+unter der festgehaltenen Parent-/Elementzuordnung. Mehrdeutige Kandidaten sperren
+die zweite Regel. `connections.outgoing_missing` beschreibt lokale Abwesenheit
+unter einer Parent-Zuordnung. `minimumMissing` in Kinder-/Gruppenbefunden ist
+eine Mindestfehlmenge, keine Auswahl fehlender Identitäten. Offene Endpunkte und
+unvollständige Graphinterpretation verhindern entsprechende Abwesenheitsbeweise.
+
+Neue Vergleiche enthalten zusätzlich `decisionEvents`: deterministische
+Entscheidungsereignisse direkt aus exakter Auswahl, Besitzer- und Kindevidenz,
+semantischer Verfeinerung, Kapazitätsprüfung und Verbindungsauswahl. Jedes Ereignis
+nennt Phase, Regel, tatsächliches Ergebnis, Gründe, betrachtete Objekt-IDs,
+gegebenenfalls Reservierungen beziehungsweise Alternativen und Abhängigkeiten.
+Eine lokale vorgeschlagene Zuordnung kann in einer späteren Phase blockiert
+werden; die Phase gehört deshalb zur Interpretation. Die Ereignis-ID ist
+inhaltsbasiert, die Ausgabeliste nach ID sortiert und kein behauptetes Zeitprotokoll.
+Nicht betrachtete Paare werden nicht nachträglich als abgelehnt bezeichnet.
+
+Die Instrumentierung verändert keine Matchingregel. Die bestehende Zuordnung,
+Strukturprüfung und Kennzahlen wurden für Baseline, M02, M03, M05, M06a/b und M08
+mit vollständigen synthetischen Kandidaten gegen den bisherigen Matcher
+verglichen. Das neue [analytische Feedback](../analytical-feedback/README.md)
+verwendet diese Ereignisse; bei älteren Artefakten bleibt fehlende Historie
+ausdrücklich `not_recorded`.
+
 Der Dienst liest über `WORKFLOW_EVALUATION_ID` und `REFERENCE_KEY` die Graphen,
 Inventare und semantischen Kandidaten eines Modellpaares aus dem Workspace.
 Er validiert Herkunft und Hashes und liefert `reference-comparison/v1` innerhalb
@@ -14,11 +140,64 @@ Die Obergrenze verwendet alle zulässigen Kandidaten, unabhängig von Ankern.
 Leere Referenzmengen ergeben `null`. Die Verträglichkeit der Anker mit der
 globalen Kapazität steht unter `proposalFeasibility`.
 
+Eindeutig erkannte Kinder können vorhandene, typ- beziehungsweise
+vergleichsgruppenkompatible Besitzerkandidaten unterstützen. `childOwnerEvidence`
+führt für diese Kandidaten unterstützende, widersprechende und ungeklärte
+Kinder mit IDs, Pfaden und Zuordnungsabhängigkeiten auf. Der
+`proposalStatus` unterscheidet vorgeschlagene, bereits belegte, widersprüchliche,
+nicht unabhängig gestützte, konkurrierende und kapazitätsunverträgliche Paare.
+Nur global eindeutige positive Vorschläge, die gemeinsam die globale
+Zuordnungskapazität erhalten, werden aufgenommen. Widersprechende Positionen
+werden separat berichtet und löschen einen anderweitigen Identitätsanker nicht.
+Fehlende oder mehrdeutige Kinder bleiben entsprechend ihrer eigenen Evidenz offen.
+
+Nach bereits aktiven 1:1-Zuordnungen kann ein zuvor mehrdeutiges exaktes
+Kindpaar eindeutig werden (`unique_exact_after_reservations`); seine
+Abhängigkeiten dokumentieren alle Reservierungen, die gleich beschriftete
+Alternativen ausschließen. Diese Abhängigkeiten werden transitiv betrachtet:
+Kindevidenz darf nicht von dem damit begründeten Besitzer abhängen.
+Besitzervorschläge (`independent_child_evidence`) hängen von ihren
+unterstützenden Kindern ab; anschließend können weitere Kinder vom Besitzer
+abhängen. Alle Vorschläge bleiben vorläufig. Die Containment-Prüfung behandelt
+die neuen abhängigen Vorschläge weiterhin nicht als unabhängigen Beweis.
+
+Der historische Stand vor Version `1.2.0` ergab mit Parsergraphen und
+vollständiger synthetischer Kandidatenmatrix, ohne Synonymverfahren oder
+vollständigen Pipeline-Lauf, folgende Elementzuordnungen (vorher → nachher):
+
+| Modell | Vorschläge | Offene Referenzen | Neue Besitzer |
+| --- | --- | --- | --- |
+| M02 | 40 → 46 | 8 → 2 | Gebäude → Bauwerk; Geräte → Apparate |
+| M03 | 47 → 47 | 1 → 1 | keine |
+| M05 | 46 → 46 | 2 → 2 | keine |
+| M08 | 44 → 46 | 4 → 2 | Forschungsprojekt → Forschungsvorhaben |
+
+In M02 kommen außerdem die beiden Nummernattribute und zwei
+`Bezeichnung`-Attribute hinzu; `E-Mail` und `Beschreibung` bleiben offen.
+In M08 kommt ein `Bezeichnung`-Attribut hinzu, das verschobene `ProjektNr.`
+bleibt ungeklärt. Die vollständige referenzbezogene Containment-Auswertung
+bleibt für M02 bei 5/0/43, M03 bei 5/1/42, M05 bei 7/0/41 und M08 bei
+6/0/42 (erfüllt/verletzt/offen). Die synthetische Matrix ersetzt keine
+Regression mit den ursprünglichen semantischen Kandidaten.
+
+Diese Zahlen dokumentieren den früheren Stand. Aktuell bleiben die beiden
+verschobenen Nummernattribute in M05 sowie das verschobene `ProjektNr.` in M08
+nach den vorhandenen Reservierungen erkannt. Positions- und Identitätsaussagen
+werden im neuen Faktenpfad getrennt ausgewiesen.
+
 Optionale Mindestähnlichkeiten werden im eingefrorenen `comparisonConfig` als
 `graphMatching.minimumSimilarity` angegeben: ein Objekt mit Methodennamen und
 Mindestwerten. Nur deklarierte Methoden und Werte innerhalb ihrer Scorebereiche
 sind zulässig. Ohne konfigurierte Mindestwerte ist die semantische Verfeinerung
 als `not_configured` gekennzeichnet und erzeugt keine Vorschläge.
+
+Mit Evidenzstufen (`graphMatching.textEvidence.tiers`) gelten zwei Textwächter.
+Tragen beide Labels Ziffern und weichen diese ab (`Version 1`/`Version 2`), zählt
+der Text in keiner Stufe als Beleg. Beginnen die Labels unterschiedlich (erste zwei
+Buchstaben nach Kleinschreibung und Umlautauflösung), zählen zeichenbasierte
+Methoden nicht (`VersuchsNr.`/`BesuchsNr.`); Bedeutungsmethoden bleiben wirksam.
+Hat ein Wächter das Stufenverdikt geändert, trägt das Kriterium `text_similarity`
+den Grund als `veto`. Der Einzelschwellen-Modus bleibt unverändert.
 
 `semanticRefinement` unterscheidet unterstützte, unterschwellige und nicht
 auswertbare Kandidaten sowie zusätzliche Vorschläge, ungeklärte Referenzen und
@@ -54,6 +233,52 @@ Sprachversion. Die Anzahl studentischer Elemente in der Typansicht bezieht sich
 auf denselben konkreten Typ; die Kapazität kann dennoch Kandidaten anderer Typen
 derselben Vergleichsgruppe nutzen.
 
+`provisionalTypeComparison` beschreibt vorhandene vorläufige Element- und
+Verbindungszuordnungen getrennt, ohne neue Zuordnungen zu erzeugen. Jede
+Referenzinstanz erscheint mit IDs, konkreten Typen, Vergleichsgruppen,
+Zuordnungsstatus, Zuordnungsgrund und Abhängigkeiten. Bei Verbindungen
+verweisen die Abhängigkeiten auf die verwendeten Endpunktzuordnungen.
+`same_type` bedeutet gleichen konkreten Typ;
+`compatible_type_difference` bedeutet unterschiedliche konkrete Typen bei
+gleicher expliziter Vergleichsgruppe. Unzugeordnete Instanzen und Paare mit
+unzureichenden Metadaten bleiben `unresolved`. Bekannte inkompatible
+Typzuordnungen werden zurückgewiesen. Ohne explizite Vergleichsgruppe sind
+nur gleiche konkrete Typen kompatibel; Sprach-ID und Version müssen ebenfalls
+übereinstimmen.
+
+Die Zähler enthalten `referenceCount`, `mappedCount`, `evaluatedCount` und
+`unresolvedCount`. Prozentwerte für gleiche und unterschiedliche Typen
+verwenden `percentageDenominator = evaluatedCount`, nicht alle Referenzen;
+bei leerem Nenner sind sie `null`. Die Auswertung ist `provisional`: Auch
+ein nachgewiesener Typunterschied ist keine automatische fachliche
+Fehlermeldung. Seine Zulässigkeit hängt von den Sprachmetadaten ab.
+
+Lokaler Parser-Prüfstand mit synthetischer vollständiger Elementkandidatenmatrix,
+den Vergleichsgruppen aus v13 und bestehenden Zuordnungen (kein vollständiger
+Pipeline-Lauf):
+
+| Modell | Kategorie | Gleicher Typ | Kompatibler Unterschied | Offen |
+| --- | --- | --- | --- | --- |
+| M05 | Elemente | 45 | 1 | 2 von 48 |
+| M05 | Verbindungen | 10 | 0 | 0 von 10 |
+| M06b | Elemente | 48 | 0 | 0 von 48 |
+| M06b | Verbindungen | 7 | 1 | 2 von 10 |
+
+M05 enthält einen kompatiblen Elementtypwechsel. In M06b sind die geänderten
+Verbindungstypen unter diesen Metadaten durch `serm-connection` kompatibel;
+die Zuordnung weist ihren konkreten Typunterschied aus. Ohne gemeinsame
+Vergleichsgruppe bleibt die Verbindung ungeklärt; der bestehende
+`provisionalConnectionStructure`-Vergleich kann den Typunterschied der
+Endpunktgruppe weiterhin als `different` ausweisen, ohne eine Identität zu
+erfinden. Welche Gruppen ein tatsächlicher Lauf verwendet, hängt von seinen
+eingefrorenen Sprachmetadaten ab.
+
+Prüfung dieser Erweiterung: 123 Matcher-Tests (17 Subtests), 8 Parser- und
+8 Extraktor-Tests bestanden. API- und Synonymtests konnten wegen fehlender
+lokaler Abhängigkeiten (`cryptography`, `jsonschema`, `rapidfuzz`) nicht
+gesammelt werden. Ein vollständiger Pipeline-Test mit den ursprünglichen
+semantischen Kandidaten bleibt offen.
+
 `metrics.provisionalOwnerConsistency` bewertet ausschließlich vorläufig
 zugeordnete Elementpaare anhand unabhängiger exakter Besitzeranker. Die
 zugehörigen Eltern, Besitzer und vollständigen Containment-Pfade stehen unter
@@ -63,6 +288,76 @@ oder widersprüchliche Besitzeranker gelten als vorläufig verletzt; ungeklärte
 Besitzer bleiben offen. Das Intervall reicht von `satisfied / expected` bis
 `(satisfied + unresolved) / expected`; bei leerem Nenner sind beide Werte `null`.
 Diese Kennzahl bestätigt weder Zuordnungen noch strukturelle Korrektheit.
+Sie ist eine eingeschränkte Bestandskennzahl: Auch bei 100 % können offene
+Elemente oder besitzerabhängige Vorschläge Strukturabweichungen verdecken.
+
+`metrics.provisionalContainment` und `provisionalContainmentEvidence` ergänzen
+eine separate, referenzbezogene Prüfung aller unmittelbaren `contains`-Kanten,
+einschließlich struktureller Zwischencontainer und nicht zugeordneter Knoten.
+Jede Beziehung enthält Quell- und Ziel-ID, Rolle, zugehörige Abgabe-IDs und
+Eltern, vollständige Pfade, Zuordnungsgrundlagen, Abhängigkeiten, Status und
+Entscheidungsgrundlage. `referenceRelationCount` ist der vollständige Nenner;
+`satisfied + violated + unresolved` entspricht diesem Wert. Das Intervall
+reicht von `satisfied / referenceRelationCount` bis
+`(satisfied + unresolved) / referenceRelationCount`; bei leerem Nenner sind
+beide Grenzen `null`.
+
+Nur unabhängige exakte Elementanker können eine Beziehung als erfüllt oder
+verletzt belegen. Besitzerabhängige, semantisch gewählte oder fehlende
+Elementzuordnungen sowie mehrdeutige oder zyklische Pfade bleiben offen.
+Ein struktureller Container kann anhand seiner eindeutigen Sprachdefinition
+und eines unabhängig zugeordneten übergeordneten Elements abgeleitet werden.
+Die eigene Beziehung des Containers zu diesem übergeordneten Element bleibt
+jedoch offen: Ihre Verwendung zur Herleitung wäre zirkuläre Evidenz. Dies gilt
+auch bei verschachtelten Containern. Vergleichbar sind unmittelbare Eltern;
+die gespeicherte Kantenrolle wird dokumentiert, aber nicht zusätzlich bewertet.
+Auch `satisfied` ist ausdrücklich keine bestätigte Identität oder Korrektheit.
+
+Reproduzierbarer lokaler Prüfstand mit den vorhandenen Modell-JSONs, Parser,
+v13-Elementvergleichsgruppen und vollständiger synthetischer Kandidatenmatrix
+aus den Parserlabels; ohne Synonymverfahren oder vollständigen Pipeline-Lauf.
+Die Bestandskennzahl in dieser Tabelle stammt aus der Messung vor der
+Kindevidenz-Erweiterung; für M08 beträgt sie danach 35 / 36:
+
+| Modell | Bisher: erfüllt / geprüft | Neu: erfüllt / verletzt / offen | Neu: Intervall |
+| --- | --- | --- | --- |
+| Referenz | 38 / 38 | 7 / 0 / 41 von 48 | 14,6–100 % |
+| M03 | 36 / 37 | 5 / 1 / 42 von 48 | 10,4–97,9 % |
+| M05 | 36 / 36 | 7 / 0 / 41 von 48 | 14,6–100 % |
+| M08 | 35 / 35 | 6 / 0 / 42 von 48 | 12,5–100 % |
+
+Die Intervalle sind wegen ungeklärter oder abhängiger Zuordnungen bewusst
+breit. Insbesondere weist M05 damit keine gesicherte perfekte Übereinstimmung
+aus; der Test allein beweist jedoch nicht, welche offenen Instanzen identisch
+sind. Die Zahlen sind keine Ergebnisse des früheren, nicht verfügbaren
+Workflow-Exports.
+
+`provisionalConnectionStructure` vergleicht Verbindungsrelationen anhand der
+vorläufig zugeordneten Endpunkte, ohne Verbindungsidentitäten zu erzwingen.
+`byEndpoints` gruppiert nach ungeordnetem Endpunktpaar und enthält pro Seite
+die ursprünglichen Verbindungs-IDs, Endpunkte, Typen und Richtungen.
+`referenceOnlyCount` und `studentOnlyCount` beschreiben den Mengenüberschuss
+je Endpunktpaar. Ein veränderter Endpunkt erscheint damit als Überschuss auf
+beiden Seiten; daraus folgt keine Identität der betroffenen Verbindungen.
+
+Bei gleicher, positiver Anzahl vergleichen `directionStatus` und `typeStatus`
+die jeweiligen Multimengen (`equal`, `different` oder `not_evaluated`).
+Gerichtete Verbindungen berücksichtigen Quelle und Ziel, ungerichtete nicht.
+Konkrete Verbindungstypen werden nur bei bekannter, gleicher Sprachversion
+verglichen; Vergleichsgruppen ersetzen diesen Typvergleich nicht.
+`configurationStatus` vergleicht zusätzlich die Kombinationen aus Richtung
+und Typ, damit parallele Verbindungen nicht fälschlich als gleich erscheinen.
+Bei ungleichen Anzahlen oder unbekannten Metadaten bleibt die jeweilige
+Eigenschaft unausgewertet. Parallele Verbindungen werden nicht gepaart.
+
+`completeness` bezieht sich nur auf die Endpunktzuordnung der vorhandenen
+Verbindungen. Offene oder nicht vorläufig zugeordnete Endpunkte stehen in
+`unresolvedReferenceConnectionIds` beziehungsweise
+`unresolvedStudentConnectionIds` und setzen sie auf `partial`. Dann sind
+auch die Mengenüberschüsse nur Beobachtungen über den auswertbaren Teil und
+kein Nachweis fehlender oder zusätzlicher Verbindungen im Gesamtgraphen.
+Sämtliche Aussagen hängen von vorläufigen Elementzuordnungen ab; unveränderte
+Erkennungsquoten bleiben davon getrennt.
 
 Die Ausgabe bleibt partiell: `completeness.matching` ist `provisional`,
 `completeness.structuralComparison` ist `provisional_owner_and_connections` und

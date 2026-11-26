@@ -2,7 +2,7 @@
 
 from uuid import UUID
 from typing import Literal
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.responses import Response
 from modeling_api.routes.deps import CurrentBearer, CurrentUser, Skip, Limit
 from modeling_api.schemas.learning_paths import (
@@ -37,8 +37,15 @@ async def progress_access(user: CurrentUser):
 
 
 @router.get("/learning-path-progress", response_model=Page[PathProgressSummary])
-async def progress(user: CurrentUser, token: CurrentBearer, skip: Skip = 0, limit: Limit = 100):
-    return await learning_path_progress.list_progress(user, skip, limit, token=token)
+async def progress(
+    user: CurrentUser,
+    token: CurrentBearer,
+    skip: Skip = 0,
+    limit: Limit = 100,
+    template_id: UUID | None = Query(default=None, alias="templateId"),
+    include_staff: bool = Query(default=True, alias="includeStaff", description="Include runs of administrators and moderators."),
+):
+    return await learning_path_progress.list_progress(user, skip, limit, token=token, template_id=template_id, include_staff=include_staff)
 
 
 @router.get("/learning-path-progress/{run_id}", response_model=PathProgressDetail)
@@ -100,6 +107,11 @@ async def cancel_help(run_id: UUID, step_id: UUID, request_id: UUID, user: Curre
 @router.put("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}/markings", response_model=HelpRequest)
 async def help_markings(run_id: UUID, step_id: UUID, request_id: UUID, body: HelpMarkings, user: CurrentUser):
     return await help_requests.save_markings(run_id, step_id, request_id, body, user)
+
+
+@router.post("/learning-path-runs/{run_id}/steps/{step_id}/help-requests/{request_id}/markings/reopen", response_model=HelpRequest)
+async def reopen_help_markings(run_id: UUID, step_id: UUID, request_id: UUID, user: CurrentUser):
+    return await help_requests.reopen_markings(run_id, step_id, request_id, user)
 
 
 HelpSurveyPhase = Literal["topic", "reflection", "action"]

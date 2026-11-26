@@ -576,6 +576,7 @@ export const useModelWorkspaceStore = defineStore('modelWorkspace', () => {
     baseReleaseId,
     pendingPatches,
     rebaseOnVersion,
+    rememberRelease,
     canRelease,
     editorLanguages,
     taskReference,

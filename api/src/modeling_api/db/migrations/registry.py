@@ -84,4 +84,44 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v13_language_comparison_groups.migration",
         ("12_laboratory_management",),
     ),
+    Migration(
+        "14_laboratory_structure_models",
+        "modeling_api.db.migrations.versions.v14_laboratory_structure_models.migration",
+        ("13_language_comparison_groups",),
+    ),
+    Migration(
+        "15_laboratory_synonym_models",
+        "modeling_api.db.migrations.versions.v15_laboratory_synonym_models.migration",
+        ("14_laboratory_structure_models",),
+    ),
+    Migration(
+        "16_completion_score_categories",
+        "modeling_api.db.migrations.versions.v16_completion_score_categories.migration",
+        ("15_laboratory_synonym_models",),
+    ),
+    Migration(
+        "17_help_feedback_quotas",
+        "modeling_api.db.migrations.versions.v17_help_feedback_quotas.migration",
+        ("16_completion_score_categories",),
+    ),
+    Migration(
+        "18_game_development",
+        "modeling_api.db.migrations.versions.v18_game_development.migration",
+        ("17_help_feedback_quotas",),
+    ),
+    Migration(
+        "19_initialize_dashboard",
+        "modeling_api.db.migrations.versions.v19_initialize_dashboard.migration",
+        ("18_game_development",),
+    ),
+    Migration(
+        "20_remove_user_profiles",
+        "modeling_api.db.migrations.versions.v20_remove_user_profiles.migration",
+        ("19_initialize_dashboard",),
+    ),
+    Migration(
+        "21_task_help_feedback",
+        "modeling_api.db.migrations.versions.v21_task_help_feedback.migration",
+        ("20_remove_user_profiles",),
+    ),
 )

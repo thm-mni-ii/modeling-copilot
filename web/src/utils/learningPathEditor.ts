@@ -39,7 +39,11 @@ export const validatePathSteps = (steps: PathStep[]): Record<string, string[]> =
     if (!step.title.trim() || step.title.length > 256) add(step.id, 'Enter a step title of up to 256 characters.')
     if (step.type !== 'survey' && (!step.taskVersion?.taskId || !step.taskVersion?.versionId)) add(step.id, 'Select a published task release.')
     if (step.type === 'survey' && !step.surveyId) add(step.id, 'Select a published questionnaire release.')
+    if (step.helpFeedback && (step.type === 'survey' || Object.values(step.helpFeedback).some((value) => value !== null && (!Number.isInteger(value) || value < 0 || value > 100)))) add(step.id, 'Feedback limits must be whole numbers between 0 and 100, or unlimited, for a task.')
     if (step.minimumScorePercent != null && (step.type === 'survey' || !Number.isFinite(step.minimumScorePercent) || step.minimumScorePercent < 0 || step.minimumScorePercent > 100)) add(step.id, 'Enter a minimum evaluation score between 0 and 100 for a task.')
+    const categories = step.categoryMinimums ?? []
+    if (categories.some((row) => !row.label.trim() || !Number.isFinite(row.minimumPercent) || row.minimumPercent < 0 || row.minimumPercent > 100)) add(step.id, 'Enter a category name and a minimum between 0 and 100 for each category minimum.')
+    if (new Set(categories.map((row) => row.label.trim())).size !== categories.length) add(step.id, 'Each category may only have one minimum.')
     for (const condition of step.unlock.conditions) {
       const source = steps.find((item) => item.id === condition.stepId)
       if (source?.type === 'survey' && source.required === false) add(step.id, 'Optional questionnaires cannot be prerequisites.')

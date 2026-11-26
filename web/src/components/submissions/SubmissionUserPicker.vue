@@ -1,5 +1,5 @@
 <template>
-  <v-autocomplete :model-value="modelValue" v-model:search="search" :items="items" item-value="id" :item-title="userTitle" :label="label" multiple chips closable-chips :loading="busy" :error-messages="error" no-filter clearable @update:model-value="emit('update:modelValue', $event ?? [])" />
+  <v-autocomplete v-model:search="search" :model-value="modelValue" :items="items" item-value="id" :item-title="userTitle" :label="label" hint="Search by user ID" persistent-hint multiple chips closable-chips :loading="busy" :error-messages="error" no-filter clearable @update:model-value="emit('update:modelValue', $event ?? [])" />
 </template>
 
 <script setup lang="ts">
@@ -12,7 +12,7 @@ const search = ref('')
 const items = ref<DirectoryUser[]>([])
 const busy = ref(false)
 const error = ref('')
-const userTitle = (user: DirectoryUser) => `${user.name} (${user.id})`
+const userTitle = (user: DirectoryUser) => user.name && user.name !== user.id ? `${user.name} (${user.id})` : user.id
 let timer: ReturnType<typeof setTimeout> | undefined
 let generation = 0
 watch(
