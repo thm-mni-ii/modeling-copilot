@@ -10,6 +10,8 @@ from copy import deepcopy
 from typing import Any
 from uuid import UUID, uuid4
 
+from fastapi.encoders import jsonable_encoder
+
 from modeling_api.core.auth import User
 from modeling_api.core.errors import ApiError, not_found
 from modeling_api.db.client import db
@@ -280,9 +282,10 @@ async def _evaluation_input(
     graph_matching = config.setdefault("graphMatching", {})
     if not isinstance(graph_matching, dict):
         raise ApiError(422, "INVALID_COMPARISON_CONFIG", "graphMatching must be a JSON object.")
-    return {"schemaVersion": 1, "schema": "evaluation-input/v1", "evaluationId": evaluation_id,
-            "task": task, "models": models, "languages": definitions,
-            "comparisonConfig": config}, descriptors
+    # Every caller serialises the bundle; stored snapshots still carry MongoDB datetimes (task edits).
+    return jsonable_encoder({"schemaVersion": 1, "schema": "evaluation-input/v1", "evaluationId": evaluation_id,
+                             "task": task, "models": models, "languages": definitions,
+                             "comparisonConfig": config}), descriptors
 
 
 async def start(model_id: UUID, user: User, *, text_evidence: dict | None = None, help_request_id: UUID | None = None,
