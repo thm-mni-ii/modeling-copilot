@@ -1,6 +1,7 @@
 import type { Cell } from '@maxgraph/core'
 import type { DiagramConnection } from '@/model/Connection'
 import type { DiagramElement } from '@/model/Element'
+import type { ComparisonGroup } from '@/model/DiagramLanguage'
 import type { EdgeCardinality, MultiplicityCardinality, MultiplicityConfig, MultiplicityRelation } from '@/model/Syntax'
 import { DEFAULT_CONNECTION_MESSAGE_TEMPLATES, renderEndpointMessage, renderValidationIssue, resolveQuantityMessage, type ValidationIssue } from './syntaxMessages'
 import { elementTypeOf, endpointId, matchesEndpoint, pointId, pointLabel, pointsOf } from './connectionPoints'
@@ -14,6 +15,8 @@ export interface ConnectionEndpointContext {
 export interface ConnectionRuleContext extends ConnectionEndpointContext {
   config: MultiplicityConfig
   scopeElementTypes?: string[]
+  /** Comparison Groups der Sprache, für Gruppen-Limits */
+  comparisonGroups?: ComparisonGroup[]
 }
 
 export const connectionTypeOf = (edge: Cell): string => (edge as any).connectionId ?? ''
@@ -66,7 +69,8 @@ const countRelation = (context: ConnectionRuleContext, relation: EffectiveRelati
   }).length
 }
 
-const matchingEndIds = (context: ConnectionRuleContext, rule: EdgeCardinality, edge: Cell, source: Cell, target: Cell, cell: Cell): (string | null)[] => {
+/** through: Nachbarn, die Pass-through-Mitglieder sind, durch die Elemente dahinter ersetzen */
+const matchingEndIds = (context: ConnectionRuleContext, rule: EdgeCardinality, edge: Cell, source: Cell, target: Cell, cell: Cell, through = false): (string | null)[] => {
   if (!selectedType(rule.connectionTypes, edge)) return []
   const direction = rule.direction ?? 'incoming'
   const result: (string | null)[] = []
@@ -75,7 +79,8 @@ const matchingEndIds = (context: ConnectionRuleContext, rule: EdgeCardinality, e
     const neighbor = sourceEnd ? target : source
     if (terminal !== cell) continue
     if (!isUndirected(context, edge) && direction !== 'both' && (direction === 'outgoing') !== sourceEnd) continue
-    if (rule.neighborTypes?.length && !rule.neighborTypes.includes(elementTypeOf(neighbor) ?? '')) continue
+    const neighbors = through ? throughEnds(context, neighbor, sourceEnd, edge) : [neighbor]
+    if (rule.neighborTypes?.length && !neighbors.some((end) => rule.neighborTypes!.includes(elementTypeOf(end) ?? ''))) continue
     const id = endpointId(edge, sourceEnd, cell, pointsFor(context, cell))
     if (matchesEndpoint(rule.endpoints, id, pointsFor(context, cell))) result.push(id)
   }
@@ -133,29 +138,56 @@ const limitIssues = (context: ConnectionRuleContext, cell: Cell, candidate?: { e
   for (const rule of context.config.incoming ?? []) {
     if (!rule.elementType && context.scopeElementTypes && !context.scopeElementTypes.includes(elementTypeOf(cell) ?? '')) continue
     if (rule.elementType && rule.elementType !== elementTypeOf(cell)) continue
-    for (const bucket of buckets(context, rule, cell)) {
-      const count = incidentEdges(cell).filter((edge) => {
-        if (edge === candidate?.edge || edge === (candidate?.edge as any)?.replacesEdge) return false
-        const [source, target] = ends(edge)
-        return source && target && matchingEndIds(context, rule, edge, source, target, cell).some(bucket.matches)
-      }).length
-      const addition = candidate && matchingEndIds(context, rule, candidate.edge, candidate.source, candidate.target, cell).some(bucket.matches) ? 1 : 0
-      if ((!candidate || addition) && outside(count + addition, rule.cardinality, minimum)) {
-        const template = resolveQuantityMessage(context.config.messageTemplate)
-        const type = elementTypeOf(cell) ?? '*'
-        const neighbors = rule.neighborTypes?.length ? rule.neighborTypes.join(', ') : '*'
-        const direction = rule.direction ?? 'incoming'
-        const displayedDirection = displayDirection(context, direction, rule.connectionTypes ?? [])
-        const eitherEnd = neighbors === '*' ? '*' : [...new Set([type, ...rule.neighborTypes ?? []])].join(', ')
-        const eitherDirection = direction === 'both' || displayedDirection !== direction
-        const values: Record<string, string | number> = { source: eitherDirection ? eitherEnd : direction === 'incoming' ? neighbors : type, target: eitherDirection ? eitherEnd : direction === 'incoming' ? type : neighbors, connection: rule.connectionTypes?.length ? rule.connectionTypes.join(', ') : '*', min: rule.cardinality.min, max: rule.cardinality.max ?? '*' }
-        const selectedPoints = selectorDescription(context, type, rule.endpoints)
-        errors.push({
-          kind: 'quantity', code: count + addition < rule.cardinality.min ? 'quantity.minimum' : 'quantity.maximum', cell, template,
-          values: { ...values, count: count + addition, direction: displayedDirection, point: rule.countScope === 'point' || rule.countScope === 'group' ? bucket.label : selectedPoints || '*', scope: rule.countScope ?? 'element', route: '-' },
-          quantity: { count: count + addition, bounds: rule.cardinality, scope: rule.countScope ?? 'element', direction: displayedDirection, connections: connectionNames(context, rule.connectionTypes ?? []), neighbors: elementNames(context, rule.neighborTypes ?? []), point: bucket.label, details: rule.countScope === 'element' || !rule.countScope ? selectedPoints && `at selected points or groups: ${selectedPoints}` : '', proposed: Boolean(candidate && !candidate.edge.getParent()) }
-        })
-      }
+    errors.push(...ruleIssues(context, rule, cell, candidate, minimum))
+  }
+  return [...errors, ...branchingIssues(context, cell, candidate, minimum)]
+}
+
+/** Jedes Mitglied einer verzweigenden Gruppe muss mindestens eine Form erfüllen; sonst zählen die Verstöße der Form mit den wenigsten */
+const branchingIssues = (context: ConnectionRuleContext, cell: Cell, candidate?: { edge: Cell; source: Cell; target: Cell }, minimum = false): ValidationIssue[] => {
+  const type = elementTypeOf(cell) ?? ''
+  const errors: ValidationIssue[] = []
+  for (const group of context.comparisonGroups ?? []) {
+    if (!group.branching?.forms.length || !group.elementTypes?.includes(type)) continue
+    // Eine Form wird nur als Ganzes beurteilt, daher auch Regeln prüfen, die die neue Verbindung nicht berührt
+    const perForm = group.branching.forms.map((form) => {
+      // Leerer Filter zählt alle Verbindungstypen (selectedType)
+      const connectionTypes = form.connectionTypes
+      const rules: EdgeCardinality[] = [{ elementType: type, direction: 'incoming', connectionTypes, cardinality: form.incoming }, { elementType: type, direction: 'outgoing', connectionTypes, cardinality: form.outgoing }]
+      if (form.notAfter?.[type]?.length) rules.push({ elementType: type, direction: 'incoming', connectionTypes, neighborTypes: form.notAfter[type], cardinality: { min: 0, max: 0 } })
+      // Nur die Ausnahme (neighborTypes) schaut durch Pass-through-Mitglieder; ein Vorgänger dahinter genügt
+      return rules.flatMap((rule) => ruleIssues(context, rule, cell, candidate, minimum, true, !!rule.neighborTypes))
+    })
+    if (perForm.some((issues) => !issues.length)) continue
+    errors.push(...perForm.reduce((best, issues) => (issues.length < best.length ? issues : best)))
+  }
+  return errors
+}
+
+const ruleIssues = (context: ConnectionRuleContext, rule: EdgeCardinality, cell: Cell, candidate?: { edge: Cell; source: Cell; target: Cell }, minimum = false, whole = false, through = false): ValidationIssue[] => {
+  const errors: ValidationIssue[] = []
+  for (const bucket of buckets(context, rule, cell)) {
+    const count = incidentEdges(cell).filter((edge) => {
+      if (edge === candidate?.edge || edge === (candidate?.edge as any)?.replacesEdge) return false
+      const [source, target] = ends(edge)
+      return source && target && matchingEndIds(context, rule, edge, source, target, cell, through).some(bucket.matches)
+    }).length
+    const addition = candidate && matchingEndIds(context, rule, candidate.edge, candidate.source, candidate.target, cell, through).some(bucket.matches) ? 1 : 0
+    if ((!candidate || addition || whole) && outside(count + addition, rule.cardinality, minimum)) {
+      const template = resolveQuantityMessage(context.config.messageTemplate)
+      const type = elementTypeOf(cell) ?? '*'
+      const neighbors = rule.neighborTypes?.length ? rule.neighborTypes.join(', ') : '*'
+      const direction = rule.direction ?? 'incoming'
+      const displayedDirection = displayDirection(context, direction, rule.connectionTypes ?? [])
+      const eitherEnd = neighbors === '*' ? '*' : [...new Set([type, ...rule.neighborTypes ?? []])].join(', ')
+      const eitherDirection = direction === 'both' || displayedDirection !== direction
+      const values: Record<string, string | number> = { source: eitherDirection ? eitherEnd : direction === 'incoming' ? neighbors : type, target: eitherDirection ? eitherEnd : direction === 'incoming' ? type : neighbors, connection: rule.connectionTypes?.length ? rule.connectionTypes.join(', ') : '*', min: rule.cardinality.min, max: rule.cardinality.max ?? '*' }
+      const selectedPoints = selectorDescription(context, type, rule.endpoints)
+      errors.push({
+        kind: 'quantity', code: count + addition < rule.cardinality.min ? 'quantity.minimum' : 'quantity.maximum', cell, template,
+        values: { ...values, count: count + addition, direction: displayedDirection, point: rule.countScope === 'point' || rule.countScope === 'group' ? bucket.label : selectedPoints || '*', scope: rule.countScope ?? 'element', route: '-' },
+        quantity: { count: count + addition, bounds: rule.cardinality, scope: rule.countScope ?? 'element', direction: displayedDirection, connections: connectionNames(context, rule.connectionTypes ?? []), neighbors: elementNames(context, rule.neighborTypes ?? []), point: bucket.label, details: rule.countScope === 'element' || !rule.countScope ? selectedPoints && `at selected points or groups: ${selectedPoints}` : '', proposed: Boolean(candidate && !candidate.edge.getParent()) }
+      })
     }
   }
   return errors
@@ -194,6 +226,51 @@ export const connectionEndpointErrors = (context: ConnectionEndpointContext, edg
   return [...new Set(errors)]
 }
 
+/** Elementtypen aus Gruppen mit Pass-through */
+const passThroughTypes = (context: ConnectionRuleContext): string[] => (context.comparisonGroups ?? []).filter((group) => group.passThrough).flatMap((group) => group.elementTypes ?? [])
+
+/** Elements behind a transparent element, following the connection direction (forward) or against it. */
+const throughEnds = (context: ConnectionRuleContext, cell: Cell, forward: boolean, edge: Cell): Cell[] => {
+  const types = passThroughTypes(context)
+  if (!types.includes(elementTypeOf(cell) ?? '')) return [cell]
+  const result = new Set<Cell>()
+  const seen = new Set<Cell>([cell])
+  const stack = [cell]
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    for (const next of incidentEdges(current)) {
+      if (next === edge || next === (edge as any).replacesEdge) continue
+      const [from, to] = ends(next)
+      const neighbor = forward ? (from === current ? to : null) : to === current ? from : null
+      if (!neighbor || neighbor.isEdge() || !elementTypeOf(neighbor) || seen.has(neighbor)) continue
+      if (types.includes(elementTypeOf(neighbor) ?? '')) {
+        seen.add(neighbor)
+        stack.push(neighbor)
+      } else result.add(neighbor)
+    }
+  }
+  return [...result]
+}
+
+/** The matrix forbids the pair, either explicitly or through the default state. */
+const pairForbidden = (context: ConnectionRuleContext, from: Cell, to: Cell): boolean => {
+  const relations = context.config.relations.filter((r) => r.sourceType === elementTypeOf(from) && r.targetType === elementTypeOf(to))
+  const inScope = !context.scopeElementTypes || [from, to].every((cell) => context.scopeElementTypes!.includes(elementTypeOf(cell) ?? ''))
+  return relations.some((r) => r.state === 'forbidden') || (!relations.length && inScope && context.config.defaultState === 'forbidden')
+}
+
+/** Pairs formed through transparent elements, e.g. event → AND → event; the direct pair is checked elsewhere. */
+const throughIssues = (context: ConnectionRuleContext, edge: Cell, source: Cell, target: Cell): ValidationIssue[] => {
+  const types = passThroughTypes(context)
+  if (!types.length || isUndirected(context, edge) || ![source, target].some((cell) => types.includes(elementTypeOf(cell) ?? ''))) return []
+  const template = context.config.forbiddenMessageTemplate?.trim() || DEFAULT_CONNECTION_MESSAGE_TEMPLATES.forbiddenMessageTemplate
+  return throughEnds(context, source, false, edge).flatMap((from) =>
+    throughEnds(context, target, true, edge)
+      .filter((to) => from !== to && !(from === source && to === target) && pairForbidden(context, from, to))
+      .map((to) => connectionIssue(context, 'connection.forbidden', template, from, to, edge))
+  )
+}
+
 export const connectionErrors = (context: ConnectionRuleContext, edge: Cell, source: Cell, target: Cell): string[] => {
   return [...new Set(connectionIssues(context, edge, source, target).map(renderValidationIssue))]
 }
@@ -222,6 +299,7 @@ export const connectionIssues = (context: ConnectionRuleContext, edge: Cell, sou
       if (outside(count, bounds, false)) errors.push(relationIssue(context, relation, cell, scope, bounds, count, scope === 'pair' ? to : undefined, !edge.getParent()))
     }
   }
+  errors.push(...throughIssues(context, edge, source, target))
   for (const cell of new Set([source, target])) errors.push(...limitIssues(context, cell, { edge, source, target }))
   return errors
 }

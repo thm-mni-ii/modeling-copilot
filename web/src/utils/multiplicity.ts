@@ -171,6 +171,8 @@ export interface ValidationLanguage {
   syntax: DiagramSyntax[]
   elements: DiagramElement[]
   connections: DiagramConnection[]
+  /** Liefert die Comparison Groups für Gruppen-Limits */
+  evaluation?: import('@/model/DiagramLanguage').DiagramEvaluationConfig
 }
 
 export const buildValidationRulesForLanguages = (languages: ValidationLanguage[]): DiagramValidationRule[] => {
@@ -185,7 +187,7 @@ export const buildValidationRulesForLanguages = (languages: ValidationLanguage[]
   const multiplicities = [new ConnectionMultiplicity({ config: { relations: [], messageTemplate: '' }, elements, connections, endpointConfigs }, true)]
   for (const language of languages) {
     for (const rule of language.syntax) {
-      if (rule.ruleType === 'multiplicity') multiplicities.push(new ConnectionMultiplicity({ config: rule.config, elements, connections, scopeElementTypes: language.elements.map((element) => element.type) }))
+      if (rule.ruleType === 'multiplicity') multiplicities.push(new ConnectionMultiplicity({ config: rule.config, elements, connections, scopeElementTypes: language.elements.map((element) => element.type), comparisonGroups: language.evaluation?.comparisonGroups ?? [] }))
     }
   }
   return [new MultiplicityValidationRule(multiplicities)]

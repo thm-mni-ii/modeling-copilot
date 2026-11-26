@@ -27,7 +27,7 @@
 
           <v-card-text>
             <div class="preview-canvas">
-              <DrawingCanvas ref="drawingCanvasRef" v-model:autonomy-mode="autonomyMode" :show-elements="previewSidebarVisible" :model="canvasModel" :language-elements="languageElementsForCanvas" :language-connections="languageConnectionsForCanvas" :language-syntax="syntaxRules" />
+              <DrawingCanvas ref="drawingCanvasRef" v-model:autonomy-mode="autonomyMode" :show-elements="previewSidebarVisible" :model="canvasModel" :language-elements="languageElementsForCanvas" :language-connections="languageConnectionsForCanvas" :language-syntax="syntaxRules" :language-evaluation="store.definition?.evaluation" />
             </div>
 
             <v-alert v-if="!selectedRule" type="info" variant="tonal" class="mt-3"> Select a Syntax definition to see a preview </v-alert>
