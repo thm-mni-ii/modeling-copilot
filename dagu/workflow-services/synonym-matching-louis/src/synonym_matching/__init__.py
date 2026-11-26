@@ -1,5 +1,11 @@
-"""Paarweises Label-Matching, unabhängig von Dagu und HTTP."""
+"""Ausgewählte Synonym-Matching-Pipeline für die produktive Übernahme."""
 
-from .service import MatchingEngine, match
+from .pipeline import MatchingPipeline
 
-__all__ = ["MatchingEngine", "match"]
+
+def match(reference, student, **options):
+    """Bequemer Einzelaufruf; bei mehreren Anfragen MatchingPipeline wiederverwenden."""
+    return MatchingPipeline(**options).match(reference, student)
+
+
+__all__ = ['MatchingPipeline', 'match']

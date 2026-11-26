@@ -1,18 +1,17 @@
-"""Bereite die drei Standardmodelle einmalig für spätere Offline-Aufrufe vor."""
+"""Genau das gewählte Embedding samt gepinnter Architektur vorbereiten."""
 
-from synonym_matching import MatchingEngine
+import argparse
+
+from synonym_matching.methods import MODELS, SentenceEmbedding
 
 
 def main():
-    """Lade und prüfe beide Embedding-Pfade inklusive DE→EN-Übersetzung."""
-    engine = MatchingEngine({
-        'methods': ['multilingual', 'translated_embedding'],
-    })
-    engine.match(
-        [{'id': 'r1', 'label': 'Kunde', 'language': 'de'}],
-        [{'id': 's1', 'label': 'Customer', 'language': 'en'}],
-    )
-    print('Standardmodelle für Embeddings und Übersetzung sind verfügbar.')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--model', choices=MODELS, default='jina_de')
+    args = parser.parse_args()
+    backend = SentenceEmbedding(args.model)
+    backend.load(allow_download=True)
+    print(backend.metadata())
 
 
 if __name__ == '__main__':

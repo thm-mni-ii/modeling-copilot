@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Synonym matrix output",
+  "title": "Standalone rule-based synonym matrix; no fabricated combinedScore",
   "type": "object",
   "required": [
     "synonymMatrix"
@@ -50,7 +50,8 @@
               "required": [
                 "submissionElement",
                 "scores",
-                "combinedScore"
+                "verdict",
+                "reason"
               ],
               "properties": {
                 "submissionElement": {
@@ -84,27 +85,26 @@
                 "scores": {
                   "type": "object",
                   "additionalProperties": {
-                    "type": "number",
-                    "minimum": -1,
-                    "maximum": 1
-                  },
-                  "patternProperties": {
-                    "^(wordnet|odenet)_(reference|student)_synset_count$": {
-                      "type": "number",
-                      "minimum": 0
-                    }
+                    "type": "number"
                   }
                 },
-                "combinedScore": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 1
+                "verdict": {
+                  "enum": [
+                    "confirmed",
+                    "open",
+                    "rejected",
+                    "not_evaluable"
+                  ]
+                },
+                "reason": {
+                  "type": "string"
                 }
               },
               "additionalProperties": false
             }
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
   },

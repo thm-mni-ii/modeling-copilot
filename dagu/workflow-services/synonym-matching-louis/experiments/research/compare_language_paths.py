@@ -155,9 +155,9 @@ def run(config):
         'embedding':states['multilingual'].resource_metadata(),'translation_revision':translator.revision,
         'source_hashes':{str(p):sha256(p) for p in [source,Path(__file__),Path(__file__).with_name('decision_tree.py'),
             ROOT/'src/synonym_matching/lexicons.py',ROOT/'src/synonym_matching/translation.py',
-            ROOT.parent/'synonym-matching/src/synonym_matching/preprocessing.py',
-            ROOT.parent/'synonym-matching/src/synonym_matching/methods/registry.py',
-            ROOT.parent/'one-to-one-graph-matching/src/text_similarity.py']},
+            ROOT.parent.parent/'synonym-matching/src/synonym_matching/preprocessing.py',
+            ROOT.parent.parent/'synonym-matching/src/synonym_matching/methods/registry.py',
+            ROOT.parent.parent/'one-to-one-graph-matching/src/text_similarity.py']},
         'policy':'Synthetic matched DE/EN versions, 27 cases/62 pair occurrences, not independent validation. '
                  'No input language attribute or detection: route fixed by experimental group. '
                  'Lexicon lookup on normalized whole labels, no extra stemming or abbreviation expansion. '

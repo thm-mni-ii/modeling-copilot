@@ -1,10 +1,6 @@
 """Lokale Synonymlexika ohne Netzwerkzugriff während des Matchings."""
 
-import re
-from collections import defaultdict
 from pathlib import Path
-
-import numpy as np
 
 from .preprocessing import normalize
 
@@ -13,11 +9,6 @@ RELATION_FEATURES = (
     'pair_known', 'reference_synset_count', 'student_synset_count',
     'reference_hypernym', 'reference_hyponym', 'antonym',
     'path_similarity', 'wup_similarity', 'taxonomy_available',
-)
-# Nur bekannte Registerangaben entfernen, keine beliebigen Klammerausdrücke.
-REGISTER_SUFFIX = re.compile(
-    r'\s*\((?:ugs\.|fachspr\.|geh\.|Hauptform|Nebenform|veraltet|derb|'
-    r'salopp|regional|österr\.|schweiz\.)[^()]*\)\s*$'
 )
 
 
@@ -52,9 +43,8 @@ class WordNet:
         """Öffne nur lokale Daten; Englisch bekommt zusätzlich Morphy."""
         import wn
 
-        command = '--wordnet' if self.language == 'en' else '--odenet'
         message = (f'{type(self).__name__} missing ({self.version}): '
-                   f'run python scripts/download_lexicons.py {command}')
+                   'run PYTHONPATH=src python scripts/download_lexicons.py')
         if not (self.path / 'wn.db').is_file():
             raise FileNotFoundError(message)
         wn.config.data_directory = self.path.resolve()
@@ -172,41 +162,6 @@ class WordNet:
                     values['taxonomy_available'] = 1.0
         return values
 
-    def relation_features(self, left, right, names):
-        """Liefere Evidenzmatrizen, keine zusätzlichen Similarity-Scores.
-
-        Binärwerte bedeuten Existenz bei mindestens einer Lesart; 0 kann auch
-        fehlende Abdeckung bedeuten. Synsetanzahlen sind unskalierte Zählwerte.
-        """
-        if (not names or len(names) != len(set(names)) or set(names) - set(RELATION_FEATURES)):
-            raise ValueError('unknown, empty or duplicate relation_features')
-        result = {name: np.zeros((len(left), len(right))) for name in names}
-        if not left or not right:
-            return result
-        profiles = {text: self._relation_profile(text) for text in set(left + right)}
-        for i, reference in enumerate(left):
-            for j, student in enumerate(right):
-                a, b = profiles[reference], profiles[student]
-                values = {
-                    'pair_known': bool(a['synsets'] and b['synsets']),
-                    'reference_synset_count': len(a['synsets']),
-                    'student_synset_count': len(b['synsets']),
-                    'reference_hypernym': bool(a['synsets'] & b['ancestors']),
-                    'reference_hyponym': bool(a['ancestors'] & b['synsets']),
-                    'antonym': bool(a['antonym_synsets'] & b['synsets']
-                                    or b['antonym_synsets'] & a['synsets']
-                                    or a['antonym_senses'] & b['senses']
-                                    or b['antonym_senses'] & a['senses']),
-                }
-                if set(names) & {'path_similarity', 'wup_similarity', 'taxonomy_available'}:
-                    values.update(self._taxonomy_similarity(a, b))
-                for name in names:
-                    result[name][i, j] = values[name]
-        return result
-
-    def matrix(self, left, right):
-        """Liefere 1 bei gemeinsamem Synset, sonst 0; Unbekanntes ist keine Evidenz."""
-        return synonym_matrix(left, right, self.lookup)
 
 
 class OdeNet(WordNet):
@@ -235,97 +190,82 @@ class OdeNet(WordNet):
         return self.form_cache[text]
 
 
-class OpenThesaurus:
-    """Suche deutsche Labels in den Synonymgruppen des Text-Exports."""
+class LexiconMatcher:
+    """OdeNet zuerst, danach Lingua/WordNet; englische Synsets verbinden Quellen.
 
-    def __init__(self, path=None):
-        """Merke den Dateipfad; der Export wird bei Bedarf einmal eingelesen."""
-        self.path = Path(path) if path else DATA_DIR / 'openthesaurus.txt'
-        self.groups = None
-
-    def _load(self):
-        """Baue einen Index von Labels auf ihre Gruppennummern auf."""
-        groups = defaultdict(set)
-        with self.path.open(encoding='utf-8-sig') as stream:
-            for index, line in enumerate(stream):
-                if not line.strip() or line.lstrip().startswith('#'):
-                    continue
-                if ';' not in line:
-                    continue
-                # Eine Exportzeile ist eine Gruppe, Semikolons trennen Wörter.
-                for term in line.strip().split(';'):
-                    term = key(REGISTER_SUFFIX.sub('', term))
-                    if term:
-                        groups[term].add(index)
-        if not groups:
-            raise ValueError('OpenThesaurus file contains no synonym groups')
-        self.groups = dict(groups)
-
-    def lookup(self, text):
-        """Liefere die Gruppen des Labels, ohne Gruppen transitiv zu verbinden."""
-        text = key(text)
-        if not text:
-            return frozenset()
-        if self.groups is None:
-            self._load()
-        return self.groups.get(text, frozenset())
-
-    def matrix(self, left, right):
-        """Vergleiche alle Labelpaare anhand gemeinsamer Synonymgruppen."""
-        return synonym_matrix(left, right, self.lookup)
-
-
-def semantic_features(backend, left, right, names, shared):
-    """Erzeuge dieselben Bedeutungsmerkmale für Service und Forschung.
-
-    Abdeckung bleibt separat sichtbar, auch wenn keine Relation gefunden wird.
-    OpenThesaurus hat nur Gruppen; dafür werden keine Taxonomierelationen erfunden.
+    Nur die Originalbezeichnung wird zur Spracherkennung verwendet. Explizite
+    language-Felder sind weder erforderlich noch Entscheidungsgrundlage.
     """
-    shape = (len(left), len(right))
-    result = {name: np.zeros(shape) for name in ('reference_known', 'student_known', 'pair_known')}
-    if left and right:
-        if isinstance(backend, dict):
-            coverage = backend['coverage']
-            reference_known = np.array([e['source_synset_count'] > 0 for e in coverage['reference']])[:, None]
-            student_known = np.array([e['source_synset_count'] > 0 for e in coverage['student']])[None, :]
-            reference_linked = np.array([e['english_synset_count'] > 0 for e in coverage['reference']])[:, None]
-            student_linked = np.array([e['english_synset_count'] > 0 for e in coverage['student']])[None, :]
-            result['reference_linked'] = np.broadcast_to(reference_linked, shape).astype(float)
-            result['student_linked'] = np.broadcast_to(student_linked, shape).astype(float)
-        else:
-            known = {text: bool(backend.lookup(text)) for text in set(left + right)}
-            reference_known = np.array([known[text] for text in left])[:, None]
-            student_known = np.array([known[text] for text in right])[None, :]
-        result['reference_known'] = np.broadcast_to(reference_known, shape).astype(float)
-        result['student_known'] = np.broadcast_to(student_known, shape).astype(float)
-        result['pair_known'] = (reference_known & student_known).astype(float)
-    if isinstance(backend, WordNet):
-        requested = list(names)
-        if {'path_similarity', 'wup_similarity'} & set(requested) and 'taxonomy_available' not in requested:
-            requested.append('taxonomy_available')
-        if requested:
-            result.update(backend.relation_features(left, right, requested))
-        result['shared_synset'] = shared
-    elif isinstance(backend, dict):
-        result['shared_synset'] = shared
-    else:
-        result['shared_group'] = shared
-    return result
 
+    def __init__(self, path=None, minimum_relative_distance=.2):
+        self.backends = {'de': OdeNet(path), 'en': WordNet(path)}
+        self.minimum_relative_distance = minimum_relative_distance
+        self.detector = None
+        self.languages, self.linked = {}, {}
 
-def synonym_matrix(left, right, lookup):
-    """Liefere 1 bei gemeinsamem Eintrag, sonst 0; unbekannt ist keine Evidenz."""
-    matrix = np.zeros((len(left), len(right)))
-    if not left or not right:
-        return matrix
+    def detect(self, text):
+        """Einmal pro eindeutigem Originaltext zwischen DE und EN entscheiden."""
+        if text not in self.languages:
+            if self.detector is None:
+                from lingua import Language, LanguageDetectorBuilder
+                self.detector = (LanguageDetectorBuilder.from_languages(Language.GERMAN, Language.ENGLISH)
+                    .with_minimum_relative_distance(self.minimum_relative_distance).build())
+            result = self.detector.detect_language_of(text) if text.strip() else None
+            self.languages[text] = result.iso_code_639_1.name.lower() if result else None
+        return self.languages[text]
 
-    # Mehrfach vorkommende Labels müssen nur einmal nachgeschlagen werden.
-    entries = {}
-    for text in left + right:
-        if text not in entries:
-            entries[text] = lookup(text)
-    for row, reference_text in enumerate(left):
-        for column, student_text in enumerate(right):
-            common_entries = entries[reference_text] & entries[student_text]
-            matrix[row, column] = float(bool(common_entries))
-    return matrix
+    def route(self, original, text, mode):
+        """Ein OdeNet-Eintrag wählt DE, ohne daraus die gemeinte Lesart abzuleiten."""
+        if mode == 'odenet' or self.backends['de'].lookup(text):
+            return 'de'
+        return 'en' if self.detect(original) == 'en' else None
+
+    def profile(self, text, language, *, linked=False):
+        """Verknüpfte Profile ausschließlich aus nativen wn-Relationen aufbauen."""
+        if language is None:
+            return {'synsets': frozenset(), 'nodes': [], 'ancestors': set(),
+                    'antonym_synsets': set(), 'senses': set(), 'antonym_senses': set()}
+        source = self.backends[language]
+        original = source._relation_profile(text)
+        if not linked or language == 'en':
+            return original
+        if text not in self.linked:
+            english = self.backends['en']
+            if english.reader is None:
+                english._load()
+            ids = source.translate(text)
+            nodes = [english.reader.synset(identifier) for identifier in ids]
+            senses = {sense.id: sense for identifier in original['senses']
+                      for sense in source.reader.sense(identifier).translate(lexicon=english.version)}
+            self.linked[text] = {'synsets': ids, 'nodes': nodes,
+                'ancestors': {a.id for node in nodes for a in node.closure('hypernym', 'instance_hypernym')
+                              if a.id != node.id},
+                'antonym_synsets': {a.id for node in nodes for a in node.relations('antonym').get('antonym', [])},
+                'senses': set(senses), 'antonym_senses': {a.id for sense in senses.values()
+                    for a in sense.relations('antonym').get('antonym', [])}}
+        return self.linked[text]
+
+    def pair_features(self, first, second, language_a, language_b, *, mode='odenet_linked'):
+        """Numerische Abdeckung, Relationen und diagnostische Taxonomiewerte."""
+        original_a, original_b = self.profile(first, language_a), self.profile(second, language_b)
+        cross = bool(language_a and language_b and language_a != language_b)
+        comparable = bool(language_a and language_b and (not cross or mode == 'odenet_linked'))
+        a, b = original_a, original_b
+        if cross and comparable:
+            a, b = self.profile(first, language_a, linked=True), self.profile(second, language_b, linked=True)
+        known = bool(comparable and a['synsets'] and b['synsets'])
+        values = {'reference_known': float(bool(original_a['synsets'])),
+            'student_known': float(bool(original_b['synsets'])), 'pair_known': float(known),
+            'reference_synset_count': float(max(len(original_a['synsets']), len(a['synsets']))),
+            'student_synset_count': float(max(len(original_b['synsets']), len(b['synsets']))),
+            'reference_linked': float(bool(comparable and a['synsets'])),
+            'student_linked': float(bool(comparable and b['synsets'])), 'cross_language': float(cross),
+            'shared_synset': float(known and bool(a['synsets'] & b['synsets'])),
+            'reference_hypernym': float(known and bool(a['synsets'] & b['ancestors'])),
+            'reference_hyponym': float(known and bool(a['ancestors'] & b['synsets'])),
+            'antonym': float(known and bool(a['antonym_synsets'] & b['synsets'] or b['antonym_synsets'] & a['synsets']
+                or a['antonym_senses'] & b['senses'] or b['antonym_senses'] & a['senses'])),
+            'path_similarity': 0., 'wup_similarity': 0., 'taxonomy_available': 0.}
+        if known:
+            values.update(self.backends['en']._taxonomy_similarity(a, b))
+        return values

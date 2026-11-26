@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
 SOURCE = (
-    HERE.parents[3] / 'api/src/modeling_api/db/migrations/versions/v00_initial_data'
+    HERE.parents[4] / 'api/src/modeling_api/db/migrations/versions/v00_initial_data'
     / 'order_management_sample_solution.json'
 )
 
@@ -109,7 +109,7 @@ def build():
         add(number, title, left, right, [(0, 1)])
         cases[-1]['hard_negative'] = True
     return original, dict(
-        version=1, provenance={'source': str(SOURCE.relative_to(HERE.parents[3])),
+        version=1, provenance={'source': str(SOURCE.relative_to(HERE.parents[4])),
                               'source_sha256': hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
                               'synthetic': True},
         purpose=('Fixed-threshold diagnostic cases, '

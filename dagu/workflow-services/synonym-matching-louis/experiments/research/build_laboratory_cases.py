@@ -11,7 +11,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
-REPOSITORY = HERE.parents[3]
+REPOSITORY = HERE.parents[4]
 SOURCE = REPOSITORY / 'api/src/modeling_api/db/migrations/versions/v12_laboratory_management'
 VARIANTS = {
     'spelling': 'Schreibweise',

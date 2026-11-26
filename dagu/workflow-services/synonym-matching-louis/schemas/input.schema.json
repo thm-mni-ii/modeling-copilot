@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "synonym-matching-louis input v0.2",
+  "title": "Standalone synonym research input (not semantic-candidates/v1)",
   "type": "object",
   "required": [
     "input"
   ],
   "properties": {
     "step": {
-      "type": "string"
+      "const": "synonym_matching"
     },
     "input": {
       "type": "object",
@@ -17,70 +17,143 @@
       ],
       "properties": {
         "referenceModel": {
-          "$ref": "#/definitions/model"
+          "type": "object",
+          "required": [
+            "elements"
+          ],
+          "properties": {
+            "elements": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "label"
+                    ],
+                    "properties": {
+                      "id": {
+                        "oneOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "integer"
+                          }
+                        ]
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "language": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": true
+                  }
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
         },
         "studentModel": {
-          "$ref": "#/definitions/model"
+          "type": "object",
+          "required": [
+            "elements"
+          ],
+          "properties": {
+            "elements": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "label"
+                    ],
+                    "properties": {
+                      "id": {
+                        "oneOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "integer"
+                          }
+                        ]
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "language": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": true
+                  }
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
         },
         "threshold": {
-          "type": [
-            "number",
-            "null"
-          ],
+          "type": "number",
           "minimum": 0,
           "maximum": 1
         },
         "config": {
-          "type": "object"
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "embedding_model": {
+              "enum": [
+                "jina_de",
+                "multilingual",
+                "e5_base"
+              ]
+            },
+            "lexicon_mode": {
+              "enum": [
+                "odenet",
+                "odenet_first",
+                "odenet_linked"
+              ]
+            },
+            "spelling_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "meaning_threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "exact_first": {
+              "type": "boolean"
+            },
+            "lexicon_path": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false
     }
   },
-  "additionalProperties": false,
-  "definitions": {
-    "element": {
-      "type": "object",
-      "required": [
-        "id",
-        "label"
-      ],
-      "properties": {
-        "id": {
-          "oneOf": [
-            {
-              "type": "string",
-              "minLength": 1
-            },
-            {
-              "type": "integer"
-            }
-          ]
-        },
-        "label": {
-          "type": "string"
-        },
-        "language": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "additionalProperties": true
-    },
-    "model": {
-      "type": "object",
-      "required": [
-        "elements"
-      ],
-      "properties": {
-        "elements": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/element"
-          }
-        }
-      },
-      "additionalProperties": true
-    }
-  }
+  "additionalProperties": false
 }

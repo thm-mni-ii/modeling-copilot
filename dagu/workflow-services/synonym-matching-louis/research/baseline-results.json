@@ -1,0 +1,623 @@
+{
+  "seed": 42,
+  "config": {
+    "seed": 42,
+    "thresholds": [
+      0.8,
+      0.85,
+      0.9
+    ],
+    "selected": "odenet_linked",
+    "selected_threshold": 0.85,
+    "pipelines": {
+      "odenet_only": {
+        "embedding_model": "jina_de",
+        "lexicon_mode": "odenet"
+      },
+      "odenet_first": {
+        "embedding_model": "jina_de",
+        "lexicon_mode": "odenet_first"
+      },
+      "odenet_linked": {
+        "embedding_model": "jina_de",
+        "lexicon_mode": "odenet_linked"
+      },
+      "exact_first": {
+        "embedding_model": "jina_de",
+        "lexicon_mode": "odenet_linked",
+        "exact_first": true
+      }
+    },
+    "datasets": [
+      "data/laboratory.json",
+      "data/control.json",
+      "data/targeted.json"
+    ]
+  },
+  "data_hashes": {
+    "data/laboratory.json": "821868f3a6bcbb7b382633235a5a5db89043625885126d2550a0a370dcc39e80",
+    "data/control.json": "1022ef52298185cbfc45dc23f56e70418bbb4fa1f91fb0a9a4eb0da4acc61b39",
+    "data/targeted.json": "49f9f426d7f5e391cd5021108fa14adde007cc45001d912ceb156c7fe334ba0c"
+  },
+  "source_hashes": {
+    "src/main.py": "d83f0956ba69fd4679b3e46dc0b1bcee818b16d07a9e519573bc68c4ff26f2e2",
+    "src/synonym_matching/__init__.py": "c123785d29c2d3a1d814b3934196b4efee2d32bb31416a02da7470d4abe52d27",
+    "src/synonym_matching/decision.py": "6f2c72259e0003e2f6d3869523c2640c8f69eeb60c429daa08c9b4fac15fafe0",
+    "src/synonym_matching/lexicons.py": "57a9bf2857d7bdc68d420e424e1c90f67dcd6d1a42dc8eb0ae3c3fd94b7b315d",
+    "src/synonym_matching/methods.py": "866a422429b23a70d0d93a3a85466a3b6fbe437c95cdf9050f6cdf270919c810",
+    "src/synonym_matching/pipeline.py": "b8e6c9669359126b42e202ab74900e2eb944e87637937dc9507e13fc084d5923",
+    "src/synonym_matching/preprocessing.py": "b6d7ca6be40cff790921498be258ae57f1c89809ed3026fd3d8b05e75d8102f9"
+  },
+  "runner_hashes": {
+    "/Users/louis/Documents/dev/modeling-copilot/dagu/workflow-services/synonym-matching-louis/research/compare.py": "92d8f10d633f32d912a9f56c06732d84878fb853672ac5c7eb5b8050216453dc",
+    "/Users/louis/Documents/dev/modeling-copilot/dagu/workflow-services/synonym-matching-louis/research/evaluation.py": "c0ba94e3938d408f5d24b92c9f9db93a5f2471d62f5a7be4a90428430b457c1e",
+    "/Users/louis/Documents/dev/modeling-copilot/dagu/workflow-services/synonym-matching-louis/research/experiments.json": "9561881be26920829992160bb20ad891defe7aa255b1b07b3d271ea4ab149576"
+  },
+  "packages": {
+    "numpy": "2.2.6",
+    "rapidfuzz": "3.14.3",
+    "torch": "2.6.0",
+    "sentence-transformers": "3.4.1",
+    "transformers": "4.48.3",
+    "wn": "0.14.0",
+    "lingua-language-detector": "2.2.0"
+  },
+  "resources": {
+    "odenet": "odenet:1.4",
+    "wordnet": "omw-en:1.4",
+    "lingua_minimum_relative_distance": 0.2,
+    "lexicon_database_sha256": "a5b6335131e1c1cafc37d15809e61be722c926b408738c995ffa6f44f4562476"
+  },
+  "policy": "Known development data. No language annotation used by pipeline. No held-out quality claim. Full matrix, unrounded decisions. Top-1 is raw embedding ranking, not binary tree ranking. Models/lexicons/label embeddings reused within each run.",
+  "runs": {
+    "odenet_only": {
+      "options": {
+        "embedding_model": "jina_de",
+        "lexicon_mode": "odenet"
+      },
+      "model": {
+        "model": "jinaai/jina-embeddings-v2-base-de",
+        "revision": "3f9eede875721714945b6a99a3198299243cf2be",
+        "device": "cpu",
+        "code_revision": "f3ec4cf7de7e561007f27c9efc7148b0bd713f81"
+      },
+      "datasets": {
+        "laboratory": {
+          "0.8": {
+            "tp": 161,
+            "fp": 1,
+            "fn": 31,
+            "tn": 3263,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 0.9938271604938271,
+            "recall": 0.8385416666666666,
+            "f1": 0.9096045197740112,
+            "top1_accuracy": 0.8823529411764706
+          },
+          "0.85": {
+            "tp": 160,
+            "fp": 0,
+            "fn": 32,
+            "tn": 3264,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 1.0,
+            "recall": 0.8333333333333334,
+            "f1": 0.9090909090909091,
+            "top1_accuracy": 0.8823529411764706
+          },
+          "0.9": {
+            "tp": 151,
+            "fp": 0,
+            "fn": 41,
+            "tn": 3264,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 1.0,
+            "recall": 0.7864583333333334,
+            "f1": 0.880466472303207,
+            "top1_accuracy": 0.8823529411764706
+          }
+        },
+        "control": {
+          "0.8": {
+            "tp": 35,
+            "fp": 2,
+            "fn": 8,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9459459459459459,
+            "recall": 0.813953488372093,
+            "f1": 0.875,
+            "top1_accuracy": 0.975
+          },
+          "0.85": {
+            "tp": 33,
+            "fp": 2,
+            "fn": 10,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9428571428571428,
+            "recall": 0.7674418604651163,
+            "f1": 0.8461538461538461,
+            "top1_accuracy": 0.975
+          },
+          "0.9": {
+            "tp": 28,
+            "fp": 2,
+            "fn": 15,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9333333333333333,
+            "recall": 0.6511627906976745,
+            "f1": 0.7671232876712328,
+            "top1_accuracy": 0.975
+          }
+        },
+        "targeted": {
+          "0.8": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          },
+          "0.85": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          },
+          "0.9": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          }
+        }
+      }
+    },
+    "odenet_first": {
+      "options": {
+        "embedding_model": "jina_de",
+        "lexicon_mode": "odenet_first"
+      },
+      "model": {
+        "model": "jinaai/jina-embeddings-v2-base-de",
+        "revision": "3f9eede875721714945b6a99a3198299243cf2be",
+        "device": "cpu",
+        "code_revision": "f3ec4cf7de7e561007f27c9efc7148b0bd713f81"
+      },
+      "datasets": {
+        "laboratory": {
+          "0.8": {
+            "tp": 161,
+            "fp": 1,
+            "fn": 31,
+            "tn": 3263,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 0.9938271604938271,
+            "recall": 0.8385416666666666,
+            "f1": 0.9096045197740112,
+            "top1_accuracy": 0.8823529411764706
+          },
+          "0.85": {
+            "tp": 160,
+            "fp": 0,
+            "fn": 32,
+            "tn": 3264,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 1.0,
+            "recall": 0.8333333333333334,
+            "f1": 0.9090909090909091,
+            "top1_accuracy": 0.8823529411764706
+          },
+          "0.9": {
+            "tp": 151,
+            "fp": 0,
+            "fn": 41,
+            "tn": 3264,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 1.0,
+            "recall": 0.7864583333333334,
+            "f1": 0.880466472303207,
+            "top1_accuracy": 0.8823529411764706
+          }
+        },
+        "control": {
+          "0.8": {
+            "tp": 35,
+            "fp": 2,
+            "fn": 8,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9459459459459459,
+            "recall": 0.813953488372093,
+            "f1": 0.875,
+            "top1_accuracy": 0.975
+          },
+          "0.85": {
+            "tp": 33,
+            "fp": 2,
+            "fn": 10,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9428571428571428,
+            "recall": 0.7674418604651163,
+            "f1": 0.8461538461538461,
+            "top1_accuracy": 0.975
+          },
+          "0.9": {
+            "tp": 28,
+            "fp": 2,
+            "fn": 15,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9333333333333333,
+            "recall": 0.6511627906976745,
+            "f1": 0.7671232876712328,
+            "top1_accuracy": 0.975
+          }
+        },
+        "targeted": {
+          "0.8": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          },
+          "0.85": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          },
+          "0.9": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          }
+        }
+      }
+    },
+    "odenet_linked": {
+      "options": {
+        "embedding_model": "jina_de",
+        "lexicon_mode": "odenet_linked"
+      },
+      "model": {
+        "model": "jinaai/jina-embeddings-v2-base-de",
+        "revision": "3f9eede875721714945b6a99a3198299243cf2be",
+        "device": "cpu",
+        "code_revision": "f3ec4cf7de7e561007f27c9efc7148b0bd713f81"
+      },
+      "datasets": {
+        "laboratory": {
+          "0.8": {
+            "tp": 163,
+            "fp": 1,
+            "fn": 29,
+            "tn": 3263,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 0.9939024390243902,
+            "recall": 0.8489583333333334,
+            "f1": 0.9157303370786517,
+            "top1_accuracy": 0.8823529411764706
+          },
+          "0.85": {
+            "tp": 162,
+            "fp": 0,
+            "fn": 30,
+            "tn": 3264,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 1.0,
+            "recall": 0.84375,
+            "f1": 0.9152542372881356,
+            "top1_accuracy": 0.8823529411764706
+          },
+          "0.9": {
+            "tp": 153,
+            "fp": 0,
+            "fn": 39,
+            "tn": 3264,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 1.0,
+            "recall": 0.796875,
+            "f1": 0.8869565217391304,
+            "top1_accuracy": 0.8823529411764706
+          }
+        },
+        "control": {
+          "0.8": {
+            "tp": 37,
+            "fp": 2,
+            "fn": 6,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9487179487179487,
+            "recall": 0.8604651162790697,
+            "f1": 0.9024390243902439,
+            "top1_accuracy": 0.975
+          },
+          "0.85": {
+            "tp": 36,
+            "fp": 2,
+            "fn": 7,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9473684210526315,
+            "recall": 0.8372093023255814,
+            "f1": 0.8888888888888888,
+            "top1_accuracy": 0.975
+          },
+          "0.9": {
+            "tp": 34,
+            "fp": 2,
+            "fn": 9,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9444444444444444,
+            "recall": 0.7906976744186046,
+            "f1": 0.8607594936708861,
+            "top1_accuracy": 0.975
+          }
+        },
+        "targeted": {
+          "0.8": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          },
+          "0.85": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          },
+          "0.9": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          }
+        }
+      }
+    },
+    "exact_first": {
+      "options": {
+        "embedding_model": "jina_de",
+        "lexicon_mode": "odenet_linked",
+        "exact_first": true
+      },
+      "model": {
+        "model": "jinaai/jina-embeddings-v2-base-de",
+        "revision": "3f9eede875721714945b6a99a3198299243cf2be",
+        "device": "cpu",
+        "code_revision": "f3ec4cf7de7e561007f27c9efc7148b0bd713f81"
+      },
+      "datasets": {
+        "laboratory": {
+          "0.8": {
+            "tp": 163,
+            "fp": 1,
+            "fn": 29,
+            "tn": 3263,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 0.9939024390243902,
+            "recall": 0.8489583333333334,
+            "f1": 0.9157303370786517,
+            "top1_accuracy": 0.8823529411764706
+          },
+          "0.85": {
+            "tp": 162,
+            "fp": 0,
+            "fn": 30,
+            "tn": 3264,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 1.0,
+            "recall": 0.84375,
+            "f1": 0.9152542372881356,
+            "top1_accuracy": 0.8823529411764706
+          },
+          "0.9": {
+            "tp": 153,
+            "fp": 0,
+            "fn": 39,
+            "tn": 3264,
+            "top1": 60,
+            "queries": 68,
+            "pairs": 3456,
+            "precision": 1.0,
+            "recall": 0.796875,
+            "f1": 0.8869565217391304,
+            "top1_accuracy": 0.8823529411764706
+          }
+        },
+        "control": {
+          "0.8": {
+            "tp": 37,
+            "fp": 2,
+            "fn": 6,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9487179487179487,
+            "recall": 0.8604651162790697,
+            "f1": 0.9024390243902439,
+            "top1_accuracy": 0.975
+          },
+          "0.85": {
+            "tp": 36,
+            "fp": 2,
+            "fn": 7,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9473684210526315,
+            "recall": 0.8372093023255814,
+            "f1": 0.8888888888888888,
+            "top1_accuracy": 0.975
+          },
+          "0.9": {
+            "tp": 34,
+            "fp": 2,
+            "fn": 9,
+            "tn": 118,
+            "top1": 39,
+            "queries": 40,
+            "pairs": 163,
+            "precision": 0.9444444444444444,
+            "recall": 0.7906976744186046,
+            "f1": 0.8607594936708861,
+            "top1_accuracy": 0.975
+          }
+        },
+        "targeted": {
+          "0.8": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          },
+          "0.85": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          },
+          "0.9": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 0,
+            "tn": 19,
+            "top1": 4,
+            "queries": 4,
+            "pairs": 24,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "top1_accuracy": 1.0
+          }
+        }
+      }
+    }
+  }
+}

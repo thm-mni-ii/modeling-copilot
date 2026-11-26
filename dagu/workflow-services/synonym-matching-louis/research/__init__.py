@@ -1,1 +1,1 @@
-"""Experimentläufe und Evaluation außerhalb des ausführbaren Service-Kerns."""
+"""Aktueller Vergleich auf frischen Labels; historische Versuche liegen im Archiv."""

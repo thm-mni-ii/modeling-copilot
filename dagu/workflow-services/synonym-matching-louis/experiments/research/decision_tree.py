@@ -28,7 +28,7 @@ def label_forms(items, mapping):
 
 def production_modules():
     """Lese produktive Textmethoden unter eigenem Namen, ohne Forschung zu überschreiben."""
-    path = ROOT.parent / 'synonym-matching/src/synonym_matching'
+    path = ROOT.parent.parent / 'synonym-matching/src/synonym_matching'
     name = '_decision_tree_production'
     if name not in sys.modules:
         spec = importlib.util.spec_from_file_location(name, path / '__init__.py',
@@ -38,7 +38,7 @@ def production_modules():
         spec.loader.exec_module(module)
     registry = importlib.import_module(name + '.methods.registry')
     # Der reine Textadapter des Graphmatchers nutzt zwei benachbarte Hilfsmodule.
-    graph_path = ROOT.parent / 'one-to-one-graph-matching/src'
+    graph_path = ROOT.parent.parent / 'one-to-one-graph-matching/src'
     spec = importlib.util.spec_from_file_location('_decision_tree_text', graph_path / 'text_similarity.py')
     adapter = importlib.util.module_from_spec(spec)
     previous = sys.path[:]
@@ -261,9 +261,9 @@ def run(config):
                     ROOT/'src/synonym_matching/preprocessing.py',
                     ROOT/'src/synonym_matching/lexicons.py',
                     ROOT/'research/compare_component_lexicons.py',
-                    ROOT.parent/'synonym-matching/src/synonym_matching/methods/registry.py',
-                    ROOT.parent/'synonym-matching/src/synonym_matching/preprocessing.py',
-                    ROOT.parent/'one-to-one-graph-matching/src/text_similarity.py']},
+                    ROOT.parent.parent/'synonym-matching/src/synonym_matching/methods/registry.py',
+                    ROOT.parent.parent/'synonym-matching/src/synonym_matching/preprocessing.py',
+                    ROOT.parent.parent/'one-to-one-graph-matching/src/text_similarity.py']},
                   'embedding': states['multilingual'].resource_metadata(),
                   'features': feature_records, 'records': records,
                   'summary': _summary(saved['dataset']['cases'], records, names),

@@ -5,13 +5,15 @@
       "elements": [
         {
           "id": "r1",
-          "label": "Kunde",
-          "language": "de"
+          "label": "Gebäude"
         },
         {
           "id": "r2",
-          "label": "Lieferant",
-          "language": "de"
+          "label": "Versuch"
+        },
+        {
+          "id": "r3",
+          "label": "Nachname"
         }
       ]
     },
@@ -19,21 +21,21 @@
       "elements": [
         {
           "id": "s1",
-          "label": "Customer",
-          "language": "en"
+          "label": "Building"
         },
         {
           "id": "s2",
-          "label": "Kund",
-          "language": "de"
+          "label": "Experiment"
         },
         {
           "id": "s3",
-          "label": "Supplier",
-          "language": "en"
+          "label": "Familienname"
+        },
+        {
+          "id": "s4",
+          "label": "Vorname"
         }
       ]
-    },
-    "threshold": 0.5
+    }
   }
 }

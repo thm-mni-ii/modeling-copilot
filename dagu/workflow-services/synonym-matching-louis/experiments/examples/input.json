@@ -1,0 +1,39 @@
+{
+  "step": "synonym_matching",
+  "input": {
+    "referenceModel": {
+      "elements": [
+        {
+          "id": "r1",
+          "label": "Kunde",
+          "language": "de"
+        },
+        {
+          "id": "r2",
+          "label": "Lieferant",
+          "language": "de"
+        }
+      ]
+    },
+    "studentModel": {
+      "elements": [
+        {
+          "id": "s1",
+          "label": "Customer",
+          "language": "en"
+        },
+        {
+          "id": "s2",
+          "label": "Kund",
+          "language": "de"
+        },
+        {
+          "id": "s3",
+          "label": "Supplier",
+          "language": "en"
+        }
+      ]
+    },
+    "threshold": 0.5
+  }
+}
