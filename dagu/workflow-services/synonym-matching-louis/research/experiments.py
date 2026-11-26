@@ -26,6 +26,16 @@ def is_wordvec(method):
 def load_config(path=DEFAULT_CONFIG):
     """Lese und prüfe die Experimentkonfiguration."""
     config = json.loads(Path(path).read_text())
+    if 'lingua_comparison' in config:
+        settings = config['lingua_comparison']
+        variants = settings.setdefault('variants', ['odenet', 'lingua'])
+        if ('odenet' not in variants or len(variants) != len(set(variants))
+                or set(variants) - {'odenet', 'lingua', 'odenet_first'}):
+            raise ValueError('invalid lingua comparison variants')
+        values = settings['thresholds'] + [settings['minimum_relative_distance']]
+        if (not settings['thresholds'] or len(settings['thresholds']) != len(set(settings['thresholds']))
+                or any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1 for v in values)):
+            raise ValueError('invalid lingua comparison thresholds')
     if 'taxonomy_comparison' in config:
         settings = config['taxonomy_comparison']
         values = settings['thresholds'] + [settings['path_minimum'], settings['wup_minimum']]

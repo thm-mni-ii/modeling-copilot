@@ -11,4 +11,5 @@ spacy==3.8.7
 pytest==8.4.2
 nltk==3.9.2
 wn==0.14.0
+lingua-language-detector==2.2.0
 scipy==1.18.1

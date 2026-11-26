@@ -2138,3 +2138,86 @@ Jina + ausschließlich OdeNet, geänderte Laborlabels inklusive englischer Varia
 
 Kontrollfälle und gezielte Fälle bleiben bei diesen Schwellen gegenüber dem
 bisherigen direkten Lexikonpfad unverändert. Bekannte Entwicklungsdaten.
+
+### Lingua: experimentelle DE/EN-Auswahl des Lexikons
+
+```sh
+PYTHONPATH=src .venv/bin/python -m research.compare_lingua
+```
+
+`lingua_comparison` in `research/experiments.json` konfiguriert die eingefrorene
+OdeNet/Jina-Quelle, Thresholds 0,80/0,85/0,90, Ausgabe und Lingua-Abstand 0,2.
+Lingua 2.2.0 (`lingua-language-detector`, Apache-2.0) wird nur im Forschungsmodul
+importiert. Die Sprachmodelle gehören zum Paket (Paketdownload ca. 172 MB);
+keine weiteren Sentence-Embedding-Modelle oder Übersetzungen werden geladen.
+Der produktive Service bleibt unverändert. Vorhandene Ergebnisse werden nicht
+überschrieben; `--output` gibt einen neuen Dateinamen an.
+
+Erkennung genau einmal pro eindeutigem Originaltext, Kandidaten nur DE/EN.
+Die Testdaten-Sprachangabe wird nicht zur Erkennung oder Quellenwahl verwendet.
+Deutsch wählt OdeNet, Englisch WordNet. Unsicherheit erlaubt beide Quellen.
+Eine Quelle muss zu beiden Labels passen; bei unterschiedlich sicher erkannten
+Sprachen bleibt Lexikonevidenz unbekannt, Jina bleibt nutzbar. Keine ILI-Abbildung.
+Unsichere Quellenwahl mit Gegenrelation bleibt offen, auch wenn eine Quelle ein
+gemeinsames Synset liefert. Ohne Gegenrelation kann gemeinsame Synonymieevidenz
+verwendet werden. Path-/Wu-Palmer-Werte werden nicht lexikonübergreifend gemittelt.
+
+Zur Isolation des Routings bleiben die gespeicherten String-/Jina-Scores und
+Vorverarbeitungslabels fest. Die vorherige deutsche Abkürzungsexpansion hatte
+bereits Sprachmetadaten verwendet: Dieser Versuch ist daher kein vollständiger
+End-to-End-Test ohne Sprachangaben. Die Erkennung verwendet trotzdem ausschließlich
+die Originaltexte. Konfidenzen sind keine auf unseren Labels kalibrierten
+Fehlerwahrscheinlichkeiten; der Abstand 0,2 wurde nicht optimiert.
+
+Laborergebnis, Jina + Lexikonrouting (26.11.2026):
+
+| Threshold | OdeNet-only TP / FP / F1 | Lingua TP / FP / F1 |
+|---|---:|---:|
+| 0,80 | 161 / 1 / 0,9096 | 159 / 1 / 0,9034 |
+| 0,85 | 160 / 0 / 0,9091 | 158 / 0 / 0,9029 |
+| 0,90 | 151 / 0 / 0,8805 | 149 / 0 / 0,8739 |
+
+Verloren geht `Versuch ↔ Experiment` in zwei Laborvarianten: Lingua wählt für
+Experiment Englisch, für Versuch Deutsch. OdeNet kennt die gemeinsame Bedeutung,
+das sprachgetrennte Routing verhindert sie; Jina allein liegt unter den Grenzen.
+`Experiment` existiert in beiden Sprachen: Abweichung von der annotierten Sprache
+ist hier kein eindeutiger Erkennungsfehler. `RaumNr.` wird ebenfalls Englisch
+zugeordnet. 480 Labor-Labelvorkommen: 442 stimmen mit der Annotation überein,
+24 weichen ab, 14 bleiben unsicher; dieselben Texte treten mehrfach auf. Keine
+unabhängige Genauigkeitsschätzung aus diesen wiederholten Vorkommen ableiten.
+Kontroll- und gezielte Zuordnungen bleiben unverändert. Aktuell kein messbarer
+Mehrwert durch diese Routingregel; OdeNet-only bleibt der Standard im Forschungsbaum.
+
+Der finale Lauf `results/jina-lingua-comparison-verified.json.gz` enthält Erkennung/Konfidenzen pro Label,
+beide Quellen, ausgewählte Merkmale, Konfliktmasken, Entscheidungen/Gründe,
+Paaränderungen, Precision/Recall/F1, Laufzeit, Paketversion und Quellenhashes.
+Die bisherige Baseline wird vor dem Vergleich exakt reproduziert.
+Dokumentation: [Lingua API](https://github.com/pemistahl/lingua-py).
+
+#### Ablation: OdeNet vor Spracherkennung bevorzugen
+
+`lingua_comparison.variants` enthält nun `odenet`, `lingua`, `odenet_first`.
+Derselbe Befehl vergleicht alle drei; neue Standardausgabe:
+`results/jina-lingua-odenet-first.json.gz`.
+Die ursprüngliche Lingua-Variante bleibt unverändert reproduzierbar.
+
+`odenet_first` wählt pro vorbereitetem Label OdeNet, sobald dort mindestens ein
+Synset gefunden wird. Die Originaltext-Erkennung bleibt separat protokolliert.
+Ohne OdeNet-Eintrag wird WordNet nur bei sicherem Lingua-Ergebnis Englisch genutzt;
+sonst bleibt die Lexikonevidenz unbekannt (String/Jina weiter aktiv). Beide Labels
+müssen dieselbe Lexikonquelle erlauben; keine automatische Übersetzung oder ILI.
+Ein vorhandener Eintrag ist ein Quellenheuristikum, keine Sprach-/Bedeutungsgarantie.
+
+Laborergebnis (Jina, gleiche Daten/Thresholds):
+
+| Threshold | OdeNet-only TP / FP / F1 | Lingua TP / FP / F1 | OdeNet zuerst TP / FP / F1 |
+|---|---:|---:|---:|
+| 0,80 | 161 / 1 / 0,9096 | 159 / 1 / 0,9034 | 161 / 1 / 0,9096 |
+| 0,85 | 160 / 0 / 0,9091 | 158 / 0 / 0,9029 | 160 / 0 / 0,9091 |
+| 0,90 | 151 / 0 / 0,8805 | 149 / 0 / 0,8739 | 151 / 0 / 0,8805 |
+
+Beide verlorenen `Versuch ↔ Experiment`-Vorkommen werden wieder bestätigt.
+Auf Kontroll- und gezielten Fällen bleiben die Trefferzahlen ebenfalls identisch
+zu OdeNet-only. Kein zusätzlicher Nutzen gegenüber OdeNet-only auf den aktuell
+ausgewerteten Paaren. Precision/Recall sind im Artefakt gespeichert; Einschränkung
+zur vorab sprachabhängigen Abkürzungsexpansion bleibt bestehen. Kein Standardwechsel.

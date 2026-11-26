@@ -329,6 +329,14 @@
       }
     ]
   },
+  "lingua_comparison": {
+    "variants": ["odenet", "lingua", "odenet_first"],
+    "source": "results/embedding-model-comparison-odenet.json.gz",
+    "model": "jina_de",
+    "minimum_relative_distance": 0.2,
+    "thresholds": [0.8, 0.85, 0.9],
+    "output": "results/jina-lingua-odenet-first.json.gz"
+  },
   "taxonomy_comparison": {
     "source": "results/embedding-model-comparison-verified.json.gz",
     "model": "jina_de",
