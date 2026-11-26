@@ -1,0 +1,31 @@
+{
+  "learningPathId": "b7affb3a-fcbb-509a-8ec1-b4c8a7381d0d",
+  "title": "Datenmodellierung – ERM, SERM",
+  "steps": [
+    {
+      "id": "39342305-d6b1-5507-810f-65757947b67e",
+      "kind": "survey",
+      "title": "Erfahrung und Einschätzung"
+    },
+    {
+      "id": "d39da402-aaa6-59e3-92e1-69aa0ff1e64d",
+      "kind": "survey",
+      "title": "Wochenabschluss 1"
+    },
+    {
+      "id": "93e55adf-3856-52e0-a6e4-71ee381398f3",
+      "kind": "survey",
+      "title": "Wochenabschluss 2"
+    },
+    {
+      "id": "90633637-a890-597e-bfc6-682ed472b020",
+      "kind": "task",
+      "title": "Laborverwaltung – SERM"
+    },
+    {
+      "id": "f72db10d-56af-53df-a897-b21ed4e0f04c",
+      "kind": "survey",
+      "title": "Wochenabschluss 3"
+    }
+  ]
+}

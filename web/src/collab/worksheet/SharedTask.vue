@@ -2,7 +2,7 @@
   <div v-if="task">
     <TaskTopBar
       :task="task"
-      :window-open="false"
+      :window-open="windowOpen"
       :content-html="contentHtml"
       :task-edit="taskEdit"
       :element-options="elementOptions"
@@ -10,21 +10,16 @@
       :history="history"
       :evaluation-available="evaluationAvailable"
       shared
-      :notes="NOTES_ENABLED ? notes ?? null : null"
+      :notes="notesEnabled ? notes ?? null : null"
       @select-connection="emit('select-connection', $event)"
       @select-task-edits="emit('select-task-edits', $event)"
       @start-evaluation="emit('start-evaluation')"
+      @pop-out="emit('pop-out')"
       @update:task-edit-document="write"
     >
-      <template v-if="NOTES_ENABLED" #default>
-        <div class="shared-notes">
-          <!-- Trennlinie mit Beschriftung statt eigener Leiste; formatiert wird über die Leiste des Textes. -->
-          <div class="shared-notes__divider">
-            <v-icon size="14">mdi-note-text-outline</v-icon>
-            <span>Notes</span>
-          </div>
-          <editor-content :editor="notes" class="shared-notes__body" />
-        </div>
+      <!-- An editor can show in one place only; while the window is open, the notes are there. -->
+      <template v-if="notesEnabled && !windowOpen" #default>
+        <SharedNotes :editor="notes" />
       </template>
     </TaskTopBar>
   </div>
@@ -32,7 +27,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { EditorContent, useEditor } from '@tiptap/vue-3'
+import { useEditor } from '@tiptap/vue-3'
 import TaskTopBar from '@/components/modeling/controls/TaskTopBar.vue'
 import type { TaskConnectionOption, TaskElementOption } from '@/components/tasks/taskEditorExtensions'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
@@ -44,16 +39,22 @@ import type { Session, SharedText } from '@/collab/kit/collabKitV1'
 import { bindNotes, notesExtensions } from '@/collab/worksheet/notesBinding'
 import { marksOf, withMarks, type SharedMark, type SharedMarks } from '@/collab/converters/task/marks'
 import { MARKS_MAP, NOTES_TEXT, taskLinkOf } from '@/collab/converters/task/taskLink'
-import { baseOf, taskHistoryOf } from '@/collab/sharing/shareTask'
+import { changeOf } from '@/collab/converters/task/taskHistory'
+import { hasChange } from '@/collab/converters/model/modelHistory'
+import { baseOf, taskHistoryOf } from './roomTaskHistory'
 import { linkOf } from '@/collab/storage/workpiece'
+import { roleOf } from '@/collab/rooms/roomRole'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
 import { currentShare } from '@/collab/sharing/shareModel'
 import type { TaskVersionReference } from '@/services/api/types/common'
-import { sharedTaskEdit, sharedTaskHistory, sharedTaskReference, sharedTaskSettings, writeSharedTask, type SharedTaskSettings } from './sharedTask'
+import SharedNotes from './SharedNotes.vue'
+import { sharedTaskContent, sharedTaskEdit, sharedTaskHistory, sharedTaskReference, sharedTaskSettings, writeSharedTask, type SharedTaskSettings } from './sharedTask'
 
-// Notizen vorerst aus: Sie gehen beim Beenden des Teilens noch nicht ins private Modell zurück.
-// Ohne Notizen bleibt der Text `notes` im Task-Workpiece leer und die Leiste wirkt nur auf die Task.
+// Notes are off for sharing for now: they do not go back into the private model yet when sharing ends.
+// Without notes the text `notes` in the task workpiece stays empty and the bar acts on the task only.
 const NOTES_ENABLED = false
+// In a group room everything stays in collab-kit, with nothing to take back; there the notes are on.
+const notesEnabled = ref(NOTES_ENABLED)
 
 /**
  * The task shared along with a model of a room: its text fixed in a CK task, the marks on it as
@@ -65,14 +66,17 @@ const props = withDefaults(
     workpieceId: string
     elementOptions?: TaskElementOption[]
     connectionOptions?: TaskConnectionOption[]
+    /** The task text is shown in the floating window instead. */
+    windowOpen?: boolean
   }>(),
-  { elementOptions: () => [], connectionOptions: () => [] }
+  { elementOptions: () => [], connectionOptions: () => [], windowOpen: false }
 )
 
 const emit = defineEmits<{
   'select-connection': [reference: { languageId: string; connectionType: string }]
   'select-task-edits': [ids: string[]]
   'start-evaluation': []
+  'pop-out': []
 }>()
 
 const workspace = useModelWorkspaceStore()
@@ -94,7 +98,7 @@ watch(taskEdit, (value) => (sharedTaskEdit.value = value), { immediate: true })
 // Undo and redo take back the own steps only; what others set since stays.
 const canUndo = ref(false)
 const canRedo = ref(false)
-// Die Notizen haben ihren eigenen Verlauf im geteilten Text; die Leiste nimmt ihn, wenn die Notizen aktiv sind.
+// The notes have a history of their own in the shared text; the bar takes it while the notes are active.
 const canUndoNotes = ref(false)
 const canRedoNotes = ref(false)
 const refreshHistory = () => {
@@ -120,8 +124,11 @@ const history = computed(() => ({
   canRedo: canRedo.value,
   undo: () => step('undo'),
   redo: () => step('redo'),
-  ...(NOTES_ENABLED ? { notes: { canUndo: canUndoNotes.value, canRedo: canRedoNotes.value, undo: () => stepNotes('undo'), redo: () => stepNotes('redo') } } : {})
+  ...(notesEnabled.value ? { notes: { canUndo: canUndoNotes.value, canRedo: canRedoNotes.value, undo: () => stepNotes('undo'), redo: () => stepNotes('redo') } } : {})
 }))
+
+// The window of the task shows the same task with notes and history.
+watch([task, contentHtml, history, notes, notesEnabled], () => (sharedTaskContent.value = task.value ? { title: task.value.title, contentHtml: contentHtml.value, notes: notesEnabled.value ? notes.value ?? null : null, history: history.value } : null), { immediate: true })
 
 let base: JsonObject = { type: 'doc' }
 // The marks as the editor was last given them or last wrote them.
@@ -149,12 +156,10 @@ const write = (next: JsonObject) => {
     return
   }
   const after = marksOf(next)
-  const set: SharedMarks = {}
-  for (const [id, mark] of Object.entries(after)) if (JSON.stringify(mark) !== JSON.stringify(shown[id])) set[id] = mark
-  const removed = Object.keys(shown).filter((id) => !(id in after))
-  if (!Object.keys(set).length && !removed.length) return
+  const change = changeOf(shown, after)
+  if (!hasChange(change)) return
   try {
-    session.units.update({ set, delete: removed })
+    session.units.update(change)
     shown = after
     // Also from the sidebar: the editor and the list take what was written.
     document.value = next
@@ -170,6 +175,9 @@ onMounted(async () => {
     const ck = await loadCollabKit()
     const link = taskLinkOf(await ck.workpieces.get(props.workpieceId))
     if (!link || unmounted) return
+    const roomId = linkOf(workspace.preferences)?.roomId
+    const inGroup = (id: string) => ck.rooms.get(id).then((room) => roleOf(room).kind === 'group')
+    if (!NOTES_ENABLED && roomId) notesEnabled.value = await inGroup(roomId).catch(() => false)
     const shared = await ck.tasks.get(link.taskId)
     const html = typeof shared.detail?.contentHtml === 'string' ? shared.detail.contentHtml : ''
     if (unmounted) return
@@ -209,9 +217,9 @@ onMounted(async () => {
         notes.value?.setEditable(opened.mayWrite)
       })
     )
-    if (NOTES_ENABLED) {
+    if (notesEnabled.value) {
       notesText = opened.text(NOTES_TEXT)
-      // Der Verlauf trägt den Schritt erst nach der Änderung ein, daher einen Takt später lesen.
+      // The history records the step only after the change, so it is read a tick later.
       stops.push(notesText.onChange(() => queueMicrotask(refreshHistory)))
       if (notes.value) unbindNotes = bindNotes(notes.value, notesText, () => opened.mayWrite)
     }
@@ -225,6 +233,7 @@ writeSharedTask.value = write
 onBeforeUnmount(() => {
   unmounted = true
   sharedTaskEdit.value = null
+  sharedTaskContent.value = null
   sharedTaskSettings.value = null
   sharedTaskReference.value = null
   sharedTaskHistory.value = null
@@ -239,44 +248,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* In the bar the notes lie on white, like the task above them. */
 .shared-notes {
-  padding: 4px 16px 12px;
   background: #fff;
-}
-.shared-notes__divider {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.6);
-}
-.shared-notes__divider::before,
-.shared-notes__divider::after {
-  content: '';
-  flex: 1;
-  border-top: 1px solid rgba(0, 0, 0, 0.12);
-}
-.shared-notes__body :deep(.ProseMirror) {
-  min-height: 80px;
-  padding: 8px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 6px;
-  outline: none;
-  font-size: 14px;
-  line-height: 1.6;
-}
-.shared-notes__body :deep(.ProseMirror ul) {
-  padding-left: 24px;
-}
-.shared-notes__body :deep(.ProseMirror-focused) {
-  border-color: rgb(var(--v-theme-primary));
-}
-.shared-notes__body :deep(.ProseMirror p.is-editor-empty:first-child::before) {
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  color: rgba(0, 0, 0, 0.38);
-  pointer-events: none;
 }
 </style>

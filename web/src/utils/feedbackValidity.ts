@@ -7,6 +7,8 @@ type SemanticModel = Map<string, SemanticCell>
 export interface FeedbackValidity { changed: boolean; currentIds: Set<string> }
 
 const canonical = (value: unknown): unknown => {
+  // maxGraph's XML codec restores booleans as numbers, including vertex/edge flags.
+  if (typeof value === 'boolean') return Number(value)
   if (value == null || typeof value !== 'object') return value
   if (value instanceof Node) return new XMLSerializer().serializeToString(value)
   if (Array.isArray(value)) return value.map(canonical)

@@ -7,13 +7,15 @@ import { cloneJson } from '@/model/ModelSnapshot'
 import { notifyError, notifyWarning } from '@/composables/useNotifications'
 import type { Model } from '@/services/api/types/model'
 import { useModelWorkspaceStore } from '@/stores/modelWorkspace'
-import { loadCollabKit } from '@/collab/kit/collabKit'
+import { apiErrorMessage, loadCollabKit } from '@/collab/kit/collabKit'
 import type { Right } from '@/collab/kit/collabKitV1'
 import { openWorkpiece } from '@/collab/connection/openWorkpiece'
 import type { HistoryMode } from '@/collab/converters/model/modelHistory'
 import { forgetRoomHistory, keepRoomAsOwnModel, saveRoomAsNewModel, writeRoomToPrivateModel } from '@/collab/historyBuilder/fromRoom'
 import { buildRoomHistory, roomHistoryStart } from '@/collab/historyBuilder/toRoom'
 import { newWorkpiece } from '@/collab/storage/workpiece'
+import { collabSettings, loadCollabSettings } from '@/collab/settings/collabSettings'
+import type { LeaveTarget } from './shareChoices'
 
 /** What the host answers in the dialog before the link; visitors always see. */
 export interface ShareOptions {
@@ -23,35 +25,12 @@ export interface ShareOptions {
 }
 
 /** What the host picks in the dialog before the link, and what the dialog with the link shows afterwards. It lives here and not in a component, as the editor is rebuilt while sharing. */
-const defaultChoice = () => ({ anonymous: false, edit: true, comment: true, task: true, history: 'none' as HistoryMode })
+// Anonymous, edit, task and history come from the collab settings; comments have no switch in the dialog.
+const defaultChoice = () => ({ ...collabSettings.shareDefaults, comment: true })
 export const shareChoice = reactive(defaultChoice())
 
-// Kommentare von collab-kit nutzt der Editor noch nicht; bis dahin ist der Schalter ausgeblendet, Besucher behalten `speak`.
+// The editor does not use the comments of collab-kit yet; until then the switch is hidden, visitors keep `speak`.
 export const COMMENTS_ENABLED = false
-
-/** The visitor settings of both dialogs: a new one needs its key in `ShareOptions` and one entry here. `on` and `off` tell how the dialog with the link shows it; `open` is the value that gives the visitors more, shown in green, the other one in gray. */
-export const visitorSettings: { key: keyof ShareOptions; label: string; hint: string; open: boolean; on: { icon: string; text: string }; off: { icon: string; text: string } }[] = [
-  { key: 'anonymous', label: 'Anonymous', hint: 'Others see a pseudonym instead of the name', open: false, on: { icon: 'mdi-incognito', text: 'Anonymous' }, off: { icon: 'mdi-account-outline', text: 'Named' } },
-  { key: 'edit', label: 'May edit', hint: 'Change the model together with you', open: true, on: { icon: 'mdi-pencil', text: 'May edit' }, off: { icon: 'mdi-pencil-off', text: 'View only' } },
-  ...(COMMENTS_ENABLED ? [{ key: 'comment' as const, label: 'May comment', hint: 'Leave comments on elements', open: true, on: { icon: 'mdi-comment-outline', text: 'May comment' }, off: { icon: 'mdi-comment-off-outline', text: 'No comments' } }] : [])
-]
-
-/** How much of the private history goes into the shared workpiece. */
-export const historyChoices: { value: HistoryMode; icon: string; title: string; hint: string }[] = [
-  { value: 'none', icon: 'mdi-camera-outline', title: 'Current state', hint: 'Only the model as it is now' },
-  { value: 'versions', icon: 'mdi-source-branch', title: 'Versions', hint: 'Releases and checkpoints' },
-  { value: 'steps', icon: 'mdi-history', title: 'Every change', hint: 'Versions and all changes between them' }
-]
-
-/** Where the state goes on leaving: a new version of the private model, a new model, or nowhere. */
-export type LeaveTarget = 'version' | 'model' | 'discard'
-
-/** The ways the host may leave; the dialog to quit shows them in this order, and a new one needs its case in `leaveShare`. */
-export const leaveChoices: { value: LeaveTarget; icon: string; title: string; hint: string; danger?: boolean }[] = [
-  { value: 'version', icon: 'mdi-source-commit', title: 'New version of your model', hint: 'Added to the history of the model you shared' },
-  { value: 'model', icon: 'mdi-file-plus-outline', title: 'New model', hint: 'Your original model stays as it was' },
-  { value: 'discard', icon: 'mdi-delete-outline', title: 'Do not save', hint: 'The changes made while sharing are lost', danger: true }
-]
 
 /** What this browser shares: room, workpiece and the two models attached. Only one is shared at a time. */
 interface Share {
@@ -93,18 +72,18 @@ watch(
   },
   { deep: true }
 )
-// Alle Tabs des Browsers lesen dieselbe Share; beendet ein Tab sie, erfahren es die anderen über das storage-Event.
+// All tabs of the browser read the same share; if one tab ends it, the others learn of it through the storage event.
 window.addEventListener('storage', (event) => {
   if (event.key === SHARE_KEY) current.value = storedShare()
 })
 
-/** Ob das Modell das geteilte ist; ohne verknüpftes Modell (der Besucher tritt gerade bei) zählt jedes. */
+/** Whether the model is the shared one; without a linked model (the visitor is just joining) any counts. */
 export const isSharedModel = (modelId: unknown) => Boolean(current.value) && (!current.value?.linkedModelId || current.value.linkedModelId === modelId)
 
-// Der Tab mit dem geteilten Modell meldet sich über den Kanal an und ab und antwortet auf Nachfragen.
+// The tab with the shared model announces itself on the channel, signs off and answers when asked.
 const tabs = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(SHARE_KEY)
 
-/** Ob ein anderer Tab das geteilte Modell offen hat; null, solange die Antwort auf die Nachfrage aussteht. */
+/** Whether another tab has the shared model open; null while the answer to the question is pending. */
 export const sharedTabOpen = ref<boolean | null>(null)
 
 const inSharedTab = () => Boolean(current.value?.linkedModelId) && useModelWorkspaceStore().model?.id === current.value?.linkedModelId
@@ -115,15 +94,15 @@ tabs?.addEventListener('message', (event: MessageEvent<string>) => {
   else if (event.data === 'gone') sharedTabOpen.value = false
 })
 
-/** Fragt, ob der Tab mit dem geteilten Modell offen ist; ohne Antwort in kurzer Zeit gilt er als geschlossen. */
+/** Asks whether the tab with the shared model is open; without an answer shortly it counts as closed. */
 export const askSharedTab = () => {
   sharedTabOpen.value = null
   if (!tabs) return void (sharedTabOpen.value = false)
   tabs.postMessage('ping')
-  setTimeout(() => (sharedTabOpen.value ??= false), 300)
+  setTimeout(() => (sharedTabOpen.value ??= false), collabSettings.sharing.tabCheckMs)
 }
 
-/** Meldet den Tab an, solange er das geteilte Modell im Editor hat, und ab beim Schließen oder Verlassen; für CollabConnector. */
+/** Announces the tab while it has the shared model in the editor, and signs it off on closing or leaving; for CollabConnector. */
 export const announceSharedTab = () => {
   const stop = watch(inSharedTab, (here, was) => (here ? tabs?.postMessage('here') : was && tabs?.postMessage('gone')), { immediate: true })
   const gone = () => inSharedTab() && tabs?.postMessage('gone')
@@ -149,7 +128,7 @@ const request = async <Value>(run: () => Promise<{ data: Value }>) => {
   try {
     return (await run()).data
   } catch (error) {
-    throw new Error((error as AxiosError<{ message?: string }>).response?.data?.message ?? (error as Error).message)
+    throw new Error(apiErrorMessage(error))
   }
 }
 
@@ -167,32 +146,6 @@ export const visitorRights = reactive({ edit: false, comment: false, locked: fal
 
 /** Which color each person has: the host hands them out and announces them, the visitors read them from the host's presence. */
 export const personColors = ref<Record<string, string>>({})
-
-/** The situations of a visitor leaving; the dialog takes its texts from `visitorCases` and the situation from `visitorCase`. */
-export type VisitorCase = 'leave' | 'hostAway' | 'hostEnding' | 'hostLeft' | 'roomGone'
-
-/** What the dialog says in each situation. `tone` colors the icon and the chip; without `canStay` the room is closed and the visitor can only go on alone. */
-export const visitorCases: Record<VisitorCase, { icon: string; tone: 'ok' | 'warn'; title: string; text: string; chip: { icon: string; text: string }; canStay: boolean; confirm: string }> = {
-  leave: { icon: 'mdi-exit-run', tone: 'ok', title: 'Leave sharing', text: 'You leave the shared model. Keep the current state to continue on your own.', chip: { icon: 'mdi-door-open', text: 'Room is open' }, canStay: true, confirm: 'Keep and leave' },
-  hostAway: { icon: 'mdi-lan-disconnect', tone: 'warn', title: 'Leave sharing', text: 'The host is disconnected and editing is paused. You can wait or leave now.', chip: { icon: 'mdi-lan-disconnect', text: 'Host disconnected' }, canStay: true, confirm: 'Keep and leave' },
-  hostEnding: { icon: 'mdi-lock-outline', tone: 'warn', title: 'Leave sharing', text: 'The host is ending the session. Keep the current state before the room closes.', chip: { icon: 'mdi-lock-outline', text: 'Host is ending the session' }, canStay: true, confirm: 'Keep and leave' },
-  hostLeft: { icon: 'mdi-exit-run', tone: 'warn', title: 'The host has left', text: 'The room is closed. Keep the current state to continue on your own.', chip: { icon: 'mdi-lock-outline', text: 'Room closed' }, canStay: false, confirm: 'Keep and continue' },
-  roomGone: { icon: 'mdi-link-off', tone: 'warn', title: 'The room is no longer available', text: 'You can no longer reach this room. Keep the current state to continue on your own.', chip: { icon: 'mdi-link-off', text: 'Room closed' }, canStay: false, confirm: 'Keep and continue' }
-}
-
-/** What a visitor may do with the state on leaving. */
-export type VisitorChoice = 'keep' | 'drop'
-export const visitorChoices: { value: VisitorChoice; icon: string; title: string; hint?: string; danger?: boolean }[] = [
-  { value: 'keep', icon: 'mdi-file-plus-outline', title: 'Keep as a model of your own' },
-  { value: 'drop', icon: 'mdi-delete-outline', title: 'Do not keep', hint: 'The state is lost for you', danger: true }
-]
-
-/** The situation of the visitor now; the host being gone counts before the host ending, and a closed room before both. */
-export const visitorCase = (): VisitorCase => {
-  if (hostClosed.value) return roomGone.value ? 'roomGone' : 'hostLeft'
-  if (hostAway.value || visitorRights.autoLocked) return 'hostAway'
-  return visitorRights.locked ? 'hostEnding' : 'leave'
-}
 
 /** What the host announced through presence for the visitors, which comes at once; CK tells it only after a reconnect, `speak` never. */
 export const announcedRights = ref<{ edit: boolean; comment: boolean; anonymous: boolean } | null>(null)
@@ -232,7 +185,7 @@ export const toggleShareSetting = async (key: SettingKey) => {
   }
 }
 
-/** Ein Schalter des Hosts, gleich in der Sidebar und in der Leiste am Canvas; `sidebarOnly` fehlt in der Leiste. `label` ist der kurze, feste Name der Kachel in der Sidebar, `title` der Tooltip. */
+/** A switch of the host, the same in the sidebar and in the bar at the canvas; `sidebarOnly` is missing in the bar. `label` is the short, fixed name of the tile in the sidebar, `title` the tooltip. */
 export interface HostToggle {
   key: string
   label: string
@@ -243,7 +196,7 @@ export interface HostToggle {
   sidebarOnly?: boolean
 }
 
-// Eine Quelle für Sidebar und ModeBar, damit Icons und Texte an beiden Stellen gleich bleiben.
+// One source for sidebar and ModeBar, so icons and texts stay the same in both places.
 export const hostToggles = computed<HostToggle[]>(() => {
   const { joinable, edit, comment, anonymous } = shareSettings
   return [
@@ -258,13 +211,22 @@ export const hostToggles = computed<HostToggle[]>(() => {
 /** Which dialog is open; it lives here and not in a component, as the editor and its sidebar are rebuilt while sharing and leaving. */
 export const shareDialog = ref<'ask' | 'link' | 'quit' | 'leave' | null>(null)
 
+// Every share starts with the choice from the collab settings; whoever was not connected yet reads them here for the first time.
+watch(shareDialog, async (dialog) => {
+  if (dialog !== 'ask') return
+  await loadCollabKit()
+    .then((ck) => loadCollabSettings(ck, 'shareDefaults'))
+    .catch(() => undefined)
+  if (shareDialog.value === 'ask') Object.assign(shareChoice, defaultChoice())
+})
+
 /** The link of a room; the router builds it, as the app keeps its routes behind a hash. */
 export const shareLink = (router: Router, roomId: string) => new URL(router.resolve({ name: 'Join', params: { roomId } }).href, window.location.origin).href
 
 /** Shares the open model: creates room and workpiece at the backend, writes the state, opens the room model. Gives back the link. */
 /** With `task`, the task of the model comes along; the backend reads it from the model. `history` tells how much of the private versions goes into the workpiece. */
 export const shareModel = async (router: Router, { history = 'none', ...options }: ShareOptions & { task: boolean; history?: HistoryMode }) => {
-  // Ein anderes Modell wird schon geteilt: Das Beenden braucht dessen Editor, deshalb erst dort schließen.
+  // Another model is shared already: ending it needs its editor, so it is closed there first.
   if (current.value && !isSharedModel(useModelWorkspaceStore().model?.id)) throw new Error('Another model is already shared. Quit that sharing first.')
   // A second share saves and closes the first one beforehand, as on leaving.
   if (current.value) await leaveShare(router, 'version')
@@ -311,7 +273,7 @@ export const joinShare = async (router: Router, roomId: string) => {
   if (joined.role === 'host') return openWorkpiece(router, room, workpiece)
   // Set before the editor mounts, so the connection of the visitor finds the share.
   current.value = { roomId, workpieceId: joined.workpieceId, hostId: joined.hostId, privateModelId: null, linkedModelId: null }
-  // Die ID von openWorkpiece, nicht aus dem Store: Der hält beim Wechsel auf ein vorhandenes Modell noch das vorige.
+  // The ID from openWorkpiece, not from the store: on switching to an existing model the store still holds the one before.
   current.value = { ...current.value, linkedModelId: await openWorkpiece(router, room, workpiece) }
 }
 
@@ -371,7 +333,7 @@ export const saveRoomCheckpoint = async () => {
 /** Where the guard stopped someone on their way out; once they have decided, they go there. */
 export const pendingTarget = ref<RouteLocationNormalized | null>(null)
 
-/** Leaves the room model and opens `model`, or the place the guard stopped; das verknüpfte Modell löscht das Backend mit `leave` bzw. `close`. */
+/** Leaves the room model and opens `model`, or the place the guard stopped; the backend deletes the linked model on `leave` or `close`. */
 const leaveLinked = async (router: Router, model: Model | null) => {
   const target = pendingTarget.value
   pendingTarget.value = null

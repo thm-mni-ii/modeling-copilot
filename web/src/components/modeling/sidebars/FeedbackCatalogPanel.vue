@@ -28,7 +28,10 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { InternalEvent } from '@maxgraph/core'
+import { useGraphContextOptional } from '@/composables/useGraphContext'
 import FeedbackView from '@/components/feedback/FeedbackView.vue'
+import { graphInfo } from '@/utils/analysisFeedback'
 import type { EvaluationDetail, HelpFeedbackCatalogObject, HelpFeedbackEntry, HelpFeedbackPattern } from '@/services/api/types/evaluation'
 
 // focus: a diagram click in this tab; seq re-triggers the same object.
@@ -38,11 +41,11 @@ const snapshotXml = computed(() => (props.detail.submissionSnapshot.data as { xm
 type HelpType = 'help.clarify' | 'help.next_step' | 'help.example' | 'help.check' | 'help.solution'
 // Order and wording follow the learner's choice in the help questionnaire.
 const helpOptions: { type: HelpType; title: string; request: string }[] = [
-  { type: 'help.clarify', title: 'Erklärung', request: 'Eine Erklärung, damit ich es verstehe' },
+  { type: 'help.check', title: 'Prüfung', request: 'Eine Prüfung meiner bisherigen Lösung' },
+  { type: 'help.clarify', title: 'Erklärung', request: 'Eine Erklärung zu einem Element in meinem Modell' },
   { type: 'help.next_step', title: 'Nächster Schritt', request: 'Ein Hinweis auf den nächsten Schritt' },
   { type: 'help.example', title: 'Beispiel', request: 'Ein Beispiel' },
-  { type: 'help.check', title: 'Prüfung', request: 'Eine Prüfung/Bestätigung meiner bisherigen Lösung' },
-  { type: 'help.solution', title: 'Lösung', request: 'Eine konkrete Lösung bzw. Antwort' }
+  { type: 'help.solution', title: 'Lösung', request: 'Eine konkrete Lösung' }
 ]
 const helpType = ref<HelpType>('help.clarify')
 const search = ref<string | null>('')
@@ -54,7 +57,8 @@ const catalogEntry = computed(() => {
   return entries.find(entry => entry.type === 'help.catalog') ?? null
 })
 const catalogObjects = computed(() => catalogEntry.value?.catalog ?? null)
-const objects = computed(() => catalogObjects.value ?? [])
+const submissionGraph = computed(() => graphInfo(props.detail, 'submission'))
+const objects = computed(() => (catalogObjects.value ?? []).filter(object => submissionGraph.value?.nodes.get(object.cellId)?.kind !== 'structuralElement'))
 const groups = computed(() => {
   const query = (search.value ?? '').trim().toLocaleLowerCase('de')
   const visible = objects.value.filter(object => !query || `${object.label} ${object.typeName}`.toLocaleLowerCase('de').includes(query))
@@ -70,14 +74,22 @@ const setExpanded = (items: HelpFeedbackCatalogObject[], value: string[]) => {
   const opened = value.find(id => !expanded.value.includes(id))
   expanded.value = opened ? [opened] : expanded.value.filter(id => value.includes(id) || !items.some(object => object.cellId === id))
 }
-watch(() => props.focus, async (focus) => {
-  const object = focus && objects.value.find(item => item.cellId === focus.id)
+const focusObject = async (id?: string | null) => {
+  const object = objects.value.find(item => item.cellId === id)
   if (!object) return
   if (!groups.value.some(group => group.objects.includes(object))) search.value = ''
   expanded.value = [object.cellId]
   await nextTick()
   document.getElementById(`catalog-${object.cellId}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-})
+}
+watch([() => props.focus, () => !!catalogObjects.value], ([focus]) => { void focusObject(focus?.id) }, { immediate: true })
+const graphContext = useGraphContextOptional()
+watch(() => graphContext?.graph.value, (graph, _, onCleanup) => {
+  if (!graph) return
+  const select = () => { void focusObject(graph.getSelectionCell()?.getId()) }
+  graph.getSelectionModel().addListener(InternalEvent.CHANGE, select)
+  onCleanup(() => { graph.getSelectionModel().removeListener(select) })
+}, { immediate: true })
 // Exactly the learner entry of one help type, rendered with the learner components.
 // help.example patterns are stored once per compared element and resolved here.
 const entries = (object: HelpFeedbackCatalogObject, type: HelpType): HelpFeedbackEntry[] => {

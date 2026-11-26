@@ -6,7 +6,7 @@
         <h1 class="text-h4">{{ admin ? 'Learning path templates' : run ? run.name : 'My learning paths' }}</h1>
         <p v-if="!admin && !run" class="text-body-1 text-medium-emphasis mt-2">Pick up where you left off or explore a new learning path.</p>
       </div>
-      <v-btn v-if="canViewProgress" variant="tonal" prepend-icon="mdi-table-account" to="/learning-path-progress">Learning path progress</v-btn>
+      <v-btn v-if="canViewProgress" variant="tonal" prepend-icon="mdi-chart-box-outline" to="/analytics/learning-paths">Analytics</v-btn>
       <v-btn v-if="admin" color="primary" to="/learning-path-templates/edit">New template</v-btn><v-btn variant="text" prepend-icon="mdi-refresh" :loading="loading" @click="load">Refresh</v-btn>
     </div>
     <v-alert v-if="error" type="error" class="mb-4">{{ error }}</v-alert>
@@ -56,7 +56,7 @@
         ><div class="d-flex align-center flex-wrap ga-3">
           <h3 class="text-h6">{{ item.name }}</h3>
           <v-chip v-if="admin" size="small">{{ pathVisibilityLabel(item.visibility) }}</v-chip>
-          <v-spacer /><v-btn v-if="admin" :to="`/learning-path-templates/${item.id}/edit`">Edit</v-btn><v-btn v-if="item.visibility === 'published'" color="primary" :disabled="!!busy" :loading="busy === item.id" @click="start(item.id)">{{ admin ? 'Start run' : 'Start learning path' }}</v-btn>
+          <v-spacer /><v-btn v-if="admin && canViewProgress" :to="`/analytics/learning-paths/${item.id}`" prepend-icon="mdi-chart-box-outline">Progress</v-btn><v-btn v-if="admin" :to="`/learning-path-templates/${item.id}/edit`">Edit</v-btn><v-btn v-if="item.visibility === 'published'" color="primary" :disabled="!!busy" :loading="busy === item.id" @click="start(item.id)">{{ admin ? 'Start run' : 'Start learning path' }}</v-btn>
         </div>
         <p class="my-2">{{ item.description }}</p>
         <span class="text-caption text-medium-emphasis"><v-icon size="16" class="mr-1">mdi-format-list-checks</v-icon>{{ item.steps.length }} activities</span></v-card

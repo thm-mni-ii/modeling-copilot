@@ -10,6 +10,9 @@
     <p v-if="activity && draftStatus && (!compact || draftFailed)" class="text-caption mb-2" role="status">{{ draftStatus }}</p>
     <p v-if="model && !completed && introduction" class="survey-introduction mb-5"><em>{{ introduction }}</em></p>
     <SurveyComponent v-if="model && !completed" :model="model" />
+    <template v-if="model && !completed">
+      <v-tooltip v-for="choice in disabledTargets" :key="`${choice.question}:${choice.value}`" :activator="choice.element" :text="choice.reason" location="top" max-width="260" open-on-hover />
+    </template>
     <Teleport v-if="newChoiceTarget && newChoice && model && !completed" :to="newChoiceTarget">
       <v-tooltip :text="newChoice.hint" location="top" max-width="260" open-on-click>
         <template #activator="{ props: tooltipProps }">
@@ -33,13 +36,14 @@ import { Model, QuestionRankingModel, QuestionRatingModel, QuestionRadiogroupMod
 import { SurveyComponent } from 'survey-vue3-ui'
 import 'survey-core/survey-core.css'
 import 'survey-core/i18n/german'
-import paths, { type SurveyPhase, type HelpSurveyPhase, type HelpTourAnswer } from '@/services/learningPaths'
+import paths, { helpFeedbackOptions, type SurveyPhase, type HelpSurveyPhase, type HelpTourAnswer } from '@/services/learningPaths'
 import surveys, { surveyError, type SurveyDefinition, type SurveyMode, type SurveyResponse } from '@/services/surveys'
 
-const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; compact?: boolean; localDefinition?: SurveyDefinition; questionPerPage?: boolean; completeText?: string; newChoice?: { question: string; value: string; label: string; hint: string }; hiddenChoices?: Record<string, string[]>; activity?: { runId: string; stepId: string; phase?: SurveyPhase; helpRequestId?: string; helpPhase?: HelpSurveyPhase } }>(), { mode: 'use', compact: false })
+const props = withDefaults(defineProps<{ surveyId: string; versionId?: string; mode?: SurveyMode; compact?: boolean; localDefinition?: SurveyDefinition; questionPerPage?: boolean; completeText?: string; newChoice?: { question: string; value: string; label: string; hint: string }; disabledChoices?: Record<string, Record<string, string>>; activity?: { runId: string; stepId: string; phase?: SurveyPhase; helpRequestId?: string; helpPhase?: HelpSurveyPhase } }>(), { mode: 'use', compact: false })
 const emit = defineEmits<{ completed: [response?: SurveyResponse]; 'question-change': [name: string | null]; 'tour-answer-change': [answer: HelpTourAnswer] }>()
 const model = shallowRef<Model | null>(null)
 const newChoiceTarget = shallowRef<HTMLElement | null>(null)
+const disabledTargets = shallowRef<{ question: string; value: string; reason: string; element: HTMLElement }[]>([])
 const loading = ref(false),
   saving = ref(false),
   error = ref('')
@@ -149,6 +153,7 @@ async function submit() {
 async function load() {
   const current = ++generation
   newChoiceTarget.value = null
+  disabledTargets.value = []
   model.value?.dispose()
   model.value = null
   introduction.value = ''
@@ -174,14 +179,15 @@ async function load() {
       delete question.page
       delete question.exclusiveChoices
       delete question.visibleWhen
+      delete question.exampleImages
       const notEqual = question.visibleIf?.match(/^\{([a-zA-Z][a-zA-Z0-9_-]{0,79})\} (?:!=|notcontains) /)
       if (notEqual) question.visibleIf = `(${question.visibleIf}) and {${notEqual[1]}} notempty`
       if (q.type === 'ranking' && q.choicesFromQuestion) {
         const multipleChoices = `{${q.choicesFromQuestion}.length} >= 2`
         question.visibleIf = question.visibleIf ? `(${question.visibleIf}) and (${multipleChoices})` : multipleChoices
       }
-      const hidden = new Set(props.hiddenChoices?.[q.name] ?? [])
-      return { ...question, ...(q.type === 'rating' ? { displayMode: 'buttons', rateDescriptionLocation: 'bottom' } : {}), ...(q.choices ? { choices: q.choices.filter(value => !hidden.has(String(value))).map(value => ({ value, text: props.newChoice?.question === q.name && props.newChoice.value === value ? props.newChoice.label : q.choiceLabels?.[value] ?? value, isExclusive: q.exclusiveChoices?.includes(value) ?? false })) } : {}) }
+      const disabled = props.disabledChoices?.[q.name] ?? {}
+      return { ...question, ...(q.type === 'rating' ? { displayMode: 'buttons', rateDescriptionLocation: 'bottom' } : {}), ...(q.choices ? { choices: q.choices.map(value => ({ value, ...(String(value) in disabled ? { enableIf: 'false' } : {}), text: props.newChoice?.question === q.name && props.newChoice.value === value ? props.newChoice.label : q.choiceLabels?.[value] ?? value, isExclusive: q.exclusiveChoices?.includes(value) ?? false })) } : {}) }
     }
     const { elements, pages, ...settings } = survey.definition
     delete settings.introduction
@@ -189,7 +195,77 @@ async function load() {
       ? { ...settings, pages: pages.filter(page => elements.some(q => q.page === page.name)).map(page => ({ ...page, elements: elements.filter(q => q.page === page.name).map(displayQuestion) })), showProgressBar: 'top', progressBarType: 'pages' }
       : { ...settings, elements: elements.map(displayQuestion) }
     const instance = new Model({ ...displayedDefinition, widthMode: 'responsive', title: pulse || activity?.helpRequestId ? '' : survey.title, ...(pulse || activity?.helpRequestId ? { completeText: activity?.helpPhase === 'action' ? 'Hilfe auswählen' : 'Weiter' } : {}), ...(props.completeText ? { completeText: props.completeText } : {}), locale: 'de', showCompletedPage: false, textUpdateMode: 'onTyping' })
+    // Bold the help type inside its answer; the stored texts stay free of markup.
+    const supportLabels = survey.definition.elements.find(item => item.name === 'support_need')?.choiceLabels
+    const boldLabels = new Map<string, string>()
+    for (const option of helpFeedbackOptions) {
+      const text = supportLabels?.[option.choice]
+      const keyword = option.keyword ?? option.title
+      // Labels are teacher-editable, so escape them before they are rendered as HTML.
+      if (text?.includes(keyword)) boldLabels.set(text, text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(keyword, `<strong>${keyword}</strong>`))
+    }
+    instance.onTextMarkdown.add((_sender, options) => {
+      const html = boldLabels.get(options.text)
+      if (html) options.html = html
+    })
     instance.onAfterRenderQuestion.add((_sender, { question, htmlElement }) => {
+      const definition = survey.definition.elements.find(item => item.name === question.name)
+      if (definition?.exampleImages?.length && !htmlElement.querySelector('.survey-example-images')) {
+        const images = document.createElement('div')
+        images.className = 'survey-example-images'
+        for (const { src, alt, caption } of definition.exampleImages) {
+          const figure = document.createElement('figure')
+          figure.className = 'survey-example-image'
+          const link = document.createElement('a')
+          link.href = src
+          link.target = '_blank'
+          link.rel = 'noopener noreferrer'
+          link.title = 'Beispielbild in Originalgröße öffnen'
+          const image = document.createElement('img')
+          image.src = src
+          image.alt = alt
+          const label = document.createElement('figcaption')
+          label.textContent = `${caption} Zum Vergrößern öffnen.`
+          link.append(image)
+          figure.append(link, label)
+          images.append(figure)
+        }
+        const content = htmlElement.querySelector('.sd-question__content') ?? htmlElement
+        content.prepend(images)
+      }
+      if (question instanceof QuestionRadiogroupModel && definition?.minRateDescription && definition.maxRateDescription) {
+        htmlElement.style.setProperty('--survey-scale-min-label', JSON.stringify(definition.minRateDescription))
+        htmlElement.style.setProperty('--survey-scale-max-label', JSON.stringify(definition.maxRateDescription))
+      }
+      if (question.name === 'support_need') {
+        // Same icons as the help buttons; the choice IDs exist only in the help questionnaire.
+        for (const option of helpFeedbackOptions) {
+          const label = htmlElement.querySelector(`input[value="${option.choice}"]`)?.closest('.sd-item')?.querySelector('.sd-item__control-label')
+          if (!label || label.querySelector('.survey-choice-icon')) continue
+          const icon = document.createElement('i')
+          icon.className = `mdi ${option.icon} survey-choice-icon mr-1`
+          icon.setAttribute('aria-hidden', 'true')
+          label.prepend(icon)
+        }
+      }
+      const reasons = Object.entries(props.disabledChoices?.[question.name] ?? {})
+      if (reasons.length) {
+        const targets = reasons.flatMap(([value, reason]) => {
+          const element = htmlElement.querySelector(`input[value="${CSS.escape(value)}"]`)?.closest<HTMLElement>('.sd-item')
+          if (!element) return []
+          element.classList.add('survey-choice-disabled')
+          const label = element.querySelector('.sd-item__control-label')
+          if (label && !label.querySelector('.survey-choice-reason')) {
+            // Disabled answers cannot be focused, so the reason is also part of their label.
+            const text = document.createElement('span')
+            text.className = 'survey-choice-reason'
+            text.textContent = ` (${reason})`
+            label.append(text)
+          }
+          return [{ question: question.name, value, reason, element }]
+        })
+        disabledTargets.value = [...disabledTargets.value.filter(target => target.question !== question.name), ...targets]
+      }
       if (activity?.helpRequestId) htmlElement.dataset.helpTourQuestion = question.name
       if (activity?.helpRequestId && question.name === 'support_need') {
         const choice = htmlElement.querySelector<HTMLInputElement>('input[value="support_need_4"]')?.closest<HTMLElement>('.sd-item')
@@ -262,6 +338,10 @@ async function load() {
       } catch {
         /* Server draft remains available. */
       }
+      // A draft may still hold an answer whose quota has been used up since.
+      for (const [name, reasons] of Object.entries(props.disabledChoices ?? {})) {
+        if (String(instance.getValue(name)) in reasons) instance.clearValue(name)
+      }
       lastAnswers = JSON.parse(JSON.stringify(instance.data))
       instance.onValueChanged.add((sender) => queueDraft(JSON.parse(JSON.stringify(sender.data))))
       if (JSON.stringify(instance.data) !== JSON.stringify(session.answers)) queueDraft(lastAnswers)
@@ -306,11 +386,25 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .survey-renderer { width: 100%; min-width: 0; }
+:deep(.survey-choice-disabled), :deep(.survey-choice-disabled *) { cursor: not-allowed; }
+:deep(.survey-choice-disabled .sd-item__control-label) { opacity: 0.45; }
+/* The disabled input would swallow the pointer events that open the explanation. */
+:deep(.survey-choice-disabled input) { pointer-events: none; }
+:deep(.survey-choice-reason) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* SurveyJS renders the label text as a block, which would wrap below the icon. */
+:deep(.sd-item__control-label:has(> .survey-choice-icon)) { display: flex; align-items: flex-start; }
 :deep(.survey-choice-with-hint) { display: flex; align-items: center; }
 :deep(.survey-choice-with-hint .sd-selectbase__label) { flex: 1; min-width: 0; }
 .survey-choice-hint { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; cursor: help; }
 .survey-choice-hint:focus-visible { outline: 2px solid rgb(var(--v-theme-info)); outline-offset: 2px; }
 :deep(.sd-rating fieldset) { flex-wrap: wrap; }
+:deep(.survey-example-images) { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+:deep(.survey-example-image) { flex: 0 1 auto; min-width: 0; margin: 0; }
+:deep(.survey-example-image img) { display: block; max-width: 100%; height: auto; }
+:deep(.survey-example-image figcaption) { margin-top: 8px; font-size: 0.875rem; color: var(--sjs-general-forecolor-light, #909090); }
+@media (max-width: 600px) {
+  :deep(.survey-example-images) { flex-direction: column; }
+}
 :deep(.survey-rating-five .sd-rating.sd-rating--labels-bottom fieldset) {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -383,6 +477,22 @@ onBeforeUnmount(() => {
   outline-offset: 3px;
 }
 :deep(.survey-radio-scale .sd-item:nth-of-type(n+6)) { grid-column: 1 / -1; }
+:deep(.survey-radio-scale .sd-selectbase::before),
+:deep(.survey-radio-scale .sd-selectbase::after) {
+  grid-row: 2;
+  color: var(--sjs-general-forecolor-light, #909090);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+:deep(.survey-radio-scale .sd-selectbase::before) {
+  content: var(--survey-scale-min-label, none);
+  grid-column: 1 / 3;
+}
+:deep(.survey-radio-scale .sd-selectbase::after) {
+  content: var(--survey-scale-max-label, none);
+  grid-column: 4 / -1;
+  text-align: right;
+}
 .survey-introduction {
   line-height: 1.6;
   white-space: pre-line;

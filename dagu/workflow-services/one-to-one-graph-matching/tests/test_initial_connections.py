@@ -119,7 +119,8 @@ class ConnectionStructureTests(unittest.TestCase):
         self.assertEqual(result["proposals"], [])
         self.assertEqual(len(result["candidateEvidence"]), 4)
 
-    def test_ambiguous_parallel_connections_have_no_invented_type_differences(self):
+    def test_interchangeable_parallel_connections_are_paired_without_invented_type_differences(self):
+        # GM-46: indistinguishable parallel connections are paired in ID order; any assignment is equally right.
         indices, _mapping = indices_with_connections(
             [("r1", "a", "b", {}), ("r2", "a", "b", {})],
             [("s1", "a", "b", {}), ("s2", "a", "b", {})],
@@ -128,9 +129,10 @@ class ConnectionStructureTests(unittest.TestCase):
                      "dependsOn": [], "status": "provisional"} for name in ("a", "b", "c")]
         connections = propose_connections(indices, elements)
         data = evaluate_type_comparison(indices, elements, connections["proposals"])["connections"]
-        self.assertEqual((data["mappedCount"], data["unresolvedCount"]), (0, 2))
+        self.assertEqual([(row["referenceId"], row["studentId"], row["reason"]) for row in connections["proposals"]],
+                         [("r1", "s1", "interchangeable_parallel_connections"), ("r2", "s2", "interchangeable_parallel_connections")])
+        self.assertEqual((data["mappedCount"], data["unresolvedCount"]), (2, 0))
         self.assertEqual(data["compatibleTypeDifferenceCount"], 0)
-        self.assertIsNone(data["compatibleTypeDifferencePercentage"])
 
     def test_parallel_edges_are_counted_without_forcing_identity(self):
         indices, mapping = indices_with_connections(

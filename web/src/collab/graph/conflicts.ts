@@ -1,50 +1,55 @@
 import { CellHighlight, type Graph } from '@maxgraph/core'
 import { notifyWarning } from '@/composables/useNotifications'
 import type { Session } from '@/collab/kit/collabKitV1'
-import { shownName } from '@/collab/presence/presence'
+import type { Log } from '@/collab/connection/collabLog'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
-/** How long a cell whose change was lost stays framed. */
-const FRAME_MS = 4000
+/**
+ * Frames a cell for a while, or until taken away with ms Infinity; also the log shows its elements so. Returns what takes the frame away before,
+ * or null when the cell is not shown.
+ */
+export const frameCell = (graph: Graph, id: string, color: string, ms = collabSettings.hints.conflictFrameMs) => {
+  const cell = graph.getDataModel().getCell(id)
+  const state = cell ? graph.view.getState(cell) : null
+  if (!state) return null
+  // Dashed and outside the frame of a person who selects the cell, so it is neither taken for nor hidden by it.
+  const frame = new CellHighlight(graph, color, 3, true)
+  frame.spacing = 6
+  frame.highlight(state)
+  // Without a time it stays until the caller takes it away.
+  const timer = Number.isFinite(ms) ? setTimeout(() => frame.destroy(), ms) : undefined
+  return () => {
+    clearTimeout(timer)
+    frame.destroy()
+  }
+}
 
 /** Tells of every change lost at the workpiece in the log; the one who lost also gets a notice and the cell framed. */
-export const showConflicts = (graph: Graph, session: Session, log: (text: string) => void) => {
-  const frames = new Map<CellHighlight, ReturnType<typeof setTimeout>>()
+export const showConflicts = (graph: Graph, session: Session, log: Log) => {
+  const frames = new Set<() => void>()
   let stopped = false
 
-  const unframe = (frame: CellHighlight) => {
-    clearTimeout(frames.get(frame))
-    frame.destroy()
-    frames.delete(frame)
-  }
-
-  const frameCell = (id: string) => {
-    if (stopped) return
-    const cell = graph.getDataModel().getCell(id)
-    const state = cell ? graph.view.getState(cell) : null
-    if (!state) return
-    // Dashed and outside the frame of a person who selects the cell, so it is neither taken for nor hidden by it.
-    const frame = new CellHighlight(graph, '#d32f2f', 3, true)
-    frame.spacing = 6
-    frame.highlight(state)
-    frames.set(
-      frame,
-      setTimeout(() => unframe(frame), FRAME_MS)
-    )
-  }
-
   const stop = session.on('conflict', ({ unit, cause, loser, winner, mine, names }) => {
-    // Wie überall im Raum: im anonymen Raum auch für Admins kein echter Name.
-    const name = (id: string) => shownName(id, names[id], mine && id === loser)
+    const name = (id: string) => names[id] ?? id
     log(`conflict · ${cause} · cell ${unit ?? '?'} · ${name(loser)} lost to ${name(winner)}`)
+    // The element with its label as maxGraph shows it; without one it stays general.
+    const cell = unit ? graph.getDataModel().getCell(unit) : null
+    const label = cell ? graph.convertValueToString(cell).trim() : ''
+    const element = label ? `"${label}"` : 'an element'
+    log(`${mine ? 'Your' : `${name(loser)}'s`} change to ${element} was overwritten by ${name(winner)}`, 'conflict')
     if (!mine) return
     notifyWarning(`Your change was overwritten by ${name(winner)}`)
     // The winning value may still be on its way into the graph.
-    if (unit) setTimeout(() => frameCell(unit))
+    if (!unit) return
+    setTimeout(() => {
+      const unframe = stopped ? null : frameCell(graph, unit, collabSettings.colors.conflictColor)
+      if (unframe) frames.add(unframe)
+    })
   })
 
   return () => {
     stopped = true
     stop()
-    for (const frame of [...frames.keys()]) unframe(frame)
+    for (const unframe of frames) unframe()
   }
 }

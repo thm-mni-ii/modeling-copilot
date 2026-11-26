@@ -1,9 +1,13 @@
 <template>
-  <v-menu v-model="open" location="bottom start" :close-on-content-click="false" max-height="480">
+  <ConnectionToolbar v-if="connections.length" v-show="selectionCount === 0" ref="connectionToolbar" :enabled="canEdit" :connections="connections" :connection-groups="connectionGroups" :preferences="connectionPreferences" @select="emit('select-connection', $event)" @update:preferences="emit('update:connection-preferences', $event)" />
+  <v-menu v-if="selectionCount > 0 || !connections.length" v-model="open" location="bottom start" :close-on-content-click="false" max-height="480">
     <template #activator="{ props: activatorProps }">
-      <v-btn-group size="small" density="compact" :variant="hasAvailableTypeChange ? 'tonal' : 'outlined'" :color="hasAvailableTypeChange ? 'primary' : undefined" class="selected-type" :title="triggerLabel">
-        <v-btn v-bind="activatorProps" width="48" min-width="48" :disabled="!selection || !enabled" :aria-label="triggerLabel" :aria-expanded="open">
-          <v-icon size="20">mdi-swap-horizontal</v-icon>
+      <v-btn-group size="small" density="compact" variant="outlined" class="selected-type" :class="{ 'selected-type--active': selection && canEdit }" :title="triggerLabel">
+        <v-btn v-bind="activatorProps" width="64" min-width="64" :disabled="!selection || !canEdit" :aria-label="triggerLabel" :aria-expanded="open">
+          <span class="selected-type__icon">
+            <v-icon size="20">{{ cell?.isEdge() ? 'mdi-vector-line' : 'mdi-shape-outline' }}</v-icon>
+            <v-icon size="13" class="selected-type__switch">mdi-swap-horizontal</v-icon>
+          </span>
           <v-icon size="14">mdi-chevron-down</v-icon>
         </v-btn>
       </v-btn-group>
@@ -46,11 +50,25 @@ import { computed, ref, watch } from 'vue'
 import { InternalEvent, type Cell } from '@maxgraph/core'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { applyTypeSwitch, typeSwitchOptions, type SwitchLanguage, type TypeSwitchOption } from '@/utils/typeSwitch'
+import type { DiagramConnection, DiagramConnectionGroup } from '@/model/Connection'
+import type { JsonObject } from '@/services/api/types/common'
+import ConnectionToolbar from './ConnectionToolbar.vue'
 import DiagramPreviewItem from '@/components/modeling/canvas/DiagramPreviewItem.vue'
 import ConnectionPreviewItem from '@/components/modeling/canvas/ConnectionPreviewItem.vue'
 
-const props = defineProps<{ languages: SwitchLanguage[]; enabled: boolean }>()
+const props = withDefaults(defineProps<{
+  languages: SwitchLanguage[]
+  enabled: boolean
+  connections?: DiagramConnection[]
+  connectionGroups?: DiagramConnectionGroup[]
+  connectionPreferences?: JsonObject
+}>(), { connections: () => [], connectionGroups: () => [], connectionPreferences: undefined })
+const emit = defineEmits<{
+  'select-connection': [connection: DiagramConnection]
+  'update:connection-preferences': [preferences: JsonObject]
+}>()
 const { graph } = useGraphContext()
+const connectionToolbar = ref<InstanceType<typeof ConnectionToolbar> | null>(null)
 const revision = ref(0)
 const open = ref(false)
 const confirmOpen = ref(false)
@@ -74,18 +92,29 @@ watch(graph, (current, _previous, onCleanup) => {
   })
 }, { immediate: true })
 
+const selectionCount = computed(() => {
+  void revision.value
+  return graph.value?.getSelectionCount() ?? 0
+})
 const cell = computed(() => {
   void revision.value
-  return graph.value?.getSelectionCount() === 1 ? graph.value.getSelectionCell() : undefined
+  return selectionCount.value === 1 ? graph.value?.getSelectionCell() : undefined
 })
 const selection = computed(() => {
   void revision.value
   return graph.value && cell.value ? typeSwitchOptions(graph.value, cell.value, props.languages) : undefined
 })
 const current = computed(() => selection.value?.options[0])
-const hasAvailableTypeChange = computed(() => props.enabled && graph.value?.isEnabled() && !graph.value.isCellsLocked() && selection.value?.options.some((option) => option.type !== current.value?.type && !option.reasons.length))
+const canEdit = computed(() => {
+  void revision.value
+  return Boolean(props.enabled && graph.value?.isEnabled() && !graph.value.isCellsLocked())
+})
 const triggerLabel = computed(() => current.value ? `Change type (${current.value.connection?.label || current.value.type})` : 'Change type — select one object')
-watch([cell, () => props.enabled], () => { open.value = false; confirmOpen.value = false })
+watch([cell, selectionCount, () => props.enabled], () => {
+  open.value = false
+  confirmOpen.value = false
+  connectionToolbar.value?.closePalette()
+})
 watch(open, () => { expandedTypes.value = [] })
 
 const toggleReasons = (type: string) => {
@@ -117,11 +146,22 @@ const switchType = (confirmed: boolean) => {
     confirmOpen.value = false
   }
 }
+
+defineExpose({
+  closePalette: () => {
+    open.value = false
+    connectionToolbar.value?.closePalette()
+  },
+  selectConnectionByReference: (languageId: string, connectionType: string) => connectionToolbar.value?.selectConnectionByReference(languageId, connectionType) ?? false
+})
 </script>
 
 <style scoped>
 .selected-type { flex: 0 0 auto; }
+.selected-type--active { background: rgba(var(--v-theme-primary), 0.1); border-color: rgb(var(--v-theme-dark-gray)); color: rgb(var(--v-theme-primary)); }
 .selected-type :deep(.v-btn) { padding-inline: 4px; }
+.selected-type__icon { position: relative; display: inline-flex; margin-right: 5px; }
+.selected-type__switch { position: absolute; right: -6px; bottom: -4px; background: rgb(var(--v-theme-surface)); border-radius: 50%; }
 .type-options { width: min(420px, calc(100vw - 24px)); }
 .type-options__preview { margin-right: 12px; pointer-events: none; }
 .type-options__item--blocked .type-options__preview { opacity: .55; }

@@ -1,9 +1,5 @@
 <template>
   <section>
-    <div class="d-flex align-center ga-2 mb-2">
-      <v-icon size="21">mdi-flag-outline</v-icon>
-      <h3 class="text-subtitle-1 font-weight-bold">Challenge</h3>
-    </div>
     <p class="text-body-2 text-medium-emphasis mb-4">Set a learning goal. Help and task completion always remain available.</p>
     <div class="challenge-options" role="group" aria-label="Challenge type">
       <button v-for="option in options" :key="option.type ?? 'none'" type="button" class="challenge-option" :class="{ 'challenge-option--selected': (modelValue?.type ?? null) === option.type }" :aria-pressed="(modelValue?.type ?? null) === option.type" @click="changeType(option.type)">

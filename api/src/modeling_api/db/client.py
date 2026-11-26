@@ -32,10 +32,23 @@ async def create_submission_indexes() -> None:
     await db.submission_resolutions.create_index([("submissionId", ASCENDING), ("userId", ASCENDING)])
 
 
+async def create_dashboard_indexes() -> None:
+    """Indexes shared by startup and the dashboard migration."""
+    await db.model_activity_sessions.create_index("createdAt")
+    await db.models.create_index("createdAt")
+    await db.evaluations.create_index([("modelId", ASCENDING), ("startedAt", ASCENDING)])
+    await db.analytics_access_log.create_index("at")
+    await db.tour_events.create_index(
+        [("tourId", ASCENDING), ("userId", ASCENDING), ("at", ASCENDING)]
+    )
+    await db.learning_path_runs.create_index("templateId")
+
+
 async def create_indexes() -> None:
     """Create indexes required by API query patterns."""
     await create_activity_indexes()
     await create_submission_indexes()
+    await create_dashboard_indexes()
     await db.surveys.create_index([("deletedAt", ASCENDING), ("createdAt", DESCENDING)])
     await db.survey_versions.create_index(
         [("surveyId", ASCENDING), ("version", DESCENDING)], unique=True
@@ -100,15 +113,28 @@ async def create_indexes() -> None:
         [("dagName", ASCENDING), ("dagRunId", ASCENDING)], unique=True
     )
 
+    await db.synonym_glossaries.create_index(
+        [("taskId", ASCENDING), ("referenceModelId", ASCENDING), ("referenceVersionId", ASCENDING)], unique=True
+    )
+    await db.synonym_signal_sets.create_index(
+        [("referenceVersionId", ASCENDING), ("modelVersionId", ASCENDING)], unique=True
+    )
+    await db.synonym_signal_sets.create_index("modelId")
+    await db.synonym_signal_jobs.create_index(
+        [("taskId", ASCENDING), ("taskVersionId", ASCENDING)], unique=True,
+        partialFilterExpression={"state": "running"},
+    )
+    await db.evaluation_replays.create_index(
+        [("taskId", ASCENDING), ("taskVersionId", ASCENDING)], unique=True,
+        partialFilterExpression={"state": "running"},
+    )
+    await db.evaluation_replays.create_index("expiresAt", expireAfterSeconds=0)
+    await db.evaluation_replay_results.create_index("batchId")
+    await db.evaluation_replay_results.create_index("expiresAt", expireAfterSeconds=0)
+
     await db.learning_path_template_steps.create_index("templateId")
     await db.learning_path_help_requests.create_index(
         [("runId", ASCENDING), ("stepId", ASCENDING), ("createdAt", DESCENDING)]
-    )
-    await db.learning_path_feature_events.create_index(
-        [("tourVersion", ASCENDING), ("userId", ASCENDING), ("at", ASCENDING)]
-    )
-    await db.learning_path_feature_events.create_index(
-        [("tourVersion", ASCENDING), ("at", DESCENDING)]
     )
     await db.learning_path_pulse_events.create_index(
         [("runId", ASCENDING), ("stepId", ASCENDING), ("at", DESCENDING)]

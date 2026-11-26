@@ -57,3 +57,15 @@ def test_refusal_of_ck_becomes_an_api_error(ck):
     with pytest.raises(ApiError) as error:
         asyncio.run(client.create_room("Room"))
     assert error.value.code == "CK_REQUEST_FAILED" and "403" in error.value.message
+
+
+@pytest.mark.parametrize(
+    ("ck_code", "code"),
+    [("archive_disabled", "CK_ARCHIVE_DISABLED"), ("delete_disabled", "CK_DELETE_DISABLED"), ("forbidden", "CK_REQUEST_FAILED")],
+)
+def test_a_refusal_of_the_ck_server_keeps_its_reason_and_one_of_rights_stays_general(ck, ck_code, code):
+    _, answer = ck
+    answer.update(status=403, json={"error": "refused", "code": ck_code})
+    with pytest.raises(ApiError) as error:
+        asyncio.run(client.archive_workpiece("W1", "test"))
+    assert error.value.code == code

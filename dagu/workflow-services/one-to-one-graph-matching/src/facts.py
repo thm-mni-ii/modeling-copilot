@@ -1,8 +1,7 @@
 """Property evidence for existing correspondences; never select new matches."""
 
-import unicodedata
-
 from artifacts import _key, content_hash
+from identity_evidence import normalized
 from structural_evidence import _containment
 
 
@@ -16,10 +15,6 @@ def fact(code, status, references=(), submissions=(), *, basis="direct_observati
     return {"code": code, "status": status, "referenceIds": sorted(set(references)),
             "submissionIds": sorted(set(submissions)),
             "evidence": {"basis": basis, "reason": reason, **evidence}}
-
-
-def normalized(value):
-    return " ".join(unicodedata.normalize("NFC", value or "").split())
 
 
 def semantic_children(index, parent):
@@ -397,6 +392,10 @@ def evaluate_facts(indices, evaluation, graphs, candidates, inventories=None):
               for row in candidates.get("synonymMatrix", []) for match in row["matches"]}
     inventory_labels = {side: {item["id"]: item for item in data["elements"]}
                         for side, data in (inventories or {}).items()}
+    # Connections carry their formatting on their own text entry.
+    formatting = {side: {item["id"]: item for item in [*data["elements"], *data["connectionTexts"]]
+                         if item.get("kind", "self") == "self" and isinstance(item.get("formatting"), list)}
+                  for side, data in (inventories or {}).items()}
 
     def text_status(value):
         return "missing" if value is None or isinstance(value, str) and not value.strip() else "present" if isinstance(value, str) else "unsupported"
@@ -433,6 +432,22 @@ def evaluate_facts(indices, evaluation, graphs, candidates, inventories=None):
         result.append(fact("type.equal" if status != "violated" else "type.different", status,
                            [ref], [sub], reason="compared_concrete_types",
                            referenceValue=left["type"], submissionValue=right["type"]))
+        observed = [formatting.get(side, {}).get(identity) for side, identity in (("reference", ref), ("student", sub))]
+        if not known or not same_language or None in observed:
+            format_status, reason = ("not_evaluated" if not known or None in observed else "unresolved"), "compared_visible_formatting"
+        elif not observed[0]["formatting"] and not observed[1]["formatting"]:
+            format_status, reason = "not_applicable", "no_formatting"  # nothing to compare; keeps feedback quiet
+        elif observed[0]["formatting"] == observed[1]["formatting"]:
+            format_status, reason = "satisfied", "compared_visible_formatting"
+        elif status == "violated" and all(item["formatting"] == item["languageFormatting"] for item in observed):
+            # Both sides only show their type's default formatting: the type fact already reports this.
+            format_status, reason = "not_applicable", "difference_explained_by_type"
+        else:
+            format_status, reason = "violated", "compared_visible_formatting"
+        result.append(fact("formatting.different" if format_status == "violated" else "formatting.equal", format_status,
+                           [ref], [sub], reason=reason,
+                           referenceValue=observed[0]["formatting"] if observed[0] else None,
+                           submissionValue=observed[1]["formatting"] if observed[1] else None))
     result.extend(_structure_facts(indices, evaluation, graphs))
     result.extend(_connection_facts(indices, evaluation))
     result.extend(_presence_facts(indices, evaluation, graphs, candidates))

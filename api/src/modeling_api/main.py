@@ -11,19 +11,23 @@ from modeling_api.core.config import settings
 from modeling_api.core.errors import ErrorResponse, register_error_handlers
 from modeling_api.db.client import client, create_indexes, db
 from modeling_api.db.migrations import require_current
-from modeling_api.services.collab_kit import sweep
+from modeling_api.services.collab_kit import archive, sweep
 from modeling_api.routes import (
+    analytics,
     learning_paths,
     surveys,
     auth,
     evaluations,
     feedback,
+    group_work,
     languages,
     models,
     server_time,
     share,
     tasks,
     submissions,
+    synonym_glossary,
+    tours,
 )
 
 
@@ -33,8 +37,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await require_current()
     # Shares that were open before a restart still need someone to look after them; the task ends by itself if there are none.
     sweep.ensure_running()
+    # Archives nightly what was left without a room after shares, if the collab settings say so.
+    archive.ensure_running()
     yield
     await sweep.stop()
+    await archive.stop()
     await client.close()
 
 
@@ -76,13 +83,17 @@ api = APIRouter(
 api.include_router(languages.router)
 api.include_router(tasks.router)
 api.include_router(learning_paths.router)
+api.include_router(analytics.router)
+api.include_router(tours.router)
 api.include_router(surveys.router)
 api.include_router(models.router)
 api.include_router(feedback.router)
 api.include_router(evaluations.router)
 api.include_router(server_time.router)
 api.include_router(share.router)
+api.include_router(group_work.router)
 api.include_router(submissions.router)
+api.include_router(synonym_glossary.router)
 app.include_router(api)
 
 

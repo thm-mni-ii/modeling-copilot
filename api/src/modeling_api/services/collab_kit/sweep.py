@@ -20,17 +20,17 @@ import time
 
 from modeling_api.core.errors import ApiError
 from modeling_api.services import models
-from modeling_api.services.collab_kit import client, share, store
+from modeling_api.services.collab_kit import client, collab_settings, share, store
+from modeling_api.services.collab_kit.errors import SHARING_DISABLED
 
 logger = logging.getLogger(__name__)
 
-# How often the open shares are looked at, and how long a visitor or the host may be gone before the sweep acts.
-SWEEP_SECONDS = 30
-VISITOR_GRACE_SECONDS = 120
-HOST_GRACE_SECONDS = 120
-HOST_END_SECONDS = 300
+# The times are set by the "Collab settings" tab in the sharing area (collab_settings.py).
+AREA = "sharing"
 
 _task: asyncio.Task | None = None
+# How long the task sleeps until the next round, as the last round read it from the settings.
+_sleep_seconds = collab_settings.defaults(AREA)["sweepSeconds"]
 # Set when a share starts while a sweep may already have missed it; the task then looks once more before it ends.
 _again = False
 # Since when a visitor is missing, as (room, actor) -> time.monotonic().
@@ -39,7 +39,7 @@ _missing: dict[tuple[str, str], float] = {}
 _host_missing: dict[str, float] = {}
 
 
-async def _sweep_host(room: dict, here: set[str], now: float) -> None:
+async def _sweep_host(room: dict, here: set[str], now: float, times: dict[str, int]) -> None:
     room_id, host_id = room["roomId"], room["hostId"]
     if host_id in here:
         _host_missing.pop(room_id, None)
@@ -51,28 +51,28 @@ async def _sweep_host(room: dict, here: set[str], now: float) -> None:
         return
     since = _host_missing.setdefault(room_id, now)
     # Only an open room is locked: one the host has locked themselves stays theirs.
-    if room["open"] and now - since >= HOST_GRACE_SECONDS:
+    if room["open"] and now - since >= times["hostGraceSeconds"]:
         fresh = await store.read(room_id)
         if fresh["workpieceId"] and fresh["open"]:
             await share.set_open(host_id, False, auto=True)
 
 
-async def _sweep_room(room: dict, now: float) -> bool:
+async def _sweep_room(room: dict, now: float, times: dict[str, int]) -> bool:
     """Looks after one room; gives back whether it still needs looking after."""
     room_id = room["roomId"]
     here = {entry["actorId"] for entry in await client.room_presence(room_id)}
-    await _sweep_host(room, here, now)
+    await _sweep_host(room, here, now, times)
     gone_since = _host_missing.get(room_id)
     # The host stayed away so long that the visitors are taken out; the share itself stays for the host.
-    ended = gone_since is not None and now - gone_since >= HOST_END_SECONDS
+    ended = gone_since is not None and now - gone_since >= times["hostEndSeconds"]
     visitors = await client.get_group(room["groups"][store.VISITORS])
     members = set(visitors["members"])
     remaining = set(members)
     for actor in members:
         key = (room_id, actor)
-        if ended or (actor not in here and now - _missing.setdefault(key, now) >= VISITOR_GRACE_SECONDS):
+        if ended or (actor not in here and now - _missing.setdefault(key, now) >= times["visitorGraceSeconds"]):
             await client.remove_member(visitors["_id"], actor)
-            # Wer hinausgenommen wird, braucht seine Arbeitskopie nicht mehr, etwa nach einem geschlossenen Tab.
+            # Whoever is taken out no longer needs their working copy, e.g. after a closed tab.
             await models.delete_room_models(room_id, actor)
             _missing.pop(key, None)
             remaining.discard(actor)
@@ -87,11 +87,16 @@ async def _sweep_room(room: dict, now: float) -> bool:
 
 async def sweep_once(now: float | None = None) -> int:
     """Looks at every open share once and gives back how many still need looking after."""
+    global _sleep_seconds
     now = time.monotonic() if now is None else now
     active = 0
-    for room in await store.open_rooms():
+    rooms = await store.open_rooms()
+    # Read once per round, so a change in the tab applies from the next round at the latest.
+    times = await collab_settings.read(AREA) if rooms else {}
+    _sleep_seconds = times.get("sweepSeconds", _sleep_seconds)
+    for room in rooms:
         try:
-            active += await _sweep_room(room, now)
+            active += await _sweep_room(room, now, times)
         except ApiError:
             # Collab-Kit not answering says nothing about who is there: nobody is taken out, and the times start over.
             for key in [key for key in _missing if key[0] == room["roomId"]]:
@@ -109,7 +114,7 @@ async def _run() -> None:
         try:
             count = await sweep_once()
         except ApiError as error:
-            if error.code == "SHARING_DISABLED":
+            if error.code == SHARING_DISABLED:
                 _task = None
                 return
             logger.warning("Sweep failed.", exc_info=True)
@@ -121,7 +126,7 @@ async def _run() -> None:
             _host_missing.clear()
             _task = None
             return
-        await asyncio.sleep(SWEEP_SECONDS)
+        await asyncio.sleep(_sleep_seconds)
 
 
 def ensure_running() -> None:

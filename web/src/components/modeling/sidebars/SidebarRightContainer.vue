@@ -11,7 +11,7 @@
         <SidebarPersistence v-else-if="activeTab === 'persistence'" :show-header="false" />
         <SidebarSync v-else-if="activeTab === 'sync'" :show-header="false" />
         <TaskEditsSidebar v-else-if="activeTab === 'task'" :task-edit="taskEdit ?? null" :sync-state="taskEditSyncState" :selected-edit-ids="selectedTaskEditIds" @focus-edit="emit('focus-task-edit', $event)" @remove-edit="emit('remove-task-edit', $event)" />
-        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="evaluationModelId" :open-evaluation-id="openEvaluationId ?? null" :evaluation-perspective="evaluationPerspective" @evaluation-updated="emit('evaluation-updated', $event)" @service-detail-opened="sidebarWidth = maxWidth" />
+        <EvaluationSidebar v-else-if="activeTab === 'evaluations'" :model-id="evaluationModelId" :open-evaluation-id="openEvaluationId ?? null" :evaluation-perspective="evaluationPerspective" :hint-request="hintRequest" @evaluation-updated="emit('evaluation-updated', $event)" @service-detail-opened="sidebarWidth = maxWidth" />
         <SidebarLibrary v-else ref="languageLibrary" />
       </div>
     </template>
@@ -57,6 +57,7 @@ const props = defineProps<{
   modelId?: string | null
   openEvaluationId?: string | null
   evaluationPerspective?: 'service' | 'student'
+  hintRequest?: { evaluationId: string; cellId?: string; seq: number; noticeViewed?: boolean } | null
   feedbackShapes?: Array<{
     name: string
     label: string
@@ -94,6 +95,11 @@ const openLanguages = async () => {
   void languageLibrary.value?.openGuidedDialog()
 }
 defineExpose({ openLanguages })
+watch(() => props.hintRequest, request => {
+  if (!request || request.noticeViewed === false) return
+  activeTab.value = 'evaluations'
+  sidebarWidth.value = maxWidth.value
+}, { immediate: true })
 watch(() => props.hasJourney, (hasJourney) => {
   sidebarWidth.value = hasJourney ? Math.max(280, sidebarWidth.value) : DEFAULT_WIDTH
 }, { immediate: true })

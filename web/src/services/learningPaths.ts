@@ -25,6 +25,7 @@ export interface PathStep extends CompletionGate {
   required?: boolean
   unlock: { mode: 'sequence' | 'all' | 'any'; conditions: Condition[] }
   challenge?: ChallengeConfig | null
+  helpFeedback?: TaskHelpFeedbackConfig | null
 }
 export interface PulseSurveyConfig {
   enabled: boolean
@@ -44,10 +45,16 @@ export interface HelpChoice { id: string; text: string }
 export interface HelpQuestionEdit { title: string; choices: HelpChoice[] }
 export type HelpEditableQuestion = 'stuck_duration' | 'support_need' | 'next_action'
 export interface HelpBlueprint { topic: import('@/services/surveys').SurveyDefinition; questions: Record<HelpEditableQuestion, HelpQuestionEdit> }
+export interface TaskHelpFeedbackConfig {
+  checkLimit: number | null
+  clarifyLimit: number | null
+  nextStepLimit: number | null
+  exampleLimit: number | null
+  solutionLimit: number | null
+}
+export const defaultTaskHelpFeedbackConfig = (): TaskHelpFeedbackConfig => ({ checkLimit: null, clarifyLimit: null, nextStepLimit: null, exampleLimit: 2, solutionLimit: 1 })
 export interface HelpRequestConfig {
   enabled: boolean
-  exampleLimit: number
-  solutionLimit: number
   topicSurveyId: string | null
   reflectionSurveyId: string | null
   actionSurveyId: string | null
@@ -59,7 +66,7 @@ export interface HelpRequestConfig {
   questionEdits?: Partial<Record<HelpEditableQuestion, HelpQuestionEdit>>
 }
 export const defaultHelpRequestConfig = (): HelpRequestConfig => ({
-  enabled: false, exampleLimit: 2, solutionLimit: 1, topicSurveyId: null, reflectionSurveyId: null, actionSurveyId: null,
+  enabled: false, topicSurveyId: null, reflectionSurveyId: null, actionSurveyId: null,
   topicQuestion: 'problem_area', markingAnswer: 'Aufgabenstellung/Modell', actionQuestion: 'next_action',
   markingEnabled: true, markingRequired: false
 })
@@ -119,24 +126,19 @@ export interface PathModelContext extends CompletionGate {
   beforeSurvey: { surveyId: string; completed: boolean } | null
   afterSurvey: { surveyId: string; completed: boolean } | null
   challenge: ChallengeAttempt | null
-  helpRequests: HelpRequestConfig
+  helpRequests: HelpRequestConfig & TaskHelpFeedbackConfig
   helpUsage: HelpUsage
 }
 export type HelpFeedbackType = 'help.clarify' | 'help.next_step' | 'help.example' | 'help.check' | 'help.solution'
+export const helpFeedbackOptions: { type: HelpFeedbackType; limitKey: keyof TaskHelpFeedbackConfig; choice: string; title: string; keyword?: string; short: string; icon: string; description: string }[] = [
+  { type: 'help.check', limitKey: 'checkLimit', choice: 'support_need_4', title: 'Prüfung', short: 'Prüfung', icon: 'mdi-check-decagram-outline', description: 'Prüft den bisherigen Modellstand als Ganzes.' },
+  { type: 'help.clarify', limitKey: 'clarifyLimit', choice: 'support_need_1', title: 'Erklärung', short: 'Erklär.', icon: 'mdi-lightbulb-on-outline', description: 'Erklärt den Stand an der markierten Problemstelle.' },
+  { type: 'help.next_step', limitKey: 'nextStepLimit', choice: 'support_need_2', title: 'Nächster Schritt', keyword: 'Hinweis', short: 'Nächster', icon: 'mdi-arrow-right-circle-outline', description: 'Gibt einen Hinweis auf den nächsten Bearbeitungsschritt.' },
+  { type: 'help.example', limitKey: 'exampleLimit', choice: 'support_need_3', title: 'Beispiel', short: 'Beispiel', icon: 'mdi-book-open-variant', description: 'Zeigt ein Strukturbeispiel zur markierten Problemstelle.' },
+  { type: 'help.solution', limitKey: 'solutionLimit', choice: 'support_need_5', title: 'Lösung', short: 'Lösung', icon: 'mdi-lightning-bolt-outline', description: 'Zeigt das passende Element der Musterlösung.' }
+]
 export type HelpUsage = Record<HelpFeedbackType, { used: number; pending: number; limit: number | null }>
 export interface HelpTourAnswer { question: 'support_need' | 'next_action'; selected: boolean }
-export type FeatureTourItem = 'feedback-types' | 'help-request' | 'mark-object' | 'automatic-feedback' | 'help-feedback-walkthrough'
-export interface FeatureTourProgress { completedItems: FeatureTourItem[]; skippedItems: FeatureTourItem[]; firstOpenedAt: string | null }
-export interface FeatureTourParticipant {
-  userId: string
-  userName: string
-  openedCount: number
-  tourStarts: number
-  completedItems: FeatureTourItem[]
-  skippedItems: FeatureTourItem[]
-  lastEventAt: string
-}
-export interface FeatureTourReport { openedUsers: number; openedEvents: number; tourStarts: number; participants: FeatureTourParticipant[] }
 export interface PathProgressSummary {
   id: string
   templateId: string
@@ -201,13 +203,9 @@ export interface HelpMarkings { cellIds: string[]; taskTextRanges: HelpTextRange
 export interface SurveySession { version: SurveyVersion; answers: Record<string, unknown>; revision: number; sessionId: string; releaseChanged: boolean; status: string }
 const helpUrl = (runId: string, stepId: string, requestId: string) => `/v1/learning-path-runs/${runId}/steps/${stepId}/help-requests/${requestId}`
 export default {
-  featureTourProgress: () => http.get<FeatureTourProgress>('/v1/learning-path-feature-tour'),
-  recordFeatureTourEvent: (event: 'opened' | 'started' | 'completed' | 'skipped', itemId?: FeatureTourItem) =>
-    http.post<FeatureTourProgress>('/v1/learning-path-feature-tour/events', { event, ...(itemId ? { itemId } : {}) }),
-  featureTourReport: () => http.get<FeatureTourReport>('/v1/learning-path-feature-tour/report'),
   exportProgressCsv: (runIds: string[]) => http.post<Blob>('/v1/learning-path-progress.csv', { runIds }, { responseType: 'blob' }),
   progressAccess: () => http.get<{ canView: boolean }>('/v1/learning-path-progress-access'),
-  progress: (skip = 0) => http.get<ApiPage<PathProgressSummary>>('/v1/learning-path-progress', { params: { skip, limit: 100 } }),
+  progress: (skip = 0, templateId?: string, includeStaff = true) => http.get<ApiPage<PathProgressSummary>>('/v1/learning-path-progress', { params: { skip, limit: 100, templateId, includeStaff } }),
   progressDetail: (id: string) => http.get<PathProgressDetail>(`/v1/learning-path-progress/${id}`),
   helpBlueprint: () => http.get<HelpBlueprint>('/v1/learning-path-help-blueprint'),
   helpDefaults: () => http.get<Record<HelpSurveyPhase, string>>('/v1/learning-path-help-defaults'),

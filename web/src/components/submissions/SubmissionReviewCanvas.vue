@@ -1,10 +1,10 @@
 <template>
   <div class="review-canvas">
-    <div class="d-flex flex-wrap align-center ga-2 pa-2 border-b">
-      <v-btn-toggle :model-value="showFeedback ? 'both' : 'model'" mandatory density="compact" @update:model-value="emit('update:showFeedback', $event === 'both')"><v-btn value="model">Model only</v-btn><v-btn value="both">Model + feedback</v-btn></v-btn-toggle>
-      <v-spacer /><v-btn size="small" aria-label="Zoom out" @click="graph?.zoomOut()">−</v-btn><v-btn size="small" aria-label="Zoom in" @click="graph?.zoomIn()">+</v-btn><v-btn size="small" @click="fit">Fit</v-btn>
+    <div v-if="!hideFeedbackToggle || !hideViewControls" class="d-flex flex-wrap align-center ga-2 pa-2 border-b">
+      <v-btn-toggle v-if="!hideFeedbackToggle" :model-value="showFeedback ? 'both' : 'model'" mandatory density="compact" @update:model-value="emit('update:showFeedback', $event === 'both')"><v-btn value="model">Model only</v-btn><v-btn value="both">Model + feedback</v-btn></v-btn-toggle>
+      <template v-if="!hideViewControls"><v-spacer /><v-btn size="small" aria-label="Zoom out" @click="graph?.zoomOut()">−</v-btn><v-btn size="small" aria-label="Zoom in" @click="graph?.zoomIn()">+</v-btn><v-btn size="small" @click="fit">Fit</v-btn></template>
     </div>
-    <div ref="container" class="review-graph" role="region" aria-label="Read-only submitted model" />
+    <div ref="container" class="review-graph" role="region" :aria-label="ariaLabel ?? 'Read-only submitted model'" />
     <v-alert v-if="error" type="error">{{ error }}</v-alert>
   </div>
 </template>
@@ -26,8 +26,8 @@ export interface ReviewCanvasMark {
   state: FeedbackState
   config: FeedbackOverlayConfig
 }
-const props = defineProps<{ package: ModelPackage; marks: ReviewCanvasMark[]; selectedCellId: string | null; showFeedback: boolean }>()
-const emit = defineEmits<{ select: [cellId: string, path: string]; overlay: [keys: string[], cellId: string]; 'update:showFeedback': [show: boolean] }>()
+const props = defineProps<{ package: ModelPackage; marks: ReviewCanvasMark[]; selectedCellId: string | null; showFeedback: boolean; hideFeedbackToggle?: boolean; hideViewControls?: boolean; ariaLabel?: string }>()
+const emit = defineEmits<{ select: [cellId: string, path: string]; overlay: [keys: string[], cellId: string]; 'update:showFeedback': [show: boolean]; 'graph-ready': [graph: Graph | null] }>()
 const container = ref<HTMLDivElement>()
 const error = ref('')
 let graph: Graph | null = null
@@ -126,8 +126,10 @@ onMounted(async () => {
   graph.addMouseListener(mouseListener)
   highlight = new CellHighlight(graph, '#1565c0', 3)
   await load()
+  emit('graph-ready', graph)
 })
 onBeforeUnmount(() => {
+  emit('graph-ready', null)
   highlight?.destroy()
   graph?.removeMouseListener(mouseListener)
   graph = destroyPreviewGraph(graph)

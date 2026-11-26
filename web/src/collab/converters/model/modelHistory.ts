@@ -1,7 +1,7 @@
 import type { ModelPatch, ModelVersionInfo, TaskEditDocument, WorkspaceLanguageReference } from '@/services/api/types/model'
 import type { UnitChange } from '@/collab/kit/collabKitV1'
 import { applyModelPatches } from '@/utils/modelPatches'
-import { splitModel, type SharedCell } from './modelCells'
+import { cellChange, splitModel, type SharedCell } from './modelCells'
 import { LANGUAGES_KEY, type ModelUnit } from './modelUnits'
 
 /** How much of the private history goes into the workpiece: none, one step per version, or every patch. */
@@ -67,12 +67,8 @@ export const stepsOf = (versions: readonly PrivateVersion[], mode: HistoryMode, 
   let languages = ''
   const moveTo = (xml: string, workspaceLanguages: WorkspaceLanguageReference[]): UnitChange<ModelUnit> => {
     const next = splitModel(xml, cells)
-    const set: Record<string, ModelUnit> = {}
-    for (const [id, cell] of next) {
-      const before = cells.get(id)
-      if (!before || before.xml !== cell.xml || before.index !== cell.index) set[id] = cell
-    }
-    const removed = Array.from(cells.keys()).filter((id) => !next.has(id))
+    const { set: changed, delete: removed } = cellChange(cells, next)
+    const set: Record<string, ModelUnit> = changed
     // The languages go in with the first step and again only when they change.
     const written = JSON.stringify(workspaceLanguages)
     if (written !== languages) set[LANGUAGES_KEY] = workspaceLanguages

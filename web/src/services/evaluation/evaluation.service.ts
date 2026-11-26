@@ -1,7 +1,7 @@
 import type { AxiosResponse } from 'axios'
 import httpClient from '@/services/api/httpClient'
 import type { ApiId } from '@/services/api/types/common'
-import type { Evaluation, EvaluationDetail, EvaluationFeedback, EvaluationPage, EvaluationParameters, EvaluationWorkflow } from '@/services/api/types/evaluation'
+import type { Evaluation, EvaluationDetail, EvaluationFeedback, EvaluationPage, EvaluationParameters, EvaluationWorkflow, LabelHintAction } from '@/services/api/types/evaluation'
 import { analysisFromEvaluation } from '@/utils/analysisFeedback'
 
 class EvaluationService {
@@ -21,6 +21,7 @@ class EvaluationService {
   }
   get(evaluationId: ApiId): Promise<AxiosResponse<EvaluationDetail>> { return httpClient.get(`/v1/evaluations/${evaluationId}`) }
   getFeedback(evaluationId: ApiId): Promise<AxiosResponse<EvaluationFeedback>> { return httpClient.get(`/v1/evaluations/${evaluationId}/feedback`) }
+  recordHintEvent(evaluationId: ApiId, hintId: string, action: LabelHintAction): Promise<AxiosResponse<void>> { return httpClient.post(`/v1/evaluations/${evaluationId}/hints/${encodeURIComponent(hintId)}/events`, { action }) }
   async getAnalysis(evaluationId: ApiId, referenceKey: string) { return analysisFromEvaluation((await this.get(evaluationId)).data, referenceKey) }
   downloadArchive(evaluationId: ApiId): Promise<AxiosResponse<Blob>> { return httpClient.get(`/v1/evaluations/${evaluationId}/archive.zip`, { responseType: 'blob' }) }
 }

@@ -1,34 +1,37 @@
 """Need-based help feedback for marked submission objects.
 
-Reads only matcher facts, identities and reference hints of the analytical feedback; it never decides
-identity or correctness itself. Each help type has a fixed disclosure level (LEVELS); reference labels
-leave this module only at level "labels".
+Reads matcher facts, identities and reference hints of the analytical feedback; it never decides
+identity or correctness itself. Only help.next_step also reads candidate scores, for a placement guess
+that is never counted. Each help type has a fixed disclosure level (LEVELS); reference labels leave this
+module only at level "labels".
 """
 
 import copy
 import re
 from xml.etree import ElementTree
 
-from analysis_contract import content_hash, require
+from analysis_contract import clean_label as clean, content_hash, require
 
 # Fixed per help type: how much of the sample solution the answer may reveal.
 LEVELS = {"help.clarify": "diagnosis", "help.check": "diagnosis", "help.next_step": "labels",
           "help.example": "labels", "help.solution": "labels"}
-AREAS = ("hierarchy", "connection", "type", "children", "connections", "completeness", "label")  # focus priority
+AREAS = ("hierarchy", "connection", "type", "children", "connections", "completeness", "label", "formatting")  # focus priority
 AREA_NAMES = {"hierarchy": "Zuordnung zum übergeordneten Element", "connection": "Verbindung (Start, Ziel, Richtung)",
               "type": "Elementtyp", "children": "Untergeordnete Elemente", "connections": "Anzahl der Verbindungen",
-              "completeness": "Vollständigkeit", "label": "Beschriftung"}
-PREFIX_AREAS = {"label": "label", "type": "type", "owner": "hierarchy", "containment": "hierarchy",
+              "completeness": "Vollständigkeit", "label": "Beschriftung", "formatting": "Textauszeichnung"}
+PREFIX_AREAS = {"label": "label", "type": "type", "formatting": "formatting", "owner": "hierarchy", "containment": "hierarchy",
                 "children": "children", "direct_children": "children", "connections": "connections",
                 "incoming": "connections", "outgoing": "connections", "undirected": "connections",
                 "connection": "connection", "connection_group": "connection", "counterpart": "completeness"}
 STATUSES = {"satisfied": "matches", "violated": "differs", "unresolved": "unclear"}
+LOCAL_AREAS = ("type", "formatting", "hierarchy", "connection")  # own properties of a recognized object
 PROVEN_BASES = ("direct_observation", "independent_evidence")
 IDENTITIES = {"uniquely_supported": "recognized", "supported": "provisional", "unresolved": "unassigned"}
 
 DIFFERS = {
     "label": "Die Beschriftung von {name} passt nicht zur Musterlösung.",
     "type": "{name} hat einen anderen Elementtyp als in der Musterlösung.",
+    "formatting": "{name} ist anders ausgezeichnet (fett, kursiv, unterstrichen) als in der Musterlösung.",
     "hierarchy": "{name} gehört in der Musterlösung zu einem anderen Element.",
     "children": "Die Elemente, die zu {name} gehören, unterscheiden sich von der Musterlösung{counts}.",
     "connections": "Die Verbindungen von {name} unterscheiden sich von der Musterlösung{counts}.",
@@ -38,17 +41,13 @@ DIFFERS = {
 NEXT_STEPS = {
     "label": "Vergleiche die Beschriftung von {name} mit den Begriffen aus der Aufgabe.",
     "type": "Überlege, welcher Elementtyp zu {name} passt.",
+    "formatting": "Überlege, ob {name} fett, kursiv oder unterstrichen sein sollte.",
     "hierarchy": "Überlege, zu welchem Element {name} gehört.",
     "children": "Schau nach, welche Elemente zu {name} gehören: Fehlt etwas oder hängt etwas am falschen Element?",
     "connections": "Überlege, mit welchen Elementen {name} verbunden sein sollte.",
     "connection": "Schau dir Start, Ziel und Richtung von {name} an.",
     "completeness": "Lies in der Aufgabe nach, was bei {name} noch fehlt.",
 }
-
-
-def clean(label: str) -> str:
-    """Diagram line breaks are layout: a break before a lowercase letter splits a word, others separate words."""
-    return " ".join(re.sub(r"-?\s*\n\s*(?=[a-zäöüß])", "", label).split())
 
 
 def validate_context(context: dict) -> dict:
@@ -73,14 +72,19 @@ class Model:
         self.nodes = {node["id"]: node for node in submission["nodes"]}
         self.reference_nodes = {node["id"]: node for node in reference["nodes"]}
         # Containment (child -> parent) and connection ends (connection -> role -> element) of both graphs.
-        self.parents, self.ends, self.reference_ends = {}, {}, {}
-        for edges, ends, parents in ((submission["edges"], self.ends, self.parents), (reference["edges"], self.reference_ends, None)):
+        self.parents, self.reference_parents, self.ends, self.reference_ends = {}, {}, {}, {}
+        for edges, ends, parents in ((submission["edges"], self.ends, self.parents), (reference["edges"], self.reference_ends, self.reference_parents)):
             for row in edges:
                 if row.get("kind") == "endpoint":  # follows the flow: element -> connection (source), connection -> element (target)
                     connection, element = (row["target"], row["source"]) if row.get("role") == "source" else (row["source"], row["target"])
                     ends.setdefault(connection, {})[row.get("role")] = element
-                elif row.get("kind") == "contains" and parents is not None:
+                elif row.get("kind") == "contains":
                     parents[row["source"]] = row["target"]
+        self.store, self.reference_key = store, reference_key
+        # The matcher's verdict per text candidate, e.g. "assigned_elsewhere" for a counterpart another element took.
+        self.pair_decisions = store.read(f"comparisons/{reference_key}.json")["result"].get("pairDecisions", [])
+        tiers = bundle.get("comparisonConfig", {}).get("graphMatching", {}).get("textEvidence", {}).get("tiers") or [{}]
+        self.strongest_text = tiers[0].get("minimumSimilarity", {})
         self.annotations = {row["target"]["id"]: row for row in analysis["annotations"]}
         self.proven = {row["referenceId"]: sub for sub, row in self.annotations.items()
                        if row.get("referenceId") and row.get("identity", {}).get("status") == "uniquely_supported"}
@@ -124,6 +128,114 @@ class Model:
         # Fits every sentence position ("von …", "Verbindung …"), unlike an article phrase.
         return f"„{label}“" if label else f"„{self.type_name(node.get('type'))}“ (unbeschriftet)"
 
+    @staticmethod
+    def label_key(node: dict) -> str:
+        return " ".join(clean(node.get("label") or "").casefold().split())
+
+    @staticmethod
+    def comparison_key(node: dict):
+        """The matcher's comparability (GM-02): the language's comparison group, else the type."""
+        group, language = node.get("comparisonGroup"), node.get("language") or {}
+        kind = ("group", group) if group else ("type", node.get("type")) if group is None and node.get("type") else None
+        return kind and (language.get("languageId"), language.get("versionId"), *kind)
+
+    def type_text(self, node: dict, other: dict) -> str:
+        return "gleicher Typ" if node.get("type") == other.get("type") else f"als {self.type_name(other.get('type'))}"
+
+    def duplicate_hint(self, cell_id: str) -> str | None:
+        """Why an open element stays unassigned when a comparable element took its counterpart.
+
+        Surplus: the matcher found this element's text fitting a sample-solution element that went to another
+        comparable element (same comparison group or type), and this one has no neighbour the other lacks (two
+        "Zuordnung" between different entities do, so they stay quiet). Otherwise same-named copies none of
+        which could be assigned, when the sample solution has fewer of them.
+        """
+        node = self.nodes.get(cell_id, {})
+        if node.get("kind") != "modelElement" or self.annotations.get(cell_id, {}).get("referenceId"):
+            return None
+
+        def key(item):
+            label, comparable = self.label_key(item), self.comparison_key(item)
+            return (comparable, label) if item.get("kind") == "modelElement" and label and comparable else None
+
+        def context(identity):
+            """Neighbours by type and text: connected elements, owner and owned elements."""
+            others = {("edge", ends.get("target") if ends.get("source") == identity else ends.get("source"))
+                      for ends in self.ends.values() if identity in ends.values()}
+            others.add(("in", semantic_owner(self.parents, self.nodes, identity)))
+            others |= {("holds", child) for child in self.nodes if semantic_owner(self.parents, self.nodes, child) == identity}
+            return {(relation, key(self.nodes[other]) or self.nodes[other].get("type")) for relation, other in others if other in self.nodes}
+
+        assigned = {row["referenceId"]: sub for sub, row in self.annotations.items() if row.get("referenceId")}
+        comparable = self.comparison_key(node)
+        originals = sorted({assigned[row["referenceId"]] for row in self.pair_decisions
+                            if row["studentId"] == cell_id and row.get("reason") == "assigned_elsewhere" and row["referenceId"] in assigned
+                            and comparable and self.comparison_key(self.nodes.get(assigned[row["referenceId"]], {})) == comparable})
+        original = next((other for other in originals if context(cell_id) <= context(other)), None)
+        if original:
+            twin, kind = self.nodes[original], self.type_text(node, self.nodes[original])
+            twin_text = (f"Eine gleichnamige Kopie ({kind})" if self.label_key(node) == self.label_key(twin)
+                         else f"{self.name(original)} (ähnlicher Name, {kind})")
+            return f"Als überzählig gewertet: {twin_text} ist bereits zugeordnet und hat alle Verbindungen und Elemente dieses Elements."
+        own = key(node)
+        group = [other for other, item in self.nodes.items() if own and key(item) == own]
+        expected = sum(key(item) == own for item in self.reference_nodes.values())
+        if own is None or not expected or len(group) <= expected or any(self.annotations.get(other, {}).get("referenceId") for other in group):
+            return None
+        times = {2: "zweimal", 3: "dreimal"}.get(len(group), f"{len(group)}-mal")
+        same_type = len({self.nodes[other].get("type") for other in group}) == 1
+        return f"{self.name(cell_id)} kommt {times}{' mit gleichem Typ' if same_type else ''} vor; keines ließ sich sicher zuordnen."
+
+    def namesake_hint(self, cell_id: str) -> str | None:
+        """An open element named like an assigned one, of any type and context: an observation, not a verdict.
+
+        Only when the submission has this name more often than the sample solution, so a name the solution
+        itself repeats (an attribute "Bezeichnung" in several entities, contained or attached by an edge)
+        stays quiet in every language.
+        """
+        node = self.nodes.get(cell_id, {})
+        label = self.label_key(node)
+        if node.get("kind") != "modelElement" or not label or self.annotations.get(cell_id, {}).get("referenceId"):
+            return None
+
+        def named(nodes):
+            return [identity for identity, item in nodes.items() if item.get("kind") == "modelElement" and self.label_key(item) == label]
+        submission = named(self.nodes)
+        other = next((identity for identity in submission if identity != cell_id and self.annotations.get(identity, {}).get("referenceId")), None)
+        if other is None or len(submission) <= len(named(self.reference_nodes)):
+            return None
+        return (f"Den Namen {self.name(cell_id)} gibt es noch einmal ({self.type_text(node, self.nodes[other])}); "
+                "das andere Element ist bereits zugeordnet.")
+
+    def duplicate_connection(self, cell_id: str) -> str | None:
+        """An open connection like an assigned one (same type, same assigned ends), more often than in the sample solution."""
+        node = self.nodes.get(cell_id, {})
+        if node.get("kind") != "connection" or self.annotations.get(cell_id, {}).get("referenceId"):
+            return None
+
+        def mapped(identity):
+            return (self.annotations.get(identity) or {}).get("referenceId")
+
+        def signature(item, ends, resolve):
+            source, target = resolve(ends.get("source")), resolve(ends.get("target"))
+            if source is None or target is None:
+                return None
+            return item.get("type"), (source, target) if item.get("directed", True) else frozenset((source, target))
+        own = signature(node, self.ends.get(cell_id, {}), mapped)
+        if own is None:
+            return None
+        twins = [identity for identity, item in self.nodes.items() if item.get("kind") == "connection"
+                 and signature(item, self.ends.get(identity, {}), mapped) == own]
+        expected = sum(signature(item, self.reference_ends.get(identity, {}), lambda end: end) == own
+                       for identity, item in self.reference_nodes.items() if item.get("kind") == "connection")
+        if len(twins) <= expected or not any(mapped(identity) for identity in twins if identity != cell_id):
+            return None
+        names = " und ".join(self.name(end) for end in self.ends[cell_id].values())
+        return f"Diese Verbindung zwischen {names} gibt es noch einmal; die andere ist bereits zugeordnet."
+
+    def observation(self, cell_id: str) -> str | None:
+        return self.duplicate_hint(cell_id) or self.namesake_hint(cell_id) or self.duplicate_connection(cell_id)
+
 
 def subject(name: str) -> str:
     """A name at the start of a sentence: an unlabeled connection gets its article."""
@@ -153,7 +265,7 @@ def counts(evidence: dict, disclosure: str) -> str:
 def findings(model: Model, cell_id: str, index: int, disclosure: str) -> tuple[dict, list[dict]]:
     """One learner object plus its distinct findings; equal finding IDs are reported once."""
     node = model.nodes.get(cell_id)
-    entry = {"cellId": cell_id, "label": (node or {}).get("label") or "", "kind": (node or {}).get("kind"),
+    entry = {"cellId": cell_id, "label": clean((node or {}).get("label") or ""), "kind": (node or {}).get("kind"),
              "identity": "not_evaluated", "checks": [], "notEvaluated": 0}
     if node is None:
         return entry, []
@@ -173,7 +285,8 @@ def findings(model: Model, cell_id: str, index: int, disclosure: str) -> tuple[d
                 and "".join(values["referenceValue"].split()).casefold() == "".join(values["submissionValue"].split()).casefold():
             status = "matches"  # differs only by layout line breaks, spaces or case
         key = fact["evidence"].get("findingId", fact["id"])
-        if area is None or key in seen:
+        # A check that does not apply (e.g. nothing to compare) is neither a finding nor an unchecked property.
+        if area is None or key in seen or fact["status"] == "not_applicable":
             continue
         seen.add(key)
         if status is None:
@@ -235,6 +348,7 @@ def verdict_of(checks: list[dict]) -> str:
 
 # Countable parts of one object: (label, fact codes in preference order); the first present code counts.
 SCORE_PARTS = (("Elementtyp", ("type.equal", "type.different")),
+               ("Textauszeichnung", ("formatting.equal", "formatting.different")),
                ("Untergeordnete Elemente", ("children.complete", "direct_children.complete")),
                ("Eingehende Verbindungen", ("incoming.complete",)),
                ("Ausgehende Verbindungen", ("outgoing.complete",)),
@@ -260,9 +374,10 @@ def score(model: Model, cell_id: str, identity: str) -> dict | None:
         f"erkannt (Ähnlichkeit {round(100 * max(scores))} %)" if scores else "erkannt"
     parts = [{"label": "Beschriftung", "present": int(found), "expected": 1, "text": label_text}]
     # Explanation only: why the object is not assigned, never what to do about it.
-    hint = None if found else (f"{model.name(cell_id)} konnte keinem Element der Musterlösung zugeordnet werden."
-                               if clean(model.nodes[cell_id].get("label") or "") else
-                               "Das Element hat keine Beschriftung und konnte deshalb keinem Element der Musterlösung zugeordnet werden.")
+    hint = None if found else model.duplicate_hint(cell_id) or model.duplicate_connection(cell_id) or " ".join(filter(None, (
+        f"{model.name(cell_id)} konnte keinem Element der Musterlösung zugeordnet werden." if clean(model.nodes[cell_id].get("label") or "")
+        else "Das Element hat keine Beschriftung und konnte deshalb keinem Element der Musterlösung zugeordnet werden.",
+        model.namesake_hint(cell_id))))
     for label, codes in SCORE_PARTS:
         fact = next((facts[code] for code in codes if code in facts), None)
         if fact is None or fact["status"] not in STATUSES:
@@ -292,10 +407,24 @@ def check_feedback(model: Model) -> dict:
     """Whole-model check without marking: the recognition overview plus every object it counts as recognized."""
     objects = []
     for index, cell_id in enumerate(model.nodes):
-        entry = findings(model, cell_id, index, "diagnosis")[0]
+        entry, items = findings(model, cell_id, index, "diagnosis")
         if entry["identity"] == "recognized":
-            objects.append({**entry, "verdict": "matches", "checks": []})
-    return {"objects": objects}
+            # Same rule as the analysis view: only the object's own properties qualify the check mark.
+            local = {item["area"] for item in items if item["status"] == "differs" and item["area"] in LOCAL_AREAS
+                     and item["fact"].get("submissionIds") == [cell_id]}
+            objects.append({**entry, "verdict": "matches",
+                            "checks": [check for check in entry["checks"] if check["area"] in local and check["status"] == "differs"]})
+    # Observations on open elements (e.g. same-named copies), shown as info at the element; never a verdict.
+    notes = [{"cellId": cell_id, "text": text} for cell_id in model.nodes if (text := model.observation(cell_id))]
+    return {"objects": objects, "notes": notes}
+
+
+def observation_hints(analysis: dict, store, bundle: dict) -> list[dict]:
+    """Observations (e.g. a surplus copy) as learner hints next to the label hints; they never suggest a label."""
+    model = Model(analysis, store, bundle)
+    return [{"id": f"observation:{cell_id}", "submissionId": cell_id, "submissionLabel": clean(node.get("label") or ""),
+             "suggestion": None, "sources": [], "relation": None, "note": text}
+            for cell_id, node in model.nodes.items() if (text := model.observation(cell_id))]
 
 
 PLACEHOLDER = "#9E9E9E"  # light grey: the pattern recedes behind recognized cells
@@ -504,6 +633,13 @@ def solution(model: Model, item: dict, disclosure: str) -> tuple[str | None, lis
         expected = model.reference_nodes.get(next(iter(fact["referenceIds"]), ""), {}).get("type")
         if expected:
             return f"Ändere den Typ von {name} in „{model.type_name(expected)}“.", [], None
+    if code == "formatting.different":
+        expected, observed = set(evidence.get("referenceValue") or ()), set(evidence.get("submissionValue") or ())
+        names = {"bold": "fett", "italic": "kursiv", "underline": "unterstrichen"}
+        changes = [f"vollständig {names[flag]}" for flag in sorted(expected - observed)]
+        changes += [f"nicht {names[flag]}" for flag in sorted(observed - expected)]
+        if changes:
+            return f"Formatiere {name} {' und '.join(changes)}.", [], None
     if code == "label.different":
         if disclosure != "labels":
             return None, [], "solution_not_released"
@@ -533,12 +669,45 @@ def semantic_children(model: Model, cell_id: str) -> list[str]:
     return result
 
 
+def semantic_owner(parents: dict, nodes: dict, identity: str) -> str | None:
+    current = parents.get(identity)
+    while nodes.get(current, {}).get("kind") == "structuralElement":
+        current = parents.get(current)
+    return current if current in nodes else None
+
+
+def likely_owner(model: Model, cell_id: str) -> str | None:
+    """Guess another owner only for a one-off term whose single open counterpart sits under a recognized element."""
+    label = clean(model.nodes[cell_id].get("label") or "").casefold()
+    own = semantic_owner(model.parents, model.nodes, cell_id)
+    if not label or own is None or sum(clean(node.get("label") or "").casefold() == label for node in model.nodes.values()
+                                       if node.get("kind") == "modelElement") != 1:
+        return None
+    counterparts = [row["referenceElementId"] for row in model.store.read(f"candidates/{model.reference_key}.json")["result"]["synonymMatrix"]
+                    for match in row["matches"] if match["submissionElementId"] == cell_id and row["referenceElementId"] not in model.proven
+                    and match.get("scoreStatus") == "scored"
+                    and any(((match.get("scores") or {}).get(method) or 0) >= value for method, value in model.strongest_text.items())]
+    if len(counterparts) != 1:
+        return None
+    target = model.proven.get(semantic_owner(model.reference_parents, model.reference_nodes, counterparts[0]))
+    return target if target != own else None
+
+
 def element_steps(model: Model, cell_id: str):
     """Element itself, in order: assignable label, type, placement, then its nested elements, then their completeness."""
     annotation, name = model.annotations.get(cell_id), model.name(cell_id)
     identity = (annotation or {}).get("identity", {}).get("status")
     if annotation is None or identity is None:
         return  # not evaluated (e.g. structural or out of scope)
+    target = likely_owner(model, cell_id) if identity != "uniquely_supported" else None
+    if target is not None:
+        yield step([cell_id, target], "hierarchy", {"code": "child.likely_elsewhere", "cellId": cell_id, "target": target},
+                   f"{name} gehört vermutlich zu {model.name(target)}. Prüfe, ob du es dorthin verschieben solltest.")
+        return
+    duplicate = model.duplicate_hint(cell_id)
+    if duplicate:
+        yield step([cell_id], "identity", {"code": "identity.duplicate", "cellId": cell_id}, duplicate)
+        return
     if identity == "unresolved" and not annotation.get("referenceId"):
         text = (f"{name} konnte keinem Element der Musterlösung zugeordnet werden. Wähle eine Beschriftung, die näher an der Aufgabe ist, "
                 "oder lösche das Element, wenn du es nicht brauchst." if clean(model.nodes[cell_id].get("label") or "")
@@ -586,7 +755,10 @@ def connection_steps(model: Model, connection_id: str, *, types_only: bool = Fal
     annotation, ends = model.annotations.get(connection_id) or {}, model.ends.get(connection_id, {})
     names = " und ".join(model.name(end) for end in ends.values())
     if annotation.get("identity", {}).get("status") == "unresolved" and not annotation.get("referenceId"):
-        if not types_only:
+        duplicate = model.duplicate_connection(connection_id)
+        if not types_only and duplicate:
+            yield step([connection_id], "connection", {"code": "connection.duplicate", "cellId": connection_id}, duplicate)
+        elif not types_only:
             yield step([connection_id], "connection", {"code": "connection.unassigned", "cellId": connection_id},
                        f"Die Verbindung zwischen {names} konnte keiner Verbindung der Musterlösung zugeordnet werden. Überlege, ob du sie brauchst.")
         return
@@ -683,7 +855,7 @@ def catalog(analysis: dict, store, bundle: dict) -> dict:
             if item["pattern"]:
                 patterns[item["pattern"]["cellId"]] = item["pattern"]
                 item["pattern"] = {"cellId": item["pattern"]["cellId"]}
-        objects.append({"cellId": cell_id, "label": node.get("label") or "", "typeName": model.type_name(node.get("type")), "help": help_})
+        objects.append({"cellId": cell_id, "label": clean(node.get("label") or ""), "typeName": model.type_name(node.get("type")), "help": help_})
     return {**overview(analysis), "catalog": objects, "patterns": patterns}
 
 
@@ -697,8 +869,17 @@ def content(model: Model, context: dict, kind: str) -> dict:
     return example_feedback(model, context)
 
 
+def referenced(model: Model, kind: str, result: dict) -> bool:
+    """Whether the help could relate the marking to the sample solution; only then it uses up the learner's quota."""
+    if kind == "help.example":
+        return any(item["pattern"] for item in result["objects"])  # the pattern follows a nested element's owner
+    cells = result["focus"]["cellIds"] if kind == "help.next_step" else [item["cellId"] for item in result["objects"]]
+    return any((model.annotations.get(cell) or {}).get("referenceId") for cell in cells)
+
+
 def build(kind: str, analysis: dict, context: dict, store, bundle: dict) -> dict:
     model = Model(analysis, store, bundle)
     if kind == "help.check":
-        return {**overview(analysis), **check_feedback(model), "recognition": analysis["recognition"]}
-    return {**overview(analysis), **content(model, validate_context(context), kind)}
+        return {**overview(analysis), **check_feedback(model), "recognition": analysis["recognition"], "referenced": True}
+    result = content(model, validate_context(context), kind)
+    return {**overview(analysis), **result, "referenced": referenced(model, kind, result)}

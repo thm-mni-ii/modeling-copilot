@@ -3,7 +3,7 @@
     <SidebarPanelHeader v-if="showHeader" title="Collab" />
     <div class="sidebar-sync__content">
       <div class="sync-status-row">
-        <span class="sync-status-label">Sharing</span>
+        <span class="sync-status-label">{{ group ? 'Group room' : 'Sharing' }}</span>
         <div class="sync-status-pills">
           <div v-if="isConnected && anonymous" class="sync-status sync-status--anonymous" title="Others see a pseudonym instead of your name">
             <v-icon icon="mdi-incognito" size="12" />
@@ -11,13 +11,13 @@
           </div>
           <div class="sync-status" :class="isConnected ? 'sync-status--connected' : 'sync-status--disconnected'">
             <span class="sync-status-dot" />
-            {{ !share || elsewhere ? 'not shared' : isConnected ? 'live' : 'connecting' }}
+            {{ group || inShare ? (isConnected ? 'live' : 'connecting') : 'not shared' }}
           </div>
         </div>
       </div>
 
-      <v-btn v-if="!share" color="primary" variant="flat" size="small" prepend-icon="mdi-share-variant" :disabled="Boolean(linkedWorkpieceId)" @click="shareDialog = 'ask'">Share</v-btn>
-      <div v-if="!share && linkedWorkpieceId" class="sync-hint">This model is part of a shared room.</div>
+      <v-btn v-if="!share && !group" color="primary" variant="flat" size="small" prepend-icon="mdi-share-variant" :disabled="Boolean(linkedWorkpieceId)" @click="shareDialog = 'ask'">Share</v-btn>
+      <div v-if="!share && !group && linkedWorkpieceId" class="sync-hint">This model is part of a shared room.</div>
 
       <!-- Ein anderes Modell wird in diesem Browser geteilt; beenden lässt es sich nur dort. -->
       <div v-if="elsewhere" class="sync-busy">
@@ -27,7 +27,7 @@
         <v-btn v-if="tabOpen === false" variant="outlined" color="primary" size="small" prepend-icon="mdi-open-in-app" @click="openShared">Open shared model</v-btn>
       </div>
 
-      <template v-if="share && !elsewhere">
+      <template v-if="inShare">
         <template v-if="isHost">
           <ShareCopyCard :link="link" hint="Send it to visitors" class="sync-link" />
           <v-btn color="error" variant="flat" size="small" prepend-icon="mdi-logout" :loading="quitting" @click="quit">Quit sharing</v-btn>
@@ -37,6 +37,10 @@
           <div class="sync-hint">You joined a model shared by someone else.</div>
           <v-btn variant="outlined" size="small" prepend-icon="mdi-logout" @click="shareDialog = 'leave'">Leave sharing</v-btn>
         </template>
+      </template>
+      <!-- Im Gruppenraum dürfen alle dasselbe: nur der Raum, ohne Schalter. -->
+      <div v-if="group" class="sync-room"><v-icon icon="mdi-account-group-outline" size="16" />{{ roomRole?.name }}</div>
+      <template v-if="group || inShare">
         <CollabPeople :people="people" />
         <CollabLog :entries="logEntries" />
       </template>
@@ -54,6 +58,7 @@ import ShareSettings from '@/collab/sharing/ShareSettings.vue'
 import { askSharedTab, currentShare as share, isSharedModel, openQuitDialog, sharedTabOpen as tabOpen, shareDialog, shareLink } from '@/collab/sharing/shareModel'
 import { notifyError } from '@/composables/useNotifications'
 import { useCollabConnection } from '@/collab/connection/useCollabConnection'
+import { roomRole } from '@/collab/rooms/roomRole'
 import { useGraphContext } from '@/composables/useGraphContext'
 import { exportModelAsJson, exportModelAsXml, importModelFromJson, importModelFromXml } from '@/utils/modelPersistence'
 import SidebarPanelHeader from './SidebarPanelHeader.vue'
@@ -76,8 +81,12 @@ const { isConnected, linkedWorkpieceId, logEntries, people, anonymous } = useCol
 
 const route = useRoute()
 const isHost = computed(() => Boolean(share.value?.privateModelId))
-// Die Share gehört zu einem anderen Modell, etwa in einem zweiten Tab.
-const elsewhere = computed(() => Boolean(share.value) && !isSharedModel(route.params.modelId))
+// Das Modell liegt in einem Gruppenraum, nicht in einer Share.
+const group = computed(() => Boolean(linkedWorkpieceId.value) && roomRole.value?.kind === 'group')
+// Die Share gehört zu einem anderen Modell, etwa in einem zweiten Tab; den Gruppenraum betrifft sie nicht.
+const elsewhere = computed(() => Boolean(share.value) && !group.value && !isSharedModel(route.params.modelId))
+// Dieses Modell ist das geteilte, als Host oder Visitor.
+const inShare = computed(() => Boolean(share.value) && !group.value && !elsewhere.value)
 // Danach hält der Kanal den Wert aktuell, wenn der geteilte Tab schließt oder wieder aufgeht.
 watch(elsewhere, (busy) => busy && askSharedTab(), { immediate: true })
 // Der Editor lädt ein Modell nur beim Mounten, daher erst verlassen wie in openWorkpiece.
@@ -197,6 +206,14 @@ const quit = async () => {
 
 .sync-link {
   flex: none;
+}
+
+.sync-room {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .sync-hint {

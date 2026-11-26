@@ -19,12 +19,26 @@ PHASE_QUESTIONS = {
 }
 AUTOMATIC_FEEDBACK = "automatic_feedback"
 AUTOMATIC_FEEDBACK_LABEL = "Automatisch erzeugtes Feedback"
+# Learner-facing order and wording of the base answers, matching the help buttons. The IDs stay
+# tied to the baseline positions; unlisted answers (unsure) follow in their existing order.
+SUPPORT_CHOICES = {
+    "support_need_4": "Eine Prüfung meiner bisherigen Lösung",
+    "support_need_1": "Eine Erklärung zu einem Element in meinem Modell",
+    "support_need_2": "Ein Hinweis auf den nächsten Schritt",
+    "support_need_3": "Ein Beispiel",
+    "support_need_5": "Eine konkrete Lösung",
+}
 # Base support_need choices map to the feedback type the automatic check requests; any other
 # (teacher-added) choice receives the standard recognition overview.
 SUPPORT_KINDS = {"support_need_1": "help.clarify", "support_need_2": "help.next_step", "support_need_3": "help.example",
                  "support_need_4": "help.check", "support_need_5": "help.solution", "support_need_6": "recognition"}
 # Kinds that judge the whole model and therefore need no marked objects.
 WHOLE_MODEL_KINDS = ("recognition", "help.check")
+
+
+def order_support_choices(choices):
+    order = list(SUPPORT_CHOICES)
+    return sorted(choices, key=lambda c: order.index(c["id"]) if c["id"] in order else len(order))
 
 
 def blueprint():
@@ -37,6 +51,9 @@ def blueprint():
                 "choices": [{"id": f"{question['name']}_{i + 1}", "text": text}
                             for i, text in enumerate(question["choices"])],
             }
+    support = questions["support_need"]
+    support["choices"] = order_support_choices(
+        {**choice, "text": SUPPORT_CHOICES.get(choice["id"], choice["text"])} for choice in support["choices"])
     return {"topic": source["topic"]["definition"], "questions": questions}
 
 

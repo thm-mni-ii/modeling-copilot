@@ -1,0 +1,409 @@
+<template>
+  <div class="group-work-import">
+    <!-- The same course and group name are the same room; another course, such as another semester, gives new rooms. -->
+    <v-text-field v-model="course" label="Course" :placeholder="`Course name ${currentSemester()}`" prepend-icon="mdi-school-outline" density="compact" hint="Same course and group name is the same room; another course, such as another semester, gets rooms of its own." persistent-hint class="mb-2" />
+    <!-- The courses of earlier imports to click instead of typing, so the same course is written the same way. -->
+    <div v-if="courses.length" class="d-flex align-center flex-wrap ga-2 mb-4 ml-10">
+      <span class="text-caption text-medium-emphasis">Already used:</span>
+      <v-chip v-for="known in courses" :key="known" size="small" :color="known === course?.trim() ? 'primary' : undefined" :variant="known === course?.trim() ? 'flat' : 'tonal'" @click="course = known">{{ known }}</v-chip>
+    </div>
+    <!-- Without a file an area to drop or click; with a file the field with name, size and remove. -->
+    <label v-if="!file.length" class="drop-zone mb-4" :class="{ 'drop-zone--over': dragging }" @dragover.prevent="dragging = true" @dragleave="dragging = false" @drop.prevent="drop">
+      <v-icon icon="mdi-file-upload-outline" size="28" class="mb-1" />
+      <span>{{ dragging ? 'Release to load the CSV' : 'Drop the participant list from Moodle (CSV) here or' }} <u v-if="!dragging">choose a file</u></span>
+      <input type="file" accept=".csv,.txt,text/csv" hidden @change="file = [...(($event.target as HTMLInputElement).files ?? [])]" />
+    </label>
+    <v-file-input v-else v-model="file" label="Participant list from Moodle (CSV)" accept=".csv,.txt,text/csv" prepend-icon="mdi-file-delimited-outline" density="compact" show-size :loading="reading" />
+    <GroupWorkCsvHelp v-if="!csv" />
+    <v-alert v-if="failure" type="error" variant="tonal" density="compact" class="mb-4">{{ failure }}</v-alert>
+    <!-- Outside the CSV: after applying, the file is gone, the result stays until the next file. -->
+    <v-alert v-if="appliedRooms.length" type="success" variant="tonal" density="compact" class="mb-4" :title="appliedTitle">
+      <template v-if="missingPeople.length">
+        Not in the Feedbacksystem, so not in their room:
+        <ul class="ml-4">
+          <li v-for="room in missingPeople" :key="room.roomId">{{ room.name }}: {{ room.missing.join(', ') }}</li>
+        </ul>
+      </template>
+    </v-alert>
+
+    <template v-if="csv">
+      <p class="text-medium-emphasis mb-4">{{ csv.people }} people · {{ csv.groups.length }} groups · {{ csv.caseStudies.length }} case studies</p>
+
+      <h3 class="text-subtitle-1 font-weight-medium mb-2">Case study → task</h3>
+      <p v-if="!csv.caseStudies.length" class="text-medium-emphasis">The column "Fallstudie" is empty.</p>
+      <div v-for="caseStudy in csv.caseStudies" :key="caseStudy" class="d-flex align-center ga-3 mb-2">
+        <span class="case-study">F{{ caseStudy }}</span>
+        <v-select :model-value="choices[caseStudy].taskId" :items="tasks" item-title="name" item-value="id" label="Task" density="compact" hide-details :loading="loadingTasks" @update:model-value="chooseTask(caseStudy, $event)" />
+        <v-select v-model="choices[caseStudy].versionId" :items="versions[choices[caseStudy].taskId ?? ''] ?? []" :item-title="releaseLabel" item-value="id" label="Release" density="compact" hide-details :disabled="!choices[caseStudy].taskId" class="release" />
+      </div>
+
+      <h3 class="text-subtitle-1 font-weight-medium mt-6 mb-2">Groups</h3>
+      <v-table density="compact">
+        <thead>
+          <tr>
+            <th>Room</th>
+            <th>Tasks</th>
+            <th>Members</th>
+            <th>Check</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="group in csv.groups" :key="group.name">
+            <td>{{ group.name }}</td>
+            <td>{{ group.caseStudies.map(taskLabel).join(', ') || '—' }}</td>
+            <td>
+              <!-- Whoever has no FBS account yet does not get into the room: faded and dashed, with an explanation. -->
+              <v-chip
+                v-for="member in group.members"
+                :key="member.username"
+                size="small"
+                class="mr-1 my-1"
+                :class="{ 'member--missing': isMissing(group, member.username) }"
+                :variant="isMissing(group, member.username) ? 'outlined' : 'tonal'"
+                :prepend-icon="isMissing(group, member.username) ? 'mdi-account-off-outline' : undefined"
+                :title="isMissing(group, member.username) ? `${member.username}: not in the Feedbacksystem yet – they need to sign in once` : member.username"
+                >{{ member.name }}</v-chip
+              >
+            </td>
+            <td>
+              <div :class="statusOf(group).tone">{{ statusOf(group).text }}</div>
+              <div v-if="missingOf(group).length" class="text-caption text-warning"><v-icon icon="mdi-alert-outline" size="14" /> {{ missingOf(group).length }} not in FBS</div>
+            </td>
+          </tr>
+        </tbody>
+      </v-table>
+
+      <v-alert v-if="csv.skipped.length" type="warning" variant="tonal" density="compact" class="mt-4" :title="`${csv.skipped.length} ${csv.skipped.length === 1 ? 'row was' : 'rows were'} skipped and get no room`" text="Fix them in the CSV and load it again.">
+        <v-table density="compact" class="skipped mt-2">
+          <thead>
+            <tr>
+              <th>Row</th>
+              <th>Person</th>
+              <th>Login name</th>
+              <th>Group</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="entry in csv.skipped" :key="entry.row">
+              <td>{{ entry.row }}</td>
+              <td>{{ entry.name || '—' }}</td>
+              <td class="login">{{ entry.username || '—' }}</td>
+              <td>{{ entry.group || '—' }}</td>
+              <td>{{ entry.reason }}</td>
+            </tr>
+          </tbody>
+        </v-table>
+      </v-alert>
+
+      <v-alert v-if="planFailure" type="error" variant="tonal" density="compact" class="mt-4">The check against the existing rooms failed: {{ planFailure }}</v-alert>
+      <v-alert v-if="createFailure" type="error" variant="tonal" density="compact" class="mt-4">{{ createFailure }} What was applied before stays; applying again sends only what is still missing.</v-alert>
+
+      <v-alert v-if="missingTotal" type="warning" variant="tonal" density="compact" class="mt-4"> {{ missingTotal }} {{ missingTotal === 1 ? 'person is' : 'people are' }} not in the Feedbacksystem yet. They get no access until they've signed in once and the CSV is applied again. </v-alert>
+      <div class="d-flex align-center justify-end ga-3 mt-4">
+        <span v-if="creating" class="text-caption text-medium-emphasis">{{ progress }} of {{ progressTotal }} groups done</span>
+        <span v-else-if="!course?.trim()" class="text-caption text-medium-emphasis">Enter the course first.</span>
+        <v-btn color="primary" variant="flat" :disabled="!changes.length || planning || !course?.trim()" :loading="creating" @click="create">{{ changes.length ? `Apply ${changes.length} ${changes.length === 1 ? 'change' : 'changes'}` : 'Nothing to apply' }}</v-btn>
+      </div>
+    </template>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { notifyError } from '@/composables/useNotifications'
+import { apiErrorMessage } from '@/collab/kit/collabKit'
+import httpClient from '@/services/api/httpClient'
+import taskService from '@/services/task/task.service'
+import type { Task, TaskVersionInfo } from '@/services/api/types/task'
+import { collabSettings } from '@/collab/settings/collabSettings'
+import GroupWorkCsvHelp from './GroupWorkCsvHelp.vue'
+import { currentSemester, decodeCsv, numberOf, parseGroupWorkCsv, type CsvGroup, type GroupWorkCsv } from './groupWorkCsv'
+
+/** `courses`: the courses of earlier imports to pick from, so the same course is written the same way. */
+withDefaults(defineProps<{ courses?: string[] }>(), { courses: () => [] })
+
+/** Reports that rooms were created or completed, so <ck-management> and the overview reload. */
+const emit = defineEmits<{ created: [] }>()
+
+/** How many groups one request creates at most; the same limit as MAX_GROUPS in api/…/schemas/group_work.py. */
+const BATCH = 10
+
+/** A room as the backend created or completed it. */
+interface AppliedRoom {
+  name: string
+  roomId: string
+  created: boolean
+  addedMembers: string[]
+  workpieceIds: string[]
+  missing: string[]
+}
+
+interface Choice {
+  taskId: string | null
+  versionId: string | null
+}
+
+const csv = shallowRef<GroupWorkCsv | null>(null)
+const failure = ref('')
+const reading = ref(false)
+const tasks = shallowRef<Task[]>([])
+const loadingTasks = ref(false)
+// Per case study the task and its release; the releases of each task are loaded once.
+const choices = reactive<Record<string, Choice>>({})
+const versions = reactive<Record<string, TaskVersionInfo[]>>({})
+
+const releaseLabel = (version: TaskVersionInfo) => (version.releaseName ? `${version.releaseName} · v${version.versionNumber}` : `v${version.versionNumber}`)
+
+const load = async (files: File | File[] | null | undefined) => {
+  const file = Array.isArray(files) ? files[0] : files
+  csv.value = null
+  failure.value = ''
+  createFailure.value = ''
+  if (!file) return
+  appliedRooms.value = []
+  reading.value = true
+  try {
+    const parsed = parseGroupWorkCsv(decodeCsv(await file.arrayBuffer()))
+    // A choice stays if the same case study comes up again in the next file.
+    for (const caseStudy of parsed.caseStudies) choices[caseStudy] ??= { taskId: null, versionId: null }
+    csv.value = parsed
+    assignByNumber()
+  } catch (error) {
+    failure.value = (error as Error).message
+  } finally {
+    reading.value = false
+  }
+}
+
+// The chosen file, dropped or picked; changing it loads it, clearing it resets the import.
+const file = shallowRef<File[]>([])
+const dragging = ref(false)
+watch(file, (files) => void load(files))
+
+/** Takes the first dropped file; the import knows no several files. */
+const drop = (event: DragEvent) => {
+  dragging.value = false
+  const dropped = event.dataTransfer?.files[0]
+  if (dropped) file.value = [dropped]
+}
+
+const chooseTask = async (caseStudy: string, taskId: string | null) => {
+  const choice = choices[caseStudy]
+  choice.taskId = taskId
+  choice.versionId = null
+  if (!taskId) return
+  try {
+    versions[taskId] ??= (await taskService.listVersions(taskId, 0, 100)).data.items.filter((version) => version.kind === 'release')
+  } catch {
+    notifyError('The releases of this task could not be loaded.')
+    return
+  }
+  // As in "From task": the latest release, unless another task was chosen meanwhile.
+  if (choice.taskId === taskId) choice.versionId = tasks.value.find((task) => task.id === taskId)?.latestReleaseId ?? versions[taskId][0]?.id ?? null
+}
+
+/** Gives each case study without a choice the task with its number; a choice made by hand stays. */
+const assignByNumber = () => {
+  for (const caseStudy of csv.value?.caseStudies ?? []) {
+    const task = tasks.value.find((item) => numberOf(item) === caseStudy)
+    if (task && !choices[caseStudy].taskId) void chooseTask(caseStudy, task.id)
+  }
+}
+
+const taskLabel = (caseStudy: string) => tasks.value.find((task) => task.id === choices[caseStudy]?.taskId)?.name ?? `F${caseStudy}`
+
+/** What still keeps a group from being created; null when it is ready. Any number of case studies is fine. */
+const problemOf = (group: CsvGroup) => {
+  if (!group.caseStudies.length) return 'no case study'
+  const missing = group.caseStudies.filter((caseStudy) => !choices[caseStudy]?.versionId)
+  return missing.length ? `no task for ${missing.map((caseStudy) => `F${caseStudy}`).join(', ')}` : null
+}
+/** What the backend plans for a group: a new room, or what the existing room of this course lacks. */
+interface PlannedRoom {
+  name: string
+  roomId: string | null
+  newMembers: string[]
+  newTasks: { taskId: string; versionId: string }[]
+  missing: string[]
+}
+
+const course = ref<string | null>('')
+const plans = ref<Record<string, PlannedRoom>>({})
+const planning = ref(false)
+const planFailure = ref('')
+const appliedRooms = ref<AppliedRoom[]>([])
+const missingPeople = computed(() => appliedRooms.value.filter((room) => room.missing.length))
+const appliedTitle = computed(() => {
+  const created = appliedRooms.value.filter((room) => room.created).length
+  const completed = appliedRooms.value.length - created
+  return [created && `${created} ${created === 1 ? 'room' : 'rooms'} created`, completed && `${completed} ${completed === 1 ? 'room' : 'rooms'} completed`].filter(Boolean).join(', ')
+})
+const creating = ref(false)
+const createFailure = ref('')
+const progress = ref(0)
+const progressTotal = ref(0)
+
+/** The groups without a problem in the file; only these are checked and sent. */
+const valid = computed(() => csv.value?.groups.filter((group) => !problemOf(group)) ?? [])
+const additionsOf = (plan: PlannedRoom) => plan.newMembers.length + plan.newTasks.length
+/** What "Apply" sends: new rooms and existing ones that lack something. */
+/** Who has no FBS account according to the check; nobody without a check. */
+const missingOf = (group: CsvGroup) => plans.value[group.name]?.missing ?? []
+const isMissing = (group: CsvGroup, username: string) => missingOf(group).includes(username)
+const missingTotal = computed(() => valid.value.reduce((total, group) => total + missingOf(group).length, 0))
+const changes = computed(() => valid.value.filter((group) => plans.value[group.name] && (!plans.value[group.name].roomId || additionsOf(plans.value[group.name]))))
+
+const count = (n: number, one: string, many: string) => `+${n} ${n === 1 ? one : many}`
+/** The check column: first errors of the file, then what the import would do with the group. */
+const statusOf = (group: CsvGroup) => {
+  const problem = problemOf(group)
+  if (problem) return { text: problem, tone: 'text-error' }
+  if (!course.value?.trim()) return { text: 'enter the course', tone: 'text-medium-emphasis' }
+  const plan = plans.value[group.name]
+  if (!plan) return { text: planning.value ? 'checking…' : '—', tone: 'text-medium-emphasis' }
+  if (!plan.roomId) return { text: 'new room', tone: 'text-success' }
+  if (!additionsOf(plan)) return { text: 'exists · up to date', tone: 'text-medium-emphasis' }
+  const parts = [plan.newMembers.length && count(plan.newMembers.length, 'person', 'people'), plan.newTasks.length && count(plan.newTasks.length, 'model', 'models')].filter(Boolean)
+  return { text: `exists · ${parts.join(' · ')}`, tone: 'text-warning' }
+}
+
+/** The group as the backend takes it: login names and per case study the chosen task. */
+const requestOf = (group: CsvGroup) => ({
+  name: group.name,
+  usernames: group.members.map((member) => member.username),
+  tasks: group.caseStudies.map((caseStudy) => ({ taskId: choices[caseStudy].taskId, versionId: choices[caseStudy].versionId }))
+})
+
+// Only the answer to the last check counts; an older one may arrive later.
+let planRun = 0
+/** Asks the backend what would happen to the groups, in the same batches as when applying; nothing is written. */
+const preview = async () => {
+  const run = ++planRun
+  const groups = valid.value
+  const name = course.value?.trim()
+  planFailure.value = ''
+  if (!name || !groups.length) {
+    plans.value = {}
+    return
+  }
+  planning.value = true
+  try {
+    const next: Record<string, PlannedRoom> = {}
+    for (let start = 0; start < groups.length; start += BATCH) {
+      const { data } = await httpClient.post<{ rooms: PlannedRoom[] }>('/v1/group-work/preview', { course: name, groups: groups.slice(start, start + BATCH).map(requestOf) })
+      for (const room of data.rooms) next[room.name] = room
+    }
+    if (run === planRun) plans.value = next
+  } catch (error) {
+    if (run === planRun) planFailure.value = apiErrorMessage(error)
+  } finally {
+    if (run === planRun) planning.value = false
+  }
+}
+
+// Course, file and tasks often change in quick succession; the check runs only once it has been quiet for a while.
+let planTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => JSON.stringify([course.value?.trim(), valid.value.map(requestOf)]),
+  () => {
+    clearTimeout(planTimer)
+    plans.value = {}
+    planTimer = setTimeout(() => void preview(), collabSettings.hints.importDelayMs)
+  }
+)
+
+/** Applies the plan in batches; if one fails, what came before stays, and another try sends only what is still missing. */
+const create = async () => {
+  const groups = changes.value
+  const name = course.value?.trim()
+  if (!name) return
+  creating.value = true
+  createFailure.value = ''
+  appliedRooms.value = []
+  progress.value = 0
+  progressTotal.value = groups.length
+  try {
+    for (let start = 0; start < groups.length; start += BATCH) {
+      const { data } = await httpClient.post<{ rooms: AppliedRoom[] }>('/v1/group-work', { course: name, groups: groups.slice(start, start + BATCH).map(requestOf) })
+      appliedRooms.value = [...appliedRooms.value, ...data.rooms]
+      progress.value += data.rooms.length
+    }
+    // All applied: the file goes, the import is back at the drop area.
+    file.value = []
+  } catch (error) {
+    createFailure.value = apiErrorMessage(error)
+    // The file stays; the check shows the new state, so "up to date" for everything applied already.
+    void preview()
+  } finally {
+    creating.value = false
+    if (progress.value) emit('created')
+  }
+}
+
+onMounted(async () => {
+  loadingTasks.value = true
+  try {
+    tasks.value = (await taskService.list(0, 100, { visibility: 'published' })).data.items
+    // The CSV may be loaded before the tasks are there.
+    assignByNumber()
+  } catch {
+    notifyError('Tasks could not be loaded.')
+  } finally {
+    loadingTasks.value = false
+  }
+})
+</script>
+
+<style scoped>
+.group-work-import {
+  padding: 4px 0;
+}
+
+.drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 22px 16px;
+  border: 1.5px dashed rgba(var(--v-theme-on-surface), 0.38);
+  border-radius: 8px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  text-align: center;
+  cursor: pointer;
+}
+
+/* Children catch no drag events, or the highlight flickers while moving over them. */
+.drop-zone > * {
+  pointer-events: none;
+}
+
+.drop-zone--over {
+  border-color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.08);
+  color: rgb(var(--v-theme-primary));
+}
+
+.case-study {
+  min-width: 96px;
+  font-weight: 600;
+}
+
+.release {
+  max-width: 220px;
+}
+
+/* The table lies in the tinted alert and takes its color. */
+.skipped {
+  background: transparent;
+  color: inherit;
+}
+
+.member--missing {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+.login {
+  font-family: monospace;
+}
+</style>

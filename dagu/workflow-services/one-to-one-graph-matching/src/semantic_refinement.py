@@ -5,12 +5,11 @@ from copy import deepcopy
 
 from assignment_capacity import capacity_preserving_proposals
 from decision_diagnostics import record
-from correspondence_state import _neighbors
 from structural_evidence import analyze_containment
-from text_similarity import configured_tiers, legacy_thresholds, pair_similarity
+from text_similarity import configured_tiers, legacy_thresholds, pair_similarity, with_glossary
 
 
-def refine_semantic_proposals(indices, candidates, state, thresholds, *, text_evidence=None):
+def refine_semantic_proposals(indices, candidates, state, thresholds, *, text_evidence=None, glossary=None):
     """Assess candidate evidence and propose only mutually unambiguous pairs.
 
     `thresholds` is the single-tier `minimumSimilarity`; `text_evidence` replaces it with ordered tiers.
@@ -20,12 +19,18 @@ def refine_semantic_proposals(indices, candidates, state, thresholds, *, text_ev
         graph_matching["textEvidence"] = text_evidence
     tiers = configured_tiers(candidates, graph_matching)
     thresholds = legacy_thresholds(tiers)
-    similarity = pair_similarity(candidates, tiers)
+    ranked = with_glossary(tiers, glossary)
+    similarity = pair_similarity(candidates, ranked, glossary)
     events = []
     excluded = {(item["referenceId"], item["studentId"])
                 for field in ("conflictingProposals", "blockedProposals") for item in state[field]}
+    # Owners inferred from their children, or from text in an earlier round, scope the remaining children
+    # just like exact-label owners.
     anchors = [item for item in state["proposals"]
-               if item["reason"] == "unique_exact_label" and not item["dependsOn"]
+               if (item["reason"] == "unique_exact_label" and not item["dependsOn"]
+                   or item["reason"] in ("independent_child_evidence", "combined_child_structure",
+                                         "supported_semantic_evidence", "context_disambiguated_text", "neighbor_structure",
+                                         "loose_context_text", "interchangeable_duplicate"))
                and (item["referenceId"], item["studentId"]) not in excluded]
     containment = analyze_containment(deepcopy(indices), candidates, anchors)
     owners = {(item["referenceId"], item["studentId"]): item for item in containment}
@@ -66,7 +71,9 @@ def refine_semantic_proposals(indices, candidates, state, thresholds, *, text_ev
         # A stronger tier wins outright; a weaker one never does.
         if competitor_rank is not None and competitor_rank != rank:
             return competitor_rank > rank
-        methods = tiers[rank]["minimumSimilarity"]
+        methods = ranked[rank]["minimumSimilarity"]
+        if not methods:  # glossary tier: no score to compare, two accepted pairs stay a tie unless the owner decides
+            return competitor_rank is None or item_owner > competitor_owner
         if any(name not in item["_scores"] or name not in competitor["_scores"] for name in methods):
             return False
         return (all(item["_scores"][name] >= competitor["_scores"][name] for name in methods)
@@ -110,8 +117,6 @@ def refine_semantic_proposals(indices, candidates, state, thresholds, *, text_ev
                ["supported_semantic_evidence" if accepted else "capacity_conflict"],
                depends_on=item["dependsOn"], individuallyFeasible=item in individually_feasible,
                jointlyFeasible=accepted)
-    proposals = proposals + _neighbor_confirmed(indices, state, proposals, pairs, owners, similarity,
-                                                used_references, used_students, events)
     proposals = proposals + _substructure_children(indices, candidates, state, anchors, proposals, pairs,
                                                    used_references, used_students, dominates, events)
     proposed_references = {item["referenceId"] for item in proposals}
@@ -184,45 +189,3 @@ def _substructure_children(indices, candidates, state, anchors, owners, pairs, u
                "proposed" if item in accepted else "blocked",
                ["semantic_owner_scope" if item in accepted else "capacity_conflict"], depends_on=item["dependsOn"])
     return accepted
-
-
-def _neighbor_confirmed(indices, state, accepted, pairs, owners, similarity, used_references, used_students, events):
-    """Grey-zone main elements: accept a pair only if mapped neighbours confirm it better than any competitor.
-
-    Elements with a declared substructure owner are left to the owner scope. The text score never
-    decides alone; the proposal depends on the neighbour pairs that confirmed it.
-    """
-    taken_references = used_references | {item["referenceId"] for item in accepted}
-    taken_students = used_students | {item["studentId"] for item in accepted}
-    mapping = {item["studentId"]: item["referenceId"] for item in state["proposals"] + accepted}
-    neighbors = {side: _neighbors(index) for side, index in indices.items()}
-    open_pairs = {pair: item for pair, item in similarity.items()
-                  if pair[0] not in taken_references and pair[1] not in taken_students
-                  and (item["status"] == "supported" or item["greyRank"] is not None)
-                  and not owners[pair]["referenceSubstructure"] and not owners[pair]["studentSubstructure"]}
-
-    def confirmation(pair):
-        return {(mapping[n], n) for n in neighbors["student"][pair[1]] if mapping.get(n) in neighbors["reference"][pair[0]]}
-
-    # Every admissible pair is a structural rival, even without textual plausibility: structure that
-    # favours another counterpart must never be overridden by a weak text preference.
-    admissible = [pair for pair in similarity if pair[0] not in taken_references and pair[1] not in taken_students]
-    support = {pair: confirmation(pair) for pair in admissible}
-    proposed = []
-    for pair, item in sorted(open_pairs.items()):
-        if item["status"] == "supported" or not support[pair]:
-            continue
-        rivals = [other for other in admissible if other != pair and (other[0] == pair[0] or other[1] == pair[1])]
-        if any(len(support[other]) > len(support[pair])
-               or (len(support[other]) == len(support[pair]) and other in open_pairs) for other in rivals):
-            record(events, "semantic_neighbors", "supported_semantic_evidence", *pair, "deferred", ["ambiguous_candidates"])
-            continue
-        proposed.append({"referenceId": pair[0], "studentId": pair[1], "reason": "neighbor_confirmed_semantic_evidence",
-                         "dependsOn": [{"referenceId": r, "studentId": s} for r, s in sorted(support[pair])],
-                         "status": "provisional"})
-    _, confirmed = capacity_preserving_proposals({**state, "proposals": state["proposals"] + accepted}, proposed)
-    for item in proposed:
-        record(events, "semantic_neighbors", "supported_semantic_evidence", item["referenceId"], item["studentId"],
-               "proposed" if item in confirmed else "blocked",
-               ["neighbor_confirmed" if item in confirmed else "capacity_conflict"], depends_on=item["dependsOn"])
-    return confirmed

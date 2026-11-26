@@ -4,8 +4,10 @@ import { notifyWarning } from '@/composables/useNotifications'
 import { isPseudonym } from '@/collab/kit/collabKit'
 import { compareNames } from '@/utils/sorting'
 import type { Session } from '@/collab/kit/collabKitV1'
+import { liveSession } from '@/collab/kit/liveSession'
 import { announcedRights, currentShare, hostPresenting, personColors, presenting, settingsLoaded, shareSettings } from '@/collab/sharing/shareModel'
 import { startCursors } from './cursors'
+import { collabSettings } from '@/collab/settings/collabSettings'
 
 /** One person at the workpiece, once however many tabs they have open. */
 export interface Person {
@@ -13,6 +15,8 @@ export interface Person {
   name: string
   color: string
   self: boolean
+  /** Whether the person hosts the share of the open workpiece. */
+  host: boolean
   /** Whether a session of the person may only read; each announces it, CK tells no one the rights of others. */
   readOnly: boolean
   /** How many sessions the person has open, such as tabs. */
@@ -31,63 +35,81 @@ interface PresenceState {
   colors?: Record<string, string>
 }
 
-/** The host is the only one in red, so the presenter is known at a glance. */
-const HOST_COLOR = '#cf5c58'
-// Sixteen colors measured to tell apart well (CIEDE2000, also for red-green color blindness), none of them red, which is the host's.
-// The first ones lie farthest apart, so the first people in a room get the most distinct colors.
-const PALETTE = ['#c29ed7', '#214b25', '#ee9813', '#0e26dc', '#12c19f', '#652f55', '#715c00', '#6e83b7', '#1d8a85', '#8f4ef1', '#6f5d8d', '#f657f2', '#194b78', '#8605a8', '#41a8ba', '#2da0fb']
-
-/** After this long without input a client gives up its selection, and with it the locks. */
-const IDLE_MS = 90_000
-
-const hostId = () => currentShare.value?.hostId ?? ''
+/** The host of the share, only if it belongs to the workpiece open in the editor; an old share in the browser would otherwise make someone else the host. */
+const hostId = () => {
+  const share = currentShare.value
+  return share && liveSession(share.workpieceId) ? share.hostId : ''
+}
 
 /** The host's color, else what the host handed out; without the host a hash, so a person still has the same color on every screen. */
-const colorOf = (id: string) => (id !== '' && id === hostId() ? HOST_COLOR : personColors.value[id] ?? PALETTE[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length])
+export const colorOf = (id: string) => {
+  // Host color and palette come from the collab settings and are read on every draw.
+  const { hostColor, palette } = collabSettings.colors
+  return id !== '' && id === hostId() ? hostColor : personColors.value[id] ?? palette[Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % palette.length]
+}
 
 /** The color worn by the fewest of those present; the first on a tie, so the choice is always the same. */
 const leastUsed = (assigned: Record<string, string>, present: Set<string>) => {
-  const counts = new Map(PALETTE.map((color) => [color, 0]))
+  const { palette } = collabSettings.colors
+  const counts = new Map(palette.map((color) => [color, 0]))
   for (const [id, color] of Object.entries(assigned)) if (present.has(id)) counts.set(color, (counts.get(color) ?? 0) + 1)
-  return PALETTE.reduce((best, color) => ((counts.get(color) ?? 0) < (counts.get(best) ?? 0) ? color : best))
+  return palette.reduce((best, color) => ((counts.get(color) ?? 0) < (counts.get(best) ?? 0) ? color : best))
 }
 
-/** Ob der Raum zuletzt als anonym angekündigt war; null, bis der Host das erste Mal angekündigt hat. */
-let lastAnnounced: boolean | null = null
+/** The name collab-kit has from the token; a pseudonym shows as it is, a token without a name shows the ID. */
+export const nameOf = (person: { id: string; name?: string }) => person.name ?? (isPseudonym(person.id) ? person.id : `Person ${person.id}`)
 
-/**
- * Der Name, wie die Oberfläche ihn zeigt. Ist der Raum anonym, erscheinen andere außer dem Host nur unter
- * Pseudonym, auch wenn collab-kit den Namen schickt: Wer überall verwalten darf (etwa ein FBS-Admin), sieht
- * dort sonst durch. Die Nummer folgt fest aus der ID, bleibt für diesen Betrachter also gleich, ist aber
- * nicht die von collab-kit. Host: seine Einstellung, maskiert bis sie geladen ist. Visitor: die letzte
- * Ankündigung des Hosts, maskiert bis die erste da ist; so blitzt kein Name auf, und ein kurz fehlender
- * Host ändert nichts.
- */
-export const shownName = (id: string, name: string | undefined, self = false) => {
-  if (isPseudonym(id)) return id
-  const anonymous = currentShare.value?.privateModelId ? !settingsLoaded.value || shareSettings.anonymous : lastAnnounced ?? true
-  if (anonymous && !self && id !== hostId()) return `anonymous-${1000 + ((Array.from(id).reduce((hash, char) => hash * 31 + char.charCodeAt(0), 7) >>> 0) % 9000)}`
-  return name ?? `Person ${id}`
-}
-const nameOf = (person: { id: string; name?: string; self?: boolean }) => shownName(person.id, person.name, person.self)
+/** What the clients of the host announce; none while the host is not there. */
+const hostStates = (session: Session) =>
+  session.presence
+    .people()
+    .find((person) => person.id === hostId())
+    ?.clients.map(({ state }) => state as PresenceState) ?? []
 
 /** Whether the host presents. */
-const presenterActive = (session: Session) => session.presence.people().some((person) => person.id === hostId() && person.clients.some(({ state }) => (state as PresenceState).presenting === true))
+const presenterActive = (session: Session) => hostStates(session).some((state) => state.presenting === true)
 
 /** What the host announced for the visitors; none while the host is not there or has not read the settings yet. */
-const announcedBy = (session: Session) => {
-  const host = session.presence.people().find((person) => person.id === hostId())
-  return host?.clients.map(({ state }) => (state as PresenceState).visitors).find((visitors) => visitors !== undefined) ?? null
-}
+const announcedBy = (session: Session) =>
+  hostStates(session)
+    .map((state) => state.visitors)
+    .find((visitors) => visitors !== undefined) ?? null
 
 /** The colors the host handed out; none while the host is not there. */
-const colorsBy = (session: Session) => {
-  const host = session.presence.people().find((person) => person.id === hostId())
-  return host?.clients.map(({ state }) => (state as PresenceState).colors).find((colors) => colors !== undefined) ?? null
-}
+const colorsBy = (session: Session) =>
+  hostStates(session)
+    .map((state) => state.colors)
+    .find((colors) => colors !== undefined) ?? null
 
 /** Whether the cursor and selection of a person show: all do, until the host presents, then only the host's. */
 const shows = (session: Session, id: string) => !presenterActive(session) || id === hostId()
+
+const SVG = 'http://www.w3.org/2000/svg'
+
+/** An element of the overlay with its attributes. */
+const svgElement = (name: string, attributes: Record<string, string | number>) => {
+  const element = document.createElementNS(SVG, name)
+  for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value))
+  return element
+}
+
+/** A small disc in a person's color with something white on it, laid over the graph at x, y; clicks pass through it. */
+const badgeAt = (graph: Graph, x: number, y: number, color: string, ...content: Element[]) => {
+  const badge = svgElement('g', { transform: `translate(${x} ${y})`, 'pointer-events': 'none' })
+  badge.append(svgElement('circle', { r: 9, fill: color }), ...content)
+  graph.view.getOverlayPane().appendChild(badge)
+  return badge
+}
+
+/** The lock on a badge: its body and its shackle. */
+const lockShape = () => [svgElement('rect', { x: -4, y: -1, width: 8, height: 6, rx: 1, fill: '#fff' }), svgElement('path', { d: 'M-2.5 -1 V-3 a2.5 2.5 0 0 1 5 0 V-1', fill: 'none', stroke: '#fff', 'stroke-width': 1.5 })]
+
+/** A letter or a short count on a badge. */
+const letterShape = (text: string) => {
+  const letter = svgElement('text', { 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 10, 'font-weight': 500, fill: '#fff' })
+  letter.textContent = text
+  return letter
+}
 
 /**
  * Announces what this tab selects and whether it may only read, frames what the others select,
@@ -128,20 +150,20 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
 
   /**
    * The cells another person holds by selecting them. Per cell the earliest selection wins, on a tie
-   * the lower client ID. Read-only clients hold nothing, and nothing is locked while the host presents.
+   * the lower client ID. Read-only clients hold nothing, and while the host presents only the host holds cells.
    */
   const lockedCells = () => {
     const holders = new Map<string, { since: number; clientId: number; self: boolean }>()
-    if (!presenterActive(session)) {
-      for (const person of session.presence.people()) {
-        for (const { clientId, state } of person.clients) {
-          const { selection = [], selectedSince: since = {}, readOnly, idle: away } = state as PresenceState
-          if (readOnly || away) continue
-          for (const id of selection) {
-            const claim = { since: since[id] ?? 0, clientId, self: person.self }
-            const held = holders.get(id)
-            if (!held || claim.since < held.since || (claim.since === held.since && claim.clientId < held.clientId)) holders.set(id, claim)
-          }
+    const presented = presenterActive(session)
+    for (const person of session.presence.people()) {
+      if (presented && person.id !== hostId()) continue
+      for (const { clientId, state } of person.clients) {
+        const { selection = [], selectedSince: since = {}, readOnly, idle: away } = state as PresenceState
+        if (readOnly || away) continue
+        for (const id of selection) {
+          const claim = { since: since[id] ?? 0, clientId, self: person.self }
+          const held = holders.get(id)
+          if (!held || claim.since < held.since || (claim.since === held.since && claim.clientId < held.clientId)) holders.set(id, claim)
         }
       }
     }
@@ -191,22 +213,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   }
 
   // A small lock at the top right of the frame, in the holder's color; it goes when the lock ends.
-  const drawLock = (x: number, y: number, color: string) => {
-    const ns = 'http://www.w3.org/2000/svg'
-    const badge = document.createElementNS(ns, 'g')
-    badge.setAttribute('transform', `translate(${x} ${y})`)
-    badge.setAttribute('pointer-events', 'none')
-    const disc = document.createElementNS(ns, 'circle')
-    disc.setAttribute('r', '9')
-    disc.setAttribute('fill', color)
-    const body = document.createElementNS(ns, 'rect')
-    for (const [name, value] of Object.entries({ x: -4, y: -1, width: 8, height: 6, rx: 1, fill: '#fff' })) body.setAttribute(name, String(value))
-    const shackle = document.createElementNS(ns, 'path')
-    for (const [name, value] of Object.entries({ d: 'M-2.5 -1 V-3 a2.5 2.5 0 0 1 5 0 V-1', fill: 'none', stroke: '#fff', 'stroke-width': 1.5 })) shackle.setAttribute(name, String(value))
-    badge.append(disc, body, shackle)
-    graph.view.getOverlayPane().appendChild(badge)
-    return badge
-  }
+  const drawLock = (x: number, y: number, color: string) => badges.push(badgeAt(graph, x, y, color, ...lockShape()))
 
   // Marks a whole element in the holder's color: the top cell with a thick frame and, only for the holder, the lock;
   // the cells right below it with a 2px frame and a light tint, whichever cell of it was selected.
@@ -225,8 +232,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
       }
       // The highlight keeps a gap to the cell and never paints a fill, so two neighbors show two lines.
       // A plain rectangle on the exact bounds draws one shared line and the tint; clicks pass through it.
-      const box = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-      for (const [name, value] of Object.entries({ x: view.x, y: view.y, width: view.width, height: view.height, fill: color, 'fill-opacity': 0.1, stroke: color, 'stroke-width': width, 'pointer-events': 'none' })) box.setAttribute(name, String(value))
+      const box = svgElement('rect', { x: view.x, y: view.y, width: view.width, height: view.height, fill: color, 'fill-opacity': 0.1, stroke: color, 'stroke-width': width, 'pointer-events': 'none' })
       graph.view.getOverlayPane().appendChild(box)
       badges.push(box)
     }
@@ -236,25 +242,11 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     // An empty list (a swimlane such as the attributes of an entity) stays unmarked: nothing in it belongs to the element yet.
     for (const child of top.getChildren()) if (child.getChildCount() > 0 || !graph.isSwimlane(child)) frame(child, 2, true)
     const view = graph.view.getState(top)
-    if (held && view) badges.push(drawLock(view.x + view.width, view.y, color))
+    if (held && view) drawLock(view.x + view.width, view.y, color)
   }
 
   // A small disc with a letter in a person's color; the others who selected the element sit in a row at its top left.
-  const drawMark = (x: number, y: number, color: string, text: string) => {
-    const ns = 'http://www.w3.org/2000/svg'
-    const badge = document.createElementNS(ns, 'g')
-    badge.setAttribute('transform', `translate(${x} ${y})`)
-    badge.setAttribute('pointer-events', 'none')
-    const disc = document.createElementNS(ns, 'circle')
-    disc.setAttribute('r', '9')
-    disc.setAttribute('fill', color)
-    const letter = document.createElementNS(ns, 'text')
-    for (const [name, value] of Object.entries({ 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 10, 'font-weight': 500, fill: '#fff' })) letter.setAttribute(name, String(value))
-    letter.textContent = text
-    badge.append(disc, letter)
-    graph.view.getOverlayPane().appendChild(badge)
-    badges.push(badge)
-  }
+  const drawMark = (x: number, y: number, color: string, text: string) => badges.push(badgeAt(graph, x, y, color, letterShape(text)))
 
   type Claim = { person: { id: string; name?: string }; held: boolean; since: number; clientId: number }
 
@@ -291,8 +283,9 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
       drawElement(top, main.held, colorOf(main.person.id))
       const view = graph.view.getState(top)
       if (!view) continue
-      others.slice(0, 2).forEach((other, at) => drawMark(view.x + at * 17, view.y, colorOf(other.person.id), Array.from(nameOf(other.person))[0]?.toUpperCase() ?? '?'))
-      if (others.length > 2) drawMark(view.x + 2 * 17, view.y, '#888780', `+${others.length - 2}`)
+      others.slice(0, collabSettings.presence.marksShown).forEach((other, at) => drawMark(view.x + at * 17, view.y, colorOf(other.person.id), Array.from(nameOf(other.person))[0]?.toUpperCase() ?? '?'))
+      const shown = collabSettings.presence.marksShown
+      if (others.length > shown) drawMark(view.x + shown * 17, view.y, '#888780', `+${others.length - shown}`)
     }
   }
 
@@ -302,7 +295,6 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     const people = session.presence.people()
     hostPresenting.value = presenterActive(session)
     announcedRights.value = announcedBy(session)
-    if (announcedRights.value) lastAnnounced = announcedRights.value.anonymous
     if (currentShare.value?.privateModelId) assignColors(people)
     else personColors.value = colorsBy(session) ?? {}
     const seen = JSON.stringify([people.map(({ id, name, clients }) => [id, name, clients.map(({ clientId, state }) => [clientId, (state as PresenceState).selection, (state as PresenceState).selectedSince, (state as PresenceState).idle, (state as PresenceState).readOnly, (state as PresenceState).presenting, (state as PresenceState).visitors])]), personColors.value])
@@ -314,6 +306,7 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
       name: nameOf(person),
       color: colorOf(person.id),
       self: person.self,
+      host: person.id === hostId(),
       readOnly: person.clients.some(({ state }) => (state as PresenceState).readOnly === true),
       tabs: person.clients.length
     }))
@@ -333,50 +326,61 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   // deleted, nor can its children. Edges that end at it still follow when it is moved.
   // Native hooks: isCellLocked/isCellDeletable in CellsMixin.js, isCellEditable in EditingMixin.js
   // (node_modules/@maxgraph/core/lib/esm/view/mixin). Wrapped on the instance, restored on stop.
-  const { isCellLocked, isCellEditable, isCellDeletable } = graph
-  graph.isCellLocked = (cell) => locked.has(cell.getId() ?? '') || isCellLocked.call(graph, cell)
-  graph.isCellEditable = (cell) => !locked.has(cell.getId() ?? '') && isCellEditable.call(graph, cell)
-  graph.isCellDeletable = (cell) => !touchesLocked(cell) && isCellDeletable.call(graph, cell)
+  const lockByPresence = () => {
+    const { isCellLocked, isCellEditable, isCellDeletable } = graph
+    graph.isCellLocked = (cell) => locked.has(cell.getId() ?? '') || isCellLocked.call(graph, cell)
+    graph.isCellEditable = (cell) => !locked.has(cell.getId() ?? '') && isCellEditable.call(graph, cell)
+    graph.isCellDeletable = (cell) => !touchesLocked(cell) && isCellDeletable.call(graph, cell)
 
-  // Tells who holds the element when someone tries to change it; at most once every few seconds.
-  // Only attempts count (drag, double click, delete), because maxGraph also asks the hooks above while drawing.
-  let lastWarned = 0
-  const warnLocked = (cell: Cell) => {
-    if (Date.now() - lastWarned < 3000) return
-    lastWarned = Date.now()
-    const holder = [...holderOf].find(([id]) => topOf(model.getCell(id) ?? cell) === topOf(cell))
-    const person = holder && session.presence.people().find(({ clients }) => clients.some(({ clientId }) => clientId === holder[1]))
-    notifyWarning(person ? `This element is locked. ${nameOf(person)} is editing it.` : 'This element is locked. Someone else is editing it.')
-  }
-  // Native: getDeletableCells in CellsMixin.js is called only when deleting.
-  const { getDeletableCells } = graph
-  graph.getDeletableCells = (cells) => {
-    const blocked = cells.find(touchesLocked)
-    if (blocked) warnLocked(blocked)
-    return getDeletableCells.call(graph, cells)
-  }
-  // A drag that starts on a locked element; a plain click only selects and stays quiet.
-  let pressed: { cell: Cell; x: number; y: number } | null = null
-  const lockWatcher = {
-    mouseDown: (_sender: unknown, me: InternalMouseEvent) => {
-      const cell = me.getCell()
-      pressed = cell && locked.has(cell.getId() ?? '') ? { cell, x: me.getGraphX(), y: me.getGraphY() } : null
-    },
-    mouseMove: (_sender: unknown, me: InternalMouseEvent) => {
-      if (!pressed || Math.hypot(me.getGraphX() - pressed.x, me.getGraphY() - pressed.y) <= graph.getEventTolerance()) return
-      warnLocked(pressed.cell)
-      pressed = null
-    },
-    mouseUp: () => {
-      pressed = null
+    // Tells who holds the element when someone tries to change it; at most once every few seconds.
+    // Only attempts count (drag, double click, delete), because maxGraph also asks the hooks above while drawing.
+    let lastWarned = 0
+    const warnLocked = (cell: Cell) => {
+      if (Date.now() - lastWarned < collabSettings.presence.lockHintMs) return
+      lastWarned = Date.now()
+      const holder = [...holderOf].find(([id]) => topOf(model.getCell(id) ?? cell) === topOf(cell))
+      const person = holder && session.presence.people().find(({ clients }) => clients.some(({ clientId }) => clientId === holder[1]))
+      notifyWarning(person ? `This element is locked. ${nameOf(person)} is editing it.` : 'This element is locked. Someone else is editing it.')
+    }
+    // Native: getDeletableCells in CellsMixin.js is called only when deleting.
+    const { getDeletableCells } = graph
+    graph.getDeletableCells = (cells) => {
+      const blocked = cells.find(touchesLocked)
+      if (blocked) warnLocked(blocked)
+      return getDeletableCells.call(graph, cells)
+    }
+    // A drag that starts on a locked element; a plain click only selects and stays quiet.
+    let pressed: { cell: Cell; x: number; y: number } | null = null
+    const lockWatcher = {
+      mouseDown: (_sender: unknown, me: InternalMouseEvent) => {
+        const cell = me.getCell()
+        pressed = cell && locked.has(cell.getId() ?? '') ? { cell, x: me.getGraphX(), y: me.getGraphY() } : null
+      },
+      mouseMove: (_sender: unknown, me: InternalMouseEvent) => {
+        if (!pressed || Math.hypot(me.getGraphX() - pressed.x, me.getGraphY() - pressed.y) <= graph.getEventTolerance()) return
+        warnLocked(pressed.cell)
+        pressed = null
+      },
+      mouseUp: () => {
+        pressed = null
+      }
+    }
+    graph.addMouseListener(lockWatcher)
+    const onDoubleClick = (_sender: unknown, evt: EventObject) => {
+      const cell = evt.getProperty('cell') as Cell | null
+      if (cell && locked.has(cell.getId() ?? '')) warnLocked(cell)
+    }
+    graph.addListener(InternalEvent.DOUBLE_CLICK, onDoubleClick)
+    return () => {
+      graph.isCellLocked = isCellLocked
+      graph.isCellEditable = isCellEditable
+      graph.isCellDeletable = isCellDeletable
+      graph.getDeletableCells = getDeletableCells
+      graph.removeMouseListener(lockWatcher)
+      graph.removeListener(onDoubleClick)
     }
   }
-  graph.addMouseListener(lockWatcher)
-  const onDoubleClick = (_sender: unknown, evt: EventObject) => {
-    const cell = evt.getProperty('cell') as Cell | null
-    if (cell && locked.has(cell.getId() ?? '')) warnLocked(cell)
-  }
-  graph.addListener(InternalEvent.DOUBLE_CLICK, onDoubleClick)
+  const releaseLocks = lockByPresence()
 
   const stopListening = session.presence.onChange(onChange)
   const stopCursors = startCursors(graph, session, colorOf, nameOf, (id) => shows(session, id))
@@ -394,10 +398,10 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
     sendSelection()
   }
   const idleCheck = setInterval(() => {
-    if (idle || Date.now() - lastActive < IDLE_MS) return
+    if (idle || Date.now() - lastActive < collabSettings.presence.idleMs) return
     idle = true
     sendSelection()
-  }, 5000)
+  }, collabSettings.presence.idleCheckMs)
   const activityEvents = ['pointerdown', 'keydown', 'wheel'] as const
   for (const type of activityEvents) window.addEventListener(type, onActivity, { passive: true })
   // The rights are known once connected; the first answer is no change, so synced tells it.
@@ -406,25 +410,32 @@ export const startPresence = (graph: Graph, session: Session, onPeople: (people:
   sendHostState()
   const stopPresentingWatch = watch([presenting, settingsLoaded, () => ({ ...shareSettings })], sendHostState)
   const stopAnonymityWatch = session.on('anonymityChanged', sendHostState)
+  // New colors in the collab settings: the host hands out anew to whoever wears a color that is gone and sends it; everyone draws anew.
+  const stopColorsWatch = watch(
+    () => collabSettings.colors,
+    () => {
+      if (stopped) return
+      const { palette } = collabSettings.colors
+      if (currentShare.value?.privateModelId) personColors.value = Object.fromEntries(Object.entries(personColors.value).filter(([, color]) => palette.includes(color)))
+      shown = ''
+      onChange()
+    },
+    { deep: true }
+  )
 
   return () => {
     stopped = true
     clearInterval(idleCheck)
     for (const type of activityEvents) window.removeEventListener(type, onActivity)
-    graph.isCellLocked = isCellLocked
-    graph.isCellEditable = isCellEditable
-    graph.isCellDeletable = isCellDeletable
-    graph.getDeletableCells = getDeletableCells
-    graph.removeMouseListener(lockWatcher)
-    graph.removeListener(onDoubleClick)
+    releaseLocks()
     locked = new Set()
     stopCursors()
     stopListening()
     stopRightsWatch()
     stopPresentingWatch()
     stopAnonymityWatch()
+    stopColorsWatch()
     announcedRights.value = null
-    lastAnnounced = null
     personColors.value = {}
     hostPresenting.value = false
     selectionModel.removeListener(sendSelection)

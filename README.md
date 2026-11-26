@@ -23,7 +23,7 @@ uncertain case to an educator.
 | --------------------- | ------------------------------------------ | ------------------------------------------------ |
 | `web/`                | Vue 3, TypeScript, Vite, Vuetify, maxGraph | Modeling UI, language editor, and task editor    |
 | `api/`                | Python 3.13, FastAPI, Pydantic, PyMongo    | Authenticated API and versioned persistence      |
-| MongoDB               | MongoDB 8                                  | Languages, tasks, models, versions, and feedback |
+| MongoDB               | MongoDB 4.4.29                             | Languages, tasks, models, versions, and feedback |
 | `docker-compose.yaml` | Docker Compose                             | Local MongoDB and API services                   |
 
 ## Local development

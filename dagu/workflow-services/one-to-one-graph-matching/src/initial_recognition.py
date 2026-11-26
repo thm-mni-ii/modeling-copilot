@@ -7,11 +7,14 @@ from assignment_capacity import necessary_pairs
 from decision_diagnostics import record
 from identity_evidence import normalized
 from initial_evaluation import _class_key, _language_value, _sort_key, _type_key
+from term_key import term_key
+from text_similarity import configured_tiers, with_glossary, connection_source_similarity
 
-SEMANTIC_REASONS = ("supported_semantic_evidence", "neighbor_confirmed_semantic_evidence")
+# Grey-zone neighbour confirmations are hints since AP-07, never mapped pairs.
+SEMANTIC_REASONS = ("supported_semantic_evidence",)
 
 
-def propose_connections(indices, elements, candidates=None):
+def propose_connections(indices, elements, candidates=None, glossary=None, graph_matching=None):
     events = []
     pairs = [(item["referenceId"], item["studentId"]) for item in elements]
     if len(set(pairs)) != len(pairs) or len({r for r, _ in pairs}) != len(pairs) or len({s for _, s in pairs}) != len(pairs):
@@ -62,6 +65,15 @@ def propose_connections(indices, elements, candidates=None):
     strict = {(ref, sub) for key, refs in grouped["reference"].items() for ref in refs for sub in grouped["student"].get(key, [])}
     broad = set()
     labels = set()
+    source_labels = set()
+    if candidates and graph_matching:
+        tiers = with_glossary(configured_tiers(candidates, graph_matching), glossary)
+        for pair in connection_source_similarity(candidates, tiers, glossary):
+            if all(pair[i] in connections[side] for i, side in enumerate(("reference", "student"))):
+                left, right = connections["reference"][pair[0]], connections["student"][pair[1]]
+                if (_key(left) is not None and _key(left) == _key(right)
+                        and all(node["languageResolution"] == "resolved" and node["comparisonRole"] == "semantic" for node in (left, right))):
+                    source_labels.add(pair)
     for ref, left in connections["reference"].items():
         for sub, right in connections["student"].items():
             same_language = left["language"] is not None and left["language"] == right["language"]
@@ -75,7 +87,9 @@ def propose_connections(indices, elements, candidates=None):
             if normalized(left.get("label")) and normalized(left.get("label")) == normalized(right.get("label")):
                 labels.add((ref, sub))
     for text in (candidates or {}).get("connectionTextMatrix", []):
-        if text["kind"] == "self" and normalized(text["referenceLabel"]) and normalized(text["referenceLabel"]) == normalized(text["submissionLabel"]):
+        accepted = bool(glossary) and glossary.get((text["referenceOwnerConnectionId"], term_key(text["submissionLabel"]))) == "accepted"
+        if text["kind"] == "self" and normalized(text["referenceLabel"]) and (
+                accepted or normalized(text["referenceLabel"]) == normalized(text["submissionLabel"])):
             pair = text["referenceOwnerConnectionId"], text["submissionOwnerConnectionId"]
             if all(pair[i] in connections[side] for i, side in enumerate(("reference", "student"))):
                 left, right = connections["reference"][pair[0]], connections["student"][pair[1]]
@@ -83,22 +97,53 @@ def propose_connections(indices, elements, candidates=None):
                         and all(node["languageResolution"] == "resolved" and node["comparisonRole"] == "semantic" for node in (left, right))):
                     labels.add(pair)
     proposals = []
-    all_candidates = strict | broad | labels
+    all_candidates = strict | broad | labels | source_labels
     for rule, eligible in (("unique_exact_connection_label", labels),
+                           ("unique_matching_source", source_labels),
                            ("compatible_type_and_mapped_endpoints", strict), ("unique_mapped_endpoints", broad)):
         reserved_refs = {row["referenceId"] for row in proposals}
         reserved_subs = {row["studentId"] for row in proposals}
         available = {pair for pair in eligible if pair[0] not in reserved_refs and pair[1] not in reserved_subs}
         for ref, sub in sorted(necessary_pairs(available)):
             endpoints = indices["reference"].endpoints.get(ref, {})
-            dependencies = [] if rule == "unique_exact_connection_label" else [
+            dependencies = [] if rule in {"unique_exact_connection_label", "unique_matching_source"} else [
                 {"referenceId": identity, "studentId": mapping[identity]}
                 for identity in sorted(set(endpoints.values()) & set(mapping))]
             proposals.append({"referenceId": ref, "studentId": sub, "reason": rule,
                               "status": "provisional", "dependsOn": dependencies})
             record(events, "connections", rule, ref, sub, "proposed", [rule], depends_on=dependencies)
+    # GM-46: connections with the same type, direction, mapped endpoints and text cannot be told apart.
+    # Any one-to-one assignment inside such a group is equally right, so the group is paired in ID order.
+    def texts(index, identity):
+        own = normalized(index.nodes[identity].get("label"))
+        extra = [normalized(index.nodes[edge["source"]].get("label")) for edge in index.children.get(identity, ())
+                 if index.nodes[edge["source"]]["kind"] == "connectionLabel"]
+        return tuple(sorted(text for text in [own, *extra] if text))
+
+    interchangeable = set()
+    reserved_refs = {row["referenceId"] for row in proposals}
+    reserved_subs = {row["studentId"] for row in proposals}
+    for key, refs in sorted(grouped["reference"].items(), key=lambda item: str(item[0])):
+        subs = grouped["student"].get(key, [])
+        by_text = {}
+        for side, items, index in (("reference", refs, indices["reference"]), ("student", subs, indices["student"])):
+            for identity in items:
+                if identity not in (reserved_refs if side == "reference" else reserved_subs):
+                    by_text.setdefault(texts(index, identity), {"reference": [], "student": []})[side].append(identity)
+        for group in by_text.values():
+            if max(len(group["reference"]), len(group["student"])) < 2:
+                continue
+            for ref, sub in zip(sorted(group["reference"]), sorted(group["student"])):
+                endpoints = indices["reference"].endpoints.get(ref, {})
+                dependencies = [{"referenceId": identity, "studentId": mapping[identity]}
+                                for identity in sorted(set(endpoints.values()) & set(mapping))]
+                proposals.append({"referenceId": ref, "studentId": sub, "reason": "interchangeable_parallel_connections",
+                                  "status": "provisional", "dependsOn": dependencies})
+                record(events, "connections", "interchangeable_parallel_connections", ref, sub, "proposed",
+                       ["interchangeable_parallel_connections"], depends_on=dependencies)
+                interchangeable.add((ref, sub))
     selected = {(row["referenceId"], row["studentId"]) for row in proposals}
-    endpoint_anchors = necessary_pairs(strict) | necessary_pairs(broad)
+    endpoint_anchors = necessary_pairs(strict) | necessary_pairs(broad) | interchangeable
     for ref, sub in sorted(all_candidates - selected):
         record(events, "connections", "connection_identity", ref, sub, "deferred", ["ambiguous_candidates"])
     proposals.sort(key=lambda item: (item["referenceId"], item["studentId"]))
