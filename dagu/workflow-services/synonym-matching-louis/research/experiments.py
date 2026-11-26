@@ -28,6 +28,11 @@ def load_config(path=DEFAULT_CONFIG):
     config = json.loads(Path(path).read_text())
     if 'decision_tree' in config:
         tree = config['decision_tree']
+        for key in ('modeling_abbreviations', 'candidate_abbreviations'):
+            mapping = tree.get(key, {})
+            if (not isinstance(mapping, dict) or any(not isinstance(k, str) or not k.strip()
+                    or not isinstance(v, str) or not v.strip() for k,v in mapping.items())):
+                raise ValueError(f'invalid decision_tree {key}')
         for key, allowed in [('lexicons', {'wordnet', 'native', 'ili'}),
                              ('embedding_actions', {'confirm', 'open'})]:
             values = tree[key]

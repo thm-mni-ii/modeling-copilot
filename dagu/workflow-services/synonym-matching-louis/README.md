@@ -1700,3 +1700,46 @@ alter Konfliktregel. Diese wird aufbewahrt und vom neuen Baum nicht übertroffen
 Alle Daten sind bekannte Entwicklungsdaten, keine unabhängige Validierung.
 Artefakte: `results/decision-tree-{laboratory,control,targeted}-20261126.json.gz`
 und `results/decision-tree-summary-20261126.json`.
+
+### Optionale deutsche Modellierungsabkürzungen
+
+Der Forschungsschritt `expand_modeling_abbreviations` ergänzt die bisherige
+`Nr.`-Regel um `Anz. → Anzahl`, `Bez. → Bezeichnung`, `Beschr. → Beschreibung`
+und `PLZ → Postleitzahl`. Er läuft ausschließlich bei expliziter Sprache `de`;
+Englisch und unbekannte Sprache bleiben unverändert. Die Liste ist eine
+experimentelle Annahme, keine garantierte Bedeutungsauflösung.
+Wortgrenzen und CamelCase werden berücksichtigt: `ArtikelAnz.` kann expandieren,
+`Finanz.` und `Bezirk` bleiben erhalten. Punktabkürzungen brauchen ihren Punkt.
+Frei erfundene oder andere Kürzel werden nicht erraten.
+
+Allgemeiner Baukasten: zum Beispiel
+`["normalize", "split_identifiers", "expand_abbreviations", "expand_modeling_abbreviations"]`.
+Der optionale Schritt ist keine neue globale Standardvorverarbeitung.
+Im Regelbaum steuert `decision_tree.modeling_abbreviations` die konkrete Liste;
+`{}` deaktiviert die Erweiterung. Vergleichstexte werden auf beiden Seiten
+expandiert, Originalbeschriftungen und IDs in Datensatz und Matrix bleiben
+erhalten. Die tatsächlich verwendeten Texte stehen unter `comparison_labels`.
+Wenn sich ein Label verändert, werden auch seine WordNet-Merkmale passend zu
+den expandierten Texten neu berechnet; alte Merkmale werden nicht falsch übernommen.
+Übersetzungen/Embeddings bleiben pro eindeutigem Text gecacht.
+
+`Str. → Straße` steht getrennt unter `candidate_abbreviations`. Diese Form wird
+nur unter `candidate_labels` dokumentiert, nicht gescort und nicht zur Bestätigung
+oder Ablehnung benutzt. Mehrdeutiges `Str.` wird damit nicht still ersetzt.
+Der produktive Service und dessen bisherige `Nr.`-Regel sind unverändert.
+
+Nachvergleich mit direkten Lexika und Embeddingbestätigung:
+
+| Daten | Vorher TP / FP / F1 | Mit Erweiterung TP / FP / F1 |
+|---|---:|---:|
+| Geänderte Laborlabels | 160 / 60 / 0,7767 | 176 / 68 / 0,8073 |
+| Kontrollfälle | 29 / 3 / 0,7733 | 29 / 3 / 0,7733 |
+| Gezielte Fälle | 5 / 0 / 1,0 | 5 / 0 / 1,0 |
+
+Auf Laborlabels: 16 zusätzliche richtige und acht zusätzliche falsche Treffer,
+keine verlorenen richtigen Treffer. Von den neuen Kürzeln kommt in diesen
+Benchmarks nur `Bez.` vor. Für die übrigen Kürzel gibt es gezielte Funktionstests,
+noch keinen fachlichen Qualitätsnachweis. Bekannte Entwicklungsdaten; keine
+unabhängige Validierung und keine automatische Auswahl einer neuen Servicepipeline.
+Artefakte: `results/decision-tree-abbreviations-{laboratory,control,targeted}-20261126.json.gz`
+und `results/decision-tree-abbreviations-summary-20261126.json`.

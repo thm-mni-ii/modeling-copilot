@@ -294,6 +294,8 @@
     ]
   },
   "decision_tree": {
+    "modeling_abbreviations": {"Anz.": "Anzahl", "Bez.": "Bezeichnung", "Beschr.": "Beschreibung", "PLZ": "Postleitzahl"},
+    "candidate_abbreviations": {"Str.": "Straße"},
     "lexicons": [
       "wordnet",
       "native",
@@ -312,17 +314,17 @@
       {
         "name": "laboratory",
         "source": "results/semantic-fusion-laboratory-final-20261119.json.gz",
-        "output": "results/decision-tree-laboratory-20261126.json.gz"
+        "output": "results/decision-tree-abbreviations-laboratory-20261126.json.gz"
       },
       {
         "name": "control",
         "source": "results/semantic-fusion-control-20261119.json.gz",
-        "output": "results/decision-tree-control-20261126.json.gz"
+        "output": "results/decision-tree-abbreviations-control-20261126.json.gz"
       },
       {
         "name": "targeted",
         "source": "results/component-features-targeted-20261119.json.gz",
-        "output": "results/decision-tree-targeted-20261126.json.gz"
+        "output": "results/decision-tree-abbreviations-targeted-20261126.json.gz"
       }
     ]
   }

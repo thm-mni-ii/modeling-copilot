@@ -17,6 +17,13 @@ from .compare import sha256
 from .compare_component_lexicons import LexiconSources
 from .evaluation import evaluate_case, nonempty_pairs, summarize
 from .experiments import DEFAULT_CONFIG, ROOT, load_config
+from synonym_matching.preprocessing import expand_modeling_abbreviations
+
+
+def label_forms(items, mapping):
+    """IDs und Originaldatensatz erhalten, nur Vergleichstexte zusätzlich expandieren."""
+    return [{**e, 'label': expand_modeling_abbreviations(e['label'], e.get('language'),
+                                                     abbreviations=mapping)} for e in items]
 
 
 def production_modules():
@@ -122,6 +129,12 @@ def run(config):
     methods = registry.resolve_methods(['damerau_canonical', 'multilingual_expanded'])
     states = {m.state_key: m.initialize() if m.initialize else None for m in methods}
     lexicons = LexiconSources()
+    # Geänderte deutsche Kürzel dürfen nicht mit veralteten WordNet-Merkmalen
+    # des Originaltexts bewertet werden. Übersetzung nutzt den vorhandenen Cache.
+    from synonym_matching import MatchingEngine
+    from synonym_matching.combinations import SEMANTIC_FEATURES
+    wordnet_engine = MatchingEngine({'methods': ['wordnet'],
+        'preprocessing': ['normalize'], 'semantic_features': {'wordnet': list(SEMANTIC_FEATURES)}})
     names = ['text_tiers'] + [f'{source}_{action}' for source in settings['lexicons']
                             for action in settings['embedding_actions']]
     paths = [ROOT / d['output'] for d in settings['datasets']]
@@ -136,7 +149,10 @@ def run(config):
         records, feature_records = [], []
         for case in saved['dataset']['cases']:
             started = time.perf_counter()
-            left, right = case['reference'], case['student']
+            original = [case['reference'], case['student']]
+            mapping = settings.get('modeling_abbreviations', {})
+            left, right = [label_forms(items, mapping) for items in original]
+            changed = [left, right] != original
             shape = (len(left), len(right))
             valid = nonempty_pairs([e['label'] for e in left], [e['label'] for e in right])
             raw = {}
@@ -162,6 +178,11 @@ def run(config):
             sources = {}
             for source in settings['lexicons']:
                 if source == 'wordnet':
+                    if changed:
+                        recalculated = wordnet_engine.compute_scores(left, right)
+                        sources[source] = {'shared_synset': recalculated['scores']['wordnet'],
+                                           **recalculated['semantic_features']['wordnet']}
+                        continue
                     part = whole[case['id'], 'wordnet']
                     if part['status'] != 'ok':
                         raise ValueError('missing successful whole-label WordNet features')
@@ -172,6 +193,9 @@ def run(config):
                     sources[source] = {**values, 'shared_synset': shared}
             feature_records.append({'case': case['id'], 'scores': {k:v.tolist() for k,v in raw.items()},
                 'lexicons': {s:{k:v.tolist() for k,v in fs.items()} for s,fs in sources.items()},
+                'comparison_labels': {'reference': left, 'student': right},
+                'candidate_labels': {side: label_forms(items, settings.get('candidate_abbreviations', {}))
+                                     for side,items in [('reference', left), ('student', right)]},
                 'seconds': time.perf_counter() - started})
             for name in names:
                 verdicts, reasons = np.full(shape, 'open', dtype=object), np.full(shape, '', dtype=object)
@@ -192,15 +216,18 @@ def run(config):
                         scores = {k:float(v[i,j]) for k,v in raw.items()}
                         if name != 'text_tiers':
                             scores.update({k:float(v[i,j]) for k,v in sources[name.rsplit('_',1)[0]].items()})
-                        matches.append({'submissionElement': b, 'scores': scores,
+                        matches.append({'submissionElement': case['student'][j], 'scores': scores,
                                         'verdict': verdicts[i,j], 'reason': reasons[i,j]})
-                    matrix.append({'referenceElement': a, 'matches': matches})
+                    matrix.append({'referenceElement': case['reference'][i], 'matches': matches})
                 records.append({'variant': name, 'case': case['id'], 'eligible': valid.tolist(),
                                 'verdicts': verdicts.tolist(), 'reasons': reasons.tolist(),
                                 'synonymMatrix': matrix})
         result = {'seed': config['seed'], 'config': settings, 'dataset': saved['dataset'],
                   'source': {'path': str(path), 'sha256': sha256(path)},
                   'source_hashes': {str(p):sha256(p) for p in [Path(__file__),
+                    ROOT/'src/synonym_matching/preprocessing.py',
+                    ROOT/'src/synonym_matching/lexicons.py',
+                    ROOT/'research/compare_component_lexicons.py',
                     ROOT.parent/'synonym-matching/src/synonym_matching/methods/registry.py',
                     ROOT.parent/'synonym-matching/src/synonym_matching/preprocessing.py',
                     ROOT.parent/'one-to-one-graph-matching/src/text_similarity.py']},

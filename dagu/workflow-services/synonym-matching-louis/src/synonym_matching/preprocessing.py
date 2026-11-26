@@ -30,6 +30,36 @@ def expand_abbreviations(text, language=None):
     return normalize(re.sub(r'nr\.?(?=$|[\s_-])', ' Nummer', text, flags=re.IGNORECASE))
 
 
+MODELING_ABBREVIATIONS_DE = {
+    'Anz.': 'Anzahl', 'Bez.': 'Bezeichnung',
+    'Beschr.': 'Beschreibung', 'PLZ': 'Postleitzahl',
+}
+
+
+def expand_modeling_abbreviations(text, language=None, *, abbreviations=None):
+    """Optionale DE-Erweiterung; Nr. bleibt in der bisherigen separaten Funktion.
+
+    Ersetze nur ganze Kürzel oder Kürzel nach einer CamelCase-Grenze.
+    Unbekannte Sprachen werden nicht als Deutsch angenommen. Mehrdeutiges Str.
+    ist absichtlich nicht in den Standardersetzungen enthalten.
+    """
+    if language != 'de':
+        return text
+    mapping = MODELING_ABBREVIATIONS_DE if abbreviations is None else abbreviations
+    original = text
+    for short, full in mapping.items():
+        def replace(match):
+            start, end = match.span()
+            previous = text[start - 1] if start else ''
+            following = text[end] if end < len(text) else ''
+            camel = previous.islower() and text[start].isupper()
+            if (previous.isalnum() and not camel) or following.isalnum():
+                return match.group()
+            return (' ' if camel else '') + full
+        text = re.sub(re.escape(short), replace, text, flags=re.IGNORECASE)
+    return normalize(text) if text != original else text
+
+
 @lru_cache(maxsize=2)
 def _language_model(language):
     """Lade das spaCy-Modell einmal pro Sprache."""
@@ -156,6 +186,7 @@ STEPS = {
     'remove_stopwords': remove_stopwords,
     'split_compounds': split_compounds,
     'expand_abbreviations': expand_abbreviations,
+    'expand_modeling_abbreviations': expand_modeling_abbreviations,
     'split_label_parts': split_label_parts,
 }
 # Kein Eintrag in STEPS: Übersetzen braucht Modell und Stapel, deshalb handelt es der Preprocessor.
