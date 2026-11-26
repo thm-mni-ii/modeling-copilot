@@ -24,9 +24,18 @@ def test_explicit_single_sense_counterrelation_precedes_similarity(relation):
 def test_missing_coverage_does_not_reject_and_ontology_never_confirms():
     assert decide(features(pair_known=0, reference_synset_count=0), text('spelling'))[0] == 'confirmed'
     assert decide(features(), text())[0] == 'open'
-    assert decide(features(shared_synset=1), text())[1] == 'single_sense_shared_synset'
-    assert decide(features(shared_synset=1, reference_synset_count=3), text())[0] == 'open'
+    assert decide(features(shared_synset=1), text())[1] == 'shared_synset'
+    assert decide(features(shared_synset=1, reference_synset_count=3), text())[0] == 'confirmed'
     assert decide(features(shared_synset=1, antonym=1), text())[0] == 'open'
+
+
+def test_multiple_senses_can_share_a_synset_and_strict_ablation_is_retained():
+    f=features(shared_synset=1,reference_synset_count=12,student_synset_count=1)
+    assert decide(f,text()) == ('confirmed','shared_synset')
+    assert decide(f,text(),require_single_synset=True)[0] == 'open'
+    assert decide(features(shared_synset=0),text())[0] == 'open'
+    with pytest.raises(ValueError):
+        decide(f,text(),require_single_synset=1)
 
 
 def test_embedding_policy_empty_labels_and_digit_guard():

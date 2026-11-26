@@ -1663,7 +1663,8 @@ Entscheidungsreihenfolge:
 1. Leere/nicht auswertbare Paare: `not_evaluable`.
 2. Explizite Gegenrelation bei beidseits genau einem Synset: `rejected`.
    Mehrdeutige oder zugleich synonyme und gegensätzliche Evidenz: `open`.
-3. Gemeinsames Synset bei beidseits genau einem Synset: `confirmed`.
+3. Gemeinsames Synset: `confirmed`, sofern keine vorherige Konfliktregel greift.
+   Die frühere Bedingung beidseits genau eines Synsets bleibt als Vergleichsvariante.
 4. Sonst produktive Textstufen/Schutzregeln auswerten.
 5. `confirm` lässt die Embeddingstufe bestätigen; `open` lässt reine
    Embeddingbestätigung offen. Sonstige unzureichende Evidenz bleibt `open`.
@@ -1869,3 +1870,46 @@ Artefakte: `results/language-path-taxonomy-ili-20261126.json.gz` und
 `results/language-path-taxonomy-ili-summary-20261126.json`.
 Der gleiche Befehl `python -m research.compare_language_paths` nutzt den aktuellen
 Dreipfad-Ausgabepfad aus JSON; vorhandene Artefakte werden weiterhin nicht überschrieben.
+
+### Ablation: gemeinsame Bedeutung ohne Ein-Synset-Beschränkung
+
+`decision_tree.require_single_synset` ist standardmäßig `false`: Ein gemeinsames
+Synset kann auch bei mehreren Lesarten bestätigen. Varianten mit Suffix
+`_single_synset` behalten die alte Bedingung bei. Die Regeln für Gegenrelationen,
+Widersprüche und Taxonomie bleiben absichtlich unverändert. Insbesondere wird
+eine gleichzeitig gefundene Gegenrelation bei Mehrdeutigkeit weiterhin offen
+gelassen; das Abschalten betrifft ausschließlich die Synonymbestätigungsbedingung.
+`shared_synset` und Synsetanzahlen selbst werden unverändert berechnet und gespeichert.
+
+Beide Varianten wurden mit exakt denselben Eingaben, Textverfahren und Lexika
+ausgeführt. 168 strenge Vergleichsdatensätze auf Labor-/Kontroll-/gezielten Fällen
+reproduzieren die zuvor gespeicherten Urteile exakt. Keine Schwellenanpassung.
+
+| Daten / Quelle / Baum mit Embeddingbestätigung | Streng TP / FP / F1 | Ohne Beschränkung TP / FP / F1 |
+|---|---:|---:|
+| Laborlabels, direkte Lexika | 176 / 68 / 0,8073 | 177 / 68 / 0,8101 |
+| Laborlabels, übersetztes WordNet | 168 / 68 / 0,7850 | 169 / 68 / 0,7879 |
+| Kontrollfälle, direkte Lexika | 29 / 3 / 0,7733 | 31 / 6 / 0,7750 |
+| Kontrollfälle, übersetztes WordNet | 28 / 3 / 0,7568 | 34 / 3 / 0,8500 |
+| Parallelkorpus, DE → OdeNet | 16 / 2 / 0,8000 | 21 / 4 / 0,8936 |
+| Parallelkorpus, EN → WordNet | 9 / 0 / 0,5806 | 10 / 0 / 0,6250 |
+| Parallelkorpus, DE → MT → WordNet | 13 / 2 / 0,7027 | 16 / 2 / 0,8000 |
+
+Zusätzliche echte Treffer: auf Laborlabels `Versuch ↔ Experiment` (direkt) bzw.
+`Etage ↔ Stockwerk` (übersetztes WordNet). Im Parallelkorpus wird jetzt auch
+`Floor ↔ Storey` lexikalisch bestätigt. Die gezielten 24 Paare bleiben unverändert.
+Alle Werte sind Entwicklungsdaten; unterschiedliche Datensätze nicht direkt
+als gemeinsames Ranking interpretieren. Keine Aussage über endgültige Graphzuordnung.
+
+**Diagnostizierter zusätzlicher Fehler:** Die neuen falschen OdeNet-Treffer
+betreffen `Rechnung ↔ Zahlung`. Die Suche senkt intern auf `zahlung` ab. Die
+wn-Standardsuche liefert dafür sowohl `Zahlung` als auch `Zählung`; das gemeinsame
+Synset `odenet-2197-n` enthält `Zählung` und `Rechnung`, nicht `Zahlung`.
+`reader.words('Zahlung')` findet dagegen nur den richtigen Ausdruck und
+`reader.synsets('Zahlung')` nur `odenet-11821-n`. Das ist ein belegtes Problem
+des normalisierten Suchpfads, kein Beleg für beabsichtigte Synonymie von Rechnung
+und Zahlung. Während der Ablation wurde diese Normalisierung nicht geändert.
+
+Artefakte: `results/decision-tree-shared-synset-{laboratory,control,targeted}-20261126.json.gz`,
+`results/language-path-shared-synset-20261126.json.gz` und
+`results/shared-synset-ablation-summary-20261126.json` mit allen Änderungen und Beispielen.

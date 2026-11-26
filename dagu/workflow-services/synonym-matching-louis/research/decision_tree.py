@@ -50,14 +50,19 @@ def production_modules():
     return registry, adapter
 
 
-def decide(features, text, *, embedding_action='confirm', valid=True, taxonomy_policy=None):
+def decide(features, text, *, embedding_action='confirm', valid=True, taxonomy_policy=None,
+           require_single_synset=False):
     """Erst eindeutige Relationen, dann kanonische/lexikalische/semantische Evidenz.
 
-    Genau ein Synset ist nur eine konservative Näherung, keine echte Disambiguierung.
+    Synonymie benötigt standardmäßig nur eine gemeinsame Bedeutung. Die alte
+    Ein-Synset-Bedingung bleibt als Ablation. Gegenrelationen und Taxonomieregeln
+    behalten ihre bisherigen konservativen Bedingungen, um den Effekt zu isolieren.
     Fehlende Gegenrelation ist kein Beweis für Gleichwertigkeit.
     """
     if embedding_action not in {'confirm', 'open'}:
         raise ValueError('embedding_action must be confirm or open')
+    if type(require_single_synset) is not bool:
+        raise ValueError('require_single_synset must be boolean')
     if not valid:
         return 'not_evaluable', 'empty_or_ineligible'
     known = features['pair_known'] == 1
@@ -68,8 +73,8 @@ def decide(features, text, *, embedding_action='confirm', valid=True, taxonomy_p
         if not single or shared:
             return 'open', 'ambiguous_or_conflicting_relation'
         return 'rejected', 'single_sense_counterrelation'
-    if single and shared:
-        return 'confirmed', 'single_sense_shared_synset'
+    if known and shared and (single or not require_single_synset):
+        return 'confirmed', 'single_sense_shared_synset' if require_single_synset else 'shared_synset'
     if text.get('veto') == 'digit_mismatch':
         return 'rejected', 'digit_mismatch'
     if text['status'] == 'supported':
@@ -143,8 +148,12 @@ def run(config):
     from synonym_matching.combinations import SEMANTIC_FEATURES
     wordnet_engine = MatchingEngine({'methods': ['wordnet'],
         'preprocessing': ['normalize'], 'semantic_features': {'wordnet': list(SEMANTIC_FEATURES)}})
-    names = ['text_tiers'] + [f'{source}_{action}' for source in settings['lexicons']
-                            for action in settings['embedding_actions']]
+    variants = {'text_tiers':None}
+    for source in settings['lexicons']:
+        for action in settings['embedding_actions']:
+            variants[f'{source}_{action}'] = (source,action,settings.get('require_single_synset',False))
+            variants[f'{source}_{action}_single_synset'] = (source,action,True)
+    names = list(variants)
     paths = [ROOT / d['output'] for d in settings['datasets']]
     if len(set(paths)) != len(paths) or any(p.exists() for p in paths):
         raise FileExistsError('choose distinct, new output filenames')
@@ -214,16 +223,17 @@ def run(config):
                             verdicts[i,j] = 'not_evaluable' if not valid[i,j] else 'confirmed' if evidence['status'] == 'supported' else 'open'
                             reasons[i,j] = evidence['tier'] or evidence['veto'] or 'insufficient_evidence'
                         else:
-                            source, action = name.rsplit('_',1)
+                            source, action, single_rule = variants[name]
                             values = {k:float(v[i,j]) for k,v in sources[source].items()}
-                            verdicts[i,j], reasons[i,j] = decide(values, evidence, valid=bool(valid[i,j]), embedding_action=action)
+                            verdicts[i,j], reasons[i,j] = decide(values, evidence, valid=bool(valid[i,j]),
+                                embedding_action=action,require_single_synset=single_rule)
                 matrix = []
                 for i,a in enumerate(left):
                     matches = []
                     for j,b in enumerate(right):
                         scores = {k:float(v[i,j]) for k,v in raw.items()}
                         if name != 'text_tiers':
-                            scores.update({k:float(v[i,j]) for k,v in sources[name.rsplit('_',1)[0]].items()})
+                            scores.update({k:float(v[i,j]) for k,v in sources[variants[name][0]].items()})
                         matches.append({'submissionElement': case['student'][j], 'scores': scores,
                                         'verdict': verdicts[i,j], 'reason': reasons[i,j]})
                     matrix.append({'referenceElement': case['reference'][i], 'matches': matches})
@@ -245,7 +255,8 @@ def run(config):
                   'changed_labels': _summary(saved['dataset']['cases'], records, names, changed=True),
                   'policy': 'Label-only benchmark; productive text adapter, no glossary, segment sources or graph context. '
                             'Open/not-evaluable are not confirmed. Binary predictions used only for P/R/F1, not as similarity scores. '
-                            'No Top-1 from binary verdicts or global assignment; single-sense guard is not WSD. Known development data.'}
+                            'No Top-1 from binary verdicts or global assignment; optional single-sense synonym guard is not WSD. '
+                            'Counterrelation and taxonomy guards unchanged. Known development data.'}
         output.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(output, 'wt', encoding='utf-8') as stream:
             json.dump(result, stream, ensure_ascii=False, allow_nan=False)

@@ -293,6 +293,7 @@
     ]
   },
   "decision_tree": {
+    "require_single_synset": false,
     "modeling_abbreviations": {"Anz.": "Anzahl", "Bez.": "Bezeichnung", "Beschr.": "Beschreibung", "PLZ": "Postleitzahl"},
     "candidate_abbreviations": {"Str.": "Straße"},
     "lexicons": [
@@ -312,23 +313,23 @@
       {
         "name": "laboratory",
         "source": "results/semantic-fusion-laboratory-final-20261119.json.gz",
-        "output": "results/decision-tree-abbreviations-laboratory-20261126.json.gz"
+        "output": "results/decision-tree-shared-synset-laboratory-20261126.json.gz"
       },
       {
         "name": "control",
         "source": "results/semantic-fusion-control-20261119.json.gz",
-        "output": "results/decision-tree-abbreviations-control-20261126.json.gz"
+        "output": "results/decision-tree-shared-synset-control-20261126.json.gz"
       },
       {
         "name": "targeted",
         "source": "results/component-features-targeted-20261119.json.gz",
-        "output": "results/decision-tree-abbreviations-targeted-20261126.json.gz"
+        "output": "results/decision-tree-shared-synset-targeted-20261126.json.gz"
       }
     ]
   },
   "language_path_comparison": {
     "taxonomy_guard": {"path_similarity": 0.25, "wup_similarity": 0.8},
     "data": "research/language-path-cases.json",
-    "output": "results/language-path-taxonomy-20261126.json.gz"
+    "output": "results/language-path-shared-synset-20261126.json.gz"
   }
 }
