@@ -16,7 +16,7 @@ class Tour:
     steps: tuple[tuple[str, str], ...]  # ordered (step id, English title)
 
 
-# Step order and ids must match `stepIds` in web FeatureTourMenu.vue.
+# Step order and ids must match the steps in web/src/tours/learningPath.ts.
 TOURS = {
     tour.id: tour
     for tour in (

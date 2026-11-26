@@ -1,5 +1,6 @@
 import http from '@/services/api/httpClient'
-import type { PathVisibility, TourEventName } from '@/services/learningPaths'
+import type { PathVisibility } from '@/services/learningPaths'
+import type { TourEventName } from '@/services/tours'
 import type { ApiPage } from '@/services/api/types/common'
 import type { EvaluationFeedback } from '@/services/api/types/evaluation'
 

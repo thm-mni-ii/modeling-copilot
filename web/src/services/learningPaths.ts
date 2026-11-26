@@ -139,8 +139,6 @@ export const helpFeedbackOptions: { type: HelpFeedbackType; limitKey: keyof Task
 ]
 export type HelpUsage = Record<HelpFeedbackType, { used: number; pending: number; limit: number | null }>
 export interface HelpTourAnswer { question: 'support_need' | 'next_action'; selected: boolean }
-export type TourEventName = 'opened' | 'started' | 'step' | 'completed' | 'skipped'
-export interface TourProgress { completed: boolean; skipped: boolean }
 export interface PathProgressSummary {
   id: string
   templateId: string
@@ -205,9 +203,6 @@ export interface HelpMarkings { cellIds: string[]; taskTextRanges: HelpTextRange
 export interface SurveySession { version: SurveyVersion; answers: Record<string, unknown>; revision: number; sessionId: string; releaseChanged: boolean; status: string }
 const helpUrl = (runId: string, stepId: string, requestId: string) => `/v1/learning-path-runs/${runId}/steps/${stepId}/help-requests/${requestId}`
 export default {
-  tourProgress: (tourId: string) => http.get<TourProgress>(`/v1/tours/${tourId}/progress`),
-  recordTourEvent: (tourId: string, event: TourEventName, stepId?: string) =>
-    http.post<TourProgress>(`/v1/tours/${tourId}/events`, { event, ...(stepId ? { stepId } : {}) }),
   exportProgressCsv: (runIds: string[]) => http.post<Blob>('/v1/learning-path-progress.csv', { runIds }, { responseType: 'blob' }),
   progressAccess: () => http.get<{ canView: boolean }>('/v1/learning-path-progress-access'),
   progress: (skip = 0, templateId?: string, includeStaff = true) => http.get<ApiPage<PathProgressSummary>>('/v1/learning-path-progress', { params: { skip, limit: 100, templateId, includeStaff } }),
