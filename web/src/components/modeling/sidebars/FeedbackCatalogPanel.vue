@@ -41,11 +41,11 @@ const snapshotXml = computed(() => (props.detail.submissionSnapshot.data as { xm
 type HelpType = 'help.clarify' | 'help.next_step' | 'help.example' | 'help.check' | 'help.solution'
 // Order and wording follow the learner's choice in the help questionnaire.
 const helpOptions: { type: HelpType; title: string; request: string }[] = [
-  { type: 'help.clarify', title: 'Erklärung', request: 'Eine Erklärung, damit ich es verstehe' },
+  { type: 'help.check', title: 'Prüfung', request: 'Eine Prüfung meiner bisherigen Lösung' },
+  { type: 'help.clarify', title: 'Erklärung', request: 'Eine Erklärung zu einem Element in meinem Modell' },
   { type: 'help.next_step', title: 'Nächster Schritt', request: 'Ein Hinweis auf den nächsten Schritt' },
   { type: 'help.example', title: 'Beispiel', request: 'Ein Beispiel' },
-  { type: 'help.check', title: 'Prüfung', request: 'Eine Prüfung/Bestätigung meiner bisherigen Lösung' },
-  { type: 'help.solution', title: 'Lösung', request: 'Eine konkrete Lösung bzw. Antwort' }
+  { type: 'help.solution', title: 'Lösung', request: 'Eine konkrete Lösung' }
 ]
 const helpType = ref<HelpType>('help.clarify')
 const search = ref<string | null>('')

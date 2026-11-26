@@ -130,10 +130,10 @@ export interface PathModelContext extends CompletionGate {
   helpUsage: HelpUsage
 }
 export type HelpFeedbackType = 'help.clarify' | 'help.next_step' | 'help.example' | 'help.check' | 'help.solution'
-export const helpFeedbackOptions: { type: HelpFeedbackType; limitKey: keyof TaskHelpFeedbackConfig; choice: string; title: string; short: string; icon: string; description: string }[] = [
+export const helpFeedbackOptions: { type: HelpFeedbackType; limitKey: keyof TaskHelpFeedbackConfig; choice: string; title: string; keyword?: string; short: string; icon: string; description: string }[] = [
   { type: 'help.check', limitKey: 'checkLimit', choice: 'support_need_4', title: 'Prüfung', short: 'Prüfung', icon: 'mdi-check-decagram-outline', description: 'Prüft den bisherigen Modellstand als Ganzes.' },
   { type: 'help.clarify', limitKey: 'clarifyLimit', choice: 'support_need_1', title: 'Erklärung', short: 'Erklär.', icon: 'mdi-lightbulb-on-outline', description: 'Erklärt den Stand an der markierten Problemstelle.' },
-  { type: 'help.next_step', limitKey: 'nextStepLimit', choice: 'support_need_2', title: 'Nächster Schritt', short: 'Nächster', icon: 'mdi-arrow-right-circle-outline', description: 'Gibt einen Hinweis auf den nächsten Bearbeitungsschritt.' },
+  { type: 'help.next_step', limitKey: 'nextStepLimit', choice: 'support_need_2', title: 'Nächster Schritt', keyword: 'Hinweis', short: 'Nächster', icon: 'mdi-arrow-right-circle-outline', description: 'Gibt einen Hinweis auf den nächsten Bearbeitungsschritt.' },
   { type: 'help.example', limitKey: 'exampleLimit', choice: 'support_need_3', title: 'Beispiel', short: 'Beispiel', icon: 'mdi-book-open-variant', description: 'Zeigt ein Strukturbeispiel zur markierten Problemstelle.' },
   { type: 'help.solution', limitKey: 'solutionLimit', choice: 'support_need_5', title: 'Lösung', short: 'Lösung', icon: 'mdi-lightning-bolt-outline', description: 'Zeigt das passende Element der Musterlösung.' }
 ]

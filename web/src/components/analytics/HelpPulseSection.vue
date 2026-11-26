@@ -9,7 +9,7 @@
     </div>
     <v-divider />
     <div class="pa-4">
-      <h3 class="text-subtitle-2 font-weight-medium">Help request funnel<InfoTip text="Each help request walks through the help flow: problem area question, reflection questions (and an optional marking), then the choice of help source. Counts are help requests that reached or passed a stage. Abort rate is the share of requests cancelled at the first question; open requests were neither completed nor cancelled." /></h3>
+      <h3 class="text-subtitle-2 font-weight-medium">Help request funnel<InfoTip text="Each help request walks through the help flow: problem area question, reflection questions (and an optional marking), then the choice of help source. Counts are help requests that reached or passed a stage. Learners can cancel at any step; cancelled requests count for every stage they passed before. Abort rate is the share of cancelled requests; open requests were neither completed nor cancelled." /></h3>
       <v-table density="compact" class="mini-table mt-2">
         <thead>
           <tr><th>Step</th><th class="text-end">Requests</th><th class="text-end">Problem area</th><th class="text-end">Reflection</th><th class="text-end">Completed</th><th class="text-end">Cancelled</th><th class="text-end">Open</th><th class="text-end">Abort rate</th></tr>

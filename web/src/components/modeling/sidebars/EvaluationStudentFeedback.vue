@@ -13,8 +13,9 @@
       <!-- Hints are a separate, uncounted view (AP-10); accepting one renames the element in the editor (AP-11). -->
       <HintNotice v-if="feedback.state === 'succeeded' && !noticeViewed" :hints="feedback.hints ?? []" @open="viewHints" />
       <HintsFeedback v-if="feedback?.state === 'succeeded' && feedback.hints?.length" :evaluation-id="feedback.id" :hints="feedback.hints" :snapshot-xml="feedbackSnapshotXml" :readonly="historical" :focus="hintFocus" class="mt-3" />
-      <!-- Learners see exactly what the completion check shows: percentages and, in learning paths, the thresholds. -->
-      <section v-if="!historical && feedback?.state === 'succeeded' && !hasCheckFeedback" class="my-3" aria-label="Dein Ergebnis" aria-live="polite">
+      <!-- Learners see exactly what the completion check shows: percentages and, in learning paths, the thresholds.
+           With help feedback, only a completion gate is shown here; help type "Prüfung" renders it itself. -->
+      <section v-if="!historical && feedback?.state === 'succeeded' && (!feedback.feedback?.length || (studentGate && !hasCheckFeedback))" class="my-3" aria-label="Dein Ergebnis" aria-live="polite">
         <div class="d-flex flex-wrap align-center ga-2 mb-3">
           <h3 class="text-body-2 font-weight-medium">Dein Ergebnis</h3>
           <v-spacer />

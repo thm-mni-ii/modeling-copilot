@@ -124,4 +124,9 @@ MIGRATIONS = (
         "modeling_api.db.migrations.versions.v21_task_help_feedback.migration",
         ("20_remove_user_profiles",),
     ),
+    Migration(
+        "22_help_choice_labels",
+        "modeling_api.db.migrations.versions.v22_help_choice_labels.migration",
+        ("21_task_help_feedback",),
+    ),
 )

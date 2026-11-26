@@ -16,6 +16,13 @@ with the help-source question. Object-related automatic feedback is offered only
 with a selected model element; whole-model feedback needs no selection. The
 feedback types and their prioritization remain unchanged.
 
+Learners can cancel a help request at every open step. The request stores
+`stage: "cancelled"`, `cancelledAt` and `cancelledStage` (the step that was
+left); its survey session receives `cancelledAt` and keeps the partial answers.
+Cancelled requests use no feedback quota. Earlier cancelled requests have no
+`cancelledStage`; they could only be cancelled at the first question, so no
+backfill is required.
+
 Migration `17_help_feedback_quotas` fills missing example and solution limits
 with 2 and 1, respectively, without replacing configured limits. It initializes
 per-run-step counters from existing delivered help feedback; already initialized
@@ -304,6 +311,24 @@ the limits to 17 task stations. The local application database was subsequently
 recreated from the same backup and migrated successfully; collection counts
 matched the rehearsal, and readiness passed directly and through the web proxy.
 The production instance and original backup were not modified.
+
+## Help answer labels (V22)
+
+Migration `22_help_choice_labels` follows `21_task_help_feedback`. The answers
+of the help question `support_need` now follow the order and names of the help
+buttons: check, explanation, next step, example, solution, then “unsure”. The
+check and solution answers are shortened and the explanation answer now refers
+to one element of the learner's model; the questionnaire adds the button
+icon and bolds the help type in the UI. Choice IDs, and with them the requested feedback
+type, stay unchanged.
+
+For every path with enabled help requests the migration advances the path
+revision and publishes a new questionnaire release, which is required because
+releases are unique per path revision. In customized `support_need` answers the
+five base answers are reordered; only texts still equal to the previous default
+are renamed. Custom texts, added answers, earlier releases, open help requests
+and collected answers remain unchanged. Preview is read-only; completed runs are
+skipped. Stop older API instances and path editors before applying.
 
 ## Preview
 

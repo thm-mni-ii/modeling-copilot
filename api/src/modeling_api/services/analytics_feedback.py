@@ -100,7 +100,7 @@ async def collect(template, run_ids=None):
     requests = await (await db.learning_path_help_requests.aggregate([
         {"$match": {"runId": {"$in": run_ids}}},
         {"$project": {
-            "runId": 1, "stepId": 1, "stage": 1, "flowVersion": 1, "supportKind": 1, "createdAt": 1,
+            "runId": 1, "stepId": 1, "stage": 1, "cancelledStage": 1, "flowVersion": 1, "supportKind": 1, "createdAt": 1,
             "surveySessionId": 1, "delivered": DELIVERED,
         }},
         {"$sort": {"createdAt": 1}},
@@ -110,18 +110,20 @@ async def collect(template, run_ids=None):
 
 
 def help_funnel(requests):
-    """Reach per help-flow stage. Cancelling is only possible at the first question."""
+    """Reach per help-flow stage. Cancelled requests count up to the step they were left at."""
+    # Without a recorded step, the request was cancelled when only the first question allowed it.
+    reached = [(request.get("cancelledStage", "topic") if request.get("stage") == "cancelled"
+                else request.get("stage", "completed"), request.get("flowVersion", 1)) for request in requests]
     total = len(requests)
     cancelled = sum(request.get("stage") == "cancelled" for request in requests)
     completed = sum(request.get("stage", "completed") == "completed" for request in requests)
     return {
         "requests": total,
-        "topicDone": sum(request.get("stage", "completed") not in ("topic", "cancelled") for request in requests),
+        "topicDone": sum(stage != "topic" for stage, _ in reached),
         # Flow 2 asks for the marking after the reflection questions; flow 1 before them.
         "reflectionDone": sum(
-            request.get("stage", "completed") in ("action", "completed")
-            or (request.get("stage") == "marking" and request.get("flowVersion", 1) >= 2)
-            for request in requests
+            stage in ("action", "completed") or (stage == "marking" and version >= 2)
+            for stage, version in reached
         ),
         "completed": completed, "cancelled": cancelled, "open": total - completed - cancelled,
         "abortRate": percent(cancelled, total),

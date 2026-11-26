@@ -1,6 +1,7 @@
 <template>
   <section v-if="request.stage === 'marking'" class="help-marking-panel" data-help-marking-panel :aria-label="title">
-    <div class="d-flex align-center ga-2">
+    <v-btn class="help-close" icon="mdi-close" size="24" variant="text" :aria-label="closeLabel" :title="closeLabel" :disabled="closeBlocked" @click="close" />
+    <div class="help-header d-flex align-center ga-2">
       <v-icon color="warning" size="18">mdi-marker</v-icon>
       <h2 class="help-marking-title">{{ title }}</h2>
     </div>
@@ -25,7 +26,8 @@
     <v-alert v-if="error || snapshotError" type="error" density="compact" variant="tonal" class="mt-2">{{ error || snapshotError }}<v-btn v-if="snapshotError" size="small" variant="text" @click="emit('retry-snapshot')">Erneut laden</v-btn></v-alert>
   </section>
   <section v-else-if="request.stage !== 'cancelled'" class="help-flow-card" :aria-label="title">
-      <header class="d-flex align-center ga-2"><v-icon color="warning" size="18">mdi-lifebuoy</v-icon><h2 class="help-marking-title">{{ title }}</h2></header>
+      <v-btn class="help-close" icon="mdi-close" size="24" variant="text" :aria-label="closeLabel" :title="closeLabel" :disabled="closeBlocked" @click="close" />
+      <header class="help-header d-flex align-center ga-2"><v-icon color="warning" size="18">mdi-lifebuoy</v-icon><h2 class="help-marking-title">{{ title }}</h2></header>
       <v-progress-linear v-if="busy" indeterminate height="2" class="mt-2" />
       <div class="help-flow-content">
         <div v-if="error" role="alert" class="help-flow-error">{{ error }}<v-btn size="small" variant="text" @click="refresh">Erneut versuchen</v-btn></div>
@@ -35,13 +37,12 @@
         </template>
         <template v-else-if="phase">
           <p v-if="singleElement && phase === 'action' && objectFeedbackWithoutElement" class="help-flow-next-step mb-2">Für automatisches Feedback zu dieser Problemstelle ist genau ein markiertes Modellelement erforderlich. {{ canReopenMarkings ? 'Gehe über „Zurück zur Markierung“ zur Elementauswahl.' : 'Wähle eine der anderen Hilfequellen.' }}</p>
-          <SurveyRenderer :key="`${request.id}:${phase}`" ref="renderer" compact :survey-id="request.surveyIds[phase]" :new-choice="automaticModelCheckChoice" :hidden-choices="hiddenChoices" :activity="{ runId: request.runId, stepId: request.stepId, helpRequestId: request.id, helpPhase: phase }" @completed="refresh" @question-change="emit('question-change', $event)" @tour-answer-change="emit('tour-answer-change', $event)" />
+          <SurveyRenderer :key="`${request.id}:${phase}`" ref="renderer" compact :survey-id="request.surveyIds[phase]" :new-choice="automaticModelCheckChoice" :disabled-choices="disabledChoices" :activity="{ runId: request.runId, stepId: request.stepId, helpRequestId: request.id, helpPhase: phase }" @completed="refresh" @question-change="emit('question-change', $event)" @tour-answer-change="emit('tour-answer-change', $event)" />
         </template>
       </div>
-      <div v-if="request.stage === 'topic' || request.stage === 'completed' || canReopenMarkings" class="help-flow-actions">
+      <div v-if="request.stage === 'completed' || canReopenMarkings" class="help-flow-actions">
         <v-btn v-if="canReopenMarkings" size="small" variant="text" prepend-icon="mdi-arrow-left" :loading="busy" :disabled="busy || renderer?.saving" @click="reopenMarkings">Zurück zur Markierung</v-btn>
-        <v-btn v-if="request.stage === 'topic'" size="small" variant="text" :disabled="busy || renderer?.saving" @click="cancel">Abbrechen</v-btn>
-        <template v-else-if="request.stage === 'completed'">
+        <template v-if="request.stage === 'completed'">
           <v-btn v-if="request.nextActionId === 'automatic_feedback'" color="info" size="small" variant="flat" :loading="feedbackBusy" @click="emit('automatic-feedback')">Überprüfung öffnen</v-btn>
           <v-btn color="primary" size="small" variant="text" :disabled="feedbackBusy" @click="emit('close')">Weiter modellieren</v-btn>
         </template>
@@ -69,13 +70,17 @@ const forFeedback = computed(() => props.request.markingPurpose === 'feedback')
 const singleElement = computed(() => props.request.flowVersion === 2)
 const canReopenMarkings = computed(() => singleElement.value && props.request.stage === 'action' && props.request.markings !== null)
 const objectFeedbackWithoutElement = computed(() => Boolean(props.request.supportKind?.startsWith('help.') && props.request.supportKind !== 'help.check' && !props.request.markings?.cellIds.length))
-const hiddenChoices = computed(() => {
-  const hidden: string[] = []
+// Unavailable help stays visible but cannot be chosen; each answer explains why.
+const disabledChoices = computed(() => {
+  const reasons: Record<string, string> = {}
   for (const option of helpFeedbackOptions) {
     const usage = props.helpUsage?.[option.type]
-    if (usage && usage.limit !== null && usage.used + usage.pending >= usage.limit) hidden.push(option.choice)
+    if (!usage || usage.limit === null || usage.used + usage.pending < usage.limit) continue
+    reasons[option.choice] = usage.limit === 0 ? 'Diese Hilfeform ist für diese Aufgabe nicht verfügbar.'
+      : usage.used >= usage.limit ? `Du hast diese Hilfeform für diese Aufgabe schon aufgebraucht (${usage.used} von ${usage.limit} genutzt).`
+      : 'Die letzte Nutzung dieser Hilfeform wird gerade ausgewertet.'
   }
-  return { support_need: hidden }
+  return { support_need: reasons }
 })
 const title = computed(() => ({ topic: 'Dein Problem', marking: forFeedback.value ? 'Objekte für dein Feedback markieren' : 'Problemstellen markieren', reflection: 'Was du gerade brauchst', action: 'Dein nächster Schritt', completed: 'Dein nächster Schritt', cancelled: 'Hilfe abgebrochen' })[props.request.stage])
 const nextStep = computed(() => {
@@ -115,12 +120,20 @@ const reopenMarkings = async () => {
   } catch (e) { error.value = surveyError(e) }
   finally { busy.value = false }
 }
-const cancel = async () => {
-  if (props.request.stage !== 'topic' || busy.value || renderer.value?.saving) return
+// A completed request is only closed; an open one is cancelled.
+const closeLabel = computed(() => props.request.stage === 'completed' ? 'Hilfe schließen' : 'Hilfe abbrechen')
+const closeBlocked = computed(() => busy.value || Boolean(renderer.value?.saving) || Boolean(props.feedbackBusy))
+const close = async () => {
+  if (closeBlocked.value) return
+  if (props.request.stage === 'completed') {
+    emit('close')
+    return
+  }
   busy.value = true
   error.value = ''
   try {
-    if (renderer.value && !(await renderer.value.saveDraft())) return
+    // Keeps partial answers if possible; a failed draft must not keep the dialog open.
+    await renderer.value?.saveDraft()
     emit('update:request', (await paths.cancelHelp(props.request.runId, props.request.stepId, props.request.id)).data)
     emit('close')
   } catch (e) { error.value = surveyError(e) }
@@ -131,6 +144,10 @@ const cancel = async () => {
 <style scoped>
 .help-marking-panel { max-height: 35vh; overflow-y: auto; margin: 0 8px 8px; padding: 10px; border: 1px solid #ddbf88; border-radius: 10px; background: #fff8e9; color: #574224; user-select: text; }
 .help-marking-title { font-size: 13px; font-weight: 700; line-height: 1.35; }
+/* Pinned to the card corner and out of flow, so the existing layout stays untouched. */
+.help-marking-panel, .help-flow-card { position: relative; }
+.help-marking-panel > .help-close, .help-flow-card > .help-close { position: absolute; top: 7px; right: 6px; }
+.help-header { padding-right: 24px; }
 .help-marking-count { margin: 5px 0; font-size: 12px; }
 .help-marking-details { font-size: 11px; line-height: 1.5; }
 .help-marking-details summary { cursor: pointer; }

@@ -2,7 +2,6 @@
   <div class="feedback-view">
     <p v-if="changed" class="feedback-view__overview">Feedback zum ausgewerteten Stand. Markierungen und Objektverweise bleiben für unveränderte Objekte erhalten.</p>
     <section v-for="(entry, index) in entries" :key="`${entry.type}:${index}`" class="feedback-view__entry" :aria-label="titles[entry.type] ?? 'Feedback'">
-      <p v-if="!compact && entry.type !== 'help.check'" class="feedback-view__overview">{{ entry.overview.recognized }} von {{ entry.overview.expected }} erwarteten Objekten erkannt</p>
       <p v-if="!compact && entry.referenced === false" class="feedback-view__overview">Diese Hilfe wird nicht angerechnet: Das markierte Objekt konnte keinem Element der Musterlösung zugeordnet werden.</p>
       <component :is="components[entry.type]" v-if="components[entry.type]" :entry="entry" :compact="compact" v-bind="entry.type === 'help.clarify' || entry.type === 'help.check' ? { isCurrent } : {}" @select="select" />
       <p v-else class="feedback-view__unknown">Diese Art von Feedback kann hier noch nicht angezeigt werden.</p>
@@ -18,7 +17,7 @@ import { notifyWarning } from '@/composables/useNotifications'
 import type { HelpFeedbackEntry } from '@/services/api/types/evaluation'
 import { useFeedbackValidity } from '@/composables/useFeedbackValidity'
 
-// compact: no recognition line; the staff preview shows many objects.
+// compact: the staff preview shows many objects.
 const props = defineProps<{ entries: HelpFeedbackEntry[]; compact?: boolean; snapshotXml?: string | null }>()
 const { isCurrent, changed } = useFeedbackValidity(() => props.snapshotXml)
 const graphContext = useGraphContextOptional()

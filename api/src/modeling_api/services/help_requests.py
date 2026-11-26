@@ -467,23 +467,33 @@ async def record_feedback(request_id, evaluation_id, entries):
 
 
 async def cancel(run_id, step_id, request_id, user):
+    """End a help attempt at any open step; finished or cancelled requests stay as they are."""
     request = await owned_request(run_id, step_id, request_id, user)
-    if request.get("surveySessionId"):
-        if request["stage"] == "cancelled":
-            return view(request)
-        if request["stage"] != "topic":
-            raise conflict("The help flow can only be cancelled at the beginning.")
+    if request["stage"] not in OPEN_STAGES:
+        return view(request)
+    if has_open_session(request):
+        # Cancelling the session first blocks in-flight saves. A submitted last answer wins.
         result = await db.survey_sessions.update_one(
-            {"_id": request["surveySessionId"], "status": "draft", "helpCompletedPhases.topic": {"$exists": False}},
+            {"_id": request["surveySessionId"], "status": "draft"},
             {"$set": {"cancelledAt": utcnow()}},
         )
         if not result.matched_count:
-            raise conflict("The first help question has already been completed.")
-    await db.learning_path_help_requests.update_one(
-        {"_id": request["_id"], "stage": {"$in": list(OPEN_STAGES)}},
-        {"$set": {"stage": "cancelled", "cancelledAt": utcnow()}},
-    )
+            raise conflict("The help questionnaire has already been completed.")
+    await mark_cancelled(request["_id"], utcnow())
     return await get(run_id, step_id, request_id, user)
+
+
+async def mark_cancelled(request_id, cancelled_at):
+    # The pipeline update atomically keeps the step the learner left.
+    await db.learning_path_help_requests.update_one(
+        {"_id": request_id, "stage": {"$in": list(OPEN_STAGES)}},
+        [{"$set": {"cancelledStage": "$stage", "stage": "cancelled", "cancelledAt": cancelled_at}}],
+    )
+
+
+def has_open_session(request):
+    # Earlier flows asked for feedback markings after the questionnaire had been submitted.
+    return bool(request.get("surveySessionId")) and request.get("markingPurpose") != "feedback"
 
 
 async def ensure_session(request):
@@ -496,13 +506,11 @@ async def ensure_session(request):
 
 
 async def recover_cancellation(request):
-    if request.get("surveySessionId") and request["stage"] == "topic":
+    """Finish a cancellation that was interrupted after the session had been cancelled."""
+    if request["stage"] in OPEN_STAGES and has_open_session(request):
         session = await db.survey_sessions.find_one({"_id": request["surveySessionId"]})
         if session and session.get("cancelledAt"):
-            await db.learning_path_help_requests.update_one(
-                {"_id": request["_id"], "stage": "topic"},
-                {"$set": {"stage": "cancelled", "cancelledAt": session["cancelledAt"]}},
-            )
+            await mark_cancelled(request["_id"], session["cancelledAt"])
             return {**request, "stage": "cancelled"}
     return request
 
