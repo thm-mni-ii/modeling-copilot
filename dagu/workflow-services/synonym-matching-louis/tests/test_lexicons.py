@@ -68,18 +68,65 @@ def test_missing_resources_raise_not_zero(tmp_path):
 def test_odenet_caches_synsets_and_does_not_invent_unknown_matches():
     class Reader:
         calls = []
+        word_calls = []
+
+        def words(self, text):
+            self.word_calls.append(text)
+            from types import SimpleNamespace
+            return [SimpleNamespace(forms=lambda: [text])] if text.lower() in {'kunde','abnehmer'} else []
 
         def synsets(self, text, pos=None):
             self.calls.append(text)
             from types import SimpleNamespace
-            return [SimpleNamespace(id='customer')] if text in {'kunde', 'abnehmer'} else []
+            return [SimpleNamespace(id='customer')] if text.lower() in {'kunde', 'abnehmer'} else []
 
     lexicon = OdeNet()
     lexicon.reader = Reader()
     assert lexicon.matrix(['Kunde', 'Kunde', '', 'unbekannt'],
                           ['Abnehmer', 'unbekannt']).tolist() == [[1, 0], [1, 0], [0, 0], [0, 0]]
-    assert lexicon.reader.calls == ['kunde', 'unbekannt', 'abnehmer']
+    assert lexicon.reader.calls == ['Kunde', 'Abnehmer']
+    assert lexicon.reader.word_calls == ['Kunde','unbekannt','Abnehmer']
     assert lexicon.matrix([], ['Kunde']).shape == (0, 1)
+
+
+def test_odenet_filters_accent_collisions_but_keeps_case_variants():
+    from types import SimpleNamespace
+
+    class Reader:
+        calls = []
+
+        def words(self, text):
+            self.calls.append(text)
+            # Modelliert die breite Kandidatenrückgabe des wn-Suchindex.
+            return [SimpleNamespace(forms=lambda word=w: [word])
+                    for w in ['Zahlung','Zählung','Maße','Masse']]
+
+        def synsets(self, text, pos=None):
+            return [SimpleNamespace(id=text)]
+
+    lexicon=OdeNet()
+    lexicon.reader=Reader()
+    assert lexicon.lookup('Zahlung') == {'Zahlung'}
+    assert lexicon.reader.calls[0] == 'Zahlung'
+    assert lexicon.lookup('zahlung') == lexicon.lookup('ZAHLUNG') == {'Zahlung'}
+    assert lexicon.lookup('Zählung') == {'Zählung'}
+    assert lexicon.lookup('Maße') == {'Maße'}
+    assert lexicon.lookup('Masse') == {'Masse'}
+    assert not lexicon.lookup('Zahlung') & lexicon.lookup('Zählung')
+    calls=len(lexicon.reader.calls)
+    lexicon.lookup('Zahlung')
+    assert len(lexicon.reader.calls)==calls
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(os.environ.get('RUN_LEXICON_TESTS') != '1', reason='set RUN_LEXICON_TESTS=1')
+def test_real_odenet_does_not_turn_payment_into_counting():
+    lexicon=OdeNet()
+    payment=lexicon.lookup('Zahlung')
+    counting=lexicon.lookup('Zählung')
+    assert payment and counting and not payment & counting
+    assert lexicon.lookup('zahlung') == lexicon.lookup('ZAHLUNG') == payment
+    assert lexicon.matrix(['Rechnung'],['Zahlung']).tolist() == [[0]]
 
 
 def test_odenet_engine_uses_original_german_and_rejects_english(monkeypatch):

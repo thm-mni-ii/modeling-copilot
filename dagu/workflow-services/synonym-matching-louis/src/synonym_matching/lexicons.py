@@ -46,6 +46,7 @@ class WordNet:
         self.ancestor_cache = {}
         self.similarity_cache = {}
         self.translation_cache = {}
+        self.form_cache = {}
 
     def _load(self):
         """Öffne nur lokale Daten; Englisch bekommt zusätzlich Morphy."""
@@ -66,7 +67,8 @@ class WordNet:
             self.reader = wn.Wordnet(self.version, normalizer=None, search_all_forms=False)
             self.morphy = Morphy(self.reader)
         else:
-            # Für OdeNet muss die Normalisierung zum wn-Suchindex passen.
+            # Der wn-Index liefert Kandidaten; OdeNet._forms prüft anschließend
+            # die tatsächliche Schreibweise, ohne Akzente/Umlaute anzugleichen.
             self.reader = wn.Wordnet(self.version)
 
     def _key(self, text):
@@ -212,6 +214,25 @@ class OdeNet(WordNet):
 
     version = 'odenet:1.4'
     language = 'de'
+
+    def _key(self, text):
+        """Originalschreibung für die erste Suche erhalten; nur NFC/Leerraum ändern."""
+        return normalize(text)
+
+    def _forms(self, text):
+        """Nur belegte Formen gleicher Schreibweise (bis auf Großschreibung).
+
+        wn kann bei normalisierter Suche auch Zahlung/Zählung zusammen liefern.
+        Die tatsächlichen Wortformen filtern solche Kandidaten aus. Derselbe
+        Filter gilt für Synsets und wortbezogene Antonymrelationen.
+        """
+        if text not in self.form_cache:
+            expected = key(text)  # lower(), kein Akzententfernen und kein ß→ss.
+            self.form_cache[text] = {None: {
+                form for word in self.reader.words(text) for form in word.forms()
+                if key(form) == expected
+            }}
+        return self.form_cache[text]
 
 
 class OpenThesaurus:

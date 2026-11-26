@@ -1913,3 +1913,38 @@ und Zahlung. Während der Ablation wurde diese Normalisierung nicht geändert.
 Artefakte: `results/decision-tree-shared-synset-{laboratory,control,targeted}-20261126.json.gz`,
 `results/language-path-shared-synset-20261126.json.gz` und
 `results/shared-synset-ablation-summary-20261126.json` mit allen Änderungen und Beispielen.
+
+### Korrigierte OdeNet-Suche ohne Akzentkollisionen
+
+OdeNet erhält jetzt die originale Groß-/Kleinschreibung nach NFC-/Leerraum-
+Normalisierung. `reader.words()` wird damit zunächst auf der Originalschreibung
+aufgerufen. Falls der wn-Suchindex breitere Kandidaten liefert, akzeptieren wir
+nur tatsächliche Wortformen, die bis auf Großschreibung übereinstimmen.
+Die Prüfung nutzt `lower()`, kein Akzententfernen und keine Gleichsetzung von
+`ß` und `ss`. So bleiben Zahlung/Zählung und Maße/Masse getrennt.
+`zahlung`, `Zahlung` und `ZAHLUNG` können weiterhin dieselbe belegte Form finden.
+Die geprüften Formen werden gecacht und sowohl für Synsets als auch für
+wortbezogene Antonymrelationen benutzt. Kein zusätzliches Sprachmodell oder Index.
+Englischer WordNet-Zugriff/Morphy und String-/Embeddingvorverarbeitung bleiben
+unverändert. Die Synonymbestätigung bleibt ohne Ein-Synset-Beschränkung aktiv.
+
+Kontrollierter Nachvergleich (direkte Lexika, Embedding darf bestätigen):
+
+| Daten | Vorher TP / FP / F1 | Korrigiert TP / FP / F1 |
+|---|---:|---:|
+| Geänderte Laborlabels | 177 / 68 / 0,8101 | 177 / 68 / 0,8101 |
+| Kontrollfälle | 31 / 6 / 0,7750 | 31 / 3 / 0,8052 |
+| Deutscher Parallelkorpus | 21 / 4 / 0,8936 | 21 / 2 / 0,9333 |
+
+Die entfernten falschen Treffer betreffen Rechnung/Zahlung. Auf den Kontrollfällen
+keine verlorenen oder neu bestätigten richtigen Treffer. Die bereits bestätigten
+englischen/übersetzten WordNet-Urteile bleiben exakt erhalten. Auf den gezielten
+24 Paaren bleibt TP 5 / FP 0 / F1 1,0. Die Laborqualität wird hierdurch nicht weiter
+verbessert. Alle Zahlen betreffen bekannte Entwicklungsdaten, nicht neue Aufgaben.
+
+Die echten lokalen Lexikontests für Umlautsuche, Wortformen und Zahlung/Zählung
+wurden zusätzlich zu den normalen Tests ausgeführt. Historische Artefakte bleiben
+unverändert. Neue Ausgaben:
+`results/decision-tree-exact-odenet-{laboratory,control,targeted}-20261126.json.gz`,
+`results/language-path-exact-odenet-20261126.json.gz` und
+`results/exact-odenet-comparison-20261126.json`.

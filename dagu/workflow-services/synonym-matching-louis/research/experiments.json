@@ -313,23 +313,23 @@
       {
         "name": "laboratory",
         "source": "results/semantic-fusion-laboratory-final-20261119.json.gz",
-        "output": "results/decision-tree-shared-synset-laboratory-20261126.json.gz"
+        "output": "results/decision-tree-exact-odenet-laboratory-20261126.json.gz"
       },
       {
         "name": "control",
         "source": "results/semantic-fusion-control-20261119.json.gz",
-        "output": "results/decision-tree-shared-synset-control-20261126.json.gz"
+        "output": "results/decision-tree-exact-odenet-control-20261126.json.gz"
       },
       {
         "name": "targeted",
         "source": "results/component-features-targeted-20261119.json.gz",
-        "output": "results/decision-tree-shared-synset-targeted-20261126.json.gz"
+        "output": "results/decision-tree-exact-odenet-targeted-20261126.json.gz"
       }
     ]
   },
   "language_path_comparison": {
     "taxonomy_guard": {"path_similarity": 0.25, "wup_similarity": 0.8},
     "data": "research/language-path-cases.json",
-    "output": "results/language-path-shared-synset-20261126.json.gz"
+    "output": "results/language-path-exact-odenet-20261126.json.gz"
   }
 }
