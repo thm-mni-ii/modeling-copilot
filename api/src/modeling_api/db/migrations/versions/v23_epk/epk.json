@@ -3,12 +3,12 @@
     {
       "type": "epk-event",
       "defaultLabel": "Ereignis",
-      "renderMode": "predefined",
+      "renderMode": "canvas2d",
       "x": 50,
       "y": 50,
-      "width": 120,
-      "height": 60,
-      "canvas": "RECT 0 0 1 1",
+      "width": 140,
+      "height": 80,
+      "canvas": "MOVE 0.12 0\nLINE 0.88 0\nLINE 1 0.5\nLINE 0.88 1\nLINE 0.12 1\nLINE 0 0.5\nLINE 0.12 0",
       "style": {
         "strokeColor": "#000000",
         "fillColor": "#FF7676",
@@ -20,7 +20,8 @@
         "verticalAlign": "middle",
         "whiteSpace": "wrap",
         "spacingLeft": 6,
-        "spacingRight": 6
+        "spacingRight": 6,
+        "spacingTop": 6
       },
       "anchorPoints": [
         {
@@ -58,8 +59,8 @@
       "renderMode": "predefined",
       "x": 50,
       "y": 50,
-      "width": 120,
-      "height": 60,
+      "width": 140,
+      "height": 80,
       "canvas": "RECT 0 0 1 1",
       "style": {
         "strokeColor": "#000000",
@@ -73,7 +74,8 @@
         "whiteSpace": "wrap",
         "spacingLeft": 6,
         "spacingRight": 6,
-        "rounded": true
+        "rounded": true,
+        "spacingTop": 6
       },
       "anchorPoints": [
         {
@@ -177,7 +179,8 @@
         "verticalAlign": "middle",
         "whiteSpace": "nowrap",
         "spacingLeft": 0,
-        "spacingRight": 0
+        "spacingRight": 0,
+        "spacingTop": 4
       },
       "anchorPoints": [
         {
@@ -229,7 +232,8 @@
         "verticalAlign": "middle",
         "whiteSpace": "nowrap",
         "spacingLeft": 0,
-        "spacingRight": 0
+        "spacingRight": 0,
+        "spacingTop": 6
       },
       "anchorPoints": [
         {
@@ -267,8 +271,8 @@
       "renderMode": "predefined",
       "x": 50,
       "y": 50,
-      "width": 140,
-      "height": 60,
+      "width": 160,
+      "height": 80,
       "canvas": "RECT 0 0 1 1",
       "style": {
         "strokeColor": "#000000",
@@ -281,7 +285,8 @@
         "verticalAlign": "middle",
         "whiteSpace": "wrap",
         "spacingLeft": 6,
-        "spacingRight": 6
+        "spacingRight": 6,
+        "spacingTop": 6
       },
       "anchorPoints": [
         {

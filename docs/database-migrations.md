@@ -330,6 +330,23 @@ are renamed. Custom texts, added answers, earlier releases, open help requests
 and collected answers remain unchanged. Preview is read-only; completed runs are
 skipped. Stop older API instances and path editors before applying.
 
+## EPK language and case studies (V23)
+
+Migration `23_epk` follows `22_help_choice_labels`. It publishes the global
+language EPK with release 1.0 (`epk.json`) and then adds four published tasks,
+each with its sample solution as release 1.0: “Urlaubsantrag - EPK”,
+“Bestellabwicklung - EPK”, “Kfz-Schadensmeldung - EPK” and “Reklamation mit
+Ersatzlieferung - EPK”. Every case resource holds one task and its sample
+solution. The tasks require EPK 1.0, use validating assistance and disabled
+connection preview; without a selected workflow, evaluation uses
+`model-evaluation-graph-matching`. The sample solution models belong to user `1`
+and are not part of a learning path.
+
+Existing content remains unchanged: an existing EPK language is kept, and if a
+task or sample solution already exists under its fixed identity without the
+release of this migration, both are skipped. Preview is read-only, interrupted
+runs can resume and completed runs are skipped.
+
 ## Preview
 
 Migration `18_game_development` renames the shared graphical modeling
