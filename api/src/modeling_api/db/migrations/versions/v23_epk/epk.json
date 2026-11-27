@@ -1,0 +1,1679 @@
+{
+  "elements": [
+    {
+      "type": "epk-event",
+      "defaultLabel": "Event",
+      "renderMode": "canvas2d",
+      "x": 50,
+      "y": 50,
+      "width": 140,
+      "height": 80,
+      "canvas": "MOVE 0.12 0\nLINE 0.88 0\nLINE 1 0.5\nLINE 0.88 1\nLINE 0.12 1\nLINE 0 0.5\nLINE 0.12 0",
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#FF7676",
+        "strokeWidth": 2,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "whiteSpace": "wrap",
+        "spacingLeft": 6,
+        "spacingRight": 6,
+        "spacingTop": 6
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0,
+          "id": "point-0.5-0"
+        },
+        {
+          "x": 1,
+          "y": 0.5,
+          "id": "point-1-0.5"
+        },
+        {
+          "x": 0.5,
+          "y": 1,
+          "id": "point-0.5-1"
+        },
+        {
+          "x": 0,
+          "y": 0.5,
+          "id": "point-0-0.5"
+        }
+      ],
+      "children": [],
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "hexagon",
+      "docking": "anchors"
+    },
+    {
+      "type": "epk-function",
+      "defaultLabel": "Function",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 140,
+      "height": 80,
+      "canvas": "RECT 0 0 1 1",
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#B7E1A1",
+        "strokeWidth": 2,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "whiteSpace": "wrap",
+        "spacingLeft": 6,
+        "spacingRight": 6,
+        "rounded": true,
+        "spacingTop": 6
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0,
+          "id": "point-0.5-0"
+        },
+        {
+          "x": 1,
+          "y": 0.5,
+          "id": "point-1-0.5"
+        },
+        {
+          "x": 0.5,
+          "y": 1,
+          "id": "point-0.5-1"
+        },
+        {
+          "x": 0,
+          "y": 0.5,
+          "id": "point-0-0.5"
+        }
+      ],
+      "children": [],
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "rectangle",
+      "docking": "anchors"
+    },
+    {
+      "type": "epk-and",
+      "defaultLabel": "∧",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 40,
+      "height": 40,
+      "canvas": "RECT 0 0 1 1",
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 16,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "whiteSpace": "nowrap",
+        "spacingLeft": 0,
+        "spacingRight": 0
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0,
+          "id": "point-0.5-0"
+        },
+        {
+          "x": 1,
+          "y": 0.5,
+          "id": "point-1-0.5"
+        },
+        {
+          "x": 0.5,
+          "y": 1,
+          "id": "point-0.5-1"
+        },
+        {
+          "x": 0,
+          "y": 0.5,
+          "id": "point-0-0.5"
+        }
+      ],
+      "children": [],
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": false,
+      "predefinedShape": "ellipse",
+      "docking": "anchors"
+    },
+    {
+      "type": "epk-or",
+      "defaultLabel": "∨",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 40,
+      "height": 40,
+      "canvas": "RECT 0 0 1 1",
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 16,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "whiteSpace": "nowrap",
+        "spacingLeft": 0,
+        "spacingRight": 0,
+        "spacingTop": 4
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0,
+          "id": "point-0.5-0"
+        },
+        {
+          "x": 1,
+          "y": 0.5,
+          "id": "point-1-0.5"
+        },
+        {
+          "x": 0.5,
+          "y": 1,
+          "id": "point-0.5-1"
+        },
+        {
+          "x": 0,
+          "y": 0.5,
+          "id": "point-0-0.5"
+        }
+      ],
+      "children": [],
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": false,
+      "predefinedShape": "ellipse",
+      "docking": "anchors"
+    },
+    {
+      "type": "epk-xor",
+      "defaultLabel": "×",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 40,
+      "height": 40,
+      "canvas": "RECT 0 0 1 1",
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#ffffff",
+        "strokeWidth": 2,
+        "fontSize": 16,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "whiteSpace": "nowrap",
+        "spacingLeft": 0,
+        "spacingRight": 0,
+        "spacingTop": 6
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0,
+          "id": "point-0.5-0"
+        },
+        {
+          "x": 1,
+          "y": 0.5,
+          "id": "point-1-0.5"
+        },
+        {
+          "x": 0.5,
+          "y": 1,
+          "id": "point-0.5-1"
+        },
+        {
+          "x": 0,
+          "y": 0.5,
+          "id": "point-0-0.5"
+        }
+      ],
+      "children": [],
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": false,
+      "predefinedShape": "ellipse",
+      "docking": "anchors"
+    },
+    {
+      "type": "epk-process-interface",
+      "defaultLabel": "Process Interface",
+      "renderMode": "predefined",
+      "x": 50,
+      "y": 50,
+      "width": 160,
+      "height": 80,
+      "canvas": "RECT 0 0 1 1",
+      "style": {
+        "strokeColor": "#000000",
+        "fillColor": "#E0E0E0",
+        "strokeWidth": 2,
+        "fontSize": 12,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "align": "center",
+        "verticalAlign": "middle",
+        "whiteSpace": "wrap",
+        "spacingLeft": 6,
+        "spacingRight": 6,
+        "spacingTop": 6
+      },
+      "anchorPoints": [
+        {
+          "x": 0.5,
+          "y": 0,
+          "id": "point-0.5-0"
+        },
+        {
+          "x": 1,
+          "y": 0.5,
+          "id": "point-1-0.5"
+        },
+        {
+          "x": 0.5,
+          "y": 1,
+          "id": "point-0.5-1"
+        },
+        {
+          "x": 0,
+          "y": 0.5,
+          "id": "point-0-0.5"
+        }
+      ],
+      "children": [],
+      "connectable": true,
+      "resizable": true,
+      "movable": true,
+      "allowLabelEdit": true,
+      "predefinedShape": "rectangle",
+      "docking": "anchors"
+    }
+  ],
+  "connections": [
+    {
+      "type": "epk-flow",
+      "label": "Control Flow",
+      "defaultLabel": "",
+      "connectable": false,
+      "allowLooseEnds": false,
+      "allowLoops": false,
+      "allowLabelEdit": false,
+      "style": {
+        "shape": "connector",
+        "strokeColor": "#000000",
+        "strokeWidth": 1,
+        "strokeOpacity": 100,
+        "dashed": false,
+        "startArrow": "none",
+        "endArrow": "classic",
+        "startFill": true,
+        "endFill": true,
+        "align": "center",
+        "verticalAlign": "middle",
+        "fontColor": "#000000",
+        "fontSize": 10,
+        "noEdgeStyle": true
+      },
+      "additionalLabels": []
+    }
+  ],
+  "syntax": [
+    {
+      "ruleType": "multiplicity",
+      "config": {
+        "messageTemplate": "{quantityContext}: {quantityResult}.",
+        "forbiddenMessageTemplate": "A connection between {sourceLabel} and {targetLabel} is not allowed.",
+        "connectionTypeMessageTemplate": "The connection type {connection} is not allowed between {sourceLabel} and {targetLabel}.",
+        "endpointMessageTemplate": "The connection points {sourcePoint} on {sourceLabel} and {targetPoint} on {targetLabel} cannot be used together.",
+        "endpointMessages": {
+          "loop": "{connection} cannot connect {element} to itself.",
+          "looseEnd": "{connection} has an unconnected end.",
+          "missingPoint": "A connection point on {element} no longer exists.",
+          "notConnectable": "{element} does not accept connections.",
+          "pointRequired": "A connection to {element} requires a connection point.",
+          "pointDirection": "The connection point {point} on {element} does not allow {direction} connections."
+        },
+        "defaultState": "forbidden",
+        "relations": [
+          {
+            "sourceType": "epk-event",
+            "targetType": "epk-event",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-event",
+            "targetType": "epk-function",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-event",
+            "targetType": "epk-and",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-event",
+            "targetType": "epk-or",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-event",
+            "targetType": "epk-xor",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-function",
+            "targetType": "epk-event",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-function",
+            "targetType": "epk-function",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-function",
+            "targetType": "epk-and",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-function",
+            "targetType": "epk-or",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-function",
+            "targetType": "epk-xor",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-function",
+            "targetType": "epk-process-interface",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-and",
+            "targetType": "epk-event",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-and",
+            "targetType": "epk-function",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-and",
+            "targetType": "epk-and",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-and",
+            "targetType": "epk-or",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-and",
+            "targetType": "epk-xor",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-and",
+            "targetType": "epk-process-interface",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-or",
+            "targetType": "epk-event",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-or",
+            "targetType": "epk-function",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-or",
+            "targetType": "epk-and",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-or",
+            "targetType": "epk-or",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-or",
+            "targetType": "epk-xor",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-or",
+            "targetType": "epk-process-interface",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-xor",
+            "targetType": "epk-event",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-xor",
+            "targetType": "epk-function",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-xor",
+            "targetType": "epk-and",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-xor",
+            "targetType": "epk-or",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-xor",
+            "targetType": "epk-xor",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-xor",
+            "targetType": "epk-process-interface",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-process-interface",
+            "targetType": "epk-function",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-process-interface",
+            "targetType": "epk-and",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-process-interface",
+            "targetType": "epk-or",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-process-interface",
+            "targetType": "epk-xor",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [
+                "epk-flow"
+              ],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "pairCardinality": {
+                "min": 0,
+                "max": 1
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-process-interface",
+            "targetType": "epk-process-interface",
+            "state": "forbidden",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-event",
+            "targetType": "epk-process-interface",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          },
+          {
+            "sourceType": "epk-process-interface",
+            "targetType": "epk-event",
+            "state": "allowed",
+            "refinement": {
+              "connectionTypes": [],
+              "cardinality": {
+                "min": 0,
+                "max": null
+              },
+              "endpoints": [],
+              "routes": []
+            }
+          }
+        ],
+        "incoming": [
+          {
+            "elementType": "epk-event",
+            "direction": "incoming",
+            "cardinality": {
+              "min": 0,
+              "max": 1
+            },
+            "connectionTypes": [],
+            "neighborTypes": [],
+            "countScope": "element",
+            "endpoints": {
+              "pointIds": [],
+              "groups": []
+            }
+          },
+          {
+            "elementType": "epk-event",
+            "direction": "outgoing",
+            "cardinality": {
+              "min": 0,
+              "max": 1
+            },
+            "connectionTypes": [],
+            "neighborTypes": [],
+            "countScope": "element",
+            "endpoints": {
+              "pointIds": [],
+              "groups": []
+            }
+          },
+          {
+            "elementType": "epk-function",
+            "direction": "incoming",
+            "cardinality": {
+              "min": 1,
+              "max": 1
+            },
+            "connectionTypes": [],
+            "neighborTypes": [],
+            "countScope": "element",
+            "endpoints": {
+              "pointIds": [],
+              "groups": []
+            }
+          },
+          {
+            "elementType": "epk-function",
+            "direction": "outgoing",
+            "cardinality": {
+              "min": 1,
+              "max": 1
+            },
+            "connectionTypes": [],
+            "neighborTypes": [],
+            "countScope": "element",
+            "endpoints": {
+              "pointIds": [],
+              "groups": []
+            }
+          },
+          {
+            "elementType": "epk-process-interface",
+            "direction": "both",
+            "cardinality": {
+              "min": 1,
+              "max": 1
+            },
+            "connectionTypes": [],
+            "neighborTypes": [],
+            "countScope": "element",
+            "endpoints": {
+              "pointIds": [],
+              "groups": []
+            }
+          },
+          {
+            "elementType": "epk-event",
+            "direction": "both",
+            "cardinality": {
+              "min": 1,
+              "max": null
+            },
+            "endpoints": {},
+            "connectionTypes": [],
+            "neighborTypes": [],
+            "countScope": "element"
+          }
+        ]
+      }
+    },
+    {
+      "ruleType": "containment",
+      "config": {
+        "relations": [],
+        "messageTemplate": "{element} is not allowed inside {container}."
+      }
+    }
+  ],
+  "feedback": {
+    "elements": {
+      "epk-event": {
+        "correct": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-check-circle-outline",
+          "color": "#4CAF50",
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-close-circle-outline",
+          "color": "#E60000",
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "",
+            "width": 28,
+            "height": 28
+          },
+          "icon": "mdi-alert-circle-outline",
+          "color": "#FB8C00",
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "epk-function": {
+        "correct": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-check-circle-outline",
+          "color": "#4CAF50",
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-close-circle-outline",
+          "color": "#E60000",
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "",
+            "width": 28,
+            "height": 28
+          },
+          "icon": "mdi-alert-circle-outline",
+          "color": "#FB8C00",
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "epk-and": {
+        "correct": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-check-circle-outline",
+          "color": "#4CAF50",
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-close-circle-outline",
+          "color": "#E60000",
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "",
+            "width": 28,
+            "height": 28
+          },
+          "icon": "mdi-alert-circle-outline",
+          "color": "#FB8C00",
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "epk-or": {
+        "correct": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-check-circle-outline",
+          "color": "#4CAF50",
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-close-circle-outline",
+          "color": "#E60000",
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "",
+            "width": 28,
+            "height": 28
+          },
+          "icon": "mdi-alert-circle-outline",
+          "color": "#FB8C00",
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "epk-xor": {
+        "correct": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-check-circle-outline",
+          "color": "#4CAF50",
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-close-circle-outline",
+          "color": "#E60000",
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "",
+            "width": 28,
+            "height": 28
+          },
+          "icon": "mdi-alert-circle-outline",
+          "color": "#FB8C00",
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      },
+      "epk-process-interface": {
+        "correct": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-check-circle-outline",
+          "color": "#4CAF50",
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-close-circle-outline",
+          "color": "#E60000",
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "",
+            "width": 28,
+            "height": 28
+          },
+          "icon": "mdi-alert-circle-outline",
+          "color": "#FB8C00",
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      }
+    },
+    "connections": {
+      "epk-flow": {
+        "correct": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-check-circle-outline",
+          "color": "#4CAF50",
+          "tooltip": "Correct",
+          "align": "left",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "incorrect": {
+          "image": {
+            "src": "",
+            "width": 26,
+            "height": 26
+          },
+          "icon": "mdi-close-circle-outline",
+          "color": "#E60000",
+          "tooltip": "Incorrect",
+          "align": "right",
+          "verticalAlign": "top",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        },
+        "hint": {
+          "image": {
+            "src": "",
+            "width": 28,
+            "height": 28
+          },
+          "icon": "mdi-alert-circle-outline",
+          "color": "#FB8C00",
+          "tooltip": "Hint",
+          "align": "right",
+          "verticalAlign": "bottom",
+          "offset": {
+            "x": 0,
+            "y": 0
+          },
+          "cursor": "pointer"
+        }
+      }
+    },
+    "canvas": {
+      "activeElementId": "feedback-element-1",
+      "configurableElements": [
+        {
+          "id": "feedback-element-1",
+          "element": {
+            "type": "__feedback_label___1",
+            "defaultLabel": "Feedback",
+            "renderMode": "swimlane",
+            "predefinedShape": "rectangle",
+            "x": 0,
+            "y": 0,
+            "width": 180,
+            "height": 72,
+            "style": {
+              "shape": "swimlane",
+              "rounded": 0,
+              "strokeColor": "#f57c00",
+              "fillColor": "#fff8e1",
+              "strokeWidth": 1,
+              "fontSize": 12,
+              "fontColor": "#5d4037",
+              "fontFamily": "Arial",
+              "fontStyle": 1,
+              "align": "left",
+              "verticalAlign": "middle",
+              "startSize": 28,
+              "horizontal": true,
+              "labelBackgroundColor": "#ffe0b2",
+              "spacingLeft": 10,
+              "whiteSpace": "wrap",
+              "cellRole": "feedback",
+              "lockToLayer": 1
+            },
+            "anchorPoints": [
+              {
+                "x": 0.5,
+                "y": 0,
+                "id": "point-0.5-0"
+              },
+              {
+                "x": 1,
+                "y": 0.5,
+                "id": "point-1-0.5"
+              },
+              {
+                "x": 0.5,
+                "y": 1,
+                "id": "point-0.5-1"
+              },
+              {
+                "x": 0,
+                "y": 0.5,
+                "id": "point-0-0.5"
+              }
+            ],
+            "children": [],
+            "connectable": true,
+            "resizable": true,
+            "movable": true,
+            "allowLabelEdit": false
+          },
+          "connection": {
+            "type": "__feedback_note_link___1",
+            "label": "Feedback Connection",
+            "defaultLabel": "",
+            "connectable": false,
+            "style": {
+              "shape": "connector",
+              "strokeColor": "#9e9e9e",
+              "strokeWidth": 1,
+              "strokeOpacity": 100,
+              "dashed": true,
+              "dashPattern": "4 4",
+              "startArrow": "none",
+              "endArrow": "none",
+              "startFill": true,
+              "endFill": true,
+              "align": "center",
+              "verticalAlign": "middle",
+              "fontColor": "#9e9e9e",
+              "fontSize": 9
+            },
+            "additionalLabels": []
+          }
+        }
+      ],
+      "rules": {
+        "onlyFeedbackAsSource": true,
+        "allowTargetElements": true,
+        "allowTargetConnections": true,
+        "forbidFeedbackAsTarget": true,
+        "enforceDedicatedConnection": true,
+        "preventContainerDrop": true
+      }
+    }
+  },
+  "evaluation": {
+    "comparisonGroups": [
+      {
+        "id": "9570fd19-7a7b-4836-95ce-cef034005e31",
+        "name": "or/and/xor",
+        "elementTypes": [
+          "epk-and",
+          "epk-or",
+          "epk-xor"
+        ],
+        "passThrough": true,
+        "branching": {
+          "forms": [
+            {
+              "name": "Split",
+              "incoming": {
+                "min": 1,
+                "max": 1
+              },
+              "outgoing": {
+                "min": 2,
+                "max": null
+              },
+              "notAfter": {
+                "epk-or": [
+                  "epk-event"
+                ],
+                "epk-xor": [
+                  "epk-event"
+                ]
+              }
+            },
+            {
+              "name": "Join",
+              "incoming": {
+                "min": 2,
+                "max": null
+              },
+              "outgoing": {
+                "min": 1,
+                "max": 1
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

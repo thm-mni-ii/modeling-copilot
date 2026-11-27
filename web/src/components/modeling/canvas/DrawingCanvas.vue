@@ -524,6 +524,8 @@ const props = withDefaults(
     connectionGroups?: DiagramConnectionGroup[]
     connectionPreferences?: JsonObject
     languageSyntax?: DiagramSyntax[]
+    /** Comparison Groups für Gruppen-Limits, wenn keine languages übergeben werden */
+    languageEvaluation?: import('@/model/DiagramLanguage').DiagramEvaluationConfig
     languages?: (SidebarLanguage & Partial<ValidationLanguage> & { evaluation?: import('@/model/DiagramLanguage').DiagramEvaluationConfig })[]
     autonomyMode?: AutonomyMode
     connectionPreviewAllowed?: boolean
@@ -557,6 +559,7 @@ const props = withDefaults(
     connectionGroups: undefined,
     connectionPreferences: undefined,
     languageSyntax: undefined,
+    languageEvaluation: undefined,
     languages: undefined,
     autonomyMode: 'free',
     connectionPreviewAllowed: false,
@@ -735,8 +738,8 @@ const applyValidationRulesToGraph = () => {
 
 const rebuildValidationRules = (rules?: DiagramSyntax[]) => {
   const languages: ValidationLanguage[] = props.languages?.length && props.languages.every((language) => language.syntax !== undefined && language.connections !== undefined)
-    ? props.languages.map((language) => ({ syntax: language.syntax!, elements: language.elements, connections: language.connections! }))
-    : [{ syntax: rules ?? [], elements: sidebarLanguages.value.flatMap((language) => language.elements), connections: languageConnections.value }]
+    ? props.languages.map((language) => ({ syntax: language.syntax!, elements: language.elements, connections: language.connections!, evaluation: language.evaluation }))
+    : [{ syntax: rules ?? [], elements: sidebarLanguages.value.flatMap((language) => language.elements), connections: languageConnections.value, evaluation: props.languageEvaluation }]
   containment = buildContainmentFromSyntax(languages.flatMap((language) => language.syntax))
   containmentTemplates = new Map()
   endpointConfigs = new Map()
@@ -964,7 +967,7 @@ watch(
 const languageConnections = computed(() => props.languageConnections ?? [])
 
 watch(
-  [() => props.languageSyntax, sidebarLanguages, languageConnections],
+  [() => props.languageSyntax, sidebarLanguages, languageConnections, () => props.languageEvaluation],
   () => {
     rebuildValidationRules(props.languageSyntax ?? [])
   },

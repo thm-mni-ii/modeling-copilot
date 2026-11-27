@@ -40,6 +40,34 @@ export const evaluationConfigErrors = (value: unknown, elementTypes: string[], c
       if (new Set(members).size !== members.length) errors.push(`${label}: Each ${category.label} type may occur only once per group.`)
       if (members.some((type) => typeof type !== 'string' || !category.knownTypes.has(type))) errors.push(`${label}: Remove or replace unknown ${category.label} types.`)
     }
+    // Pass-through und Branching gelten nur für Elementgruppen
+    const members = Array.isArray(group.elementTypes) ? group.elementTypes : []
+    if ((group.passThrough || group.branching) && !members.length) errors.push(`${label}: Pass-through and branching need element types.`)
+    if (group.branching === undefined) continue
+    const forms = isObject(group.branching) && Array.isArray(group.branching.forms) ? group.branching.forms : null
+    if (!forms) {
+      errors.push(`${label}: Branching must contain a list of forms.`)
+      continue
+    }
+    if (!forms.length) errors.push(`${label}: Add at least one branching form.`)
+    const names = new Set<string>()
+    for (const form of forms) {
+      if (!isObject(form) || !isName(form.name)) {
+        errors.push(`${label}: Every branching form needs a name.`)
+        continue
+      }
+      if (names.has(form.name)) errors.push(`${label}: Branching form ${form.name} occurs twice.`)
+      names.add(form.name)
+      for (const bounds of [form.incoming, form.outgoing]) {
+        const valid = isObject(bounds) && Number.isInteger(bounds.min) && (bounds.min as number) >= 0 && (bounds.max === null || (Number.isInteger(bounds.max) && (bounds.max as number) >= (bounds.min as number)))
+        if (!valid) errors.push(`${label} / ${form.name}: Use whole numbers with 0 ≤ minimum ≤ maximum.`)
+      }
+      for (const [member, before] of Object.entries(isObject(form.notAfter) ? form.notAfter : {})) {
+        if (!members.includes(member)) errors.push(`${label} / ${form.name}: ${member} is not in the group.`)
+        if (!Array.isArray(before) || before.some((type) => !elementTypes.includes(type))) errors.push(`${label} / ${form.name}: Remove or replace unknown element types after ${member}.`)
+      }
+      if (form.connectionTypes !== undefined && (!Array.isArray(form.connectionTypes) || form.connectionTypes.some((type) => !connectionTypes.includes(type)))) errors.push(`${label} / ${form.name}: Remove or replace unknown connection types.`)
+    }
   }
   return errors
 }

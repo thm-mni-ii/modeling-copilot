@@ -1,6 +1,6 @@
 import type { DiagramElement } from './Element'
 import type { DiagramConnection } from './Connection'
-import type { DiagramSyntax } from './Syntax'
+import type { DiagramSyntax, MultiplicityCardinality } from './Syntax'
 import type { GlobalSettings } from './GlobalSettings'
 import type { DiagramFeedbackConfig } from './Feedback'
 import { createEmptyFeedbackConfig } from '@/utils/feedbackConfig'
@@ -17,6 +17,21 @@ export interface ComparisonGroup {
   id: string
   name: string
   elementTypes?: string[]
+  connectionTypes?: string[]
+  /** Nur Elementgruppen: Verbindungen werden gegen die Elemente hinter Mitgliedern geprüft, z. B. Ereignis → AND → Ereignis wie Ereignis → Ereignis */
+  passThrough?: boolean
+  /** Nur Elementgruppen: Jedes Mitglied muss mindestens eine Form erfüllen */
+  branching?: { forms: BranchingForm[] }
+}
+
+/** Form eines verzweigenden Elements, z. B. Split (1 rein, ≥2 raus) oder Join (≥2 rein, 1 raus) */
+export interface BranchingForm {
+  name: string
+  incoming: MultiplicityCardinality
+  outgoing: MultiplicityCardinality
+  /** Mitglied → Elementtypen, nach denen es diese Form nicht haben darf */
+  notAfter?: Record<string, string[]>
+  /** Nur diese Verbindungstypen zählen für die Form; leer oder fehlend = alle */
   connectionTypes?: string[]
 }
 

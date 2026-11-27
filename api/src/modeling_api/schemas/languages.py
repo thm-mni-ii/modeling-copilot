@@ -98,6 +98,46 @@ class LanguageVersion(LanguageVersionInfo):
     data: JsonObject = Field(description="Complete modeling-language definition.")
 
 
+class BranchingBounds(ApiSchema):
+    """Allowed number of connections in one direction; max None means unlimited."""
+
+    min: int = Field(ge=0)
+    max: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def ordered(self) -> "BranchingBounds":
+        if self.max is not None and self.max < self.min:
+            raise ValueError("Branching bounds need 0 <= minimum <= maximum.")
+        return self
+
+
+class BranchingForm(ApiSchema):
+    """Shape of a branching element, e.g. split or join."""
+
+    name: Name
+    incoming: BranchingBounds
+    outgoing: BranchingBounds
+    not_after: dict[str, list[str]] = Field(
+        default_factory=dict, description="Member type to element types it may not follow in this form."
+    )
+    connection_types: list[str] = Field(
+        default_factory=list, description="Connection types counted for this form; empty counts all."
+    )
+
+
+class Branching(ApiSchema):
+    """Every member has to fit at least one form."""
+
+    forms: list[BranchingForm] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def unique_names(self) -> "Branching":
+        names = [form.name for form in self.forms]
+        if len(set(names)) != len(names):
+            raise ValueError("Branching form names must be unique within a group.")
+        return self
+
+
 class ComparisonGroup(ApiSchema):
     """Direct pairwise candidate permissions within each type category."""
 
@@ -105,6 +145,10 @@ class ComparisonGroup(ApiSchema):
     name: Name
     element_types: list[str] = Field(default_factory=list)
     connection_types: list[str] = Field(default_factory=list)
+    pass_through: bool | None = Field(
+        default=None, description="Connections are checked against the elements behind members."
+    )
+    branching: Branching | None = None
 
     @model_validator(mode="after")
     def valid_types(self) -> "ComparisonGroup":
@@ -115,6 +159,11 @@ class ComparisonGroup(ApiSchema):
                 raise ValueError(f"Comparison groups need at least two {category} types per category.")
             if len(set(members)) != len(members):
                 raise ValueError(f"Comparison group {category} types must be distinct.")
+        if (self.pass_through or self.branching) and not self.element_types:
+            raise ValueError("Pass-through and branching need element types.")
+        for form in self.branching.forms if self.branching else []:
+            if not set(form.not_after) <= set(self.element_types):
+                raise ValueError("Branching forms may only restrict members of the group.")
         return self
 
 
@@ -186,4 +235,9 @@ class CreateLanguageVersion(ApiSchema):
                 raise ValueError("Comparison groups must reference declared element types, including child types.")
             if not set(group.connection_types) <= connection_types:
                 raise ValueError("Comparison groups must reference declared connection types.")
+            for form in group.branching.forms if group.branching else []:
+                if not {type_ for types in form.not_after.values() for type_ in types} <= element_types:
+                    raise ValueError("Branching forms must reference declared element types.")
+                if not set(form.connection_types) <= connection_types:
+                    raise ValueError("Branching forms must reference declared connection types.")
         return self

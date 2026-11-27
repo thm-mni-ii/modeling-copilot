@@ -1,0 +1,385 @@
+{
+  "task": {
+    "id": "badf0e12-9f95-486d-83c4-ed85351421c1",
+    "name": "Urlaubsantrag - EPK",
+    "parent": null,
+    "ownerId": "",
+    "visibility": "published",
+    "archivedAt": null,
+    "latestVersionId": "cb87af63-d66f-4bac-b8f2-7aaa3621fd8a",
+    "latestReleaseId": "cb87af63-d66f-4bac-b8f2-7aaa3621fd8a",
+    "version": {
+      "id": "cb87af63-d66f-4bac-b8f2-7aaa3621fd8a",
+      "taskId": "badf0e12-9f95-486d-83c4-ed85351421c1",
+      "versionNumber": "1.0",
+      "createdBy": "",
+      "kind": "release",
+      "releaseName": "Release 1.0",
+      "description": null,
+      "workspaceLanguages": [
+        {
+          "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+          "versionId": "e90bc975-7d92-46b5-b81f-6e4b03e27fec",
+          "source": "required"
+        }
+      ],
+      "data": {
+        "contentHtml": "<p><strong>Ausgangssituation</strong></p><p>Ein mittelständisches Unternehmen beschreibt seinen Urlaubsprozess. Ausgangspunkt ist, dass ein <mark data-color=\"#F8BBD0\" style=\"background-color: rgb(248, 187, 208); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-event\" class=\"task-element-mark\" draggable=\"true\">Urlaubswunsch besteht</span></mark>. Beschäftigte können dann ihren <mark data-color=\"#C8E6C9\" style=\"background-color: rgb(200, 230, 201); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-function\" class=\"task-element-mark\" draggable=\"true\">Urlaubsantrag ausfüllen</span></mark>. Der <mark data-color=\"#F8BBD0\" style=\"background-color: rgb(248, 187, 208); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-event\" class=\"task-element-mark\" draggable=\"true\">Antrag ist gestellt</span></mark>, sobald er bei der Führungskraft eingeht. Diese wird anschließend den <mark data-color=\"#C8E6C9\" style=\"background-color: rgb(200, 230, 201); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-function\" class=\"task-element-mark\" draggable=\"true\">Antrag prüfen</span></mark>. Dabei gibt es <mark data-color=\"#BBDEFB\" style=\"background-color: rgb(187, 222, 251); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-xor\" class=\"task-element-mark\" draggable=\"true\">nur einen von zwei Ausgängen</span></mark>: Der <mark data-color=\"#F8BBD0\" style=\"background-color: rgb(248, 187, 208); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-event\" class=\"task-element-mark\" draggable=\"true\">Antrag ist genehmigt</span></mark>, oder der <mark data-color=\"#F8BBD0\" style=\"background-color: rgb(248, 187, 208); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-event\" class=\"task-element-mark\" draggable=\"true\">Antrag ist abgelehnt</span></mark>. Genehmigte Anträge gehen an die Personalabteilung, die den <mark data-color=\"#C8E6C9\" style=\"background-color: rgb(200, 230, 201); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-function\" class=\"task-element-mark\" draggable=\"true\">Urlaub eintragen</span></mark> wird. Damit endet dieser Weg: Der <mark data-color=\"#F8BBD0\" style=\"background-color: rgb(248, 187, 208); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-event\" class=\"task-element-mark\" draggable=\"true\">Urlaub ist eingetragen</span></mark>. Bei einer Ablehnung wird die Führungskraft persönlich die <mark data-color=\"#C8E6C9\" style=\"background-color: rgb(200, 230, 201); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-function\" class=\"task-element-mark\" draggable=\"true\">Mitarbeiterin informieren</span></mark>. Auch dieser Weg ist dann abgeschlossen: Die <mark data-color=\"#F8BBD0\" style=\"background-color: rgb(248, 187, 208); color: inherit;\"><span data-task-element-language-id=\"2a611b6a-bd2a-4b08-a503-154920b428d9\" data-task-element-type=\"epk-event\" class=\"task-element-mark\" draggable=\"true\">Mitarbeiterin ist informiert</span></mark>.</p><p></p><p><strong>Ihr Auftrag:</strong> Modellieren Sie den beschriebenen Prozess als ereignisgesteuerte Prozesskette (EPK). Bilden Sie alle Ereignisse und Funktionen sowie die Verzweigung des Ablaufs ab.</p>",
+        "contentDocument": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ausgangssituation",
+                  "marks": [
+                    {
+                      "type": "bold"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ein mittelständisches Unternehmen beschreibt seinen Urlaubsprozess. Ausgangspunkt ist, dass ein "
+                },
+                {
+                  "type": "text",
+                  "text": "Urlaubswunsch besteht",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#F8BBD0"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-event"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": ". Beschäftigte können dann ihren "
+                },
+                {
+                  "type": "text",
+                  "text": "Urlaubsantrag ausfüllen",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#C8E6C9"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-function"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": ". Der "
+                },
+                {
+                  "type": "text",
+                  "text": "Antrag ist gestellt",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#F8BBD0"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-event"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": ", sobald er bei der Führungskraft eingeht. Diese wird anschließend den "
+                },
+                {
+                  "type": "text",
+                  "text": "Antrag prüfen",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#C8E6C9"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-function"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": ". Dabei gibt es "
+                },
+                {
+                  "type": "text",
+                  "text": "nur einen von zwei Ausgängen",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#BBDEFB"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-xor"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": ": Der "
+                },
+                {
+                  "type": "text",
+                  "text": "Antrag ist genehmigt",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#F8BBD0"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-event"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": ", oder der "
+                },
+                {
+                  "type": "text",
+                  "text": "Antrag ist abgelehnt",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#F8BBD0"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-event"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": ". Genehmigte Anträge gehen an die Personalabteilung, die den "
+                },
+                {
+                  "type": "text",
+                  "text": "Urlaub eintragen",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#C8E6C9"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-function"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": " wird. Damit endet dieser Weg: Der "
+                },
+                {
+                  "type": "text",
+                  "text": "Urlaub ist eingetragen",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#F8BBD0"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-event"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": ". Bei einer Ablehnung wird die Führungskraft persönlich die "
+                },
+                {
+                  "type": "text",
+                  "text": "Mitarbeiterin informieren",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#C8E6C9"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-function"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": ". Auch dieser Weg ist dann abgeschlossen: Die "
+                },
+                {
+                  "type": "text",
+                  "text": "Mitarbeiterin ist informiert",
+                  "marks": [
+                    {
+                      "type": "highlight",
+                      "attrs": {
+                        "color": "#F8BBD0"
+                      }
+                    },
+                    {
+                      "type": "taskElement",
+                      "attrs": {
+                        "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+                        "elementType": "epk-event"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": "."
+                }
+              ]
+            },
+            {
+              "type": "paragraph"
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Ihr Auftrag:",
+                  "marks": [
+                    {
+                      "type": "bold"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": " Modellieren Sie den beschriebenen Prozess als ereignisgesteuerte Prozesskette (EPK). Bilden Sie alle Ereignisse und Funktionen sowie die Verzweigung des Ablaufs ab."
+                }
+              ]
+            }
+          ]
+        },
+        "autonomyMode": "validating",
+        "connectionPreviewAllowed": false,
+        "sampleSolutions": [
+          {
+            "modelId": "7460bee4-8633-48f7-ab20-ee8a7360cbf5",
+            "versionId": "b9e8a597-e348-4fc1-8d46-5b925987cfba"
+          }
+        ],
+        "evaluationWorkflows": []
+      }
+    }
+  },
+  "model": {
+    "id": "7460bee4-8633-48f7-ab20-ee8a7360cbf5",
+    "name": "Urlaubsantrag - Musterlösung",
+    "ownerId": "1",
+    "latestVersionId": "b9e8a597-e348-4fc1-8d46-5b925987cfba",
+    "taskVersion": {
+      "taskId": "badf0e12-9f95-486d-83c4-ed85351421c1",
+      "versionId": "cb87af63-d66f-4bac-b8f2-7aaa3621fd8a"
+    },
+    "taskEditVersionId": null,
+    "taskEditRevision": 0,
+    "preferences": {},
+    "archivedAt": null,
+    "version": {
+      "id": "b9e8a597-e348-4fc1-8d46-5b925987cfba",
+      "modelId": "7460bee4-8633-48f7-ab20-ee8a7360cbf5",
+      "versionNumber": "1.0",
+      "createdBy": "1",
+      "kind": "release",
+      "releaseName": "Release 1.0",
+      "description": null,
+      "baseReleaseId": null,
+      "taskEditVersionId": null,
+      "patches": [],
+      "workspaceLanguages": [
+        {
+          "languageId": "2a611b6a-bd2a-4b08-a503-154920b428d9",
+          "versionId": "e90bc975-7d92-46b5-b81f-6e4b03e27fec",
+          "source": "required"
+        }
+      ],
+      "taskVersion": {
+        "taskId": "badf0e12-9f95-486d-83c4-ed85351421c1",
+        "versionId": "cb87af63-d66f-4bac-b8f2-7aaa3621fd8a"
+      },
+      "data": {
+        "format": "maxgraph-xml",
+        "version": 1,
+        "xml": "<GraphDataModel><root><Cell id=\"0\"><Object as=\"style\"/></Cell><Cell id=\"1\" parent=\"0\"><Object as=\"style\"/></Cell><Cell id=\"36\" value=\"Urlaubswunsch besteht\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"1\" docking=\"anchors\" diagramElementType=\"epk-event\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"100\" _y=\"10\" _width=\"140\" _height=\"80\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"epk-event\" strokeColor=\"#000000\" fillColor=\"#FF7676\" strokeWidth=\"2\" fontSize=\"12\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"wrap\" spacingLeft=\"6\" spacingRight=\"6\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-event\" label=\"Ereignis\" as=\"diagramAttributes\"/></Cell><Cell id=\"37\" value=\"Urlaubsantrag ausfüllen\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"1\" docking=\"anchors\" diagramElementType=\"epk-function\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"100\" _y=\"110\" _width=\"140\" _height=\"80\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"rectangle\" strokeColor=\"#000000\" fillColor=\"#B7E1A1\" strokeWidth=\"2\" fontSize=\"12\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"wrap\" spacingLeft=\"6\" spacingRight=\"6\" rounded=\"1\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-function\" label=\"Funktion\" as=\"diagramAttributes\"/></Cell><Cell id=\"38\" value=\"Antrag ist gestellt\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"1\" docking=\"anchors\" diagramElementType=\"epk-event\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"100\" _y=\"210\" _width=\"140\" _height=\"80\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"epk-event\" strokeColor=\"#000000\" fillColor=\"#FF7676\" strokeWidth=\"2\" fontSize=\"12\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"wrap\" spacingLeft=\"6\" spacingRight=\"6\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-event\" label=\"Ereignis\" as=\"diagramAttributes\"/></Cell><Cell id=\"39\" value=\"Antrag prüfen\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"1\" docking=\"anchors\" diagramElementType=\"epk-function\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"100\" _y=\"310\" _width=\"140\" _height=\"80\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"rectangle\" strokeColor=\"#000000\" fillColor=\"#B7E1A1\" strokeWidth=\"2\" fontSize=\"12\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"wrap\" spacingLeft=\"6\" spacingRight=\"6\" rounded=\"1\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-function\" label=\"Funktion\" as=\"diagramAttributes\"/></Cell><Cell id=\"40\" value=\"Antrag ist abgelehnt\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"1\" docking=\"anchors\" diagramElementType=\"epk-event\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"190\" _y=\"450\" _width=\"140\" _height=\"80\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"epk-event\" strokeColor=\"#000000\" fillColor=\"#FF7676\" strokeWidth=\"2\" fontSize=\"12\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"wrap\" spacingLeft=\"6\" spacingRight=\"6\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-event\" label=\"Ereignis\" as=\"diagramAttributes\"/></Cell><Cell id=\"41\" value=\"Mitarbeiterin informieren\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"1\" docking=\"anchors\" diagramElementType=\"epk-function\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"190\" _y=\"550\" _width=\"140\" _height=\"80\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"rectangle\" strokeColor=\"#000000\" fillColor=\"#B7E1A1\" strokeWidth=\"2\" fontSize=\"12\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"wrap\" spacingLeft=\"6\" spacingRight=\"6\" rounded=\"1\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-function\" label=\"Funktion\" as=\"diagramAttributes\"/></Cell><Cell id=\"42\" value=\"Antrag ist genehmigt\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"1\" docking=\"anchors\" diagramElementType=\"epk-event\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"10\" _y=\"450\" _width=\"140\" _height=\"80\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"epk-event\" strokeColor=\"#000000\" fillColor=\"#FF7676\" strokeWidth=\"2\" fontSize=\"12\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"wrap\" spacingLeft=\"6\" spacingRight=\"6\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-event\" label=\"Ereignis\" as=\"diagramAttributes\"/></Cell><Cell id=\"43\" value=\"Urlaub eintragen\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"1\" docking=\"anchors\" diagramElementType=\"epk-function\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"10\" _y=\"550\" _width=\"140\" _height=\"80\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"rectangle\" strokeColor=\"#000000\" fillColor=\"#B7E1A1\" strokeWidth=\"2\" fontSize=\"12\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"wrap\" spacingLeft=\"6\" spacingRight=\"6\" rounded=\"1\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-function\" label=\"Funktion\" as=\"diagramAttributes\"/></Cell><Cell id=\"44\" value=\"Mitarbeiterin ist informiert\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"1\" docking=\"anchors\" diagramElementType=\"epk-event\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"190\" _y=\"650\" _width=\"140\" _height=\"80\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"epk-event\" strokeColor=\"#000000\" fillColor=\"#FF7676\" strokeWidth=\"2\" fontSize=\"12\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"wrap\" spacingLeft=\"6\" spacingRight=\"6\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-event\" label=\"Ereignis\" as=\"diagramAttributes\"/></Cell><Cell id=\"45\" value=\"Urlaub ist eingetragen\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"1\" docking=\"anchors\" diagramElementType=\"epk-event\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"10\" _y=\"650\" _width=\"140\" _height=\"80\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"epk-event\" strokeColor=\"#000000\" fillColor=\"#FF7676\" strokeWidth=\"2\" fontSize=\"12\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"wrap\" spacingLeft=\"6\" spacingRight=\"6\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-event\" label=\"Ereignis\" as=\"diagramAttributes\"/></Cell><Cell id=\"46\" value=\"×\" vertex=\"1\" parent=\"1\" allowLabelEdit=\"0\" docking=\"anchors\" diagramElementType=\"epk-xor\" connectionPointsJson=\"[{&quot;x&quot;:0.5,&quot;y&quot;:0,&quot;id&quot;:&quot;point-0.5-0&quot;},{&quot;x&quot;:1,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-1-0.5&quot;},{&quot;x&quot;:0.5,&quot;y&quot;:1,&quot;id&quot;:&quot;point-0.5-1&quot;},{&quot;x&quot;:0,&quot;y&quot;:0.5,&quot;id&quot;:&quot;point-0-0.5&quot;}]\"><Geometry _x=\"150\" _y=\"410\" _width=\"40\" _height=\"40\" as=\"geometry\"><Array as=\"constraints\"><ConnectionConstraint name=\"point-0.5-0\"><Point _x=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-1-0.5\"><Point _x=\"1\" _y=\"0.5\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0.5-1\"><Point _x=\"0.5\" _y=\"1\" as=\"point\"/></ConnectionConstraint><ConnectionConstraint name=\"point-0-0.5\"><Point _y=\"0.5\" as=\"point\"/></ConnectionConstraint></Array></Geometry><Object shape=\"ellipse\" strokeColor=\"#000000\" fillColor=\"#ffffff\" strokeWidth=\"2\" fontSize=\"16\" fontColor=\"#000000\" fontFamily=\"Arial\" align=\"center\" verticalAlign=\"middle\" whiteSpace=\"nowrap\" spacingLeft=\"0\" spacingRight=\"0\" spacingTop=\"6\" movable=\"1\" resizable=\"1\" as=\"style\"/><Object type=\"epk-xor\" label=\"×\" as=\"diagramAttributes\"/></Cell><Cell id=\"acc0262f-c0aa-44bf-8c0e-54504200e8fe\" value=\"\" edge=\"1\" parent=\"1\" source=\"36\" target=\"37\" connectionId=\"epk-flow\" connectionUndirected=\"0\"><Geometry relative=\"1\" as=\"geometry\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" exitX=\"0.5\" exitY=\"1\" exitDx=\"0\" exitDy=\"0\" exitPerimeter=\"0\" exitPointId=\"point-0.5-1\" entryX=\"0.5\" entryY=\"0\" entryDx=\"0\" entryDy=\"0\" entryPerimeter=\"0\" entryPointId=\"point-0.5-0\" as=\"style\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" as=\"connectionStyle\"/></Cell><Cell id=\"4171a1b8-67f5-404c-bff6-f1f4763e720b\" value=\"\" edge=\"1\" parent=\"1\" source=\"37\" target=\"38\" connectionId=\"epk-flow\" connectionUndirected=\"0\"><Geometry relative=\"1\" as=\"geometry\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" exitX=\"0.5\" exitY=\"1\" exitDx=\"0\" exitDy=\"0\" exitPerimeter=\"0\" exitPointId=\"point-0.5-1\" entryX=\"0.5\" entryY=\"0\" entryDx=\"0\" entryDy=\"0\" entryPerimeter=\"0\" entryPointId=\"point-0.5-0\" as=\"style\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" as=\"connectionStyle\"/></Cell><Cell id=\"ce4d2f1d-69e8-4ca6-a553-4df9a484c469\" value=\"\" edge=\"1\" parent=\"1\" source=\"38\" target=\"39\" connectionId=\"epk-flow\" connectionUndirected=\"0\"><Geometry relative=\"1\" as=\"geometry\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" exitX=\"0.5\" exitY=\"1\" exitDx=\"0\" exitDy=\"0\" exitPerimeter=\"0\" exitPointId=\"point-0.5-1\" entryX=\"0.5\" entryY=\"0\" entryDx=\"0\" entryDy=\"0\" entryPerimeter=\"0\" entryPointId=\"point-0.5-0\" as=\"style\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" as=\"connectionStyle\"/></Cell><Cell id=\"bb26910b-60da-412a-b603-c441221fac5e\" value=\"\" edge=\"1\" parent=\"1\" source=\"39\" target=\"46\" connectionId=\"epk-flow\" connectionUndirected=\"0\"><Geometry relative=\"1\" as=\"geometry\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" exitX=\"0.5\" exitY=\"1\" exitDx=\"0\" exitDy=\"0\" exitPerimeter=\"0\" exitPointId=\"point-0.5-1\" entryX=\"0.5\" entryY=\"0\" entryDx=\"0\" entryDy=\"0\" entryPerimeter=\"0\" entryPointId=\"point-0.5-0\" as=\"style\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" as=\"connectionStyle\"/></Cell><Cell id=\"8651d865-b141-436e-a712-d64ec5312181\" value=\"\" edge=\"1\" parent=\"1\" source=\"46\" target=\"42\" connectionId=\"epk-flow\" connectionUndirected=\"0\"><Geometry relative=\"1\" as=\"geometry\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" exitX=\"0\" exitY=\"0.5\" exitDx=\"0\" exitDy=\"0\" exitPerimeter=\"0\" exitPointId=\"point-0-0.5\" entryX=\"0.5\" entryY=\"0\" entryDx=\"0\" entryDy=\"0\" entryPerimeter=\"0\" entryPointId=\"point-0.5-0\" as=\"style\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" as=\"connectionStyle\"/></Cell><Cell id=\"84570047-9f4d-46e4-88b9-110fb7a1eb4d\" value=\"\" edge=\"1\" parent=\"1\" source=\"46\" target=\"40\" connectionId=\"epk-flow\" connectionUndirected=\"0\"><Geometry relative=\"1\" as=\"geometry\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" exitX=\"1\" exitY=\"0.5\" exitDx=\"0\" exitDy=\"0\" exitPerimeter=\"0\" exitPointId=\"point-1-0.5\" entryX=\"0.5\" entryY=\"0\" entryDx=\"0\" entryDy=\"0\" entryPerimeter=\"0\" entryPointId=\"point-0.5-0\" as=\"style\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" as=\"connectionStyle\"/></Cell><Cell id=\"f08c4a97-2424-4254-a23b-d2cce569e6ea\" value=\"\" edge=\"1\" parent=\"1\" source=\"42\" target=\"43\" connectionId=\"epk-flow\" connectionUndirected=\"0\"><Geometry relative=\"1\" as=\"geometry\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" exitX=\"0.5\" exitY=\"1\" exitDx=\"0\" exitDy=\"0\" exitPerimeter=\"0\" exitPointId=\"point-0.5-1\" entryX=\"0.5\" entryY=\"0\" entryDx=\"0\" entryDy=\"0\" entryPerimeter=\"0\" entryPointId=\"point-0.5-0\" as=\"style\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" as=\"connectionStyle\"/></Cell><Cell id=\"5b7c0fb0-faad-400f-9296-45862926f317\" value=\"\" edge=\"1\" parent=\"1\" source=\"43\" target=\"45\" connectionId=\"epk-flow\" connectionUndirected=\"0\"><Geometry relative=\"1\" as=\"geometry\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" exitX=\"0.5\" exitY=\"1\" exitDx=\"0\" exitDy=\"0\" exitPerimeter=\"0\" exitPointId=\"point-0.5-1\" entryX=\"0.5\" entryY=\"0\" entryDx=\"0\" entryDy=\"0\" entryPerimeter=\"0\" entryPointId=\"point-0.5-0\" as=\"style\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" as=\"connectionStyle\"/></Cell><Cell id=\"064f5042-74f4-4254-a857-5f1ea8a240b9\" value=\"\" edge=\"1\" parent=\"1\" source=\"40\" target=\"41\" connectionId=\"epk-flow\" connectionUndirected=\"0\"><Geometry relative=\"1\" as=\"geometry\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" exitX=\"0.5\" exitY=\"1\" exitDx=\"0\" exitDy=\"0\" exitPerimeter=\"0\" exitPointId=\"point-0.5-1\" entryX=\"0.5\" entryY=\"0\" entryDx=\"0\" entryDy=\"0\" entryPerimeter=\"0\" entryPointId=\"point-0.5-0\" as=\"style\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" as=\"connectionStyle\"/></Cell><Cell id=\"46f98381-ca66-4352-97ea-627a614d7e4f\" value=\"\" edge=\"1\" parent=\"1\" source=\"41\" target=\"44\" connectionId=\"epk-flow\" connectionUndirected=\"0\"><Geometry relative=\"1\" as=\"geometry\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" exitX=\"0.5\" exitY=\"1\" exitDx=\"0\" exitDy=\"0\" exitPerimeter=\"0\" exitPointId=\"point-0.5-1\" entryX=\"0.5\" entryY=\"0\" entryDx=\"0\" entryDy=\"0\" entryPerimeter=\"0\" entryPointId=\"point-0.5-0\" as=\"style\"/><Object shape=\"connector\" strokeColor=\"#000000\" strokeWidth=\"1\" strokeOpacity=\"100\" startArrow=\"none\" endArrow=\"classic\" startFill=\"1\" endFill=\"1\" align=\"center\" verticalAlign=\"middle\" fontColor=\"#000000\" fontSize=\"10\" dashed=\"0\" noEdgeStyle=\"1\" as=\"connectionStyle\"/></Cell><Cell id=\"2\" parent=\"0\"><Object as=\"style\"/></Cell></root></GraphDataModel>",
+        "name": "Urlaubsantrag - Musterlösung"
+      }
+    }
+  }
+}
