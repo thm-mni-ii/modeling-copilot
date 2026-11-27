@@ -2,7 +2,7 @@
   "elements": [
     {
       "type": "epk-event",
-      "defaultLabel": "Ereignis",
+      "defaultLabel": "Event",
       "renderMode": "canvas2d",
       "x": 50,
       "y": 50,
@@ -55,7 +55,7 @@
     },
     {
       "type": "epk-function",
-      "defaultLabel": "Funktion",
+      "defaultLabel": "Function",
       "renderMode": "predefined",
       "x": 50,
       "y": 50,
@@ -267,7 +267,7 @@
     },
     {
       "type": "epk-process-interface",
-      "defaultLabel": "Prozessschnittstelle",
+      "defaultLabel": "Process Interface",
       "renderMode": "predefined",
       "x": 50,
       "y": 50,
@@ -322,7 +322,7 @@
   "connections": [
     {
       "type": "epk-flow",
-      "label": "Kontrollfluss",
+      "label": "Control Flow",
       "defaultLabel": "",
       "connectable": false,
       "allowLooseEnds": false,
